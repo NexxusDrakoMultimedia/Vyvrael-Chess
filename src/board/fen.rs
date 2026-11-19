@@ -134,7 +134,7 @@ fn parse_placement(pos: &mut Position, placement: &str) -> Result<(), FenError> 
                 if file >= 8 {
                     return Err(FenError::RankLength { rank: rank + 1 });
                 }
-                pos.put_piece(Square::new(file, rank), piece);
+                pos.place(Square::new(file, rank), piece);
                 after_digit = false;
                 file += 1;
             }

@@ -122,7 +122,10 @@ Implemented in `src/board/`, one small file per type, re-exported from
   hashed by XORing out just that right's key.
 - **Position hash** (`position.rs`): every `Position` stores its Zobrist hash
   and keeps it current. `put_piece` and `remove_piece` XOR the piece key in
-  or out; the FEN parser folds in the state fields. `Position::hash()` is
+  or out and also correct the en passant key when a pawn appears or
+  disappears beside the en passant square; the FEN parser folds in the state
+  fields. Internally they wrap `place` and `lift`, which touch only the piece
+  keys and are what make/unmake will use. `Position::hash()` is
   constant time; `compute_hash()` rebuilds it from scratch and exists to
   initialise and to verify (`is_consistent()` compares the two). The hash
   covers placement, side to move, castling rights and the en passant file.

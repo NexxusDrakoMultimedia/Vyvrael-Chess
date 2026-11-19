@@ -183,10 +183,55 @@ impl Position {
 
     /// Places `piece` on `square`.
     ///
+    /// This is a low-level editing tool for building positions. It keeps the
+    /// placement views and the hash correct, but does not re-check that the
+    /// position is still valid (for example that castling rights still have
+    /// their rook).
+    ///
     /// # Panics
     ///
     /// Panics if the square is already occupied.
     pub fn put_piece(&mut self, square: Square, piece: Piece) {
+        let en_passant_before = self.hashed_en_passant_file();
+        self.place(square, piece);
+        self.rehash_en_passant(en_passant_before);
+    }
+
+    /// Removes and returns the piece on `square`.
+    ///
+    /// Like [`Position::put_piece`], this keeps the views and the hash
+    /// correct but does not re-validate the position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the square is empty.
+    pub fn remove_piece(&mut self, square: Square) -> Piece {
+        let en_passant_before = self.hashed_en_passant_file();
+        let piece = self.lift(square);
+        self.rehash_en_passant(en_passant_before);
+        piece
+    }
+
+    /// Corrects the hash after an edit that may have changed whether the en
+    /// passant square counts for hashing (a pawn appearing or disappearing
+    /// beside it).
+    fn rehash_en_passant(&mut self, before: Option<u8>) {
+        let after = self.hashed_en_passant_file();
+        if before != after {
+            for file in [before, after].into_iter().flatten() {
+                self.hash ^= zobrist::en_passant(file);
+            }
+        }
+    }
+
+    /// Places `piece` on `square`, updating the placement views and the
+    /// piece part of the hash only. Callers that can change whether the en
+    /// passant square is hashed must account for that themselves.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the square is already occupied.
+    pub(super) fn place(&mut self, square: Square, piece: Piece) {
         assert!(
             self.board[square.index()].is_none(),
             "put_piece: {square} is already occupied"
@@ -197,12 +242,13 @@ impl Position {
         self.hash ^= zobrist::piece(piece, square);
     }
 
-    /// Removes and returns the piece on `square`.
+    /// Removes and returns the piece on `square`, updating the placement
+    /// views and the piece part of the hash only; see [`Position::place`].
     ///
     /// # Panics
     ///
     /// Panics if the square is empty.
-    pub fn remove_piece(&mut self, square: Square) -> Piece {
+    pub(super) fn lift(&mut self, square: Square) -> Piece {
         let Some(piece) = self.board[square.index()].take() else {
             panic!("remove_piece: {square} is empty");
         };
@@ -483,6 +529,32 @@ mod hash_tests {
         // A pawn of the side that just moved does not count as a capturer.
         let own = fen("4k3/8/8/2pp4/8/8/8/4K3 w - d6 0 1");
         assert_eq!(own.hashed_en_passant_file(), None);
+    }
+
+    /// Editing pawns beside an en passant square changes whether that
+    /// square is hashed; the public editing methods must keep up.
+    #[test]
+    fn editing_pawns_beside_the_en_passant_square_keeps_the_hash_right() {
+        let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
+        let mut pos = fen("4k3/8/8/3p4/8/8/8/4K3 w - d6 0 1");
+        assert_eq!(pos.hashed_en_passant_file(), None);
+
+        pos.put_piece(Square::E5, white_pawn);
+        assert_eq!(pos.hashed_en_passant_file(), Some(3));
+        assert_eq!(pos.hash(), pos.compute_hash());
+        assert_eq!(pos, fen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1"));
+
+        pos.put_piece(Square::C5, white_pawn);
+        assert_eq!(pos.hash(), pos.compute_hash());
+
+        pos.remove_piece(Square::E5);
+        assert_eq!(pos.hashed_en_passant_file(), Some(3));
+        assert_eq!(pos.hash(), pos.compute_hash());
+
+        pos.remove_piece(Square::C5);
+        assert_eq!(pos.hashed_en_passant_file(), None);
+        assert_eq!(pos.hash(), pos.compute_hash());
+        assert_eq!(pos, fen("4k3/8/8/3p4/8/8/8/4K3 w - d6 0 1"));
     }
 
     #[test]
