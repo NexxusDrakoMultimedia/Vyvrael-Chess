@@ -8,11 +8,13 @@
 mod bitboard;
 mod castling;
 mod color;
+mod mv;
 mod piece;
 mod square;
 
 pub use bitboard::{Bitboard, BitboardIter};
 pub use castling::{CastlingRights, ParseCastlingError};
 pub use color::Color;
+pub use mv::{Move, MoveKind};
 pub use piece::{Piece, PieceKind};
 pub use square::{ParseSquareError, Square};

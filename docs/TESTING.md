@@ -35,6 +35,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | `board::CastlingRights` | Flags are distinct bits; with/without/contains; canonical FEN display; all 16 values round-trip; any letter order parses; malformed fields are rejected; `revoked_by` for all 64 squares. |
 
+| `board::Move` | Size is 2 bytes; all 64 x 64 x 14 (from, to, kind) encodings round-trip; kinds encode distinctly; capture/promotion/castle predicates; UCI display; promoting to a pawn or king panics. |
+
 Rows are added as modules land.
 
 ## Perft (planned, milestone 2)

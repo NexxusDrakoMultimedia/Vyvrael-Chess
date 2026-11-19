@@ -57,7 +57,7 @@ with a from-scratch recompute.
 - [x] `board`: `Bitboard` type, set operations and bit iteration
 - [x] `board`: file/rank masks and directional shifts
 - [x] `board`: `CastlingRights`
-- [ ] `board`: `Move` encoding with coordinate-notation display
+- [x] `board`: `Move` encoding with coordinate-notation display
 - [ ] `board`: `Position` piece placement (bitboards + mailbox)
 - [ ] `board`: FEN parsing with validation
 - [ ] `board`: FEN serialisation and round-trip tests

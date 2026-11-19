@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`. Still planned: position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`. Still planned: position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -65,6 +65,16 @@ Implemented in `src/board/`, one small file per type, re-exported from
   moves from or to a square, which lets make-move update rights with two
   lookups (origin and destination) and covers king moves, rook moves and rook
   captures alike. Standard chess only: Chess960 castling is not supported.
+- **`Move`** and **`MoveKind`** (`mv.rs`): a move is 16 bits: origin square
+  (bits 0-5), destination square (bits 6-11) and a 4-bit flag code (bits
+  12-15). Flag codes: `0` quiet, `1` double pawn push, `2` king-side castle,
+  `3` queen-side castle, `4` capture, `5` en passant, `8-11` promotion to
+  knight/bishop/rook/queen, `12-15` capturing promotion to the same four.
+  Codes `6` and `7` are unused and cannot be constructed. Castling is encoded
+  as the king's move (`e1g1`). A move does not record which piece moves; that
+  comes from the position. `Display` gives UCI coordinate notation (`e2e4`,
+  `e7e8q`). Sixteen bits keeps move lists and transposition-table entries
+  small.
 
 ## How search, evaluation and UCI fit together (planned)
 

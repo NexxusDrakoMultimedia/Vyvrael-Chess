@@ -24,7 +24,7 @@ once it has a first release.
 - `Rng::next_below`: unbiased bounded integers.
 - `board` module with primitive types: `Color`, `Square`, `PieceKind`,
   `Piece`, `Bitboard` (with file/rank masks and directional shifts),
-  `CastlingRights`.
+  `CastlingRights`, `Move` (16-bit encoding with UCI display).
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
