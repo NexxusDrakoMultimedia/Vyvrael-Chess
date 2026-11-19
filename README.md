@@ -22,7 +22,7 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (evaluation) is in progress.** The engine generates legal moves and passes perft, but cannot
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search) has not started.** The engine generates legal moves, passes perft and can score a position, but cannot
 play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
@@ -37,7 +37,7 @@ cargo test --workspace --release
 ```
 
 Running the binary with no arguments prints the engine name and version to
-stderr and exits; the UCI loop arrives in milestone 5. One subcommand exists
+stderr and exits; the UCI loop arrives in milestone 5. Two subcommands exist
 so far, `perft` and `eval`:
 
 ```sh

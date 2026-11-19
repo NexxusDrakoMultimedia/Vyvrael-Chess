@@ -12,7 +12,7 @@ them.
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
-| 3 | Evaluation (hand-crafted) | `milestone/3-eval` | in progress |
+| 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
@@ -168,7 +168,11 @@ enemy king. They are a starting point to be tuned once SPRT exists.
 - [x] `eval`: king tables
 - [x] `eval`: hand-crafted evaluator (material plus tables, tapered)
 - [x] `cli`: `eval` subcommand with a breakdown
-- [ ] End-of-milestone review and doc drift pass
+- [x] End-of-milestone review and doc drift pass
+
+The end-of-milestone review found no defect in the evaluation code. It
+strengthened the tests (the blended total is now pinned at phases between
+the endpoints) and corrected two comments that overstated what the tables do.
 
 ## Milestones 4 to 9
 
@@ -227,6 +231,9 @@ limited only through the two standard options above.
 
 ## Carried into later milestones
 
+- Milestone 4 (search): decide whether `Evaluator` needs `Send + Sync`
+  bounds. Search will run on its own thread (milestone 5) and hold the
+  evaluator as a trait object, which today cannot cross threads.
 - Milestone 4 (search): choose between make/unmake and copy-make for the
   search loop by measuring search speed. Perft showed copy-make about 5%
   faster (see TESTING.md), which is not decisive on its own.

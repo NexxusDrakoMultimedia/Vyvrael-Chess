@@ -35,7 +35,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
-| `eval` | in progress (milestone 3) | Static evaluation behind the `Evaluator` trait. |
+| `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
@@ -334,8 +334,9 @@ on this square attack?".
 
 ## Evaluation
 
-In progress (milestone 3). `src/eval/` gives a position a score without
-searching.
+`src/eval/` gives a position a score without searching. Milestone 3 covers
+material and piece-square tables only; other terms (mobility, king safety,
+pawn structure) are candidates for later, each to be accepted by SPRT.
 
 - **Scores** are `eval::Score`, an `i32` in centipawns (100 is about one
   pawn).
