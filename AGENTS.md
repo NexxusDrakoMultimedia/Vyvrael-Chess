@@ -154,7 +154,8 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
    Heuristics wait for 4b so each can be accepted by SPRT.
 5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
    `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
-6. **Strength testing:** SPRT match script (fastchess or Cutechess);
+6. **Strength testing:** SPRT match script with Cute Chess, ratings with
+   Ordo;
    calibrate `UCI_Elo`.
    - **4b, search heuristics** (after 6): move ordering, transposition table,
      null move, LMR. One feature per commit, each with an SPRT result.

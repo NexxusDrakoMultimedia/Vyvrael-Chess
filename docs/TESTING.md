@@ -172,7 +172,8 @@ They were not produced by this engine.
 
 Search, evaluation and network changes are accepted only when a sequential
 probability ratio test (SPRT) against the previous version shows a gain. A
-match script using fastchess or Cutechess will be added in milestone 6 and
+match script using Cute Chess (`cutechess-cli`), with Ordo for rating
+lists, will be added in milestone 6 and
 documented here, including how to read LLR, Elo estimates and error bars.
 Because of that, search is split (see "Decisions for milestones 4 to 6" in
 [ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
