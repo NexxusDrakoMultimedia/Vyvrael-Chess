@@ -18,6 +18,8 @@ once it has a first release.
 - GitHub Actions CI running `cargo fmt --check`, `cargo clippy -D warnings`
   and `cargo test --release`.
 - GPL-3.0-or-later licence (`LICENSE.md`).
+- `rng` module: in-house SplitMix64 generator, `DEFAULT_SEED = 0x31031996`
+  and golden-value tests.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

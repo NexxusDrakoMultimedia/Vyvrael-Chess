@@ -48,7 +48,7 @@ Zobrist hashing is ordered before make/unmake so that make/unmake maintains
 the hash incrementally from its first commit and every test can compare it
 with a from-scratch recompute.
 
-- [ ] `rng`: SplitMix64 generator, `DEFAULT_SEED`, golden-value tests
+- [x] `rng`: SplitMix64 generator, `DEFAULT_SEED`, golden-value tests
 - [ ] `rng`: derived streams (base seed + stream index)
 - [ ] `rng`: unbiased bounded integers
 - [ ] `board`: `Color`

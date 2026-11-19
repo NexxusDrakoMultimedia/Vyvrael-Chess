@@ -27,7 +27,7 @@ dependencies, so the engine binary stays small and builds fast.
 | Module | Status | Responsibility |
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
-| `rng` | planned (milestone 1) | The only source of randomness. |
+| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64), `DEFAULT_SEED`, `mix64`. |
 | board representation | planned (milestone 1) | Bitboards, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
@@ -45,7 +45,8 @@ layer writes to stdout.
 
 ## RNG design
 
-Specified here; implemented as the first chunk of milestone 1.
+Implemented in `src/rng.rs`. Bullets marked *planned* are not in the code
+yet.
 
 All randomness in the engine goes through one module, `rng`. The tool crates
 use it through their dependency on the engine crate (or mirror it exactly if
@@ -64,11 +65,15 @@ that dependency is ever undesirable).
 - **Default seed:** `DEFAULT_SEED: u32 = 0x31031996`, defined once in `rng`
   and referenced by name everywhere. A 32-bit seed is zero-extended to the
   64-bit state.
-- **Seed derivation:** independent streams (threads, self-play games,
+- **Seed derivation (planned):** independent streams (threads, self-play games,
   subsystems) are created from a base seed and a stream index through a mixing
   function, never by sharing one generator across threads.
-- **Golden tests:** known-answer tests pin the first outputs for fixed seeds,
-  including the published SplitMix64 reference vector.
+- **Golden tests:** known-answer tests pin the first outputs for seed
+  `1234567` (the published SplitMix64 reference vector), seed `0` and
+  `DEFAULT_SEED`. The `DEFAULT_SEED` values were computed with an independent
+  implementation.
+- **Compile-time use:** every method is a `const fn`, so tables can be
+  generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
   strength-affecting randomness when the UCI option `DeterministicRNG` is
   `false`. That path arrives with the UCI milestone and logs the seed it chose.

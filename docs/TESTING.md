@@ -23,6 +23,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | Area | What is checked |
 | --- | --- |
 | crate root | The ASCII fallback name is ASCII; the version constant matches the manifest. |
+| `rng` | Golden values for seeds `1234567` (published SplitMix64 vector), `0` and `DEFAULT_SEED`; same seed gives the same sequence; different seeds differ; `next_u32` is the high half of `next_u64`; usable in `const` context. |
 
 Rows are added as modules land.
 
