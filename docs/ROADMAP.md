@@ -85,11 +85,6 @@ Left for milestone 2, because they need attack or move generation:
   input should be matched against the legal move list once it exists.
 - A committed randomised make/unmake stress test (perft will provide it).
 
-Known blemish in the history: commit `07ee352` fails
-`cargo clippy -D warnings` on one test line, fixed by the next commit
-`cab0fbe`. A gate script that hid the failure was at fault; it has been
-fixed, and every other commit on the branch was re-verified green.
-
 ## Milestones 2 to 9
 
 Scope summaries live in the "Build order" section of
