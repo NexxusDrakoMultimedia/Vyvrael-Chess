@@ -10,7 +10,7 @@ them.
 | # | Milestone | Branch | Status |
 | --- | --- | --- | --- |
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done (awaiting review) |
-| 1 | Board | `milestone/1-board` | not started |
+| 1 | Board | `milestone/1-board` | in progress |
 | 2 | Move generation | `milestone/2-movegen` | not started |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |
@@ -42,8 +42,34 @@ them.
 
 Scope: the `rng` module first, then bitboards, FEN parse/serialise,
 make/unmake and Zobrist hashing (keys from the seeded RNG), with unit tests
-for FEN round-trips and make/unmake restoring the exact position. The chunk
-checklist is written at the start of the milestone.
+for FEN round-trips and make/unmake restoring the exact position.
+
+Zobrist hashing is ordered before make/unmake so that make/unmake maintains
+the hash incrementally from its first commit and every test can compare it
+with a from-scratch recompute.
+
+- [ ] `rng`: SplitMix64 generator, `DEFAULT_SEED`, golden-value tests
+- [ ] `rng`: derived streams (base seed + stream index)
+- [ ] `rng`: unbiased bounded integers
+- [ ] `board`: `Color`
+- [ ] `board`: `Square` with coordinate parsing and display
+- [ ] `board`: `PieceKind` and `Piece` with FEN characters
+- [ ] `board`: `Bitboard` type, set operations and bit iteration
+- [ ] `board`: file/rank masks and directional shifts
+- [ ] `board`: `CastlingRights`
+- [ ] `board`: `Move` encoding with coordinate-notation display
+- [ ] `board`: `Position` piece placement (bitboards + mailbox)
+- [ ] `board`: FEN parsing with validation
+- [ ] `board`: FEN serialisation and round-trip tests
+- [ ] `board`: Zobrist keys from the seeded RNG
+- [ ] `board`: position hash (from scratch + incremental on placement)
+- [ ] `board`: make/unmake for quiet moves and captures
+- [ ] `board`: make/unmake for double pawn pushes and en passant
+- [ ] `board`: make/unmake for castling
+- [ ] `board`: make/unmake for promotions
+- [ ] `board`: coordinate-notation move parsing against a position
+- [ ] `board`: whole-game make/unmake regression test
+- [ ] End-of-milestone doc drift pass
 
 ## Milestones 2 to 9
 
