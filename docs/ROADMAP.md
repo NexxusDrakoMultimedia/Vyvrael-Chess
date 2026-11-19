@@ -11,7 +11,7 @@ them.
 | --- | --- | --- | --- |
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
-| 2 | Move generation | `milestone/2-movegen` | in progress |
+| 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
@@ -132,7 +132,13 @@ it later behind the same interface, with perft as the safety net.
 - [x] KI-5: FEN rejects positions where the side not to move is in check
 - [x] KI-1: hash the en passant file only when the capture is legal
 - [x] KI-4: measure make/unmake against copy-make with perft
-- [ ] End-of-milestone review and doc drift pass
+- [x] End-of-milestone review and doc drift pass
+
+Added during the milestone: known issue KI-7 (start-up cost of the magic
+search), and from the end-of-milestone review a FEN check against impossible
+material (which could overflow the move list) and several strengthened tests.
+The review also ran perft on further published positions beyond the six in
+the test suite and found no wrong count.
 
 ## Milestones 3 to 9
 

@@ -17,7 +17,7 @@ use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 pub const USAGE: &str = "\
 Usage:
   vyvrael                                  identify the engine (UCI arrives later)
-  vyvrael perft <depth> [--divide] [--copy-make] [FEN]
+  vyvrael perft <depth> [--divide | --copy-make] [FEN]
                                            count leaf nodes from a position
   vyvrael help                             show this text
 
@@ -25,7 +25,8 @@ perft counts the positions reachable in exactly <depth> moves from FEN (the
 start position if omitted; the FEN may be given unquoted). With --divide the
 count is split by first move, for comparing with another engine. With
 --copy-make the count is made by copying the position for each move instead
-of making and unmaking it, to compare the speed of the two designs.
+of making and unmaking it, to compare the speed of the two designs. The two
+flags cannot be combined.
 ";
 
 /// Exit status for success.

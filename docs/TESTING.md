@@ -84,7 +84,7 @@ move by comparing against a reference engine.
 ### Running perft by hand
 
 ```sh
-cargo run --release -- perft <depth> [--divide] [FEN]
+cargo run --release -- perft <depth> [--divide | --copy-make] [FEN]
 ```
 
 The FEN is optional (the start position is used without it) and may be given
@@ -92,6 +92,8 @@ quoted or unquoted. The node count goes to stdout as `nodes: N`; the time and
 speed go to stderr. With `--divide`, each legal first move is listed as
 `move: count` in alphabetical order before the total, which is the format
 other engines print, so the two lists can be compared line by line.
+`--copy-make` gives the same count by copying the position for each move (see
+below); the two flags cannot be combined.
 
 To find a move generation bug: run `--divide` here and in a trusted engine,
 pick a move whose count differs, play it in both, and repeat at one depth
@@ -139,7 +141,7 @@ unchanged.
 | 2: Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1` | 4 | 4,085,603 | Castling in all four directions, castling rights lost by captures, pins, en passant, promotions. |
 | 3 | `8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1` | 6 | 11,030,083 | En passant that is illegal because it uncovers a rook on the rank, discovered checks, promotions at depth. |
 | 4 and its mirror | `r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1` | 5 | 15,833,292 | Starting in check, promotions with and without capture, castling for the side not to move; the mirror proves White and Black are treated alike. |
-| 5 | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8` | 4 | 2,103,487 | Capturing promotions with check, castling with a knight attacking the king's path. |
+| 5 | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8` | 4 | 2,103,487 | Capturing promotions with check, castling while a knight attacks the castling rook (still legal). |
 | 6 | `r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10` | 4 | 3,894,594 | Ordinary piece play at volume: bishop pins, many captures. |
 
 The expected counts are the published reference values from the Chess

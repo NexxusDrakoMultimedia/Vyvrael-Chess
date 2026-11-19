@@ -6,9 +6,11 @@ protocol surface.
 
 ## Current status
 
-**Nothing is implemented yet.** The UCI loop is milestone 5. Today the
-binary prints its name and version to stderr and exits; it reads no input and
-writes nothing to stdout.
+**No UCI command is implemented yet.** The UCI loop is milestone 5. Run with
+no arguments, the binary prints its name and version to stderr, reads no
+input and writes nothing to stdout. The only commands it has today are
+`perft` and `help`, which are not part of UCI; see
+[TESTING.md](TESTING.md).
 
 The tables below record the planned surface so that the plan is reviewable.
 The "Status" column is the truth: only rows marked *implemented* work.

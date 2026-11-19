@@ -54,9 +54,8 @@ impl Position {
     ///
     /// This checks only what is needed to choose the kind. It does **not**
     /// check that the piece can move that way or that the move is legal; a
-    /// rook "moving" like a knight is accepted as a quiet move. Once move
-    /// generation exists, match against the legal move list where legality
-    /// matters.
+    /// rook "moving" like a knight is accepted as a quiet move. Where legality
+    /// matters, match the result against `movegen::legal_moves`.
     ///
     /// # Errors
     ///

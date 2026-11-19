@@ -8,12 +8,6 @@ once it has a first release.
 
 ## [Unreleased]
 
-### Changed
-
-- The en passant file is now part of the position hash only when an en
-  passant capture is legal, not merely pseudo-legal. Hashes of positions with
-  an illegal en passant capture change.
-
 ### Fixed
 
 - `Position::from_fen` accepted positions with more material than a game can
@@ -51,7 +45,7 @@ once it has a first release.
   `rng::stream::ZOBRIST` of the default seed.
 - `Position::hash`: Zobrist hash maintained incrementally, with
   `compute_hash` as the from-scratch reference. The en passant file is hashed
-  only when an en passant capture is pseudo-legally possible.
+  only when an en passant capture is legal.
 - `Position::make_move` / `unmake_move` with an `Undo` token, for every move
   kind: quiet moves, captures, double pawn pushes, en passant, castling and
   promotions.
