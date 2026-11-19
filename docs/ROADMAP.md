@@ -129,7 +129,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] perft test: start position
 - [x] perft test: Kiwipete (position 2)
 - [x] perft test: position 3
-- [ ] perft test: position 4 and its mirror
+- [x] perft test: position 4 and its mirror
 - [ ] perft test: position 5
 - [ ] perft test: position 6
 - [ ] KI-6: perft-driven consistency check of make/unmake and hashing

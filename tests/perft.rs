@@ -56,3 +56,19 @@ fn position_3() {
     let counts = [14, 191, 2_812, 43_238, 674_624, 11_030_083];
     check("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", &counts);
 }
+
+/// Position 4 and its colour-swapped mirror, which must give identical
+/// counts: White starts in check, with promotions (including captures and
+/// under-promotions) and castling.
+#[test]
+fn position_4_and_its_mirror() {
+    let counts = [6, 264, 9_467, 422_333, 15_833_292];
+    check(
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        &counts,
+    );
+    check(
+        "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
+        &counts,
+    );
+}
