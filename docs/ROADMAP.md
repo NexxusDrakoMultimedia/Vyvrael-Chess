@@ -10,7 +10,7 @@ them.
 | # | Milestone | Branch | Status |
 | --- | --- | --- | --- |
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done (awaiting review) |
-| 1 | Board | `milestone/1-board` | in progress |
+| 1 | Board | `milestone/1-board` | done (awaiting review) |
 | 2 | Move generation | `milestone/2-movegen` | not started |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |
@@ -70,7 +70,25 @@ with a from-scratch recompute.
 - [x] `board`: make/unmake for promotions
 - [x] `board`: coordinate-notation move parsing against a position
 - [x] `board`: whole-game make/unmake regression test
-- [ ] End-of-milestone doc drift pass
+- [x] End-of-milestone doc drift pass
+
+Added during the milestone: a fix for the hash when pawns are edited beside
+an en passant square, and three follow-ups from the end-of-milestone review
+(documented and fully tested square constants, missing Black test cases, a
+version test that can fail).
+
+Left for milestone 2, because they need attack or move generation:
+
+- FEN validation does not yet reject positions where the side that just
+  moved left its own king in check.
+- `Position::parse_move` does not check piece geometry or legality; UCI
+  input should be matched against the legal move list once it exists.
+- A committed randomised make/unmake stress test (perft will provide it).
+
+Known blemish in the history: commit `07ee352` fails
+`cargo clippy -D warnings` on one test line, fixed by the next commit
+`cab0fbe`. A gate script that hid the failure was at fault; it has been
+fixed, and every other commit on the branch was re-verified green.
 
 ## Milestones 2 to 9
 

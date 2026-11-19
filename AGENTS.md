@@ -19,6 +19,10 @@ Layout:
 
 - `src/lib.rs`, `src/main.rs`: the engine crate `vyvrael` (library + binary).
   It has no dependencies and must never depend on the tool crates.
+  - `src/rng.rs`: the only source of randomness.
+  - `src/board/`: board representation (types, position, FEN, Zobrist
+    hashing, make/unmake, move parsing).
+- `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 7).
 - `tools/vyvrael-train`: NNUE training (milestone 8).
 - `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.

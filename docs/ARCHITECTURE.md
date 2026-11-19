@@ -15,8 +15,10 @@ tools/vyvrael-train/    NNUE training (stub; milestone 8)
 docs/                   documentation
 ```
 
-The engine is a library plus a thin binary so that integration tests, the
-binary and the tool crates all exercise one implementation.
+The engine is a library plus a thin binary so that the binary and the
+integration tests exercise one implementation, and the tool crates can do the
+same once they depend on it (today they are empty stubs with no
+dependencies).
 
 **Dependency direction:** the tool crates may depend on the engine crate. The
 engine crate must never depend on a tool crate, and aims for zero
@@ -28,7 +30,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for every move kind, coordinate-notation move parsing. |
+| `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -36,8 +38,8 @@ dependencies, so the engine binary stays small and builds fast.
 
 ## Board representation
 
-Implemented in `src/board/`, one small file per type, re-exported from
-`board`. This section grows as milestone 1 lands.
+Implemented in `src/board/`, one small file per type or concern, re-exported
+from `board`.
 
 - **`Color`** (`color.rs`): `White = 0`, `Black = 1`, so it indexes arrays
   directly. `flip()` and `!` give the other side.
@@ -81,9 +83,11 @@ Implemented in `src/board/`, one small file per type, re-exported from
   (a "mailbox") answers "what is on e4?" without scanning bitboards, which
   make-move needs constantly. The rest of the state is the side to move,
   castling rights, the en passant target square, the halfmove clock and the
-  fullmove number. `put_piece` and `remove_piece` are the only ways to change
-  placement and update every view together; they panic on misuse (placing on
-  an occupied square, removing from an empty one). `is_consistent()` checks
+  fullmove number. `put_piece` and `remove_piece` are the public tools for
+  editing placement; they update every view together and panic on misuse
+  (placing on an occupied square, removing from an empty one). Make/unmake
+  and the FEN parser change placement through the internal `place` and `lift`
+  helpers instead, which also update every view. `is_consistent()` checks
   that the views agree. `Position::empty()` is a building block, not a legal
   position.
 - **FEN parsing** (`fen.rs`): `Position::from_fen` (also `FromStr`) and
@@ -109,8 +113,10 @@ Implemented in `src/board/`, one small file per type, re-exported from
   actually possible.
 - **FEN serialisation** (`fen.rs`): `Position::to_fen` and `Display` write
   the canonical six-field form (single spaces, castling letters in `KQkq`
-  order). A canonical FEN round-trips byte for byte, and parsing the output
-  always gives back an equal position.
+  order). A canonical FEN round-trips byte for byte. For any position that
+  passes FEN validation (so every position that came from `from_fen`),
+  parsing the output gives back an equal position. A hand-built position such
+  as `Position::empty()` can serialise to text the parser rejects.
 - **Zobrist keys** (`zobrist.rs`): 781 base keys taken in order from stream
   `stream::ZOBRIST` of the default seed: 768 piece keys
   (`[colour][kind][square]`, white first, pawn to king, a1 to h8), 4 castling
@@ -125,7 +131,7 @@ Implemented in `src/board/`, one small file per type, re-exported from
   or out and also correct the en passant key when a pawn appears or
   disappears beside the en passant square; the FEN parser folds in the state
   fields. Internally they wrap `place` and `lift`, which touch only the piece
-  keys and are what make/unmake will use. `Position::hash()` is
+  keys and are what make/unmake and the FEN parser use. `Position::hash()` is
   constant time; `compute_hash()` rebuilds it from scratch and exists to
   initialise and to verify (`is_consistent()` compares the two). The hash
   covers placement, side to move, castling rights and the en passant file.
@@ -197,7 +203,8 @@ layer writes to stdout.
 Implemented in `src/rng.rs`.
 
 All randomness in the engine goes through one module, `rng`. The tool crates
-use it through their dependency on the engine crate (or mirror it exactly if
+are stubs with no dependencies today; when they need randomness they will use
+this module through a dependency on the engine crate (or mirror it exactly if
 that dependency is ever undesirable).
 
 - **Algorithm:** SplitMix64 (Steele, Lea and Flood, 2014; the reference

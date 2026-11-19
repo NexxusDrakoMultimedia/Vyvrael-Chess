@@ -22,8 +22,9 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: project setup complete, milestone 1 (board) in progress.** The
-engine cannot play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+**Pre-alpha: milestone 1 (board representation) is complete and awaiting
+review; milestone 2 (move generation) has not started.** The engine cannot
+play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run

@@ -269,7 +269,10 @@ impl Position {
     /// Serialises the position as a six-field FEN string.
     ///
     /// The output is canonical: single spaces, castling letters in `KQkq`
-    /// order. Parsing the result gives back an equal position.
+    /// order. For a position that [`Position::from_fen`] accepts, parsing
+    /// the result gives back an equal position. A hand-built position (for
+    /// example [`Position::empty`]) may serialise to text that `from_fen`
+    /// rejects.
     #[must_use]
     pub fn to_fen(&self) -> String {
         self.to_string()
