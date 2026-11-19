@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash. Still planned: make/unmake. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for quiet moves and captures. Still planned: make/unmake for double pushes, en passant, castling and promotions. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -137,6 +137,33 @@ Implemented in `src/board/`, one small file per type, re-exported from
   transposition table need. The check is pseudo-legal: it ignores pins, so a
   capture that would expose the king still counts. `Position::en_passant()`
   itself always reports the square after a double push, as FEN does.
+- **Make/unmake** (`makemove.rs`): `Position::make_move(mv)` plays a move in
+  place and returns an `Undo`; `Position::unmake_move(mv, undo)` takes it
+  back and restores the position exactly, including counters and hash. The
+  `Undo` holds only what a move destroys and cannot be recomputed: the
+  captured piece, the previous castling rights, en passant square and
+  halfmove clock, and the previous hash. Returning it to the caller (rather
+  than keeping a history stack inside `Position`) keeps `Position` a plain
+  value with no heap allocation; search will keep its own stack. `Undo` is
+  `#[must_use]`. In-place make/unmake was chosen over copy-make because the
+  position is about 200 bytes and unmake touches only a few fields; this can
+  be revisited with measurements once perft exists.
+  - `make_move` trusts its input: the move must be pseudo-legal for the
+    position. It panics on moves that do not fit at all (empty origin square,
+    capture with nothing to capture) and checks consistency in debug builds.
+    It does not test legality.
+  - Hash updates are incremental: old en passant and castling keys out, piece
+    keys via `place`/`lift`, new castling key in, side key toggled, then the
+    new en passant key if the rule above applies to the new side to move.
+    `unmake_move` simply restores the saved hash.
+  - Castling rights are updated with `CastlingRights::revoked_by` on the
+    origin and destination squares of every move.
+  - The halfmove clock resets on pawn moves and captures and otherwise
+    saturates at 65535. The fullmove number increases after Black's move
+    using wrapping arithmetic, so unmake is exact even at the 16-bit limit.
+  - **Not implemented yet:** double pawn pushes, en passant, castling and
+    promotions. `make_move` panics with `unimplemented!` for those kinds until
+    their chunks land.
 
 ## How search, evaluation and UCI fit together (planned)
 
