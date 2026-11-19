@@ -6,11 +6,13 @@
 //! See `docs/ARCHITECTURE.md` ("Board representation") for the design.
 
 mod bitboard;
+mod castling;
 mod color;
 mod piece;
 mod square;
 
 pub use bitboard::{Bitboard, BitboardIter};
+pub use castling::{CastlingRights, ParseCastlingError};
 pub use color::Color;
 pub use piece::{Piece, PieceKind};
 pub use square::{ParseSquareError, Square};

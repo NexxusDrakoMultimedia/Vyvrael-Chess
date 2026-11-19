@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`. Still planned: position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`. Still planned: position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -57,6 +57,14 @@ Implemented in `src/board/`, one small file per type, re-exported from
   and the eight one-step shifts (`north`, `south`, `east`, `west` and the four
   diagonals) move a whole set at once; east/west shifts mask the edge file
   first so squares never wrap around the board.
+- **`CastlingRights`** (`castling.rs`): four flag bits (`K = 1`, `Q = 2`,
+  `k = 4`, `q = 8`), so a value is also an index in `0..16`. A right only
+  records that king and rook are still on their home squares and unmoved;
+  legality of castling is move generation's concern.
+  `CastlingRights::revoked_by(square)` gives the rights lost when any piece
+  moves from or to a square, which lets make-move update rights with two
+  lookups (origin and destination) and covers king moves, rook moves and rook
+  captures alike. Standard chess only: Chess960 castling is not supported.
 
 ## How search, evaluation and UCI fit together (planned)
 

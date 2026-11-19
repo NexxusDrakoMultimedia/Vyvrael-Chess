@@ -23,7 +23,8 @@ once it has a first release.
 - `Rng::stream`: deterministic derived streams from a base seed and an index.
 - `Rng::next_below`: unbiased bounded integers.
 - `board` module with primitive types: `Color`, `Square`, `PieceKind`,
-  `Piece`, `Bitboard` (with file/rank masks and directional shifts).
+  `Piece`, `Bitboard` (with file/rank masks and directional shifts),
+  `CastlingRights`.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

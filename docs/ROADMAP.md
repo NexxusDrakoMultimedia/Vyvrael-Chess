@@ -56,7 +56,7 @@ with a from-scratch recompute.
 - [x] `board`: `PieceKind` and `Piece` with FEN characters
 - [x] `board`: `Bitboard` type, set operations and bit iteration
 - [x] `board`: file/rank masks and directional shifts
-- [ ] `board`: `CastlingRights`
+- [x] `board`: `CastlingRights`
 - [ ] `board`: `Move` encoding with coordinate-notation display
 - [ ] `board`: `Position` piece placement (bitboards + mailbox)
 - [ ] `board`: FEN parsing with validation
