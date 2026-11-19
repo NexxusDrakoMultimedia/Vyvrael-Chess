@@ -140,13 +140,18 @@ from `board`.
   initialise and to verify (`is_consistent()` compares the two). The hash
   covers placement, side to move, castling rights and the en passant file.
   The halfmove clock and fullmove number are not hashed.
-- **En passant hashing rule:** the en passant file is hashed only when a pawn
-  of the side to move attacks the en passant square. A double push that
-  nobody can answer en passant then hashes the same as the identical position
-  reached another way, which is what repetition detection and the
-  transposition table need. The check is pseudo-legal: it ignores pins, so a
-  capture that would expose the king still counts (known issue KI-1 in
-  [ROADMAP.md](ROADMAP.md), to be tightened in milestone 2). `Position::en_passant()`
+- **En passant hashing rule:** the en passant file is hashed only when the
+  side to move has a *legal* en passant capture. A double push that cannot be
+  answered en passant then hashes the same as the identical position reached
+  another way, which is what repetition detection and the transposition table
+  need and how the rules of chess define a repeated position. Legality is
+  decided without making the move: with the capturing pawn placed on the
+  target square and the captured pawn removed from the occupancy, no remaining
+  enemy piece may attack the king (`attackers_to` with a custom occupancy).
+  That covers pins on either pawn, both pawns leaving the rank at once, and a
+  check the capture does not answer. The test only runs when an en passant
+  square exists and a pawn stands beside it, so it costs nothing in ordinary
+  positions. `Position::en_passant()`
   itself always reports the square after a double push, as FEN does.
 - **Make/unmake** (`makemove.rs`): `Position::make_move(mv)` plays a move in
   place and returns an `Undo`; `Position::unmake_move(mv, undo)` takes it

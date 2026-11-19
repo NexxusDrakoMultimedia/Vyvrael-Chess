@@ -87,7 +87,6 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
-| KI-1 | **En passant hashing ignores pins.** The en passant file is hashed when a pawn of the side to move attacks the en passant square, even if that capture is illegal because it would expose the mover's own king. | Two positions that are the same under the rules can hash differently, so a repetition could be missed or a transposition-table entry not reused. Nothing consumes the hash yet (no search, no repetition detection). | Milestone 2: hash the file only when an en passant capture is legal. |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
 | KI-4 | **Make/unmake design is unmeasured.** `make_move` returns an `Undo` token and updates the position in place. This was chosen by reasoning, with no benchmark against copy-make. | None known. The choice may not be the fastest. | Milestone 2: compare with copy-make using perft node rates, record the numbers in `TESTING.md`, and keep or change the design on that evidence. |
@@ -132,7 +131,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] perft test: position 6
 - [x] KI-6: perft-driven consistency check of make/unmake and hashing
 - [x] KI-5: FEN rejects positions where the side not to move is in check
-- [ ] KI-1: hash the en passant file only when the capture is legal
+- [x] KI-1: hash the en passant file only when the capture is legal
 - [ ] KI-4: measure make/unmake against copy-make with perft
 - [ ] End-of-milestone review and doc drift pass
 
@@ -142,7 +141,7 @@ Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: KI-1, KI-4 (in its checklist above).
+- Milestone 2: KI-4 (in its checklist above).
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`.

@@ -8,6 +8,12 @@ once it has a first release.
 
 ## [Unreleased]
 
+### Changed
+
+- The en passant file is now part of the position hash only when an en
+  passant capture is legal, not merely pseudo-legal. Hashes of positions with
+  an illegal en passant capture change.
+
 ### Fixed
 
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was

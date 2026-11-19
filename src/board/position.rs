@@ -135,12 +135,11 @@ impl Position {
     /// (barring a 64-bit collision). The halfmove clock and fullmove number
     /// are not part of the hash.
     ///
-    /// The en passant file is hashed only when a pawn of the side to move
-    /// attacks the en passant square, so that a double push nobody can
-    /// answer by capturing en passant does not make an otherwise identical
-    /// position look different. This matters for detecting repetitions. The
-    /// test ignores pins, so a capture that would expose the king still
-    /// counts.
+    /// The en passant file is hashed only when the side to move has a legal
+    /// en passant capture, so that a double push that cannot be answered en
+    /// passant does not make an otherwise identical position look different.
+    /// This matters for detecting repetitions, and it is how the rules of
+    /// chess define "the same position".
     #[must_use]
     pub const fn hash(&self) -> u64 {
         self.hash
@@ -151,13 +150,34 @@ impl Position {
     pub(super) fn hashed_en_passant_file(&self) -> Option<u8> {
         let target = self.en_passant?;
         let target_bb = Bitboard::from_square(target);
-        // Squares from which a pawn of the side to move captures on `target`.
-        let capturers = match self.side_to_move {
-            Color::White => target_bb.south_east() | target_bb.south_west(),
-            Color::Black => target_bb.north_east() | target_bb.north_west(),
+        let us = self.side_to_move;
+        // The squares our capturing pawns stand on, and the square of the
+        // pawn that just double-pushed (the one that would be captured).
+        let (capture_from, victim) = match us {
+            Color::White => (
+                target_bb.south_east() | target_bb.south_west(),
+                target_bb.south(),
+            ),
+            Color::Black => (
+                target_bb.north_east() | target_bb.north_west(),
+                target_bb.north(),
+            ),
         };
-        let pawns = self.pieces_of(self.side_to_move, PieceKind::Pawn);
-        (!(capturers & pawns).is_empty()).then(|| target.file())
+        let capturers = capture_from & self.pieces_of(us, PieceKind::Pawn);
+        let Some(king) = self.king_square(us) else {
+            // Without a king nothing can be illegal (hand-built positions).
+            return (!capturers.is_empty()).then(|| target.file());
+        };
+        // A capture is legal if, with the capturing pawn moved to the target
+        // and the captured pawn gone, no remaining enemy piece attacks our
+        // king. This covers pins on either pawn, the two-pawns-leave-the-rank
+        // case, and being in check from something the capture does not fix.
+        let enemies = self.occupied_by(us.flip()) & !victim;
+        let legal = capturers.into_iter().any(|from| {
+            let occupied = (self.occupied() & !victim).without(from).with(target);
+            (self.attackers_to(king, occupied) & enemies).is_empty()
+        });
+        legal.then(|| target.file())
     }
 
     /// Computes the Zobrist hash from scratch.
@@ -555,6 +575,49 @@ mod hash_tests {
         assert_eq!(pos.hashed_en_passant_file(), None);
         assert_eq!(pos.hash(), pos.compute_hash());
         assert_eq!(pos, fen("4k3/8/8/3p4/8/8/8/4K3 w - d6 0 1"));
+    }
+
+    /// An en passant capture that would be illegal does not count, so the
+    /// position hashes the same as it would without the en passant square.
+    #[test]
+    fn illegal_en_passant_is_not_hashed() {
+        let cases = [
+            // Both pawns leave the fifth rank, exposing the king to the rook.
+            "7k/8/8/K1pP3r/8/8/8/8 w - c6 0 2",
+            // The capturing pawn is pinned on the e-file.
+            "4r1k1/8/8/3pP3/8/8/8/4K3 w - d6 0 2",
+            // The capturing pawn is pinned on a diagonal it would leave.
+            "4k2b/8/8/3pP3/8/8/8/K7 w - d6 0 2",
+            // In check from a rook; capturing en passant does not help.
+            "6k1/8/8/3pP3/8/8/8/r3K3 w - d6 0 2",
+            // The same idea for Black.
+            "8/8/8/8/k1Pp3R/8/8/7K b - c3 0 1",
+        ];
+        for text in cases {
+            let pos = fen(text);
+            assert!(pos.en_passant().is_some(), "{text}");
+            assert_eq!(pos.hashed_en_passant_file(), None, "{text}");
+            let mut fields: Vec<&str> = text.split(' ').collect();
+            fields[3] = "-";
+            assert_eq!(pos.hash(), fen(&fields.join(" ")).hash(), "{text}");
+        }
+    }
+
+    #[test]
+    fn legal_en_passant_is_hashed_even_in_awkward_positions() {
+        let cases = [
+            // The double-pushed pawn gives check and capturing it is the cure.
+            ("4k3/8/8/3pP3/2K5/8/8/8 w - d6 0 2", 3),
+            // Two capturers, one pinned: the other can still capture.
+            ("4r1k1/8/8/2PpP3/8/8/8/4K3 w - d6 0 2", 3),
+            // A pawn pinned on the diagonal it captures along.
+            ("1b4k1/8/8/3pP3/8/8/7K/8 w - d6 0 2", 3),
+            // A rook on the rank, but another piece still shields the king.
+            ("7k/8/8/K1pP2Nr/8/8/8/8 w - c6 0 2", 2),
+        ];
+        for (text, file) in cases {
+            assert_eq!(fen(text).hashed_en_passant_file(), Some(file), "{text}");
+        }
     }
 
     #[test]

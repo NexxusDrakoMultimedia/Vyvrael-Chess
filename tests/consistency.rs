@@ -10,7 +10,7 @@
 //! restores the previous position exactly. Release builds do not run debug
 //! assertions, so these checks are made explicitly here.
 
-use vyvrael::board::Position;
+use vyvrael::board::{MoveKind, Position};
 use vyvrael::movegen::{legal_moves, pseudo_legal_moves};
 
 /// Visits every position within `depth` plies of `pos`, checking invariants,
@@ -27,10 +27,21 @@ fn walk(pos: &mut Position, depth: u32) -> u64 {
     // A reachable position never lets the side to move capture the king.
     assert!(!pos.can_capture_king(), "{fen}");
 
+    let legal = legal_moves(pos);
+    // The en passant square is part of the hash exactly when an en passant
+    // capture is legal: otherwise the position hashes like the same position
+    // without the square.
+    if pos.en_passant().is_some() {
+        let mut fields: Vec<&str> = fen.split(' ').collect();
+        fields[3] = "-";
+        let without = Position::from_fen(&fields.join(" ")).unwrap();
+        let can_capture = legal.iter().any(|mv| mv.kind() == MoveKind::EnPassant);
+        assert_eq!(without.hash() != pos.hash(), can_capture, "{fen}");
+    }
+
     if depth == 0 {
         return 1;
     }
-    let legal = legal_moves(pos);
     let pseudo = pseudo_legal_moves(pos);
     assert!(legal.iter().all(|mv| pseudo.contains(mv)), "{fen}");
 
