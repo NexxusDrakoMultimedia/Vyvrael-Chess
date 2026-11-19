@@ -7,6 +7,9 @@
 //! generation, evaluation, search and the UCI front end) so that the binary,
 //! the integration tests and the tool crates all share one implementation.
 
+pub mod board;
+pub mod rng;
+
 /// Engine name as reported to UCI front ends (`id name`).
 pub const ENGINE_NAME: &str = "Vyvræl";
 
@@ -29,9 +32,19 @@ mod tests {
         assert!(!ENGINE_NAME.is_ascii());
     }
 
+    /// The version must be three dot-separated numbers and must be the
+    /// version written in the workspace manifest.
     #[test]
-    fn version_matches_manifest() {
-        assert_eq!(ENGINE_VERSION, env!("CARGO_PKG_VERSION"));
-        assert!(!ENGINE_VERSION.is_empty());
+    fn version_is_the_manifest_version() {
+        let parts: Vec<&str> = ENGINE_VERSION.split('.').collect();
+        assert_eq!(parts.len(), 3, "{ENGINE_VERSION}");
+        assert!(parts.iter().all(|part| part.parse::<u32>().is_ok()));
+
+        let manifest = include_str!("../Cargo.toml");
+        let line = format!("version = \"{ENGINE_VERSION}\"");
+        assert!(
+            manifest.lines().any(|l| l == line),
+            "{line} not in Cargo.toml"
+        );
     }
 }

@@ -22,8 +22,8 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: project setup complete, milestone 1 (board) not started.** The
-engine cannot play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) has not started.** The engine cannot
+play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
@@ -56,7 +56,7 @@ This section will be replaced with tested instructions when UCI works.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): design and module layout
 - [docs/UCI.md](docs/UCI.md): supported commands and options
 - [docs/TESTING.md](docs/TESTING.md): tests, perft, strength testing
-- [docs/ROADMAP.md](docs/ROADMAP.md): milestones and status
+- [docs/ROADMAP.md](docs/ROADMAP.md): milestones, status and known issues
 - [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md): dependencies and licences
 - [docs/DATA.md](docs/DATA.md): datasets, books, tablebases, networks
 - [docs/NNUE.md](docs/NNUE.md): neural evaluation
