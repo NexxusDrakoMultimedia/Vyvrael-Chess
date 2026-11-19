@@ -356,6 +356,13 @@ searching.
   `Material` evaluator returns just that. It is the simplest sound evaluation
   and the baseline later terms are measured against.
 
+- **Game phase** (`eval/phase.rs`): `game_phase` measures how much attacking
+  material is left, from 0 (kings and pawns only) to `MAX_PHASE` = 24 (all
+  pieces on). Knights and bishops count 1, rooks 2, queens 4; pawns and kings
+  count 0. It is capped at 24 so promoted pieces cannot exceed the opening
+  value. This is the usual scheme, chosen because it is cheap and well
+  understood.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

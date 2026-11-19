@@ -80,3 +80,4 @@ once it has a first release.
 - `eval` module: the `Evaluator` trait, `Score` and `relative_to`.
 - Material evaluation: `piece_value`, `material_balance` and the `Material`
   evaluator.
+- Game phase (`game_phase`, 0 to 24).

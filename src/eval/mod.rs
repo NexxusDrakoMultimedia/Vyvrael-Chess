@@ -7,8 +7,10 @@
 //! See `docs/ARCHITECTURE.md` ("Evaluation") for the design.
 
 mod material;
+mod phase;
 
 pub use material::{Material, material_balance, material_of, piece_value};
+pub use phase::{MAX_PHASE, game_phase, phase_weight};
 
 use crate::board::{Color, Position};
 
