@@ -161,10 +161,12 @@ from `board`.
   halfmove clock, and the previous hash. Returning it to the caller (rather
   than keeping a history stack inside `Position`) keeps `Position` a plain
   value with no heap allocation; search will keep its own stack. `Undo` is
-  `#[must_use]`. In-place make/unmake was chosen over copy-make because the
-  position is about 200 bytes and unmake touches only a few fields; this is
-  unmeasured and will be decided on perft numbers in milestone 2 (known
-  issue KI-4).
+  `#[must_use]`. Both styles are supported: in-place make/unmake, and
+  copy-make (clone the position, about 200 bytes, and make the move on the
+  clone). Measured with perft in milestone 2, copy-make was about 5% faster
+  (numbers in [TESTING.md](TESTING.md)). That is too small and too
+  perft-specific to settle the question, so the choice for search is left to
+  milestone 4, to be made on search speed.
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.

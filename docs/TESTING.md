@@ -50,6 +50,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
+| `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 
 Rows are added as modules land.
 
@@ -95,6 +96,36 @@ other engines print, so the two lists can be compared line by line.
 To find a move generation bug: run `--divide` here and in a trusted engine,
 pick a move whose count differs, play it in both, and repeat at one depth
 less until a position shows a move that one side has and the other lacks.
+
+### Make/unmake versus copy-make
+
+Known issue KI-4 asked for a measurement of the board's in-place make/unmake
+against "copy-make" (copy the position, play the move on the copy, discard
+it). `perft --copy-make` runs the same count that way.
+
+Measured on 2026-11-20 on the development machine (Windows, x86-64, rustc
+1.100.0, release profile, one thread), three runs each, median shown:
+
+| Position | Depth | Nodes | Make/unmake | Copy-make | Difference |
+| --- | --- | --- | --- | --- | --- |
+| Start position | 6 | 119,060,324 | 4,450 ms (26.8 M nodes/s) | 4,235 ms (28.1 M nodes/s) | copy-make 4.8% faster |
+| Kiwipete | 5 | 193,690,690 | 7,683 ms (25.2 M nodes/s) | 7,310 ms (26.5 M nodes/s) | copy-make 4.9% faster |
+
+Both node counts equal the published reference values. To repeat:
+
+```sh
+cargo run --release -- perft 6
+cargo run --release -- perft 6 --copy-make
+```
+
+Reading the result: copy-make is slightly faster in perft, by an amount
+(about 5%) that is small and specific to this workload. Perft does nothing
+but generate and make moves; search adds evaluation, hashing and ordering,
+which dilute the difference, and later per-position state (for example NNUE
+accumulators) changes the cost of copying. The engine keeps make/unmake as
+its interface, and `Position` is cheap to clone, so search can use either
+style. The choice for search is to be made in milestone 4 on search speed,
+not on perft.
 
 ### Reference positions
 

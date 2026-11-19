@@ -43,6 +43,7 @@ so far:
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
 cargo run --release -- perft 3 --divide   # the same, split by first move
+cargo run --release -- perft 5 --copy-make  # same count, copy-make style
 cargo run --release -- help
 ```
 

@@ -10,19 +10,22 @@ use std::io::{self, Write};
 use std::time::Instant;
 
 use crate::board::Position;
-use crate::perft::{divide, perft};
+use crate::perft::{divide, perft, perft_copy_make};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
 pub const USAGE: &str = "\
 Usage:
   vyvrael                                  identify the engine (UCI arrives later)
-  vyvrael perft <depth> [--divide] [FEN]   count leaf nodes from a position
+  vyvrael perft <depth> [--divide] [--copy-make] [FEN]
+                                           count leaf nodes from a position
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
 start position if omitted; the FEN may be given unquoted). With --divide the
-count is split by first move, for comparing with another engine.
+count is split by first move, for comparing with another engine. With
+--copy-make the count is made by copying the position for each move instead
+of making and unmaking it, to compare the speed of the two designs.
 ";
 
 /// Exit status for success.
@@ -61,7 +64,14 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Res
 
 fn run_perft(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
     let split = args.iter().any(|arg| arg == "--divide");
-    let mut rest = args.iter().filter(|arg| *arg != "--divide");
+    let copy_make = args.iter().any(|arg| arg == "--copy-make");
+    if split && copy_make {
+        writeln!(err, "perft: --divide and --copy-make cannot be combined")?;
+        return Ok(EXIT_USAGE);
+    }
+    let mut rest = args
+        .iter()
+        .filter(|arg| *arg != "--divide" && *arg != "--copy-make");
 
     let Some(depth) = rest.next().and_then(|text| text.parse::<u32>().ok()) else {
         writeln!(err, "perft: expected a depth (a non-negative whole number)")?;
@@ -95,6 +105,8 @@ fn run_perft(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::R
         } else {
             counts.iter().map(|&(_, count)| count).sum()
         }
+    } else if copy_make {
+        perft_copy_make(&pos, depth)
     } else {
         perft(&mut pos, depth)
     };
@@ -196,6 +208,17 @@ mod tests {
         // The flag may come before the depth, and depth 0 still counts 1.
         assert_eq!(run_args(&["perft", "--divide", "2"]).1, out);
         assert_eq!(run_args(&["perft", "0", "--divide"]).1, "\nnodes: 1\n");
+    }
+
+    #[test]
+    fn perft_copy_make_gives_the_same_count() {
+        let (status, out, _) = run_args(&["perft", "3", "--copy-make"]);
+        assert_eq!(status, EXIT_OK);
+        assert_eq!(out, "nodes: 8902\n");
+        let (status, out, err) = run_args(&["perft", "2", "--copy-make", "--divide"]);
+        assert_eq!(status, EXIT_USAGE);
+        assert!(out.is_empty());
+        assert!(err.contains("cannot be combined"));
     }
 
     #[test]

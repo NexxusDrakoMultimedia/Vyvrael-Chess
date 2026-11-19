@@ -76,3 +76,5 @@ once it has a first release.
   (`tests/consistency.rs`).
 - FEN validation rejects positions where the side not to move is in check
   (`FenError::OpponentInCheck`).
+- `perft_copy_make` and `perft --copy-make`, with a recorded speed comparison
+  against make/unmake.

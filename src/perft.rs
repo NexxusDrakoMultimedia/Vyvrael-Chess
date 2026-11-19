@@ -31,6 +31,28 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
     nodes
 }
 
+/// The same count as [`perft`], computed with "copy-make": each move is
+/// played on a fresh copy of the position, which is then thrown away, instead
+/// of being made and unmade in place.
+///
+/// This exists to measure the two designs against each other (see
+/// `docs/TESTING.md`). The engine itself uses make/unmake.
+#[must_use]
+pub fn perft_copy_make(pos: &Position, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+    let mut nodes = 0;
+    for &mv in &pseudo_legal_moves(pos) {
+        let mut next = pos.clone();
+        let _undo = next.make_move(mv);
+        if !next.can_capture_king() {
+            nodes += perft_copy_make(&next, depth - 1);
+        }
+    }
+    nodes
+}
+
 /// Perft split by first move: each legal move of `pos` with the number of
 /// leaf nodes below it at `depth` plies in total (so `depth - 1` after the
 /// move). The counts add up to `perft(pos, depth)`.
@@ -82,6 +104,30 @@ mod tests {
             let mut pos = Position::from_fen(fen).unwrap();
             let legal = legal_moves(&pos).len() as u64;
             assert_eq!(perft(&mut pos, 1), legal, "{fen}");
+        }
+    }
+
+    #[test]
+    fn copy_make_counts_the_same_nodes() {
+        for (fen, depth) in [
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                4,
+            ),
+            (
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+                3,
+            ),
+            ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 4),
+        ] {
+            let mut pos = Position::from_fen(fen).unwrap();
+            for d in 0..=depth {
+                assert_eq!(
+                    perft_copy_make(&pos, d),
+                    perft(&mut pos, d),
+                    "{fen} depth {d}"
+                );
+            }
         }
     }
 

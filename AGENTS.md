@@ -39,7 +39,7 @@ Layout:
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
-| Perft | `cargo run --release -- perft <depth> [--divide] [FEN]` |
+| Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Match script | not implemented yet (milestone 6) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 7) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 8) |
