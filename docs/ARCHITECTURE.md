@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`. Still planned: position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors). Still planned: position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -75,6 +75,17 @@ Implemented in `src/board/`, one small file per type, re-exported from
   comes from the position. `Display` gives UCI coordinate notation (`e2e4`,
   `e7e8q`). Sixteen bits keeps move lists and transposition-table entries
   small.
+- **`Position`** (`position.rs`): piece placement is stored twice and kept in
+  step. Six piece-kind bitboards plus two colour bitboards answer set
+  questions ("all white knights") in one AND; a 64-entry `Option<Piece>` array
+  (a "mailbox") answers "what is on e4?" without scanning bitboards, which
+  make-move needs constantly. The rest of the state is the side to move,
+  castling rights, the en passant target square, the halfmove clock and the
+  fullmove number. `put_piece` and `remove_piece` are the only ways to change
+  placement and update every view together; they panic on misuse (placing on
+  an occupied square, removing from an empty one). `is_consistent()` checks
+  that the views agree. `Position::empty()` is a building block, not a legal
+  position.
 
 ## How search, evaluation and UCI fit together (planned)
 

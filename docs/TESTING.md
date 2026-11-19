@@ -37,6 +37,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | `board::Move` | Size is 2 bytes; all 64 x 64 x 14 (from, to, kind) encodings round-trip; kinds encode distinctly; capture/promotion/castle predicates; UCI display; promoting to a pawn or king panics. |
 
+| `board::Position` (placement) | Empty-position defaults; `put_piece` updates the mailbox and all bitboards; `remove_piece` restores the empty position exactly; misuse panics; `is_consistent` detects five kinds of corrupted placement; `Debug` diagram. |
+
 Rows are added as modules land.
 
 ## Perft (planned, milestone 2)

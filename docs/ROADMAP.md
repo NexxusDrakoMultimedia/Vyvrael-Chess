@@ -58,7 +58,7 @@ with a from-scratch recompute.
 - [x] `board`: file/rank masks and directional shifts
 - [x] `board`: `CastlingRights`
 - [x] `board`: `Move` encoding with coordinate-notation display
-- [ ] `board`: `Position` piece placement (bitboards + mailbox)
+- [x] `board`: `Position` piece placement (bitboards + mailbox)
 - [ ] `board`: FEN parsing with validation
 - [ ] `board`: FEN serialisation and round-trip tests
 - [ ] `board`: Zobrist keys from the seeded RNG

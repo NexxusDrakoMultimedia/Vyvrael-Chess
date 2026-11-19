@@ -25,6 +25,8 @@ once it has a first release.
 - `board` module with primitive types: `Color`, `Square`, `PieceKind`,
   `Piece`, `Bitboard` (with file/rank masks and directional shifts),
   `CastlingRights`, `Move` (16-bit encoding with UCI display).
+- `Position`: piece placement as bitboards plus a square array, with the
+  game-state fields and accessors.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
