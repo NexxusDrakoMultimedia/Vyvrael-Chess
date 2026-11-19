@@ -22,6 +22,7 @@ Layout:
   - `src/rng.rs`: the only source of randomness.
   - `src/attacks/`: attack tables per piece type.
   - `src/movegen/`: move generation.
+  - `src/perft.rs`: perft node counting.
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.

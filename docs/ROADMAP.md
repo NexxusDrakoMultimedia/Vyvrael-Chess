@@ -124,7 +124,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `movegen`: en passant
 - [x] `movegen`: castling
 - [x] `movegen`: legality filter and `legal_moves`
-- [ ] `perft`: node counting with divide
+- [x] `perft`: node counting with divide
 - [ ] `perft`: `perft` subcommand of the binary
 - [ ] perft test: start position
 - [ ] perft test: Kiwipete (position 2)

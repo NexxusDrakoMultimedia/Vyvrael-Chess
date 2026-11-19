@@ -63,3 +63,4 @@ once it has a first release.
 - `pseudo_legal_moves`: knight, bishop, rook, queen and king moves, all pawn
   moves (pushes, captures, promotions, en passant) and castling.
 - `legal_moves` and `Position::can_capture_king`.
+- `perft` module: `perft` and `divide`.

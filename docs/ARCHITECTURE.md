@@ -33,7 +33,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
 | `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal generation (all pieces, pawns and castling) and `legal_moves`. |
-| perft | planned (milestone 2) | Node counting for testing move generation. |
+| `perft` | implemented | `perft` and `divide`: node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
@@ -302,6 +302,12 @@ on this square attack?".
   a pin-aware generator that avoids this can replace it later behind the
   same function, with perft as the safety net. An empty result means
   checkmate when `in_check()` is true and stalemate otherwise.
+
+- **Perft** (`perft.rs`): `perft(pos, depth)` counts the leaf nodes of the
+  legal move tree, and `divide(pos, depth)` gives the count below each first
+  move. They walk the pseudo-legal moves with make/unmake on one position and
+  skip moves after which the king could be captured, so they exercise exactly
+  the code search will use.
 
 ## How search, evaluation and UCI fit together (planned)
 
