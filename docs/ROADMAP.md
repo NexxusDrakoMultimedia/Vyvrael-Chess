@@ -115,7 +115,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
 - [x] `board`: attackers of a square and in-check detection
 - [x] `movegen`: `MoveList`
-- [ ] `movegen`: pseudo-legal knight moves
+- [x] `movegen`: pseudo-legal knight moves
 - [ ] `movegen`: pseudo-legal king moves (without castling)
 - [ ] `movegen`: pseudo-legal bishop, rook and queen moves
 - [ ] `movegen`: pawn pushes and double pushes
