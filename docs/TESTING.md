@@ -54,6 +54,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view. |
 | `eval::Material` | Piece values keep the usual orderings (bishop above knight, two rooks above a queen, rook above knight plus pawn); the start position is balanced at full material; a missing queen scores +900 or -900 depending on the side to move; rook against knight and pawn, bishop against knight, bare kings. |
 | `eval` game phase | The start position is 24; kings and pawns are 0; each piece kind adds its weight for both colours; nine queens are capped at 24. |
+| `eval::Tapered` | `blend` equals `mg` at phase 24 and `eg` at phase 0, is a weighted average in between and monotonic; a flat pair blends to itself; `blend(-x) == -blend(x)` at every phase, including fractional averages; component-wise arithmetic; a phase outside 0 to 24 panics. |
 
 Rows are added as modules land.
 

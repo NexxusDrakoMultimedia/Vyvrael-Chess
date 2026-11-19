@@ -81,3 +81,4 @@ once it has a first release.
 - Material evaluation: `piece_value`, `material_balance` and the `Material`
   evaluator.
 - Game phase (`game_phase`, 0 to 24).
+- `Tapered` middlegame/endgame score pairs with phase blending.

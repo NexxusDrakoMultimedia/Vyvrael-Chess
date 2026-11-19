@@ -363,6 +363,16 @@ searching.
   value. This is the usual scheme, chosen because it is cheap and well
   understood.
 
+- **Tapered scores** (`eval/tapered.rs`): a `Tapered` is a pair of values for
+  one feature, what it is worth in the middlegame (`mg`) and in the endgame
+  (`eg`). `blend(phase)` gives `(mg * phase + eg * (24 - phase)) / 24`, which
+  is exactly `mg` with all pieces on and exactly `eg` with none. Features
+  change value as pieces come off (a central king is a liability with queens
+  on and an asset in a pawn ending), and blending avoids a sudden jump at an
+  arbitrary "the endgame starts here" line. The division rounds towards zero,
+  so negating a pair negates the result exactly; that keeps the evaluation
+  symmetric between the colours.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`
