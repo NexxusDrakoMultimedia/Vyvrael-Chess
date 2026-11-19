@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to Vyvræl are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project intends to follow [Semantic Versioning](https://semver.org/)
+once it has a first release.
+
+## [Unreleased]
+
+### Added
+
+- Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool
+  crates `vyvrael-data` and `vyvrael-train`.
+- Engine identity constants (`Vyvræl`, ASCII fallback `Vyvrael`).
+- Stable toolchain pin, release profile (LTO, one codegen unit,
+  `panic = "abort"`), `.gitignore` and `.gitattributes`.
+- GitHub Actions CI running `cargo fmt --check`, `cargo clippy -D warnings`
+  and `cargo test --release`.
+- GPL-3.0-or-later licence (`LICENSE.md`).
+- Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
+  `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
+  roadmap, dependencies, data, NNUE).
