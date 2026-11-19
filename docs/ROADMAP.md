@@ -167,7 +167,7 @@ enemy king. They are a starting point to be tuned once SPRT exists.
 - [x] `eval`: rook and queen tables
 - [x] `eval`: king tables
 - [x] `eval`: hand-crafted evaluator (material plus tables, tapered)
-- [ ] `cli`: `eval` subcommand with a breakdown
+- [x] `cli`: `eval` subcommand with a breakdown
 - [ ] End-of-milestone review and doc drift pass
 
 ## Milestones 4 to 9

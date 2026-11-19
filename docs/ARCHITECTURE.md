@@ -33,7 +33,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | in progress (milestone 3) | Static evaluation behind the `Evaluator` trait. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -329,7 +329,8 @@ on this square attack?".
   buffers and `main.rs` is only a few lines. With no arguments the binary
   identifies itself on stderr, leaving stdout empty for the future UCI
   protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
-  timing on stderr. Exit status 2 means the command line was not understood.
+  timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
+  parts. Exit status 2 means the command line was not understood.
 
 ## Evaluation
 

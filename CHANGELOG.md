@@ -85,3 +85,4 @@ once it has a first release.
 - Piece-square tables (`piece_square`, `piece_square_balance`), for all six piece kinds.
 - `HandCrafted` evaluator (material plus tapered piece-square tables), its
   `Breakdown`, and `default_evaluator`.
+- `eval` subcommand of the binary, printing the evaluation and its parts.
