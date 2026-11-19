@@ -230,6 +230,59 @@ Constraints that already apply:
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
 
+## Milestone 6: strength testing (Cute Chess + Ordo)
+
+Scope as amended by the maintainer on 2026-11-20. It replaces the original
+"fastchess or Cutechess" wording. The chunk checklist is written when the
+milestone starts.
+
+Use `cutechess-cli` (from Cute Chess) to run engine-against-engine matches,
+and Ordo to compute ratings from the resulting PGN. Neither tool is vendored
+into the repository or linked into the engine: they run as separate programs
+and are installed by the user. `docs/TESTING.md` documents them: install
+steps for Windows and Ubuntu, minimum versions, and how to confirm they work.
+
+- **Match scripts:** `scripts/match.sh` (bash) and `scripts/match.ps1`
+  (PowerShell) run a match between two engine binaries with SPRT.
+  - Parameters, all with sensible defaults: engine paths, engine names, time
+    control, hash, rounds, concurrency, opening file, output directory.
+  - `cutechess-cli` settings: `-each tc=10+0.1 option.Hash=16
+    option.Threads=1`; an EPD or PGN opening file with `order=random`;
+    `-repeat` so each opening is played from both sides; resign and draw
+    adjudication; `-ratinginterval`; `-recover`; `-pgnout`; and
+    `-sprt elo0=0 elo1=5 alpha=0.05 beta=0.05`.
+  - Pass `option.DeterministicRNG=true` where reproducibility matters, and
+    say so in the script's output.
+- **Rating scripts:** `scripts/rate.sh` and `scripts/rate.ps1` run Ordo over
+  one or more PGN files with a named anchor engine and write `ratings.txt`
+  and `ratings.csv`.
+- **Portability:** no hard-coded paths. Detect the tools on `PATH`, fail with
+  a clear message if one is missing, and keep the scripts working on both
+  Windows 11 and Ubuntu.
+- **Concurrency:** default `-concurrency` to a conservative value (physical
+  cores minus two) with one thread per engine, and document how to change it.
+- **`docs/TESTING.md` sections:** how to read an SPRT result; how to read
+  Ordo output; what a sound Elo comparison needs (same machine, same
+  settings, enough games); the limits of results from different machines.
+- **Acceptance rule:** only accept search and evaluation changes that SPRT
+  shows to be a gain, and record the result in the commit message or in
+  `docs/TESTING.md`.
+- **Chunks:** the match script, then the rate script, then the docs, each
+  tested at least by a dry run against a trivial engine or a smoke test with
+  a handful of games.
+
+Also due in this milestone: calibration of `UCI_Elo` (see "Planned
+features") and known issue KI-8 (the evaluation's strength).
+
+Notes for whoever starts it:
+
+- Before first use, confirm each tool's licence on its official source and
+  record it, with the version used, in [DEPENDENCIES.md](DEPENDENCIES.md).
+- The match settings rely on the UCI options `Hash`, `Threads` and
+  `DeterministicRNG`, which milestone 5 provides.
+- Match output (PGN, logs, rating files) is not committed; `.gitignore`
+  already covers match output and `*.pgn`.
+
 ## Decisions for milestones 4 to 6
 
 Decided by the maintainer on 2026-11-20.
@@ -255,14 +308,8 @@ Decided by the maintainer on 2026-11-20.
 - **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
   `isready` without a start-up delay.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
-  2026-11-20). `cutechess-cli` plays the matches and runs SPRT; Ordo turns
-  the resulting PGN into a rating list with error bars, which is also what
-  the `UCI_Elo` calibration needs. Both are external programs the scripts
-  call: they are not linked into the engine and are not Cargo dependencies.
-  At the start of milestone 6, before first use, confirm each tool's licence
-  on its official source and record it, with the version used, in
-  [DEPENDENCIES.md](DEPENDENCIES.md). Match output (PGN, logs) is not
-  committed.
+  2026-11-20). The full scope is under "Milestone 6: strength testing"
+  below.
 
 ## Ideas for later
 
