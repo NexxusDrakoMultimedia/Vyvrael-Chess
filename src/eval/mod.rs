@@ -6,11 +6,13 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Evaluation") for the design.
 
+mod handcrafted;
 mod material;
 mod phase;
 mod pst;
 mod tapered;
 
+pub use handcrafted::{Breakdown, HandCrafted, default_evaluator};
 pub use material::{Material, material_balance, material_of, piece_value};
 pub use phase::{MAX_PHASE, game_phase, phase_weight};
 pub use pst::{piece_square, piece_square_balance};

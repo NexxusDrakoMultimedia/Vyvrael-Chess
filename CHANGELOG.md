@@ -83,3 +83,5 @@ once it has a first release.
 - Game phase (`game_phase`, 0 to 24).
 - `Tapered` middlegame/endgame score pairs with phase blending.
 - Piece-square tables (`piece_square`, `piece_square_balance`), for all six piece kinds.
+- `HandCrafted` evaluator (material plus tapered piece-square tables), its
+  `Breakdown`, and `default_evaluator`.

@@ -395,6 +395,22 @@ searching.
     (middlegame: castled squares best, worse with every rank advanced;
     endgame: centre best). All six tables are now written.
 
+- **The hand-crafted evaluator** (`eval/handcrafted.rs`): `HandCrafted`
+  returns `material + piece_square.blend(phase)`, converted to the side to
+  move's view. `HandCrafted::breakdown` exposes the parts (material,
+  piece-square pair, phase, total) for inspection. It is the engine's
+  baseline: it stays as the fallback and the yardstick once a network exists.
+  `eval::default_evaluator()` returns the evaluator the engine uses; today
+  that is always `HandCrafted`, and it is the single place where the choice
+  between hand-crafted and network evaluation will be made (the planned
+  `UseNNUE` option).
+- **Symmetry is the main correctness test.** An evaluation has no reference
+  answer to compare with, but it must not care which colour it looks at: a
+  position and its colour-swapped mirror must score the same for the side to
+  move. A sign error, a table read from the wrong side or a term applied to
+  one colour only all break that, so the tests check it on a spread of
+  positions.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`
