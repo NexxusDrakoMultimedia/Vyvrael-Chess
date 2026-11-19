@@ -82,4 +82,4 @@ once it has a first release.
   evaluator.
 - Game phase (`game_phase`, 0 to 24).
 - `Tapered` middlegame/endgame score pairs with phase blending.
-- Piece-square tables (`piece_square`, `piece_square_balance`), pawns, knights, bishops, rooks and queens so far.
+- Piece-square tables (`piece_square`, `piece_square_balance`), for all six piece kinds.

@@ -165,7 +165,7 @@ enemy king. They are a starting point to be tuned once SPRT exists.
 - [x] `eval`: piece-square table framework with pawn tables
 - [x] `eval`: knight and bishop tables
 - [x] `eval`: rook and queen tables
-- [ ] `eval`: king tables
+- [x] `eval`: king tables
 - [ ] `eval`: hand-crafted evaluator (material plus tables, tapered)
 - [ ] `cli`: `eval` subcommand with a breakdown
 - [ ] End-of-milestone review and doc drift pass

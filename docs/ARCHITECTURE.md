@@ -386,12 +386,14 @@ searching.
   - The values were written for this project from general chess principles,
     not copied from another engine, and lean towards the project's style.
     They are untuned (known issue KI-8).
-  - **Tables written so far:** pawns (middlegame: take the centre and do not
+  - **The tables:** pawns (middlegame: take the centre and do not
     leave the d- and e-pawns at home; endgame: each step towards promotion is
     worth more than the last); knights (centre and outposts good, rim and
     corners bad); bishops (long diagonals and active squares good, back rank
     bad); rooks (seventh rank and central files); queens (small middlegame
-    values so she is not drawn out early, centralised in the endgame).
+    values so she is not drawn out early, centralised in the endgame); kings
+    (middlegame: castled squares best, worse with every rank advanced;
+    endgame: centre best). All six tables are now written.
 
 ## How search, evaluation and UCI fit together (planned)
 

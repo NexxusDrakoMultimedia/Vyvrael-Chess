@@ -34,9 +34,6 @@ const fn from_visual(mg: Visual, eg: Visual) -> [Tapered; Square::COUNT] {
     table
 }
 
-/// For piece kinds whose table has not been written yet.
-const NO_TABLE: [Tapered; Square::COUNT] = [Tapered::ZERO; Square::COUNT];
-
 /// Pawns. Middlegame: take the centre, and do not leave the d- and e-pawns
 /// at home. Endgame: every step towards promotion is worth more than the
 /// last, whatever the file.
@@ -170,9 +167,37 @@ const QUEEN: [Tapered; Square::COUNT] = from_visual(
     ],
 );
 
+/// Kings. The two halves disagree, which is what tapering is for. Middlegame:
+/// stay behind the pawns near a corner (the castled squares score best) and
+/// never walk up the board. Endgame: the king is a fighting piece and belongs
+/// in the centre.
+#[rustfmt::skip]
+const KING: [Tapered; Square::COUNT] = from_visual(
+    [
+        [-60, -60, -60, -70, -70, -60, -60, -60],
+        [-50, -50, -55, -65, -65, -55, -50, -50],
+        [-40, -45, -50, -60, -60, -50, -45, -40],
+        [-30, -40, -45, -55, -55, -45, -40, -30],
+        [-20, -30, -35, -45, -45, -35, -30, -20],
+        [-10, -15, -25, -30, -30, -25, -15, -10],
+        [ 14,  16,  -6, -20, -20,  -6,  16,  14],
+        [ 20,  34,  12, -12, -12,  12,  34,  20],
+    ],
+    [
+        [-40, -25, -15, -10, -10, -15, -25, -40],
+        [-25,  -8,   2,   8,   8,   2,  -8, -25],
+        [-15,   2,  16,  24,  24,  16,   2, -15],
+        [-10,   8,  24,  34,  34,  24,   8, -10],
+        [-10,   8,  24,  34,  34,  24,   8, -10],
+        [-15,   2,  16,  24,  24,  16,   2, -15],
+        [-25,  -8,   2,   8,   8,   2,  -8, -25],
+        [-40, -25, -15, -10, -10, -15, -25, -40],
+    ],
+);
+
 /// All tables, indexed by [`PieceKind::index`], from White's point of view.
 static TABLES: [[Tapered; Square::COUNT]; PieceKind::COUNT] =
-    [PAWN, KNIGHT, BISHOP, ROOK, QUEEN, NO_TABLE];
+    [PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING];
 
 /// The piece-square value of `piece` standing on `square`, as a bonus for
 /// the piece's own side.
@@ -347,6 +372,41 @@ mod tests {
         assert!(at(Square::D4).eg > at(Square::D1).eg + 20);
         assert!(at(Square::A1).eg < at(Square::D1).eg);
         assert!(Square::all().all(|square| at(square).mg.abs() <= 14));
+    }
+
+    #[test]
+    fn the_king_hides_in_the_middlegame_and_fights_in_the_endgame() {
+        let at = |square| white(PieceKind::King, square);
+        // Middlegame: castled squares beat the home square, which beats the
+        // centre of the board.
+        assert!(at(Square::G1).mg > at(Square::E1).mg);
+        assert!(at(Square::B1).mg > at(Square::E1).mg);
+        assert!(at(Square::E1).mg > at(Square::E4).mg);
+        // Every step up the board is worse in the middlegame, on every file.
+        for file in 0..8 {
+            for rank in 1..8 {
+                let here = at(Square::new(file, rank)).mg;
+                let below = at(Square::new(file, rank - 1)).mg;
+                assert!(here < below, "file {file} rank {rank}");
+            }
+        }
+        // Endgame: the opposite. The centre is best and the corner worst.
+        let best = Square::all().map(|square| at(square).eg).max().unwrap();
+        let worst = Square::all().map(|square| at(square).eg).min().unwrap();
+        assert_eq!(at(Square::E4).eg, best);
+        assert_eq!(at(Square::A1).eg, worst);
+        assert!(at(Square::E4).eg > at(Square::G1).eg);
+    }
+
+    /// With the last table written, no piece kind is left without one.
+    #[test]
+    fn every_piece_kind_has_a_table() {
+        for kind in PieceKind::ALL {
+            assert!(
+                Square::all().any(|square| white(kind, square) != Tapered::ZERO),
+                "{kind:?}"
+            );
+        }
     }
 
     #[test]
