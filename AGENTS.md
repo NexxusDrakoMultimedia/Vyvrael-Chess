@@ -28,8 +28,8 @@ Layout:
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.
-- `tools/vyvrael-data`: data and database tooling (milestone 7).
-- `tools/vyvrael-train`: NNUE training (milestone 8).
+- `tools/vyvrael-data`: data and database tooling (milestone 8).
+- `tools/vyvrael-train`: NNUE training (milestone 9).
 - `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.
 
 ## Commands
@@ -43,8 +43,8 @@ Layout:
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Match script | not implemented yet (milestone 6: `scripts/match.sh`, `scripts/match.ps1`, `scripts/rate.sh`, `scripts/rate.ps1`) |
-| Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 7) |
-| Training | `cargo run --release -p vyvrael-train` (stub until milestone 8) |
+| Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
+| Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
 Update this table in the same commit that adds or changes a command.
 
@@ -86,7 +86,7 @@ Update this table in the same commit that adds or changes a command.
 - Never commit large third-party artefacts (datasets, tablebases, nets,
   opening books). Record source URL, licence and date fetched in
   `docs/DATA.md`, confirmed on the official source page.
-- Endgame tablebases (milestone 9) are optional: ask the maintainer first.
+- Endgame tablebases (milestone 10) are optional: ask the maintainer first.
 
 ## Randomness
 
@@ -151,17 +151,17 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 2. **Move generation:** magic bitboards, legal moves, perft acceptance tests.
 3. **Evaluation (hand-crafted):** material, tapered PSTs, behind an interface.
 4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
-   Heuristics wait for 4b so each can be accepted by SPRT.
+   Heuristics wait for milestone 7 so each can be accepted by SPRT.
 5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
    `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
 6. **Strength testing:** SPRT match script with Cute Chess, ratings with
    Ordo;
    calibrate `UCI_Elo`.
-   - **4b, search heuristics** (after 6): move ordering, transposition table,
-     null move, LMR. One feature per commit, each with an SPRT result.
-7. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
-8. **NNUE:** datagen, `bullet` training, quantised incremental inference.
-9. **Tablebases (optional, ask first):** Syzygy probing.
+7. **Search heuristics:** move ordering, transposition table, null move,
+   LMR. One feature per commit, each with an SPRT result.
+8. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
+9. **NNUE:** datagen, `bullet` training, quantised incremental inference.
+10. **Tablebases (optional, ask first):** Syzygy probing.
 
 Style goal: aggressive play (king attacks, initiative, piece activity), but
 never at the cost of correctness.

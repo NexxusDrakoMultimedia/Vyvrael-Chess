@@ -6,7 +6,7 @@ net. It is updated in the same commit as any network-related change.
 
 ## Current status
 
-**Nothing is implemented.** Neural evaluation is milestone 8. There is no
+**Nothing is implemented.** Neural evaluation is milestone 9. There is no
 network, no trainer code and no inference code. Everything below is the plan
 of record, to be replaced by exact specifications as each part lands.
 
