@@ -116,9 +116,63 @@ const BISHOP: [Tapered; Square::COUNT] = from_visual(
     ],
 );
 
+/// Rooks. Strongest on the seventh rank, where they attack pawns and confine
+/// the king, and better on the central files than on the edge. In the endgame
+/// only how far up the board the rook stands matters.
+#[rustfmt::skip]
+const ROOK: [Tapered; Square::COUNT] = from_visual(
+    [
+        [  6,   8,  10,  14,  14,  10,   8,   6],
+        [ 18,  22,  24,  26,  26,  24,  22,  18],
+        [  0,   4,   8,  10,  10,   8,   4,   0],
+        [ -4,   0,   4,   8,   8,   4,   0,  -4],
+        [ -6,  -2,   2,   6,   6,   2,  -2,  -6],
+        [ -8,  -4,   0,   4,   4,   0,  -4,  -8],
+        [-10,  -4,   0,   4,   4,   0,  -4, -10],
+        [ -6,  -2,   6,  12,  12,   6,  -2,  -6],
+    ],
+    [
+        [  8,   8,   8,   8,   8,   8,   8,   8],
+        [ 14,  14,  14,  14,  14,  14,  14,  14],
+        [  6,   6,   6,   6,   6,   6,   6,   6],
+        [  4,   4,   4,   4,   4,   4,   4,   4],
+        [  2,   2,   2,   2,   2,   2,   2,   2],
+        [  0,   0,   0,   0,   0,   0,   0,   0],
+        [ -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2],
+        [ -4,  -4,  -4,  -4,  -4,  -4,  -4,  -4],
+    ],
+);
+
+/// Queens. Mildly better in the centre and poor in the corners. The
+/// middlegame values are kept small so the queen is not drawn out early; in
+/// the endgame a centralised queen dominates the board.
+#[rustfmt::skip]
+const QUEEN: [Tapered; Square::COUNT] = from_visual(
+    [
+        [-10,  -4,   0,   2,   2,   0,  -4, -10],
+        [ -4,   4,   8,   8,   8,   8,   4,  -4],
+        [ -2,   6,  10,  12,  12,  10,   6,  -2],
+        [  0,   6,  10,  14,  14,  10,   6,   0],
+        [ -2,   4,   8,  12,  12,   8,   4,  -2],
+        [ -4,   4,   6,   6,   6,   6,   4,  -4],
+        [ -8,  -2,   4,   2,   2,   4,  -2,  -8],
+        [-14, -10,  -6,   0,   0,  -6, -10, -14],
+    ],
+    [
+        [-16,  -8,  -4,   0,   0,  -4,  -8, -16],
+        [ -8,   0,   6,  10,  10,   6,   0,  -8],
+        [ -4,   6,  14,  18,  18,  14,   6,  -4],
+        [  0,  10,  18,  24,  24,  18,  10,   0],
+        [  0,  10,  18,  24,  24,  18,  10,   0],
+        [ -4,   6,  14,  18,  18,  14,   6,  -4],
+        [ -8,   0,   6,  10,  10,   6,   0,  -8],
+        [-16,  -8,  -4,   0,   0,  -4,  -8, -16],
+    ],
+);
+
 /// All tables, indexed by [`PieceKind::index`], from White's point of view.
 static TABLES: [[Tapered; Square::COUNT]; PieceKind::COUNT] =
-    [PAWN, KNIGHT, BISHOP, NO_TABLE, NO_TABLE, NO_TABLE];
+    [PAWN, KNIGHT, BISHOP, ROOK, QUEEN, NO_TABLE];
 
 /// The piece-square value of `piece` standing on `square`, as a bonus for
 /// the piece's own side.
@@ -256,6 +310,43 @@ mod tests {
         assert!(white(PieceKind::Knight, Square::A1).mg < white(PieceKind::Bishop, Square::A1).mg);
         // The fianchetto square is one of the bishop's best second-rank squares.
         assert!(white(PieceKind::Bishop, Square::G2).mg > white(PieceKind::Bishop, Square::E2).mg);
+    }
+
+    #[test]
+    fn rooks_want_the_seventh_rank_and_central_files() {
+        let at = |square| white(PieceKind::Rook, square);
+        for file in 0..8 {
+            let seventh = at(Square::new(file, 6));
+            for rank in (0..8).filter(|&rank| rank != 6) {
+                assert!(
+                    seventh.mg > at(Square::new(file, rank)).mg,
+                    "file {file} rank {rank}"
+                );
+                assert!(
+                    seventh.eg > at(Square::new(file, rank)).eg,
+                    "file {file} rank {rank}"
+                );
+            }
+        }
+        assert!(at(Square::D1).mg > at(Square::A1).mg);
+        // Black's seventh rank is the second rank of the board.
+        assert_eq!(black(PieceKind::Rook, Square::D2), at(Square::D7));
+    }
+
+    #[test]
+    fn the_queen_is_not_drawn_out_early_but_centralises_late() {
+        let at = |square| white(PieceKind::Queen, square);
+        // Leaving d1 for the centre gains little in the middlegame...
+        let early_gain = at(Square::D4).mg - at(Square::D1).mg;
+        assert!(early_gain > 0 && early_gain < 15, "{early_gain}");
+        // ...and less than developing a knight does.
+        let knight_gain =
+            white(PieceKind::Knight, Square::F3).mg - white(PieceKind::Knight, Square::G1).mg;
+        assert!(early_gain < knight_gain);
+        // In the endgame the centre is clearly best and the corner worst.
+        assert!(at(Square::D4).eg > at(Square::D1).eg + 20);
+        assert!(at(Square::A1).eg < at(Square::D1).eg);
+        assert!(Square::all().all(|square| at(square).mg.abs() <= 14));
     }
 
     #[test]

@@ -390,7 +390,8 @@ searching.
     leave the d- and e-pawns at home; endgame: each step towards promotion is
     worth more than the last); knights (centre and outposts good, rim and
     corners bad); bishops (long diagonals and active squares good, back rank
-    bad).
+    bad); rooks (seventh rank and central files); queens (small middlegame
+    values so she is not drawn out early, centralised in the endgame).
 
 ## How search, evaluation and UCI fit together (planned)
 
