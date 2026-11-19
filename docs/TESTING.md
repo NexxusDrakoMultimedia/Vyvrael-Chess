@@ -174,8 +174,10 @@ Search, evaluation and network changes are accepted only when a sequential
 probability ratio test (SPRT) against the previous version shows a gain. A
 match script using fastchess or Cutechess will be added in milestone 6 and
 documented here, including how to read LLR, Elo estimates and error bars.
-Until then, search changes need at least a fixed-depth node-count and
-correctness check.
+Because of that, search is split (see "Decisions for milestones 4 to 6" in
+[ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
+correctness tests and fixed-depth node counts, and the search heuristics wait
+for milestone 4b, after the match script exists, so each has an SPRT result.
 
 SPRT results are recorded in the commit message of the change or in a table
 in this file.

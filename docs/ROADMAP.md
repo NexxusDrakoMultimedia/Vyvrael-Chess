@@ -13,9 +13,10 @@ them.
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
-| 4 | Search | `milestone/4-search` | not started |
+| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
+| 4b | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/4b-search-heuristics` | not started; follows milestone 6 |
 | 7 | Open data tooling | `milestone/7-data` | not started |
 | 8 | Neural evaluation (NNUE) | `milestone/8-nnue` | not started |
 | 9 | Endgame tablebases (optional, needs approval) | `milestone/9-tablebases` | not started |
@@ -90,7 +91,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
-| KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Not scheduled. If it matters (for example for UCI start-up time in milestone 5), embed the numbers the search finds as constants and keep the search as a test that reproduces them. |
+| KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Milestone 5, before the UCI loop: embed the 128 numbers the search finds as constants and keep the search as a test proving the constants are what the seed produces. |
 
 ## Milestone 2: move generation
 
@@ -181,10 +182,10 @@ Scope summaries live in the "Build order" section of
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
-- Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
+- Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
-- Not yet scheduled: KI-2, KI-7.
+- Not yet scheduled: KI-2.
 
 ## Planned features
 
@@ -229,14 +230,30 @@ Constraints that already apply:
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
 
-## Carried into later milestones
+## Decisions for milestones 4 to 6
 
-- Milestone 4 (search): decide whether `Evaluator` needs `Send + Sync`
-  bounds. Search will run on its own thread (milestone 5) and hold the
-  evaluator as a trait object, which today cannot cross threads.
-- Milestone 4 (search): choose between make/unmake and copy-make for the
-  search loop by measuring search speed. Perft showed copy-make about 5%
-  faster (see TESTING.md), which is not decisive on its own.
+Decided by the maintainer on 2026-11-20.
+
+- **Search is split in two so that heuristics can be proven.** The project
+  rule is that a search change is accepted only if SPRT shows a gain, but
+  SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
+  So milestone 4 builds only the core that everything else depends on:
+  negamax with alpha-beta, iterative deepening and quiescence search. UCI and
+  the match script follow. Milestone 4b then adds move ordering (hash move,
+  MVV-LVA, killers, history), the transposition table, null-move pruning and
+  late move reductions, one feature per commit, each with a recorded SPRT
+  result. The core has nothing to be compared against, so it is checked by
+  correctness tests (mates found, known node counts at fixed depth).
+- **`Evaluator` gets `Send + Sync` bounds** as the first chunk of milestone 4,
+  so the evaluator can be handed to the search thread. A later network
+  evaluator must therefore keep any mutable per-search state outside the
+  trait object.
+- **Make/unmake or copy-make is chosen by measuring search.** Milestone 4
+  starts with make/unmake, then measures both styles in the real search loop
+  and keeps the faster. Perft showed copy-make about 5% faster (see
+  TESTING.md), which is not decisive on its own.
+- **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
+  `isready` without a start-up delay.
 
 ## Ideas for later
 
