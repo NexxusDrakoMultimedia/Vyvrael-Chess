@@ -5,6 +5,7 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Attacks and move generation") for the design.
 
+mod castling;
 mod list;
 mod pawns;
 mod pseudo;

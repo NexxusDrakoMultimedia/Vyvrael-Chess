@@ -32,7 +32,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
-| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal moves for knights, kings, sliders and all pawn moves. |
+| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, complete pseudo-legal generation (all pieces, pawns and castling). |
 | perft | planned (milestone 2) | Node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -268,8 +268,7 @@ on this square attack?".
   asking whether it leaves the mover's king attacked. Each piece type has its
   own small generator. A move to an enemy-occupied square is a `Capture`,
   otherwise `Quiet`; squares holding the mover's own pieces are masked out
-  first. **Generated so far:** knights, king steps (not castling), bishops, rooks,
-  queens and all pawn moves (pushes, captures, promotions, en passant).
+  first. Every piece type, all pawn moves and castling are generated.
 
 - **Pawns** (`movegen/pawns.rs`) have their own generator because their
   moves depend on colour and they move and capture differently. Pushes are
@@ -284,6 +283,15 @@ on this square attack?".
   passant square (found by looking from the square with the other colour's
   attack table); whether the capture is legal is left to the legality filter,
   which matters because en passant removes two pieces from one rank at once.
+
+- **Castling** (`movegen/castling.rs`) is generated only when it is fully
+  legal: the right exists, the squares between king and rook are empty, the
+  king is not in check, and neither the square it crosses nor the one it
+  lands on is attacked. Unlike every other move, this cannot be checked after
+  the fact by looking at where the king ended up, so it is done here. When
+  castling queenside the b-file square must be empty but may be attacked.
+  The four castling options are small constant records, so the generator is
+  one loop with no colour-specific code.
 
 ## How search, evaluation and UCI fit together (planned)
 

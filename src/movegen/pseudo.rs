@@ -6,6 +6,7 @@
 //! attacked.
 
 use super::MoveList;
+use super::castling::castling_moves;
 use super::pawns::pawn_moves;
 use crate::attacks::{bishop_attacks, king_attacks, knight_attacks, queen_attacks, rook_attacks};
 use crate::board::{Bitboard, Move, MoveKind, PieceKind, Position, Square};
@@ -70,14 +71,16 @@ fn slider_moves(pos: &Position, list: &mut MoveList) {
 /// board, but it may leave the mover's own king attacked. Use the legal move
 /// generator when only legal moves are wanted.
 ///
-/// **Incomplete while milestone 2 is in progress:** so far this generates
-/// piece moves, king steps (no castling) and and all pawn moves. See the checklist in `docs/ROADMAP.md`.
+/// Castling is the exception: its conditions (not in check, no attacked
+/// square on the king's path) are fully checked during generation, so a
+/// generated castling move is always legal.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
     pawn_moves(pos, &mut list);
     knight_moves(pos, &mut list);
     king_moves(pos, &mut list);
+    castling_moves(pos, &mut list);
     slider_moves(pos, &mut list);
     list
 }
@@ -100,9 +103,10 @@ mod tests {
                 MoveKind::Capture => format!("{mv}x"),
                 MoveKind::DoublePush => format!("{mv}+"),
                 MoveKind::EnPassant => format!("{mv}ep"),
+                MoveKind::KingCastle => format!("{mv}:O-O"),
+                MoveKind::QueenCastle => format!("{mv}:O-O-O"),
                 MoveKind::Promotion(_) => mv.to_string(),
                 MoveKind::PromotionCapture(_) => format!("{mv}x"),
-                other => format!("{mv}:{other:?}"),
             })
             .collect();
         moves.sort();
@@ -319,6 +323,89 @@ mod tests {
         // The pawn on the far side of the board must not capture by wrapping.
         let edge = moves_of("4k3/8/8/p6P/8/8/8/4K3 w - a6 0 2", PieceKind::Pawn);
         assert_eq!(edge, ["h5h6"]);
+    }
+
+    /// The castling moves among the king's moves, as "O-O" / "O-O-O".
+    fn castles(fen: &str) -> Vec<String> {
+        moves_of(fen, PieceKind::King)
+            .into_iter()
+            .filter_map(|mv| mv.split_once(':').map(|(_, castle)| castle.to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn castling_both_ways_for_both_colours() {
+        let white = moves_of("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", PieceKind::King);
+        assert_eq!(
+            white,
+            [
+                "e1c1:O-O-O",
+                "e1d1",
+                "e1d2",
+                "e1e2",
+                "e1f1",
+                "e1f2",
+                "e1g1:O-O"
+            ]
+        );
+        let black = moves_of("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", PieceKind::King);
+        assert!(black.contains(&"e8c8:O-O-O".to_owned()));
+        assert!(black.contains(&"e8g8:O-O".to_owned()));
+    }
+
+    #[test]
+    fn castling_needs_the_right() {
+        assert!(castles("r3k2r/8/8/8/8/8/8/R3K2R w kq - 0 1").is_empty());
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3K2R w Kkq - 0 1"), ["O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3K2R w Qkq - 0 1"), ["O-O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3K2R b KQq - 0 1"), ["O-O-O"]);
+        assert!(castles("r3k2r/8/8/8/8/8/8/R3K2R b KQ - 0 1").is_empty());
+    }
+
+    #[test]
+    fn castling_needs_empty_squares_between_king_and_rook() {
+        // A knight on b1 blocks queenside castling even though the king
+        // never touches b1.
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/RN2K2R w KQkq - 0 1"), ["O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R2QK2R w KQkq - 0 1"), ["O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3KB1R w KQkq - 0 1"), ["O-O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3K1NR w KQkq - 0 1"), ["O-O-O"]);
+        assert_eq!(castles("r3k1nr/8/8/8/8/8/8/R3K2R b KQkq - 0 1"), ["O-O-O"]);
+        // An enemy piece in between blocks just the same.
+        assert_eq!(castles("r3k2r/8/8/8/8/8/8/R3Kn1R w KQkq - 0 1"), ["O-O-O"]);
+    }
+
+    #[test]
+    fn no_castling_out_of_check() {
+        assert!(castles("r3k2r/8/8/8/8/8/4r3/R3K2R w KQ - 0 1").is_empty());
+        assert!(castles("r3k2r/8/8/8/8/5n2/8/R3K2R w KQ - 0 1").is_empty());
+    }
+
+    /// A black rook on the seventh rank attacks one first-rank square.
+    #[test]
+    fn no_castling_through_or_into_an_attacked_square() {
+        let f1_crossed = castles("4k3/5r2/8/8/8/8/8/R3K2R w KQ - 0 1");
+        assert_eq!(f1_crossed, ["O-O-O"]);
+        let g1_destination = castles("4k3/6r1/8/8/8/8/8/R3K2R w KQ - 0 1");
+        assert_eq!(g1_destination, ["O-O-O"]);
+        let d1_crossed = castles("4k3/3r4/8/8/8/8/8/R3K2R w KQ - 0 1");
+        assert_eq!(d1_crossed, ["O-O"]);
+        let c1_destination = castles("4k3/2r5/8/8/8/8/8/R3K2R w KQ - 0 1");
+        assert_eq!(c1_destination, ["O-O"]);
+        // b1 may be attacked: the king does not cross it.
+        let b1_attacked = castles("4k3/1r6/8/8/8/8/8/R3K2R w KQ - 0 1");
+        assert_eq!(b1_attacked, ["O-O-O", "O-O"]);
+    }
+
+    #[test]
+    fn black_castling_respects_attacks_too() {
+        assert_eq!(castles("r3k2r/8/8/8/8/8/5R2/4K3 b kq - 0 1"), ["O-O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/3R4/4K3 b kq - 0 1"), ["O-O"]);
+        assert_eq!(
+            castles("r3k2r/8/8/8/8/8/1R6/4K3 b kq - 0 1"),
+            ["O-O-O", "O-O"]
+        );
+        assert!(castles("r3k2r/8/8/8/8/8/4R3/4K3 b kq - 0 1").is_empty());
     }
 
     #[test]
