@@ -105,14 +105,14 @@ from `board`.
 - **FEN validation** (`fen.rs`): after parsing, a position is accepted only
   if each side has exactly one king, no pawn is on the first or eighth rank,
   every claimed castling right has its king and rook on their home squares,
-  and any en passant square is consistent with a double push by the side that
+  the side not to move is not in check, and any en passant square is consistent with a double push by the side that
   just moved (correct rank, target square and the pawn's starting square
   empty, that side's pawn directly beyond the target). These are the
   invariants make/unmake relies on. Rejecting rather than repairing means a
   bad input is noticed instead of silently changed; an opt-in repair mode is
-  planned for later (known issue KI-2). **Not validated yet:**
-  that the side which just moved did not leave its own king in check; that
-  needs attack generation and is planned for milestone 2. An en passant
+  planned for later (known issue KI-2). A position where the side not to
+  move is in check is rejected too (`FenError::OpponentInCheck`), since the
+  side to move could capture the king and no legal game reaches that. An en passant
   square is kept whenever a double push happened, whether or not a capture is
   actually possible.
 - **FEN serialisation** (`fen.rs`): `Position::to_fen` and `Display` write

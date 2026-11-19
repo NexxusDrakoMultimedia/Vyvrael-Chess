@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(kind_of(&black, "e8c8"), MoveKind::QueenCastle);
 
         // Another piece making the same journey is not castling.
-        let queen = fen("4k3/8/8/8/8/8/8/K3Q3 w - - 0 1");
+        let queen = fen("7k/8/8/8/8/8/8/K3Q3 w - - 0 1");
         assert_eq!(kind_of(&queen, "e1g1"), MoveKind::Quiet);
         // Nor is a king away from its home square, or on the enemy's.
         let wandering = fen("8/8/8/4k3/8/8/8/4K3 b - - 0 1");

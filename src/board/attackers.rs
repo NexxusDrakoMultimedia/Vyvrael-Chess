@@ -80,6 +80,17 @@ mod tests {
         Position::from_fen(text).unwrap()
     }
 
+    /// A position that FEN parsing rightly rejects: `text` with the move
+    /// handed to the other side, so that the side to move may be able to
+    /// capture the king. Built by editing a valid position.
+    fn with_the_other_side_to_move(text: &str) -> Position {
+        let mut pos = fen(text);
+        pos.side_to_move = pos.side_to_move.flip();
+        pos.hash = pos.compute_hash();
+        assert!(pos.is_consistent());
+        pos
+    }
+
     fn squares(list: &[Square]) -> Bitboard {
         list.iter().copied().collect()
     }
@@ -156,7 +167,7 @@ mod tests {
     #[test]
     fn only_the_side_to_move_is_asked_about() {
         // The white rook attacks the black king, but it is White's move.
-        let pos = fen("4k3/8/8/8/8/8/8/4RK2 w - - 0 1");
+        let pos = with_the_other_side_to_move("4k3/8/8/8/8/8/8/4RK2 b - - 0 1");
         assert!(!pos.in_check());
         assert!(pos.is_attacked_by(Square::E8, Color::White));
     }
@@ -186,7 +197,8 @@ mod tests {
     #[test]
     fn can_capture_king_looks_at_the_side_not_to_move() {
         // The white rook attacks the black king and it is White's move.
-        assert!(fen("4k3/8/8/8/8/8/8/4RK2 w - - 0 1").can_capture_king());
+        let impossible = with_the_other_side_to_move("4k3/8/8/8/8/8/8/4RK2 b - - 0 1");
+        assert!(impossible.can_capture_king());
         // Black to move in the same position is simply in check.
         let black = fen("4k3/8/8/8/8/8/8/4RK2 b - - 0 1");
         assert!(!black.can_capture_king());

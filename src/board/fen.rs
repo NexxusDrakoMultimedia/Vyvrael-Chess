@@ -61,6 +61,9 @@ pub enum FenError {
     /// The en passant square does not match a double pawn push by the side
     /// that just moved.
     EnPassantImpossible,
+    /// The side not to move is in check, so the side to move could capture
+    /// its king. No legal game reaches such a position.
+    OpponentInCheck,
 }
 
 impl fmt::Display for FenError {
@@ -96,6 +99,7 @@ impl fmt::Display for FenError {
             FenError::EnPassantImpossible => {
                 f.write_str("en passant square does not match a double pawn push")
             }
+            FenError::OpponentInCheck => f.write_str("the side not to move is in check"),
         }
     }
 }
@@ -151,9 +155,6 @@ fn parse_placement(pos: &mut Position, placement: &str) -> Result<(), FenError> 
 
 /// Checks that a syntactically valid position is one the rest of the engine
 /// can rely on.
-///
-/// Not checked here, because it needs attack generation (milestone 2):
-/// whether the side that just moved left its own king in check.
 fn validate(pos: &Position) -> Result<(), FenError> {
     for color in Color::ALL {
         let found = pos.pieces_of(color, PieceKind::King).count();
@@ -206,6 +207,11 @@ fn validate(pos: &Position) -> Result<(), FenError> {
         }
     }
 
+    // Last, because it relies on the checks above (exactly one king each).
+    if pos.can_capture_king() {
+        return Err(FenError::OpponentInCheck);
+    }
+
     Ok(())
 }
 
@@ -224,8 +230,9 @@ impl Position {
     ///
     /// Beyond syntax, the position must have exactly one king per side, no
     /// pawns on the first or eighth rank, castling rights only where king
-    /// and rook are on their home squares, and an en passant square only
-    /// where the opponent's pawn could just have made a double push.
+    /// and rook are on their home squares, an en passant square only where
+    /// the opponent's pawn could just have made a double push, and the side
+    /// not to move must not be in check.
     ///
     /// # Errors
     ///
@@ -617,6 +624,38 @@ mod tests {
     #[test]
     fn empty_position_serialises() {
         assert_eq!(Position::empty().to_fen(), "8/8/8/8/8/8/8/8 w - - 0 1");
+    }
+
+    #[test]
+    fn rejects_positions_where_the_side_not_to_move_is_in_check() {
+        for fen in [
+            // White to move while the black king is attacked.
+            "4k3/8/8/8/8/8/8/4RK2 w - - 0 1",
+            "4k3/3P4/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/5N2/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/7B/8/8/8/4K3 w - - 0 1",
+            // Black to move while the white king is attacked.
+            "4k3/8/8/8/8/8/8/q3K3 b - - 0 1",
+            "4k3/8/8/8/8/8/3p4/4K3 b - - 0 1",
+            // Kings side by side: each attacks the other.
+            "8/8/8/8/8/8/8/3kK3 w - - 0 1",
+        ] {
+            assert_eq!(err(fen), FenError::OpponentInCheck, "{fen}");
+        }
+    }
+
+    #[test]
+    fn accepts_positions_where_the_side_to_move_is_in_check() {
+        for fen in [
+            "4k3/8/8/8/8/8/8/4RK2 b - - 0 1",
+            "4k3/8/8/8/8/8/8/q3K3 w - - 0 1",
+            // Checkmate and double check are still valid positions.
+            "R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1",
+            "4k3/8/8/8/1b6/8/4r3/4K3 w - - 0 1",
+        ] {
+            let pos = Position::from_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            assert!(pos.in_check(), "{fen}");
+        }
     }
 
     #[test]

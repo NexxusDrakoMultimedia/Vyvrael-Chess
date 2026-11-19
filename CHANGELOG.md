@@ -68,3 +68,5 @@ once it has a first release.
 - Perft acceptance tests against published node counts (`tests/perft.rs`).
 - Tree-walking consistency test of make/unmake, hashing and FEN
   (`tests/consistency.rs`).
+- FEN validation rejects positions where the side not to move is in check
+  (`FenError::OpponentInCheck`).
