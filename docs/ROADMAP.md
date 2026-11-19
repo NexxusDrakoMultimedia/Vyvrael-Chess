@@ -119,7 +119,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `movegen`: pseudo-legal king moves (without castling)
 - [x] `movegen`: pseudo-legal bishop, rook and queen moves
 - [x] `movegen`: pawn pushes and double pushes
-- [ ] `movegen`: pawn captures
+- [x] `movegen`: pawn captures
 - [ ] `movegen`: promotions
 - [ ] `movegen`: en passant
 - [ ] `movegen`: castling

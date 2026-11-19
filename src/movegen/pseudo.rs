@@ -71,7 +71,7 @@ fn slider_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// piece moves, king steps (no castling) and pawn pushes (no pawn captures,
+/// piece moves, king steps (no castling) and pawn pushes and captures (no
 /// promotions or en passant). See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
@@ -231,6 +231,26 @@ mod tests {
         assert_eq!(white, ["a2a3", "a2a4+", "e3e4"]);
         let black = moves_of("4k3/7p/4p3/8/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
         assert_eq!(black, ["e6e5", "h7h5+", "h7h6"]);
+    }
+
+    #[test]
+    fn pawn_captures_go_diagonally_forward() {
+        let white = moves_of("4k3/8/8/3p1p2/4P3/8/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(white, ["e4d5x", "e4e5", "e4f5x"]);
+        let black = moves_of("4k3/8/8/4p3/3P1P2/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black, ["e5d4x", "e5e4", "e5f4x"]);
+    }
+
+    #[test]
+    fn pawns_do_not_capture_own_pieces_forwards_or_around_the_edge() {
+        // d5 and f5 hold White's own pawns; e5 holds a black pawn dead ahead.
+        let own = moves_of("4k3/8/8/3PpP2/4P3/8/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(own, ["d5d6", "f5f6"]);
+        // The a-pawn must not capture the piece on h4 by wrapping around.
+        let edge = moves_of("4k3/8/8/8/1p5p/P7/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(edge, ["a3a4", "a3b4x"]);
+        let black_edge = moves_of("4k3/8/7p/P5P1/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black_edge, ["h6g5x", "h6h5"]);
     }
 
     #[test]

@@ -6,6 +6,7 @@
 //! they get their own generator.
 
 use super::MoveList;
+use crate::attacks::pawn_attacks;
 use crate::board::{Bitboard, Color, Move, MoveKind, PieceKind, Position, Square};
 
 /// Every square of `squares` moved one rank in `color`'s forward direction.
@@ -26,12 +27,21 @@ fn behind(color: Color, square: Square, ranks: u8) -> Square {
     Square::new(square.file(), rank)
 }
 
+/// The rank on which `color`'s pawns promote.
+const fn last_rank(color: Color) -> Bitboard {
+    match color {
+        Color::White => Bitboard::RANK_8,
+        Color::Black => Bitboard::RANK_1,
+    }
+}
+
 /// Single and double pushes onto empty squares. Pushes onto the last rank
 /// are promotions and are not generated here.
 fn pushes(us: Color, pawns: Bitboard, empty: Bitboard, list: &mut MoveList) {
-    let (last_rank, after_one_step) = match us {
-        Color::White => (Bitboard::RANK_8, Bitboard::rank(2)),
-        Color::Black => (Bitboard::RANK_1, Bitboard::rank(5)),
+    let last_rank = last_rank(us);
+    let after_one_step = match us {
+        Color::White => Bitboard::rank(2),
+        Color::Black => Bitboard::rank(5),
     };
     let single = forward(us, pawns) & empty;
     for to in single & !last_rank {
@@ -45,9 +55,21 @@ fn pushes(us: Color, pawns: Bitboard, empty: Bitboard, list: &mut MoveList) {
     }
 }
 
+/// Diagonal captures of enemy pieces. Captures onto the last rank are
+/// promotions and are not generated here.
+fn captures(us: Color, pawns: Bitboard, enemies: Bitboard, list: &mut MoveList) {
+    let targets = enemies & !last_rank(us);
+    for from in pawns {
+        for to in pawn_attacks(us, from) & targets {
+            list.push(Move::new(from, to, MoveKind::Capture));
+        }
+    }
+}
+
 /// Adds the pseudo-legal pawn moves of the side to move.
 pub(super) fn pawn_moves(pos: &Position, list: &mut MoveList) {
     let us = pos.side_to_move();
     let pawns = pos.pieces_of(us, PieceKind::Pawn);
     pushes(us, pawns, !pos.occupied(), list);
+    captures(us, pawns, pos.occupied_by(us.flip()), list);
 }
