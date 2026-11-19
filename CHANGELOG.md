@@ -78,3 +78,5 @@ once it has a first release.
 - `perft_copy_make` and `perft --copy-make`, with a recorded speed comparison
   against make/unmake.
 - `eval` module: the `Evaluator` trait, `Score` and `relative_to`.
+- Material evaluation: `piece_value`, `material_balance` and the `Material`
+  evaluator.

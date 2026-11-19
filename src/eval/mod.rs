@@ -6,6 +6,10 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Evaluation") for the design.
 
+mod material;
+
+pub use material::{Material, material_balance, material_of, piece_value};
+
 use crate::board::{Color, Position};
 
 /// An evaluation in centipawns: 100 is roughly the value of a pawn.

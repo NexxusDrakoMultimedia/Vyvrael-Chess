@@ -350,6 +350,12 @@ searching.
   they will be added then as default methods, so existing evaluators do not
   change.
 
+- **Material** (`eval/material.rs`): `piece_value` gives the conventional
+  values in centipawns (pawn 100, knight 320, bishop 330, rook 500, queen 900,
+  king 0). `material_balance` is White's total minus Black's, and the
+  `Material` evaluator returns just that. It is the simplest sound evaluation
+  and the baseline later terms are measured against.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

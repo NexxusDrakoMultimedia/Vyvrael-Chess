@@ -159,7 +159,7 @@ project's style: active pieces, advanced pawns and pressure towards the
 enemy king. They are a starting point to be tuned once SPRT exists.
 
 - [x] `eval`: `Evaluator` interface and score conventions
-- [ ] `eval`: material evaluator
+- [x] `eval`: material evaluator
 - [ ] `eval`: game phase
 - [ ] `eval`: tapered scores (middlegame/endgame pairs and blending)
 - [ ] `eval`: piece-square table framework with pawn tables
