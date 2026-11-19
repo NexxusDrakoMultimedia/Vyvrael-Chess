@@ -12,7 +12,7 @@ them.
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
-| 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
+| 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
@@ -89,6 +89,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
+| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
 | KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Not scheduled. If it matters (for example for UCI start-up time in milestone 5), embed the numbers the search finds as constants and keep the search as a test that reproduces them. |
 
 ## Milestone 2: move generation
@@ -140,7 +141,40 @@ material (which could overflow the move list) and several strengthened tests.
 The review also ran perft on further published positions beyond the six in
 the test suite and found no wrong count.
 
-## Milestones 3 to 9
+## Milestone 3: evaluation (hand-crafted)
+
+Scope: a static evaluation of a position in centipawns, material first and
+then piece-square tables with tapered middlegame/endgame blending, behind an
+interface that a neural network can implement later. The hand-crafted
+evaluation stays as fallback and baseline.
+
+Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
+the match script (milestone 6). Until then it is checked for correctness
+only (symmetry, known material balances, phase arithmetic), and its strength
+is recorded as unmeasured in known issue KI-8.
+
+The piece-square tables are written for this project from general chess
+principles (they are not copied from another engine), leaning towards the
+project's style: active pieces, advanced pawns and pressure towards the
+enemy king. They are a starting point to be tuned once SPRT exists.
+
+- [x] `eval`: `Evaluator` interface and score conventions
+- [x] `eval`: material evaluator
+- [x] `eval`: game phase
+- [x] `eval`: tapered scores (middlegame/endgame pairs and blending)
+- [x] `eval`: piece-square table framework with pawn tables
+- [x] `eval`: knight and bishop tables
+- [x] `eval`: rook and queen tables
+- [x] `eval`: king tables
+- [x] `eval`: hand-crafted evaluator (material plus tables, tapered)
+- [x] `cli`: `eval` subcommand with a breakdown
+- [x] End-of-milestone review and doc drift pass
+
+The end-of-milestone review found no defect in the evaluation code. It
+strengthened the tests (the blended total is now pinned at phases between
+the endpoints) and corrected two comments that overstated what the tables do.
+
+## Milestones 4 to 9
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
@@ -149,7 +183,7 @@ that milestone starts, and must include the known issues due in it:
 - Milestone 2: none left.
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
-- Milestone 6: calibration of `UCI_Elo`.
+- Milestone 6: calibration of `UCI_Elo`; KI-8.
 - Not yet scheduled: KI-2, KI-7.
 
 ## Planned features
@@ -197,6 +231,9 @@ limited only through the two standard options above.
 
 ## Carried into later milestones
 
+- Milestone 4 (search): decide whether `Evaluator` needs `Send + Sync`
+  bounds. Search will run on its own thread (milestone 5) and hold the
+  evaluator as a trait object, which today cannot cross threads.
 - Milestone 4 (search): choose between make/unmake and copy-make for the
   search loop by measuring search speed. Perft showed copy-make about 5%
   faster (see TESTING.md), which is not decisive on its own.

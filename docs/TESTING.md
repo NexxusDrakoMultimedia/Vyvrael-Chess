@@ -49,8 +49,15 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces or straight ahead; no capture around the board edge, with the bait placed on the exact square a wrapping shift would reach, for both edge files and both colours. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge for either colour. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square, with the crossed and destination squares each tested for both colours; an attacked b-file square is allowed. |
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched; legal moves keep the pseudo-legal order. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
+| `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
 | `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
+| `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view. |
+| `eval::Material` | Piece values keep the usual orderings (bishop above knight, two rooks above a queen, rook above knight plus pawn); the start position is balanced at full material; a missing queen scores +900 or -900 depending on the side to move; rook against knight and pawn, bishop against knight, bare kings. |
+| `eval` game phase | The start position is 24; kings and pawns are 0; each piece kind adds its weight for both colours; nine queens are capped at 24. |
+| `eval::Tapered` | `blend` equals `mg` at phase 24 and `eg` at phase 0, is a weighted average in between and monotonic; a flat pair blends to itself; `blend(-x) == -blend(x)` at every phase, including fractional averages; component-wise arithmetic; a phase outside 0 to 24 panics. |
+| `eval` piece-square tables | Visual tables map to the right squares; Black uses each table flipped top to bottom; every table is left-right symmetric; the pawn table is zero on the back ranks, accelerates towards promotion in the endgame and prefers advanced centre pawns in the middlegame; the balance is White minus Black, zero at the start, and negates when colours are swapped and the board flipped; knights and bishops prefer the centre to the rim and development to the back rank; rooks prefer the seventh rank and central files; the queen's middlegame values are small and her endgame values favour the centre; the king scores best on g1 and b1 in the middlegame, both castled squares beat the home square, every step up the board is worse, and the centre is best in the endgame; every piece kind has a table. |
+| `eval::HandCrafted` | Colour symmetry on eight positions (a position and its colour-swapped mirror score the same for the side to move, and every part of the breakdown negates); the side to move only changes the sign; the start position is exactly level; the breakdown after 1.e4 adds up by hand; material outweighs placement; the total equals material plus the blend at the position's own phase for twelve positions covering seven different phases; one advanced king scored exactly at three phases (-7 with queens and rooks on, +18 with queens only, +44 with bare kings); `default_evaluator` is the hand-crafted one. |
 
 Rows are added as modules land.
 
@@ -59,6 +66,18 @@ repository against an independent mailbox model over about 5.6 million
 pseudo-legal moves, and the FEN parser was fuzzed with a million mutated
 inputs; neither found a defect. Those harnesses were not committed. Their
 role is now filled by `tests/perft.rs` and `tests/consistency.rs`.
+
+## Looking at an evaluation
+
+```sh
+cargo run --release -- eval [FEN]
+```
+
+prints the hand-crafted evaluation of a position (the start position without
+a FEN) and its parts: material, the piece-square balance for the middlegame
+and the endgame, the game phase, and the total from White's point of view and
+from the side to move's. It does not search, so it says how the position
+looks, not what is about to happen in it. All numbers are centipawns.
 
 ## Integration tests
 

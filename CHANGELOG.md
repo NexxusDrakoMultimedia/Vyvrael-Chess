@@ -77,3 +77,12 @@ once it has a first release.
   (`FenError::OpponentInCheck`).
 - `perft_copy_make` and `perft --copy-make`, with a recorded speed comparison
   against make/unmake.
+- `eval` module: the `Evaluator` trait, `Score` and `relative_to`.
+- Material evaluation: `piece_value`, `material_balance` and the `Material`
+  evaluator.
+- Game phase (`game_phase`, 0 to 24).
+- `Tapered` middlegame/endgame score pairs with phase blending.
+- Piece-square tables (`piece_square`, `piece_square_balance`), for all six piece kinds.
+- `HandCrafted` evaluator (material plus tapered piece-square tables), its
+  `Breakdown`, and `default_evaluator`.
+- `eval` subcommand of the binary, printing the evaluation and its parts.

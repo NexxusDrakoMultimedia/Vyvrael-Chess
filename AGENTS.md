@@ -22,6 +22,7 @@ Layout:
   - `src/rng.rs`: the only source of randomness.
   - `src/attacks/`: attack tables per piece type.
   - `src/movegen/`: move generation.
+  - `src/eval/`: static evaluation.
   - `src/perft.rs`: perft node counting.
   - `src/cli.rs`: the binary's command line (`main.rs` only calls it).
   - `src/board/`: board representation (types, position, FEN, Zobrist
@@ -40,6 +41,7 @@ Layout:
 | Test | `cargo test --workspace --release` |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
+| Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Match script | not implemented yet (milestone 6) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 7) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 8) |

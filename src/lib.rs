@@ -10,6 +10,7 @@
 pub mod attacks;
 pub mod board;
 pub mod cli;
+pub mod eval;
 pub mod movegen;
 pub mod perft;
 pub mod rng;

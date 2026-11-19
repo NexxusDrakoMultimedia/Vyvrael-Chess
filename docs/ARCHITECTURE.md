@@ -33,9 +33,9 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
-| evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
+| `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
@@ -329,7 +329,89 @@ on this square attack?".
   buffers and `main.rs` is only a few lines. With no arguments the binary
   identifies itself on stderr, leaving stdout empty for the future UCI
   protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
-  timing on stderr. Exit status 2 means the command line was not understood.
+  timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
+  parts. Exit status 2 means the command line was not understood.
+
+## Evaluation
+
+`src/eval/` gives a position a score without searching. Milestone 3 covers
+material and piece-square tables only; other terms (mobility, king safety,
+pawn structure) are candidates for later, each to be accepted by SPRT.
+
+- **Scores** are `eval::Score`, an `i32` in centipawns (100 is about one
+  pawn).
+- **`Evaluator`** (`eval/mod.rs`) is the trait search will call:
+  `evaluate(&self, pos) -> Score` returns the score **from the side to move's
+  point of view**, which is what negamax needs, and `name()` identifies the
+  evaluator. Search holds it as a trait object, so the hand-crafted evaluation
+  and a later neural network are interchangeable and can be played against
+  each other. Evaluators add up "White minus Black" and convert with
+  `eval::relative_to`.
+- The trait takes the whole position each time. A network that updates
+  incrementally on make/unmake (milestone 8) will need notification hooks;
+  they will be added then as default methods, so existing evaluators do not
+  change.
+
+- **Material** (`eval/material.rs`): `piece_value` gives the conventional
+  values in centipawns (pawn 100, knight 320, bishop 330, rook 500, queen 900,
+  king 0). `material_balance` is White's total minus Black's, and the
+  `Material` evaluator returns just that. It is the simplest sound evaluation
+  and the baseline later terms are measured against.
+
+- **Game phase** (`eval/phase.rs`): `game_phase` measures how much attacking
+  material is left, from 0 (kings and pawns only) to `MAX_PHASE` = 24 (all
+  pieces on). Knights and bishops count 1, rooks 2, queens 4; pawns and kings
+  count 0. It is capped at 24 so promoted pieces cannot exceed the opening
+  value. This is the usual scheme, chosen because it is cheap and well
+  understood.
+
+- **Tapered scores** (`eval/tapered.rs`): a `Tapered` is a pair of values for
+  one feature, what it is worth in the middlegame (`mg`) and in the endgame
+  (`eg`). `blend(phase)` gives `(mg * phase + eg * (24 - phase)) / 24`, which
+  is exactly `mg` with all pieces on and exactly `eg` with none. Features
+  change value as pieces come off (a central king is a liability with queens
+  on and an asset in a pawn ending), and blending avoids a sudden jump at an
+  arbitrary "the endgame starts here" line. The division rounds towards zero,
+  so negating a pair negates the result exactly; that keeps the evaluation
+  symmetric between the colours.
+
+- **Piece-square tables** (`eval/pst.rs`): a `Tapered` bonus for each piece
+  kind on each square, saying where that piece usually stands well.
+  `piece_square(piece, square)` looks one up and `piece_square_balance(pos)`
+  sums White's minus Black's.
+  - The tables are written in the source the way a board is printed (rank 8
+    at the top, from White's side) and converted at compile time to
+    square-indexed arrays. A black piece uses the same table with the board
+    flipped top to bottom, so the two sides are treated identically.
+  - Every table is symmetric between the queenside and the kingside; a test
+    enforces it.
+  - The values were written for this project from general chess principles,
+    not copied from another engine, and lean towards the project's style.
+    They are untuned (known issue KI-8).
+  - **The tables:** pawns (middlegame: take the centre and do not
+    leave the d- and e-pawns at home; endgame: each step towards promotion is
+    worth more than the last); knights (centre and outposts good, rim and
+    corners bad); bishops (long diagonals and active squares good, back rank
+    bad); rooks (seventh rank and central files); queens (small middlegame
+    values so she is not drawn out early, centralised in the endgame); kings
+    (middlegame: g1 and b1 best, both castled squares better than the home
+    square, worse with every rank advanced; endgame: centre best).
+
+- **The hand-crafted evaluator** (`eval/handcrafted.rs`): `HandCrafted`
+  returns `material + piece_square.blend(phase)`, converted to the side to
+  move's view. `HandCrafted::breakdown` exposes the parts (material,
+  piece-square pair, phase, total) for inspection. It is the engine's
+  baseline: it stays as the fallback and the yardstick once a network exists.
+  `eval::default_evaluator()` returns the evaluator the engine uses; today
+  that is always `HandCrafted`, and it is the single place where the choice
+  between hand-crafted and network evaluation will be made (the planned
+  `UseNNUE` option).
+- **Symmetry is the main correctness test.** An evaluation has no reference
+  answer to compare with, but it must not care which colour it looks at: a
+  position and its colour-swapped mirror must score the same for the side to
+  move. A sign error, a table read from the wrong side or a term applied to
+  one colour only all break that, so the tests check it on a spread of
+  positions.
 
 ## How search, evaluation and UCI fit together (planned)
 

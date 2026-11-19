@@ -22,7 +22,7 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (evaluation) has not started.** The engine generates legal moves and passes perft, but cannot
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search) has not started.** The engine generates legal moves, passes perft and can score a position, but cannot
 play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
@@ -37,17 +37,19 @@ cargo test --workspace --release
 ```
 
 Running the binary with no arguments prints the engine name and version to
-stderr and exits; the UCI loop arrives in milestone 5. One subcommand exists
-so far:
+stderr and exits; the UCI loop arrives in milestone 5. Two subcommands exist
+so far, `perft` and `eval`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
 cargo run --release -- perft 3 --divide   # the same, split by first move
 cargo run --release -- perft 5 --copy-make  # same count, copy-make style
+cargo run --release -- eval               # static evaluation, with its parts
 cargo run --release -- help
 ```
 
-`perft` takes an optional FEN after the depth. See
+`perft` takes an optional FEN after the depth, and `eval` takes an optional
+FEN. See
 [docs/TESTING.md](docs/TESTING.md) for what the numbers mean.
 
 ## Using it in a GUI or lichess-bot
