@@ -83,3 +83,14 @@ fn position_5() {
         &counts,
     );
 }
+
+/// Position 6: a quiet, symmetrical middlegame with many pieces, pins by
+/// bishops and no special moves, testing the ordinary case at volume.
+#[test]
+fn position_6() {
+    let counts = [46, 2_079, 89_890, 3_894_594];
+    check(
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        &counts,
+    );
+}

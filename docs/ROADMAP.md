@@ -131,7 +131,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] perft test: position 3
 - [x] perft test: position 4 and its mirror
 - [x] perft test: position 5
-- [ ] perft test: position 6
+- [x] perft test: position 6
 - [ ] KI-6: perft-driven consistency check of make/unmake and hashing
 - [ ] KI-5: FEN rejects positions where the side not to move is in check
 - [ ] KI-1: hash the en passant file only when the capture is legal
