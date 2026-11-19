@@ -116,7 +116,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `board`: attackers of a square and in-check detection
 - [x] `movegen`: `MoveList`
 - [x] `movegen`: pseudo-legal knight moves
-- [ ] `movegen`: pseudo-legal king moves (without castling)
+- [x] `movegen`: pseudo-legal king moves (without castling)
 - [ ] `movegen`: pseudo-legal bishop, rook and queen moves
 - [ ] `movegen`: pawn pushes and double pushes
 - [ ] `movegen`: pawn captures

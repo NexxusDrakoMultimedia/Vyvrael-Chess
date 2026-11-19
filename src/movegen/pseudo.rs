@@ -6,7 +6,7 @@
 //! attacked.
 
 use super::MoveList;
-use crate::attacks::knight_attacks;
+use crate::attacks::{king_attacks, knight_attacks};
 use crate::board::{Bitboard, Move, MoveKind, PieceKind, Position, Square};
 
 /// Adds a move from `from` to each square in `targets`: a capture where an
@@ -32,6 +32,17 @@ fn knight_moves(pos: &Position, list: &mut MoveList) {
     }
 }
 
+/// King steps to the eight neighbouring squares. Castling is generated
+/// separately.
+fn king_moves(pos: &Position, list: &mut MoveList) {
+    let us = pos.side_to_move();
+    let own = pos.occupied_by(us);
+    let enemies = pos.occupied_by(us.flip());
+    for from in pos.pieces_of(us, PieceKind::King) {
+        push_piece_moves(list, from, king_attacks(from) & !own, enemies);
+    }
+}
+
 /// Generates the pseudo-legal moves of the side to move.
 ///
 /// Pseudo-legal means each move follows the piece's movement rules on this
@@ -39,11 +50,12 @@ fn knight_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// knight moves only. See the checklist in `docs/ROADMAP.md`.
+/// knight moves and king steps (no castling). See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
     knight_moves(pos, &mut list);
+    king_moves(pos, &mut list);
     list
 }
 
@@ -88,6 +100,27 @@ mod tests {
             moves,
             ["e3c2", "e3c4", "e3d1", "e3d5x", "e3f1", "e3g2", "e3g4"]
         );
+    }
+
+    #[test]
+    fn king_steps() {
+        let alone = moves_of("4k3/8/8/8/8/8/8/4K3 w - - 0 1", PieceKind::King);
+        assert_eq!(alone, ["e1d1", "e1d2", "e1e2", "e1f1", "e1f2"]);
+        let black = moves_of("4k3/8/8/8/8/8/8/4K3 b - - 0 1", PieceKind::King);
+        assert_eq!(black, ["e8d7", "e8d8", "e8e7", "e8f7", "e8f8"]);
+        // d2 holds a black pawn, e2 a white pawn.
+        let crowded = moves_of("4k3/8/8/8/8/8/3pP3/4K3 w - - 0 1", PieceKind::King);
+        assert_eq!(crowded, ["e1d1", "e1d2x", "e1f1", "e1f2"]);
+        let centre = moves_of("4k3/8/8/8/4K3/8/8/8 w - - 0 1", PieceKind::King);
+        assert_eq!(centre.len(), 8);
+    }
+
+    /// Pseudo-legal on purpose: stepping onto an attacked square is still
+    /// generated here and removed later by the legality filter.
+    #[test]
+    fn king_steps_ignore_attacks() {
+        let moves = moves_of("4k3/8/8/8/8/8/8/r3K3 w - - 0 1", PieceKind::King);
+        assert!(moves.contains(&"e1d1".to_owned()));
     }
 
     #[test]
