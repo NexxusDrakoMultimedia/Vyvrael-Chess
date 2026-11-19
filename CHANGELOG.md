@@ -56,3 +56,5 @@ once it has a first release.
 - Slider attacks by ray scanning (`bishop_attacks_by_scan`,
   `rook_attacks_by_scan`), the reference for the magic tables.
 - Relevant-occupancy masks and subset enumeration for magic bitboards.
+- Magic bitboards: `bishop_attacks`, `rook_attacks`, `queen_attacks`, with
+  magic numbers found by the seeded RNG (`rng::stream::MAGICS`).

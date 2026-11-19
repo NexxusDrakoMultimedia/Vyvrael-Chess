@@ -228,6 +228,24 @@ on this square attack?".
   - *Subsets.* `subsets(mask)` enumerates every arrangement of pieces on a
     mask with the carry-rippler step `next = (current - mask) & mask`.
 
+  - *Magic numbers and tables* (`attacks/sliders.rs`). For each square a
+    magic multiplier maps every blocker arrangement to a slot:
+    `index = ((occupied & mask) * magic) >> (64 - mask bits)`. Arrangements
+    may share a slot only if they give the same attacks. All squares' slices
+    live in one shared table of 5,248 bishop plus 102,400 rook entries (about
+    860 KiB), "plain" magics with a per-square offset.
+  - *Finding the magics.* Candidates are the AND of three outputs of the
+    seeded generator (sparse numbers work best), drawn from
+    `Rng::stream(DEFAULT_SEED, stream::MAGICS)` for the bishop squares a1 to
+    h8 and then the rook squares. A candidate is kept when filling the slice
+    from the scanned reference attacks produces no conflicting slot. Because
+    the stream is fixed, every run finds the same numbers; a test pins them.
+  - *When.* The tables are built on first use behind a `LazyLock`, not at
+    compile time: the search is too heavy for `const` evaluation. It takes
+    about 0.1 s in a release build (known issue KI-7).
+  - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
+    the lookups move generation uses.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`
@@ -296,6 +314,7 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
+| Magic-number search (`attacks::sliders`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, on first use | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
 Stream indices of the default seed are registered in `rng::stream` so that
@@ -304,9 +323,9 @@ subsystems never share or shift each other's numbers:
 | Stream index | Constant | Used by |
 | --- | --- | --- |
 | 0 | `stream::ZOBRIST` | Zobrist keys |
+| 1 | `stream::MAGICS` | Magic-number search |
 
-Planned uses (each gets a real row when it lands): magic-number search (milestone 2, not
-strength-affecting), property tests (not strength-affecting), datagen opening randomisation (milestone 8, not
+Planned uses (each gets a real row when it lands): property tests (not strength-affecting), datagen opening randomisation (milestone 8, not
 strength-affecting; per-game derived seeds), strength limiting through
 `UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
 non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the

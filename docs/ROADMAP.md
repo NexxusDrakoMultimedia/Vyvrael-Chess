@@ -92,9 +92,12 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
 | KI-4 | **Make/unmake design is unmeasured.** `make_move` returns an `Undo` token and updates the position in place. This was chosen by reasoning, with no benchmark against copy-make. | None known. The choice may not be the fastest. | Milestone 2: compare with copy-make using perft node rates, record the numbers in `TESTING.md`, and keep or change the design on that evidence. |
 | KI-5 | **FEN validation does not detect that the side not to move is in check.** Such a position cannot arise in a game. | An impossible position loads without error. | Milestone 2, once attack generation exists. |
+| KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Not scheduled. If it matters (for example for UCI start-up time in milestone 5), embed the numbers the search finds as constants and keep the search as a test that reproduces them. |
 | KI-6 | **No committed randomised make/unmake stress test.** The milestone 1 review ran one outside the repository. | Regressions are caught only by the fixed test cases. | Milestone 2: the perft suite fills this role. |
 
 ## Milestone 2: move generation
+
+<!-- KI-7 is recorded in the Known issues table. -->
 
 Scope: attack tables (magic bitboards for sliders, found with the seeded
 RNG), legal move generation, and perft against the published reference node
@@ -111,7 +114,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `attacks`: pawn attack tables
 - [x] `attacks`: slider attacks by ray scanning (the reference implementation)
 - [x] `attacks`: relevant-occupancy masks and subset enumeration
-- [ ] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
+- [x] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
 - [ ] `board`: attackers of a square and in-check detection
 - [ ] `movegen`: `MoveList`
 - [ ] `movegen`: pseudo-legal knight moves
@@ -147,7 +150,7 @@ that milestone starts, and must include the known issues due in it:
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`.
-- Not yet scheduled: KI-2.
+- Not yet scheduled: KI-2, KI-7.
 
 ## Planned features
 
