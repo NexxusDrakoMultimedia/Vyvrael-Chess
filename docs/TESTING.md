@@ -56,8 +56,8 @@ Rows are added as modules land.
 During the milestone 1 review, make/unmake was also stress-tested outside the
 repository against an independent mailbox model over about 5.6 million
 pseudo-legal moves, and the FEN parser was fuzzed with a million mutated
-inputs; neither found a defect. Those harnesses are not committed, because
-they need a move generator: milestone 2's perft suite takes over that role.
+inputs; neither found a defect. Those harnesses were not committed. Their
+role is now filled by `tests/perft.rs` and `tests/consistency.rs`.
 
 ## Integration tests
 
@@ -66,6 +66,7 @@ Integration tests live in `tests/` and use only the public API.
 | File | What is checked |
 | --- | --- |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
+| `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
 
 The Opera Game's final FEN is the widely published one, so that checkpoint is

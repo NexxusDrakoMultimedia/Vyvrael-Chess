@@ -66,3 +66,5 @@ once it has a first release.
 - `perft` module: `perft` and `divide`.
 - `perft` subcommand of the binary, with `--divide`, and a `help` command.
 - Perft acceptance tests against published node counts (`tests/perft.rs`).
+- Tree-walking consistency test of make/unmake, hashing and FEN
+  (`tests/consistency.rs`).

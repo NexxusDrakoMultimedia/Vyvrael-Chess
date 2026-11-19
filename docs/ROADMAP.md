@@ -93,7 +93,6 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-4 | **Make/unmake design is unmeasured.** `make_move` returns an `Undo` token and updates the position in place. This was chosen by reasoning, with no benchmark against copy-make. | None known. The choice may not be the fastest. | Milestone 2: compare with copy-make using perft node rates, record the numbers in `TESTING.md`, and keep or change the design on that evidence. |
 | KI-5 | **FEN validation does not detect that the side not to move is in check.** Such a position cannot arise in a game. | An impossible position loads without error. | Milestone 2, once attack generation exists. |
 | KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Not scheduled. If it matters (for example for UCI start-up time in milestone 5), embed the numbers the search finds as constants and keep the search as a test that reproduces them. |
-| KI-6 | **No committed randomised make/unmake stress test.** The milestone 1 review ran one outside the repository. | Regressions are caught only by the fixed test cases. | Milestone 2: the perft suite fills this role. |
 
 ## Milestone 2: move generation
 
@@ -132,7 +131,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] perft test: position 4 and its mirror
 - [x] perft test: position 5
 - [x] perft test: position 6
-- [ ] KI-6: perft-driven consistency check of make/unmake and hashing
+- [x] KI-6: perft-driven consistency check of make/unmake and hashing
 - [ ] KI-5: FEN rejects positions where the side not to move is in check
 - [ ] KI-1: hash the en passant file only when the capture is legal
 - [ ] KI-4: measure make/unmake against copy-make with perft
@@ -144,7 +143,7 @@ Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: KI-1, KI-4, KI-5, KI-6 (in its checklist above).
+- Milestone 2: KI-1, KI-4, KI-5 (in its checklist above).
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`.
