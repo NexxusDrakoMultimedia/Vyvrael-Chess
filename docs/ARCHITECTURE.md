@@ -27,7 +27,7 @@ dependencies, so the engine binary stays small and builds fast.
 | Module | Status | Responsibility |
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
-| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64), `DEFAULT_SEED`, `mix64`. |
+| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64), `Rng::stream`, `DEFAULT_SEED`, `mix64`. |
 | board representation | planned (milestone 1) | Bitboards, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
@@ -45,8 +45,8 @@ layer writes to stdout.
 
 ## RNG design
 
-Implemented in `src/rng.rs`. Bullets marked *planned* are not in the code
-yet.
+Implemented in `src/rng.rs`. The bounded-integer helper is *planned* and
+not in the code yet.
 
 All randomness in the engine goes through one module, `rng`. The tool crates
 use it through their dependency on the engine crate (or mirror it exactly if
@@ -65,13 +65,19 @@ that dependency is ever undesirable).
 - **Default seed:** `DEFAULT_SEED: u32 = 0x31031996`, defined once in `rng`
   and referenced by name everywhere. A 32-bit seed is zero-extended to the
   64-bit state.
-- **Seed derivation (planned):** independent streams (threads, self-play games,
-  subsystems) are created from a base seed and a stream index through a mixing
-  function, never by sharing one generator across threads.
+- **Seed derivation:** independent streams (threads, self-play games,
+  subsystems) are created with `Rng::stream(base_seed, index)`, never by
+  sharing one generator across threads. The stream's starting state is
+  `mix64(k ^ mix64(index + 0x9E3779B97F4A7C15))`, where `k` is the first
+  output of `Rng::new(base_seed)`. Because `mix64` is a bijection, distinct
+  indices always give distinct starting states for the same base seed. Streams
+  are different offsets into SplitMix64's single 2^64 cycle; with
+  well-mixed offsets, an overlap within any practical run length is
+  vanishingly unlikely.
 - **Golden tests:** known-answer tests pin the first outputs for seed
   `1234567` (the published SplitMix64 reference vector), seed `0` and
-  `DEFAULT_SEED`. The `DEFAULT_SEED` values were computed with an independent
-  implementation.
+  `DEFAULT_SEED`, plus four derived streams. The `DEFAULT_SEED` and stream
+  values were computed with an independent implementation.
 - **Compile-time use:** every method is a `const fn`, so tables can be
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding

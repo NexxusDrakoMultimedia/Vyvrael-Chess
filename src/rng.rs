@@ -56,6 +56,19 @@ impl Rng {
         Self { state }
     }
 
+    /// Creates an independent generator for stream `index` of `base_seed`.
+    ///
+    /// Use this wherever several generators are needed (threads, self-play
+    /// games, subsystems) instead of sharing one generator. Distinct indices
+    /// always give distinct starting states for the same base seed: the state
+    /// is `mix64(k ^ mix64(index + GOLDEN_GAMMA))`, where `k` is the first
+    /// output of `Rng::new(base_seed)`, and `mix64` is a bijection.
+    #[must_use]
+    pub const fn stream(base_seed: u32, index: u64) -> Self {
+        let key = Self::new(base_seed).next_u64();
+        Self::from_state(mix64(key ^ mix64(index.wrapping_add(GOLDEN_GAMMA))))
+    }
+
     /// Returns the next 64 random bits.
     pub const fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(GOLDEN_GAMMA);
@@ -166,6 +179,68 @@ mod tests {
         for _ in 0..16 {
             assert_eq!(u64::from(a.next_u32()), b.next_u64() >> 32);
         }
+    }
+
+    /// Golden values for derived streams of the default seed, computed with
+    /// an independent implementation.
+    #[test]
+    fn golden_streams() {
+        let golden: [(u64, [u64; 3]); 4] = [
+            (
+                0,
+                [
+                    0xCCC9_1CE0_CC50_1A61,
+                    0x0A28_A258_6506_921E,
+                    0x48E0_21E3_BC01_D377,
+                ],
+            ),
+            (
+                1,
+                [
+                    0xD119_0E69_43F2_5DBC,
+                    0x89C2_D801_6FB9_0F9B,
+                    0x6D8A_B0AE_5D5A_2A23,
+                ],
+            ),
+            (
+                2,
+                [
+                    0x924E_45DE_572A_5660,
+                    0x506D_A39B_AB71_4DD7,
+                    0x2A91_45FE_1058_8711,
+                ],
+            ),
+            (
+                u64::MAX,
+                [
+                    0x00BC_B3C7_C27B_9FBF,
+                    0x743B_C185_E621_063D,
+                    0xBDE4_9162_AD40_6CE2,
+                ],
+            ),
+        ];
+        for (index, expected) in golden {
+            let mut rng = Rng::stream(DEFAULT_SEED, index);
+            assert_eq!(take(&mut rng, 3), expected, "stream {index}");
+        }
+    }
+
+    #[test]
+    fn streams_are_distinct_from_each_other_and_from_the_base() {
+        let mut states = vec![Rng::new(DEFAULT_SEED)];
+        states.extend((0..1000).map(|i| Rng::stream(DEFAULT_SEED, i)));
+        let mut firsts: Vec<u64> = states.iter_mut().map(Rng::next_u64).collect();
+        firsts.sort_unstable();
+        firsts.dedup();
+        assert_eq!(firsts.len(), 1001);
+    }
+
+    #[test]
+    fn stream_depends_on_base_seed() {
+        assert_ne!(
+            Rng::stream(DEFAULT_SEED, 0),
+            Rng::stream(DEFAULT_SEED + 1, 0)
+        );
     }
 
     #[test]

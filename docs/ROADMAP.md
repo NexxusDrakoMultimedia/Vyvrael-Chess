@@ -49,7 +49,7 @@ the hash incrementally from its first commit and every test can compare it
 with a from-scratch recompute.
 
 - [x] `rng`: SplitMix64 generator, `DEFAULT_SEED`, golden-value tests
-- [ ] `rng`: derived streams (base seed + stream index)
+- [x] `rng`: derived streams (base seed + stream index)
 - [ ] `rng`: unbiased bounded integers
 - [ ] `board`: `Color`
 - [ ] `board`: `Square` with coordinate parsing and display
