@@ -393,8 +393,8 @@ searching.
     corners bad); bishops (long diagonals and active squares good, back rank
     bad); rooks (seventh rank and central files); queens (small middlegame
     values so she is not drawn out early, centralised in the endgame); kings
-    (middlegame: castled squares best, worse with every rank advanced;
-    endgame: centre best). All six tables are now written.
+    (middlegame: g1 and b1 best, both castled squares better than the home
+    square, worse with every rank advanced; endgame: centre best).
 
 - **The hand-crafted evaluator** (`eval/handcrafted.rs`): `HandCrafted`
   returns `material + piece_square.blend(phase)`, converted to the side to

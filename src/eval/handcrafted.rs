@@ -198,22 +198,59 @@ mod tests {
         // A knight up is clearly winning wherever the pieces stand.
         assert!(eval("4k3/8/8/8/8/8/8/N3K3 w - - 0 1") > 200);
         assert!(eval("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") > 800);
-        // No table entry outweighs a pawn by itself reaching the board's
-        // best square for it, apart from pawns about to promote.
+        // A knight in the corner with an extra pawn still beats a lone
+        // centralised knight: placement does not outweigh a pawn here.
         assert!(eval("4k3/8/8/8/8/8/P7/N3K3 w - - 0 1") > eval("4k3/8/8/8/3N4/8/8/4K3 w - - 0 1"));
     }
 
     #[test]
     fn tapering_changes_what_a_square_is_worth() {
-        // The same advanced white king: bad with queens on, good without.
-        let with_queens = HandCrafted::breakdown(&fen("3qk3/8/8/8/4K3/8/8/3Q4 w - - 0 1"));
-        let without = HandCrafted::breakdown(&fen("4k3/8/8/8/4K3/8/8/8 w - - 0 1"));
-        assert_eq!(with_queens.phase, 8);
-        assert_eq!(without.phase, 0);
-        assert!(without.total > 0, "a central king is an endgame asset");
-        assert!(without.total > with_queens.total);
-        // At phase 0 only the endgame halves count.
-        assert_eq!(without.total, without.piece_square.eg);
+        // The same advanced white king on e4 against a black king at home,
+        // with the other pieces placed symmetrically so only the kings count.
+        // The king balance is -33 in the middlegame and +44 in the endgame.
+        let kings = Tapered::new(-33, 44);
+        let heavy = HandCrafted::breakdown(&fen("r2qk2r/8/8/8/4K3/8/8/R2Q3R w - - 0 1"));
+        let queens = HandCrafted::breakdown(&fen("3qk3/8/8/8/4K3/8/8/3Q4 w - - 0 1"));
+        let bare = HandCrafted::breakdown(&fen("4k3/8/8/8/4K3/8/8/8 w - - 0 1"));
+        for parts in [heavy, queens, bare] {
+            assert_eq!(parts.material, 0);
+            assert_eq!(parts.piece_square, kings);
+        }
+        // Queens and rooks on (phase 16): the exposed king is a liability.
+        // (-33 * 16 + 44 * 8) / 24 = -176 / 24, which rounds towards zero.
+        assert_eq!((heavy.phase, heavy.total), (16, -7));
+        // Queens only (phase 8): (-33 * 8 + 44 * 16) / 24 = 440 / 24.
+        assert_eq!((queens.phase, queens.total), (8, 18));
+        // Bare kings (phase 0): only the endgame half counts.
+        assert_eq!((bare.phase, bare.total), (0, 44));
+        assert!(heavy.total < 0 && queens.total < bare.total);
+    }
+
+    /// The total is always material plus the piece-square pair blended at
+    /// the position's own phase. The sample positions are mostly full boards,
+    /// so four more are added to cover the phases in between.
+    #[test]
+    fn total_is_material_plus_the_blend_at_the_positions_phase() {
+        let in_between = [
+            "r2qk2r/8/8/8/4K3/8/8/R2Q3R w - - 0 1",
+            "3qk3/8/8/8/4K3/8/8/3Q4 w - - 0 1",
+            "r1bqk2r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 0 1",
+            "2r3k1/5ppp/8/8/8/8/5PPP/2R1N1K1 w - - 0 1",
+        ];
+        let mut phases = Vec::new();
+        for position in POSITIONS.into_iter().chain(in_between) {
+            let parts = HandCrafted::breakdown(&fen(position));
+            assert_eq!(
+                parts.total,
+                parts.material + parts.piece_square.blend(parts.phase),
+                "{position}"
+            );
+            phases.push(parts.phase);
+        }
+        // The positions really do cover different phases.
+        phases.sort_unstable();
+        phases.dedup();
+        assert_eq!(phases, [0, 4, 5, 8, 16, 22, 24]);
     }
 
     #[test]

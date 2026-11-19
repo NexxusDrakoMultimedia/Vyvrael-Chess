@@ -168,8 +168,9 @@ const QUEEN: [Tapered; Square::COUNT] = from_visual(
 );
 
 /// Kings. The two halves disagree, which is what tapering is for. Middlegame:
-/// stay behind the pawns near a corner (the castled squares score best) and
-/// never walk up the board. Endgame: the king is a fighting piece and belongs
+/// stay behind the pawns near a corner (g1 and b1 score best, and both
+/// castled squares, g1 and c1, beat the home square) and never walk up the
+/// board. Endgame: the king is a fighting piece and belongs
 /// in the centre.
 #[rustfmt::skip]
 const KING: [Tapered; Square::COUNT] = from_visual(
@@ -377,10 +378,14 @@ mod tests {
     #[test]
     fn the_king_hides_in_the_middlegame_and_fights_in_the_endgame() {
         let at = |square| white(PieceKind::King, square);
-        // Middlegame: castled squares beat the home square, which beats the
-        // centre of the board.
+        // Middlegame: both castled squares (g1 and c1) and the tucked-away
+        // b1 beat the home square, which beats the centre of the board.
         assert!(at(Square::G1).mg > at(Square::E1).mg);
-        assert!(at(Square::B1).mg > at(Square::E1).mg);
+        assert!(at(Square::C1).mg > at(Square::E1).mg);
+        assert!(at(Square::B1).mg > at(Square::C1).mg);
+        let best = Square::all().map(|square| at(square).mg).max().unwrap();
+        assert_eq!(at(Square::G1).mg, best);
+        assert_eq!(at(Square::B1).mg, best);
         assert!(at(Square::E1).mg > at(Square::E4).mg);
         // Every step up the board is worse in the middlegame, on every file.
         for file in 0..8 {
