@@ -106,7 +106,7 @@ ones that leave the mover's king attacked by making the move and testing.
 This is the simplest correct design; a faster pin-aware generator can replace
 it later behind the same interface, with perft as the safety net.
 
-- [ ] `attacks`: knight attack table
+- [x] `attacks`: knight attack table
 - [ ] `attacks`: king attack table
 - [ ] `attacks`: pawn attack tables
 - [ ] `attacks`: slider attacks by ray scanning (the reference implementation)

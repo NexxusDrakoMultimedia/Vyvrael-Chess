@@ -20,6 +20,7 @@ Layout:
 - `src/lib.rs`, `src/main.rs`: the engine crate `vyvrael` (library + binary).
   It has no dependencies and must never depend on the tool crates.
   - `src/rng.rs`: the only source of randomness.
+  - `src/attacks/`: attack tables per piece type.
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.

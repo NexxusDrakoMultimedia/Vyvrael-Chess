@@ -31,7 +31,8 @@ dependencies, so the engine binary stays small and builds fast.
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
-| move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
+| `attacks` | in progress (milestone 2) | Attack tables per piece type. |
+| move generation | planned (milestone 2) | Legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
@@ -191,6 +192,17 @@ from `board`.
   moving like a knight parses as a quiet move); that needs move generation
   (milestone 2), after which UCI input should be matched against the legal
   move list; that is due in milestone 5 (known issue KI-3).
+
+## Attacks and move generation
+
+In progress (milestone 2). `src/attacks/` answers "which squares does a piece
+on this square attack?".
+
+- **Leapers** (`attacks/leapers.rs`): knights, kings and pawns attack a fixed
+  pattern that does not depend on other pieces, so each has a 64-entry table
+  built at compile time from the bitboard shifts (which cannot wrap around the
+  board edge).
+  - `knight_attacks(square)`.
 
 ## How search, evaluation and UCI fit together (planned)
 
