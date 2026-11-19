@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for quiet moves, captures, double pushes and en passant. Still planned: make/unmake for castling and promotions. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for quiet moves, captures, double pushes, en passant and castling. Still planned: make/unmake for promotions. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -164,8 +164,12 @@ Implemented in `src/board/`, one small file per type, re-exported from
   - A double push sets the en passant square to the square the pawn passed
     over. An en passant capture removes the pawn standing on the destination
     file and the origin rank, not on the destination square.
-  - **Not implemented yet:** castling and promotions. `make_move` panics with
-    `unimplemented!` for those kinds until their chunks land.
+  - Castling is given as the king's move. The rook's squares follow from
+    the king's destination: g-file means the h-rook goes to the f-file,
+    c-file means the a-rook goes to the d-file. The king leaving its home
+    square revokes both of that side's rights through the normal rule.
+  - **Not implemented yet:** promotions. `make_move` panics with
+    `unimplemented!` for those kinds until their chunk lands.
 
 ## How search, evaluation and UCI fit together (planned)
 

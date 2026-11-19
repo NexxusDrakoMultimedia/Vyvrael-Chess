@@ -66,7 +66,7 @@ with a from-scratch recompute.
 - [x] `board`: position hash (from scratch + incremental on placement)
 - [x] `board`: make/unmake for quiet moves and captures
 - [x] `board`: make/unmake for double pawn pushes and en passant
-- [ ] `board`: make/unmake for castling
+- [x] `board`: make/unmake for castling
 - [ ] `board`: make/unmake for promotions
 - [ ] `board`: coordinate-notation move parsing against a position
 - [ ] `board`: whole-game make/unmake regression test

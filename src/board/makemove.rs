@@ -32,6 +32,18 @@ const fn en_passant_victim(from: Square, to: Square) -> Square {
     Square::new(to.file(), from.rank())
 }
 
+/// Where the rook starts and ends in a castling move, given the square the
+/// king lands on: the g-file means the h-rook goes to the f-file, otherwise
+/// the a-rook goes to the d-file.
+const fn castle_rook_squares(king_to: Square) -> (Square, Square) {
+    let rank = king_to.rank();
+    if king_to.file() == 6 {
+        (Square::new(7, rank), Square::new(5, rank))
+    } else {
+        (Square::new(0, rank), Square::new(3, rank))
+    }
+}
+
 impl Position {
     /// Plays `mv` for the side to move and returns the [`Undo`] that takes it
     /// back.
@@ -80,6 +92,12 @@ impl Position {
             MoveKind::EnPassant => {
                 undo.captured = Some(self.lift(en_passant_victim(from, to)));
                 self.place(to, mover);
+            }
+            MoveKind::KingCastle | MoveKind::QueenCastle => {
+                self.place(to, mover);
+                let (rook_from, rook_to) = castle_rook_squares(to);
+                let rook = self.lift(rook_from);
+                self.place(rook_to, rook);
             }
             kind => unimplemented!("make_move: {kind:?} arrives in a later chunk"),
         }
@@ -141,6 +159,12 @@ impl Position {
                 self.place(from, mover);
                 let captured = undo.captured.expect("unmake_move: capture without a piece");
                 self.place(en_passant_victim(from, to), captured);
+            }
+            MoveKind::KingCastle | MoveKind::QueenCastle => {
+                self.place(from, mover);
+                let (rook_from, rook_to) = castle_rook_squares(to);
+                let rook = self.lift(rook_to);
+                self.place(rook_from, rook);
             }
             kind => unimplemented!("unmake_move: {kind:?} arrives in a later chunk"),
         }
@@ -367,6 +391,51 @@ mod tests {
             "4k3/8/8/8/6pP/8/8/4K3 b - h3 0 1",
             en_passant(Square::G4, Square::H3),
             "4k3/8/8/8/8/7p/8/4K3 w - - 0 2",
+        );
+    }
+
+    #[test]
+    fn castling_moves_king_and_rook_and_spends_both_rights() {
+        let king_side = |from, to| Move::new(from, to, MoveKind::KingCastle);
+        let queen_side = |from, to| Move::new(from, to, MoveKind::QueenCastle);
+
+        let white = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        check(
+            white,
+            king_side(Square::E1, Square::G1),
+            "r3k2r/8/8/8/8/8/8/R4RK1 b kq - 1 1",
+        );
+        check(
+            white,
+            queen_side(Square::E1, Square::C1),
+            "r3k2r/8/8/8/8/8/8/2KR3R b kq - 1 1",
+        );
+
+        let black = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
+        check(
+            black,
+            king_side(Square::E8, Square::G8),
+            "r4rk1/8/8/8/8/8/8/R3K2R w KQ - 1 2",
+        );
+        check(
+            black,
+            queen_side(Square::E8, Square::C8),
+            "2kr3r/8/8/8/8/8/8/R3K2R w KQ - 1 2",
+        );
+    }
+
+    #[test]
+    fn castling_keeps_the_other_sides_rights_and_the_clock_running() {
+        check(
+            "r3k2r/8/8/8/8/8/8/R3K2R w Kq - 5 10",
+            Move::new(Square::E1, Square::G1, MoveKind::KingCastle),
+            "r3k2r/8/8/8/8/8/8/R4RK1 b q - 6 10",
+        );
+        // On a crowded board (the "Kiwipete" perft position).
+        check(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            Move::new(Square::E1, Square::C1, MoveKind::QueenCastle),
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1",
         );
     }
 
