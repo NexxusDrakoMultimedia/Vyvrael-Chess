@@ -138,7 +138,11 @@ mod tests {
         assert!(moves.iter().any(|mv| mv.kind() == MoveKind::QueenCastle));
         // Legal moves are a subset of the pseudo-legal moves, in order.
         let pseudo = pseudo_legal_moves(&pos);
-        let filtered: Vec<_> = pseudo.iter().filter(|mv| moves.contains(mv)).collect();
-        assert_eq!(filtered.len(), moves.len());
+        let filtered: Vec<_> = pseudo
+            .iter()
+            .copied()
+            .filter(|mv| moves.contains(mv))
+            .collect();
+        assert_eq!(filtered, moves.as_slice());
     }
 }

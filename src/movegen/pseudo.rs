@@ -252,11 +252,17 @@ mod tests {
         // d5 and f5 hold White's own pawns; e5 holds a black pawn dead ahead.
         let own = moves_of("4k3/8/8/3PpP2/4P3/8/8/4K3 w - - 0 1", PieceKind::Pawn);
         assert_eq!(own, ["d5d6", "f5f6"]);
-        // The a-pawn must not capture the piece on h4 by wrapping around.
-        let edge = moves_of("4k3/8/8/8/1p5p/P7/8/4K3 w - - 0 1", PieceKind::Pawn);
-        assert_eq!(edge, ["a3a4", "a3b4x"]);
-        let black_edge = moves_of("4k3/8/7p/P5P1/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
-        assert_eq!(black_edge, ["h6g5x", "h6h5"]);
+        // Edge pawns must not capture "around" the board. The bait stands on
+        // the exact square a wrapping shift would land on: one bit position
+        // away in the wrong direction.
+        let white_a = moves_of("4k3/8/8/8/1p6/P6p/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(white_a, ["a3a4", "a3b4x"], "bait on h3");
+        let white_h = moves_of("4k3/8/8/p7/6p1/7P/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(white_h, ["h3g4x", "h3h4"], "bait on a5");
+        let black_h = moves_of("4k3/8/P6p/6P1/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black_h, ["h6g5x", "h6h5"], "bait on a6");
+        let black_a = moves_of("4k3/8/p7/1P6/7P/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black_a, ["a6a5", "a6b5x"], "bait on h4");
     }
 
     #[test]
@@ -320,9 +326,12 @@ mod tests {
             .iter()
             .any(|mv| mv.kind() == MoveKind::EnPassant);
         assert!(!any);
-        // The pawn on the far side of the board must not capture by wrapping.
-        let edge = moves_of("4k3/8/8/p6P/8/8/8/4K3 w - a6 0 2", PieceKind::Pawn);
-        assert_eq!(edge, ["h5h6"]);
+        // A pawn on the far edge must not capture by wrapping. For target a6
+        // a wrapping shift lands on h4; for target h3 it lands on a5.
+        let edge = moves_of("4k3/8/8/p7/7P/8/8/4K3 w - a6 0 2", PieceKind::Pawn);
+        assert_eq!(edge, ["h4h5"]);
+        let black_edge = moves_of("4k3/8/8/p7/7P/8/8/4K3 b - h3 0 1", PieceKind::Pawn);
+        assert_eq!(black_edge, ["a5a4"]);
     }
 
     /// The castling moves among the king's moves, as "O-O" / "O-O-O".
@@ -406,6 +415,9 @@ mod tests {
             ["O-O-O", "O-O"]
         );
         assert!(castles("r3k2r/8/8/8/8/8/4R3/4K3 b kq - 0 1").is_empty());
+        // The destination squares g8 and c8.
+        assert_eq!(castles("r3k2r/8/8/8/8/8/6R1/4K3 b kq - 0 1"), ["O-O-O"]);
+        assert_eq!(castles("r3k2r/8/8/8/8/8/2R5/4K3 b kq - 0 1"), ["O-O"]);
     }
 
     #[test]

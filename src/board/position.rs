@@ -233,8 +233,9 @@ impl Position {
     }
 
     /// Corrects the hash after an edit that may have changed whether the en
-    /// passant square counts for hashing (a pawn appearing or disappearing
-    /// beside it).
+    /// passant square counts for hashing: a pawn appearing or disappearing
+    /// beside it, or any piece that makes the capture legal or illegal (a
+    /// pinning slider, a blocker, the king).
     fn rehash_en_passant(&mut self, before: Option<u8>) {
         let after = self.hashed_en_passant_file();
         if before != after {
@@ -543,9 +544,12 @@ mod hash_tests {
             assert_eq!(pos.hashed_en_passant_file(), Some(4), "{board}");
         }
 
-        // A pawn on the h-file must not capture on a6 around the board edge.
-        let edge = fen("4k3/8/8/p6P/8/8/8/4K3 w - a6 0 1");
+        // A pawn on the h-file must not capture on a6 around the board
+        // edge; h4 is where a wrapping shift from a6 would land.
+        let edge = fen("4k3/8/8/p7/7P/8/8/4K3 w - a6 0 1");
         assert_eq!(edge.hashed_en_passant_file(), None);
+        let black_edge = fen("4k3/8/8/p7/7P/8/8/4K3 b - h3 0 1");
+        assert_eq!(black_edge.hashed_en_passant_file(), None);
         // A pawn of the side that just moved does not count as a capturer.
         let own = fen("4k3/8/8/2pp4/8/8/8/4K3 w - d6 0 1");
         assert_eq!(own.hashed_en_passant_file(), None);
@@ -618,6 +622,35 @@ mod hash_tests {
         for (text, file) in cases {
             assert_eq!(fen(text).hashed_en_passant_file(), Some(file), "{text}");
         }
+    }
+
+    /// Whether the en passant capture is legal can depend on pieces far
+    /// from the pawns; editing those must keep the hash right too.
+    #[test]
+    fn editing_a_pinning_piece_keeps_the_hash_right() {
+        let black_rook = Piece::new(Color::Black, PieceKind::Rook);
+        let white_knight = Piece::new(Color::White, PieceKind::Knight);
+        let mut pos = fen("7k/8/8/K1pP4/8/8/8/8 w - c6 0 2");
+        assert_eq!(pos.hashed_en_passant_file(), Some(2));
+
+        // A rook on the rank makes the capture illegal: the key leaves.
+        pos.put_piece(Square::H5, black_rook);
+        assert_eq!(pos.hashed_en_passant_file(), None);
+        assert_eq!(pos.hash(), pos.compute_hash());
+        assert_eq!(pos, fen("7k/8/8/K1pP3r/8/8/8/8 w - c6 0 2"));
+
+        // A knight shielding the king makes it legal again.
+        pos.put_piece(Square::G5, white_knight);
+        assert_eq!(pos.hashed_en_passant_file(), Some(2));
+        assert_eq!(pos.hash(), pos.compute_hash());
+
+        pos.remove_piece(Square::G5);
+        assert_eq!(pos.hashed_en_passant_file(), None);
+        assert_eq!(pos.hash(), pos.compute_hash());
+
+        pos.remove_piece(Square::H5);
+        assert_eq!(pos.hashed_en_passant_file(), Some(2));
+        assert_eq!(pos, fen("7k/8/8/K1pP4/8/8/8/8 w - c6 0 2"));
     }
 
     #[test]

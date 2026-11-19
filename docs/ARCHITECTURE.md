@@ -134,8 +134,9 @@ from `board`.
   hashed by XORing out just that right's key.
 - **Position hash** (`position.rs`): every `Position` stores its Zobrist hash
   and keeps it current. `put_piece` and `remove_piece` XOR the piece key in
-  or out and also correct the en passant key when a pawn appears or
-  disappears beside the en passant square; the FEN parser folds in the state
+  or out and also correct the en passant key whenever the edit changes
+  whether an en passant capture is legal (a pawn beside the square, a pinning
+  or shielding piece, the king); the FEN parser folds in the state
   fields. Internally they wrap `place` and `lift`, which touch only the piece
   keys and are what make/unmake and the FEN parser use. `Position::hash()` is
   constant time; `compute_hash()` rebuilds it from scratch and exists to
