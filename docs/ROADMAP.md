@@ -11,7 +11,7 @@ them.
 | --- | --- | --- | --- |
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
-| 2 | Move generation | `milestone/2-movegen` | not started |
+| 2 | Move generation | `milestone/2-movegen` | in progress |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
@@ -94,13 +94,56 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-5 | **FEN validation does not detect that the side not to move is in check.** Such a position cannot arise in a game. | An impossible position loads without error. | Milestone 2, once attack generation exists. |
 | KI-6 | **No committed randomised make/unmake stress test.** The milestone 1 review ran one outside the repository. | Regressions are caught only by the fixed test cases. | Milestone 2: the perft suite fills this role. |
 
-## Milestones 2 to 9
+## Milestone 2: move generation
+
+Scope: attack tables (magic bitboards for sliders, found with the seeded
+RNG), legal move generation, and perft against the published reference node
+counts. Move generation is not done until every perft test passes. Also due
+here: known issues KI-1, KI-4, KI-5 and KI-6.
+
+Approach: generate pseudo-legal moves per piece type, then filter out the
+ones that leave the mover's king attacked by making the move and testing.
+This is the simplest correct design; a faster pin-aware generator can replace
+it later behind the same interface, with perft as the safety net.
+
+- [ ] `attacks`: knight attack table
+- [ ] `attacks`: king attack table
+- [ ] `attacks`: pawn attack tables
+- [ ] `attacks`: slider attacks by ray scanning (the reference implementation)
+- [ ] `attacks`: relevant-occupancy masks and subset enumeration
+- [ ] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
+- [ ] `board`: attackers of a square and in-check detection
+- [ ] `movegen`: `MoveList`
+- [ ] `movegen`: pseudo-legal knight moves
+- [ ] `movegen`: pseudo-legal king moves (without castling)
+- [ ] `movegen`: pseudo-legal bishop, rook and queen moves
+- [ ] `movegen`: pawn pushes and double pushes
+- [ ] `movegen`: pawn captures
+- [ ] `movegen`: promotions
+- [ ] `movegen`: en passant
+- [ ] `movegen`: castling
+- [ ] `movegen`: legality filter and `legal_moves`
+- [ ] `perft`: node counting with divide
+- [ ] `perft`: `perft` subcommand of the binary
+- [ ] perft test: start position
+- [ ] perft test: Kiwipete (position 2)
+- [ ] perft test: position 3
+- [ ] perft test: position 4 and its mirror
+- [ ] perft test: position 5
+- [ ] perft test: position 6
+- [ ] KI-6: perft-driven consistency check of make/unmake and hashing
+- [ ] KI-5: FEN rejects positions where the side not to move is in check
+- [ ] KI-1: hash the en passant file only when the capture is legal
+- [ ] KI-4: measure make/unmake against copy-make with perft
+- [ ] End-of-milestone review and doc drift pass
+
+## Milestones 3 to 9
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: KI-1, KI-4, KI-5, KI-6.
+- Milestone 2: KI-1, KI-4, KI-5, KI-6 (in its checklist above).
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`.

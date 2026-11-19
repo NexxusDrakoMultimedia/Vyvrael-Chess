@@ -22,7 +22,7 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) has not started.** The engine cannot
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is in progress.** The engine cannot
 play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
