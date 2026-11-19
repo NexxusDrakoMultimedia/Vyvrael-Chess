@@ -6,7 +6,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use super::{Color, Piece, Position, Square};
+use super::{Bitboard, CastlingRights, Color, Piece, PieceKind, Position, Square};
 
 /// The FEN of the standard chess starting position.
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -46,6 +46,21 @@ pub enum FenError {
     InvalidHalfmoveClock,
     /// The fullmove number is not a number that fits in 16 bits.
     InvalidFullmoveNumber,
+    /// A side does not have exactly one king.
+    KingCount {
+        /// The side with the wrong number of kings.
+        color: Color,
+        /// How many kings it has.
+        found: u32,
+    },
+    /// A pawn stands on the first or eighth rank.
+    PawnOnBackRank,
+    /// A castling right is claimed, but the king or the rook it needs is not
+    /// on its home square.
+    CastlingWithoutPieces,
+    /// The en passant square does not match a double pawn push by the side
+    /// that just moved.
+    EnPassantImpossible,
 }
 
 impl fmt::Display for FenError {
@@ -71,6 +86,16 @@ impl fmt::Display for FenError {
             FenError::InvalidEnPassant => f.write_str("invalid en passant field"),
             FenError::InvalidHalfmoveClock => f.write_str("invalid halfmove clock"),
             FenError::InvalidFullmoveNumber => f.write_str("invalid fullmove number"),
+            FenError::KingCount { color, found } => {
+                write!(f, "{color:?} must have exactly one king, found {found}")
+            }
+            FenError::PawnOnBackRank => f.write_str("a pawn is on the first or eighth rank"),
+            FenError::CastlingWithoutPieces => {
+                f.write_str("castling right without king and rook on their home squares")
+            }
+            FenError::EnPassantImpossible => {
+                f.write_str("en passant square does not match a double pawn push")
+            }
         }
     }
 }
@@ -124,6 +149,66 @@ fn parse_placement(pos: &mut Position, placement: &str) -> Result<(), FenError> 
     Ok(())
 }
 
+/// Checks that a syntactically valid position is one the rest of the engine
+/// can rely on.
+///
+/// Not checked here, because it needs attack generation (milestone 2):
+/// whether the side that just moved left its own king in check.
+fn validate(pos: &Position) -> Result<(), FenError> {
+    for color in Color::ALL {
+        let found = pos.pieces_of(color, PieceKind::King).count();
+        if found != 1 {
+            return Err(FenError::KingCount { color, found });
+        }
+    }
+
+    let back_ranks = Bitboard::RANK_1 | Bitboard::RANK_8;
+    if !(pos.pieces(PieceKind::Pawn) & back_ranks).is_empty() {
+        return Err(FenError::PawnOnBackRank);
+    }
+
+    let holds = |square, color, kind| pos.piece_at(square) == Some(Piece::new(color, kind));
+    for color in Color::ALL {
+        let (king, kingside_rook, queenside_rook) = match color {
+            Color::White => (Square::E1, Square::H1, Square::A1),
+            Color::Black => (Square::E8, Square::H8, Square::A8),
+        };
+        let sides = [
+            (CastlingRights::kingside(color), kingside_rook),
+            (CastlingRights::queenside(color), queenside_rook),
+        ];
+        for (right, rook) in sides {
+            if pos.castling.contains(right)
+                && !(holds(king, color, PieceKind::King) && holds(rook, color, PieceKind::Rook))
+            {
+                return Err(FenError::CastlingWithoutPieces);
+            }
+        }
+    }
+
+    if let Some(target) = pos.en_passant {
+        // The side that is NOT to move has just played a double push: its
+        // pawn passed over `target`, now stands one step beyond it, and the
+        // pawn's starting square behind `target` is empty.
+        let pusher = pos.side_to_move.flip();
+        let (target_rank, forward) = match pusher {
+            Color::White => (2, 1),
+            Color::Black => (5, -1),
+        };
+        let pawn_now = target.offset(0, forward);
+        let pawn_start = target.offset(0, -forward);
+        let plausible = target.rank() == target_rank
+            && pos.piece_at(target).is_none()
+            && pawn_now.is_some_and(|sq| holds(sq, pusher, PieceKind::Pawn))
+            && pawn_start.is_some_and(|sq| pos.piece_at(sq).is_none());
+        if !plausible {
+            return Err(FenError::EnPassantImpossible);
+        }
+    }
+
+    Ok(())
+}
+
 impl Position {
     /// The standard chess starting position.
     #[must_use]
@@ -136,6 +221,11 @@ impl Position {
     /// Fields are separated by any amount of whitespace. All six fields may
     /// be given, or only the first four (as in EPD), in which case the
     /// halfmove clock is 0 and the fullmove number is 1.
+    ///
+    /// Beyond syntax, the position must have exactly one king per side, no
+    /// pawns on the first or eighth rank, castling rights only where king
+    /// and rook are on their home squares, and an en passant square only
+    /// where the opponent's pawn could just have made a double push.
     ///
     /// # Errors
     ///
@@ -170,6 +260,7 @@ impl Position {
                 parse_counter(fields[5]).ok_or(FenError::InvalidFullmoveNumber)?;
         }
 
+        validate(&pos)?;
         Ok(pos)
     }
 }
@@ -185,7 +276,6 @@ impl FromStr for Position {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{Bitboard, CastlingRights, PieceKind};
     use super::*;
 
     fn err(fen: &str) -> FenError {
@@ -339,6 +429,93 @@ mod tests {
         let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 65535 65535").unwrap();
         assert_eq!(pos.halfmove_clock(), u16::MAX);
         assert_eq!(pos.fullmove_number(), u16::MAX);
+    }
+
+    #[test]
+    fn rejects_wrong_king_counts() {
+        let kings = |color, found| FenError::KingCount { color, found };
+        assert_eq!(err("4k3/8/8/8/8/8/8/8 w - - 0 1"), kings(Color::White, 0));
+        assert_eq!(err("8/8/8/8/8/8/8/4K3 w - - 0 1"), kings(Color::Black, 0));
+        assert_eq!(
+            err("4k2k/8/8/8/8/8/8/4K3 w - - 0 1"),
+            kings(Color::Black, 2)
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/8/K3K2K w - - 0 1"),
+            kings(Color::White, 3)
+        );
+        assert_eq!(err("8/8/8/8/8/8/8/8 w - - 0 1"), kings(Color::White, 0));
+    }
+
+    #[test]
+    fn rejects_pawns_on_back_ranks() {
+        for fen in [
+            "P3k3/8/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/8/4K2p w - - 0 1",
+            "4k2p/8/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/8/P3K3 w - - 0 1",
+        ] {
+            assert_eq!(err(fen), FenError::PawnOnBackRank, "{fen}");
+        }
+    }
+
+    #[test]
+    fn rejects_castling_rights_without_pieces() {
+        for fen in [
+            // King off its home square.
+            "r3k2r/8/8/8/8/8/8/R2K3R w K - 0 1",
+            "r3k2r/8/8/8/8/8/8/R2K3R w Q - 0 1",
+            "r2k3r/8/8/8/8/8/8/R3K2R w k - 0 1",
+            // Rook missing or replaced by another piece.
+            "r3k2r/8/8/8/8/8/8/R3K3 w K - 0 1",
+            "r3k2r/8/8/8/8/8/8/4K2R w Q - 0 1",
+            "r3k3/8/8/8/8/8/8/R3K2R w k - 0 1",
+            "4k2r/8/8/8/8/8/8/R3K2R w q - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2N w K - 0 1",
+            // A rook of the other colour on the home square does not count.
+            "r3k2r/8/8/8/8/8/8/R3K2r w K - 0 1",
+        ] {
+            assert_eq!(err(fen), FenError::CastlingWithoutPieces, "{fen}");
+        }
+    }
+
+    #[test]
+    fn accepts_partial_castling_rights() {
+        let pos = Position::from_fen("r3k3/8/8/8/8/8/8/4K2R w Kq - 0 1").unwrap();
+        assert_eq!(pos.castling_rights().to_string(), "Kq");
+    }
+
+    #[test]
+    fn accepts_plausible_en_passant_squares() {
+        for fen in [
+            "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1",
+            "4k3/8/8/3p4/8/8/8/4K3 w - d6 0 1",
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        ] {
+            assert!(Position::from_fen(fen).is_ok(), "{fen}");
+        }
+    }
+
+    #[test]
+    fn rejects_impossible_en_passant_squares() {
+        for fen in [
+            // Wrong rank for the side to move.
+            "4k3/8/8/8/4P3/8/8/4K3 w - e3 0 1",
+            "4k3/8/8/3p4/8/8/8/4K3 b - d6 0 1",
+            "4k3/8/8/8/4P3/8/8/4K3 b - e4 0 1",
+            // No pawn beyond the target square.
+            "4k3/8/8/8/8/8/8/4K3 b - e3 0 1",
+            "4k3/8/8/8/4N3/8/8/4K3 b - e3 0 1",
+            // The pawn there is the wrong colour.
+            "4k3/8/8/8/4p3/8/8/4K3 b - e3 0 1",
+            // The target square is occupied.
+            "4k3/8/8/8/4P3/4N3/8/4K3 b - e3 0 1",
+            // The starting square of the pawn is occupied.
+            "4k3/8/8/8/4P3/8/4N3/4K3 b - e3 0 1",
+            "4k3/3n4/8/3p4/8/8/8/4K3 w - d6 0 1",
+        ] {
+            assert_eq!(err(fen), FenError::EnPassantImpossible, "{fen}");
+        }
     }
 
     #[test]
