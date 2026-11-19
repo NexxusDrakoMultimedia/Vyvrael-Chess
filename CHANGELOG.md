@@ -22,6 +22,7 @@ once it has a first release.
   and golden-value tests.
 - `Rng::stream`: deterministic derived streams from a base seed and an index.
 - `Rng::next_below`: unbiased bounded integers.
+- `board` module with primitive types: `Color`.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

@@ -7,6 +7,7 @@
 //! generation, evaluation, search and the UCI front end) so that the binary,
 //! the integration tests and the tool crates all share one implementation.
 
+pub mod board;
 pub mod rng;
 
 /// Engine name as reported to UCI front ends (`id name`).

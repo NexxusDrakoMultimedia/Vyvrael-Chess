@@ -28,11 +28,19 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| board representation | planned (milestone 1) | Bitboards, position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`. Still planned: squares, pieces, bitboards, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
+
+## Board representation
+
+Implemented in `src/board/`, one small file per type, re-exported from
+`board`. This section grows as milestone 1 lands.
+
+- **`Color`** (`color.rs`): `White = 0`, `Black = 1`, so it indexes arrays
+  directly. `flip()` and `!` give the other side.
 
 ## How search, evaluation and UCI fit together (planned)
 

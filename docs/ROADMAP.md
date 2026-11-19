@@ -51,7 +51,7 @@ with a from-scratch recompute.
 - [x] `rng`: SplitMix64 generator, `DEFAULT_SEED`, golden-value tests
 - [x] `rng`: derived streams (base seed + stream index)
 - [x] `rng`: unbiased bounded integers
-- [ ] `board`: `Color`
+- [x] `board`: `Color`
 - [ ] `board`: `Square` with coordinate parsing and display
 - [ ] `board`: `PieceKind` and `Piece` with FEN characters
 - [ ] `board`: `Bitboard` type, set operations and bit iteration
