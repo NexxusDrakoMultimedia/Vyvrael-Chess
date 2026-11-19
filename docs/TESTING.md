@@ -65,6 +65,7 @@ Integration tests live in `tests/` and use only the public API.
 
 | File | What is checked |
 | --- | --- |
+| `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
 
 The Opera Game's final FEN is the widely published one, so that checkpoint is
@@ -96,8 +97,18 @@ less until a position shows a move that one side has and the other lacks.
 
 ### Reference positions
 
-The perft integration tests and their expected node counts are listed here as
-they land.
+The integration tests in `tests/perft.rs` check **every depth from 1 to the
+one shown** against the published value, and that perft leaves the position
+unchanged.
+
+| Position | FEN | Deepest depth tested | Nodes at that depth | What it stresses |
+| --- | --- | --- | --- | --- |
+| 1: start position | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1` | 5 | 4,865,609 | Double pushes, the first en passant captures (depth 5) and the first checks. |
+
+The expected counts are the published reference values from the Chess
+Programming Wiki ("Perft Results",
+<https://www.chessprogramming.org/Perft_Results>), which engines agree on.
+They were not produced by this engine.
 
 ## Strength matches and SPRT (planned, milestone 6)
 
