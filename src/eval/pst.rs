@@ -64,9 +64,61 @@ const PAWN: [Tapered; Square::COUNT] = from_visual(
     ],
 );
 
+/// Knights. A knight needs to be near the action: strong in the centre and on
+/// advanced outposts, poor on the rim and worst in a corner.
+#[rustfmt::skip]
+const KNIGHT: [Tapered; Square::COUNT] = from_visual(
+    [
+        [-50, -30, -20, -20, -20, -20, -30, -50],
+        [-30, -10,   5,  10,  10,   5, -10, -30],
+        [-15,  10,  25,  30,  30,  25,  10, -15],
+        [-10,  10,  22,  32,  32,  22,  10, -10],
+        [-12,   5,  18,  25,  25,  18,   5, -12],
+        [-18,   0,  12,  14,  14,  12,   0, -18],
+        [-30, -15,   0,   2,   2,   0, -15, -30],
+        [-50, -25, -20, -18, -18, -20, -25, -50],
+    ],
+    [
+        [-40, -25, -15, -12, -12, -15, -25, -40],
+        [-25,  -8,   0,   5,   5,   0,  -8, -25],
+        [-15,   0,  12,  18,  18,  12,   0, -15],
+        [-12,   5,  18,  24,  24,  18,   5, -12],
+        [-12,   5,  18,  24,  24,  18,   5, -12],
+        [-15,   0,  10,  16,  16,  10,   0, -15],
+        [-25, -10,   0,   4,   4,   0, -10, -25],
+        [-40, -25, -15, -12, -12, -15, -25, -40],
+    ],
+);
+
+/// Bishops. Good on long diagonals and active central squares, including the
+/// fianchetto squares b2 and g2; poor on the back rank where they are undeveloped.
+#[rustfmt::skip]
+const BISHOP: [Tapered; Square::COUNT] = from_visual(
+    [
+        [-20, -10, -10, -10, -10, -10, -10, -20],
+        [ -8,   6,   4,   4,   4,   4,   6,  -8],
+        [ -4,   8,  14,  12,  12,  14,   8,  -4],
+        [ -2,  10,  12,  18,  18,  12,  10,  -2],
+        [ -2,  12,  14,  18,  18,  14,  12,  -2],
+        [ -4,  14,  12,  10,  10,  12,  14,  -4],
+        [ -6,  16,   6,   4,   4,   6,  16,  -6],
+        [-20,  -8, -14, -10, -10, -14,  -8, -20],
+    ],
+    [
+        [-14,  -8,  -6,  -4,  -4,  -6,  -8, -14],
+        [ -8,   0,   2,   4,   4,   2,   0,  -8],
+        [ -6,   2,   8,  10,  10,   8,   2,  -6],
+        [ -4,   4,  10,  14,  14,  10,   4,  -4],
+        [ -4,   4,  10,  14,  14,  10,   4,  -4],
+        [ -6,   2,   8,  10,  10,   8,   2,  -6],
+        [ -8,   0,   2,   4,   4,   2,   0,  -8],
+        [-14,  -8,  -6,  -4,  -4,  -6,  -8, -14],
+    ],
+);
+
 /// All tables, indexed by [`PieceKind::index`], from White's point of view.
 static TABLES: [[Tapered; Square::COUNT]; PieceKind::COUNT] =
-    [PAWN, NO_TABLE, NO_TABLE, NO_TABLE, NO_TABLE, NO_TABLE];
+    [PAWN, KNIGHT, BISHOP, NO_TABLE, NO_TABLE, NO_TABLE];
 
 /// The piece-square value of `piece` standing on `square`, as a bonus for
 /// the piece's own side.
@@ -176,6 +228,34 @@ mod tests {
         let mg = |square| white(PieceKind::Pawn, square).mg;
         assert!(mg(Square::E4) > mg(Square::E3) && mg(Square::E3) > mg(Square::E2));
         assert!(mg(Square::D4) > mg(Square::A4));
+    }
+
+    #[test]
+    fn knights_and_bishops_want_to_be_developed_and_central() {
+        for kind in [PieceKind::Knight, PieceKind::Bishop] {
+            let at = |square| white(kind, square);
+            // Centre beats rim beats corner, in both phases.
+            for value in [|t: Tapered| t.mg, |t: Tapered| t.eg] {
+                assert!(value(at(Square::E5)) > value(at(Square::A5)), "{kind:?}");
+                assert!(value(at(Square::A5)) > value(at(Square::A1)), "{kind:?}");
+            }
+            // Every home square is worse than a natural developing square.
+            let home = if kind == PieceKind::Knight {
+                Square::G1
+            } else {
+                Square::F1
+            };
+            let developed = if kind == PieceKind::Knight {
+                Square::F3
+            } else {
+                Square::C4
+            };
+            assert!(at(developed).mg > at(home).mg + 20, "{kind:?}");
+        }
+        // A knight is worse off in the corner than a bishop is.
+        assert!(white(PieceKind::Knight, Square::A1).mg < white(PieceKind::Bishop, Square::A1).mg);
+        // The fianchetto square is one of the bishop's best second-rank squares.
+        assert!(white(PieceKind::Bishop, Square::G2).mg > white(PieceKind::Bishop, Square::E2).mg);
     }
 
     #[test]

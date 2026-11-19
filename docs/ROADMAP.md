@@ -163,7 +163,7 @@ enemy king. They are a starting point to be tuned once SPRT exists.
 - [x] `eval`: game phase
 - [x] `eval`: tapered scores (middlegame/endgame pairs and blending)
 - [x] `eval`: piece-square table framework with pawn tables
-- [ ] `eval`: knight and bishop tables
+- [x] `eval`: knight and bishop tables
 - [ ] `eval`: rook and queen tables
 - [ ] `eval`: king tables
 - [ ] `eval`: hand-crafted evaluator (material plus tables, tapered)
