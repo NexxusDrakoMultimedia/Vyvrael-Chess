@@ -146,8 +146,8 @@ Constraints that already apply:
   recorded as a design decision. Weak play should still look like chess:
   plausible mistakes rather than random moves.
 
-Open question for the maintainer: whether to also offer a non-standard
-`Skill Level` option, as some engines do. Not planned unless asked for.
+Decided: there will be no non-standard `Skill Level` option. Strength is
+limited only through the two standard options above.
 
 ## Ideas for later
 
