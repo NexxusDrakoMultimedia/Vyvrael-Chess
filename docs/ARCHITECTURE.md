@@ -212,6 +212,13 @@ on this square attack?".
     pawns of one colour attacking a square stand on the other colour's attack
     set of that square.
 
+- **Sliders by scanning** (`attacks/scan.rs`): `bishop_attacks_by_scan` and
+  `rook_attacks_by_scan` walk outwards along each ray until the board edge or
+  the first piece, which is included whatever its colour (the caller removes
+  its own pieces). This is slow but obviously correct. It is the reference
+  the magic-bitboard tables are built from and tested against; it is not used
+  during search.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

@@ -53,3 +53,5 @@ once it has a first release.
 - `attacks` module: knight attack table.
 - King attack table.
 - Pawn attack tables for both colours.
+- Slider attacks by ray scanning (`bishop_attacks_by_scan`,
+  `rook_attacks_by_scan`), the reference for the magic tables.
