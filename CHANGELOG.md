@@ -55,3 +55,4 @@ once it has a first release.
 - Pawn attack tables for both colours.
 - Slider attacks by ray scanning (`bishop_attacks_by_scan`,
   `rook_attacks_by_scan`), the reference for the magic tables.
+- Relevant-occupancy masks and subset enumeration for magic bitboards.

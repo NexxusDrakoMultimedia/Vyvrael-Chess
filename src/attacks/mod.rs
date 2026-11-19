@@ -6,6 +6,7 @@
 //! See `docs/ARCHITECTURE.md` ("Attacks and move generation") for the design.
 
 mod leapers;
+pub mod magic;
 mod scan;
 
 pub use leapers::{king_attacks, knight_attacks, pawn_attacks};

@@ -219,6 +219,15 @@ on this square attack?".
   the magic-bitboard tables are built from and tested against; it is not used
   during search.
 
+- **Magic bitboards** (`attacks/magic.rs`): constant-time slider attacks by
+  table lookup.
+  - *Relevant masks.* A slider's attacks depend only on the pieces on its
+    rays, and not on the last square of each ray, since nothing stands behind
+    it. `bishop_relevant_mask` and `rook_relevant_mask` give those squares
+    (5 to 9 for a bishop, 10 to 12 for a rook).
+  - *Subsets.* `subsets(mask)` enumerates every arrangement of pieces on a
+    mask with the carry-rippler step `next = (current - mask) & mask`.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`
