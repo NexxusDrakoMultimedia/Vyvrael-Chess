@@ -377,6 +377,13 @@ mod tests {
             "4k3/8/8/8/8/4p3/8/4K3 w - - 0 2",
         );
         assert_eq!(captured, Some(white_pawn));
+
+        // Black capturing towards the other side.
+        check(
+            "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1",
+            en_passant(Square::E4, Square::D3),
+            "4k3/8/8/8/8/3p4/8/4K3 w - - 0 2",
+        );
     }
 
     #[test]
@@ -484,6 +491,15 @@ mod tests {
                 &format!("1{letter}2k3/8/8/8/8/8/8/4K3 b - - 0 9"),
             );
             assert_eq!(captured, Some(black_knight));
+
+            let lower = letter.to_ascii_lowercase();
+            let captured = check(
+                "4k3/8/8/8/8/8/p7/1N2K3 b - - 9 9",
+                Move::new(Square::A2, Square::B1, MoveKind::PromotionCapture(kind)),
+                &format!("4k3/8/8/8/8/8/8/1{lower}2K3 w - - 0 10"),
+            );
+            let white_knight = Piece::new(Color::White, PieceKind::Knight);
+            assert_eq!(captured, Some(white_knight));
         }
     }
 
