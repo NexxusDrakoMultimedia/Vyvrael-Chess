@@ -32,7 +32,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
-| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal moves for knights and kings. |
+| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal moves for knights, kings and sliders. |
 | perft | planned (milestone 2) | Node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -268,7 +268,8 @@ on this square attack?".
   asking whether it leaves the mover's king attacked. Each piece type has its
   own small generator. A move to an enemy-occupied square is a `Capture`,
   otherwise `Quiet`; squares holding the mover's own pieces are masked out
-  first. **Generated so far:** knights, king steps (not castling).
+  first. **Generated so far:** knights, king steps (not castling), bishops, rooks
+  and queens.
 
 ## How search, evaluation and UCI fit together (planned)
 

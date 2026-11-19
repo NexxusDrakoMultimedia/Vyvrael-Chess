@@ -6,7 +6,7 @@
 //! attacked.
 
 use super::MoveList;
-use crate::attacks::{king_attacks, knight_attacks};
+use crate::attacks::{bishop_attacks, king_attacks, knight_attacks, queen_attacks, rook_attacks};
 use crate::board::{Bitboard, Move, MoveKind, PieceKind, Position, Square};
 
 /// Adds a move from `from` to each square in `targets`: a capture where an
@@ -43,6 +43,26 @@ fn king_moves(pos: &Position, list: &mut MoveList) {
     }
 }
 
+/// Bishop, rook and queen moves: slide until the edge or the first piece,
+/// capturing it if it is an enemy.
+fn slider_moves(pos: &Position, list: &mut MoveList) {
+    type Attacks = fn(Square, Bitboard) -> Bitboard;
+    const SLIDERS: [(PieceKind, Attacks); 3] = [
+        (PieceKind::Bishop, bishop_attacks),
+        (PieceKind::Rook, rook_attacks),
+        (PieceKind::Queen, queen_attacks),
+    ];
+    let us = pos.side_to_move();
+    let own = pos.occupied_by(us);
+    let enemies = pos.occupied_by(us.flip());
+    let occupied = pos.occupied();
+    for (kind, attacks) in SLIDERS {
+        for from in pos.pieces_of(us, kind) {
+            push_piece_moves(list, from, attacks(from, occupied) & !own, enemies);
+        }
+    }
+}
+
 /// Generates the pseudo-legal moves of the side to move.
 ///
 /// Pseudo-legal means each move follows the piece's movement rules on this
@@ -50,12 +70,13 @@ fn king_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// knight moves and king steps (no castling). See the checklist in `docs/ROADMAP.md`.
+/// knight, bishop, rook and queen moves and king steps (no castling, no pawns). See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
     knight_moves(pos, &mut list);
     king_moves(pos, &mut list);
+    slider_moves(pos, &mut list);
     list
 }
 
@@ -121,6 +142,51 @@ mod tests {
     fn king_steps_ignore_attacks() {
         let moves = moves_of("4k3/8/8/8/8/8/8/r3K3 w - - 0 1", PieceKind::King);
         assert!(moves.contains(&"e1d1".to_owned()));
+    }
+
+    #[test]
+    fn bishop_slides_and_stops_at_pieces() {
+        // Bishop b2; a black pawn on c3 can be captured and blocks beyond.
+        let moves = moves_of("4k3/8/8/8/8/2p5/1B6/4K3 w - - 0 1", PieceKind::Bishop);
+        assert_eq!(moves, ["b2a1", "b2a3", "b2c1", "b2c3x"]);
+    }
+
+    #[test]
+    fn rook_slides_and_stops_at_pieces() {
+        // Rook a2; its own pawn on d2 blocks the rank from d2 on.
+        let moves = moves_of("4k3/8/8/8/8/8/R2P4/4K3 w - - 0 1", PieceKind::Rook);
+        assert_eq!(
+            moves,
+            [
+                "a2a1", "a2a3", "a2a4", "a2a5", "a2a6", "a2a7", "a2a8", "a2b2", "a2c2"
+            ]
+        );
+        let black = moves_of("r3k3/8/8/8/8/8/8/R3K3 b - - 0 1", PieceKind::Rook);
+        assert_eq!(
+            black,
+            [
+                "a8a1x", "a8a2", "a8a3", "a8a4", "a8a5", "a8a6", "a8a7", "a8b8", "a8c8", "a8d8"
+            ]
+        );
+    }
+
+    #[test]
+    fn queen_moves_like_bishop_and_rook_together() {
+        // Queen a1: 7 up the file, 3 along the rank before its own king, 7
+        // on the long diagonal.
+        let moves = moves_of("4k3/8/8/8/8/8/8/Q3K3 w - - 0 1", PieceKind::Queen);
+        assert_eq!(moves.len(), 17);
+        for expected in ["a1a8", "a1d1", "a1h8", "a1b2"] {
+            assert!(moves.contains(&expected.to_owned()), "{expected}");
+        }
+        assert!(!moves.iter().any(|mv| mv.starts_with("a1e1")));
+    }
+
+    #[test]
+    fn sliders_are_boxed_in_at_the_start() {
+        for kind in [PieceKind::Bishop, PieceKind::Rook, PieceKind::Queen] {
+            assert!(moves_of(crate::board::START_FEN, kind).is_empty());
+        }
     }
 
     #[test]
