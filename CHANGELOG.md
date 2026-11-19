@@ -16,6 +16,11 @@ once it has a first release.
 
 ### Fixed
 
+- `Position::from_fen` accepted positions with more material than a game can
+  produce (for example 26 queens), which could generate more than 256 moves
+  and abort in `MoveList`. Such positions are now rejected with
+  `FenError::ImpossibleMaterial`. Found before any release.
+
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 

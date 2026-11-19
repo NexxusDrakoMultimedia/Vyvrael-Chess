@@ -13,8 +13,10 @@ use crate::board::{Move, MoveKind, Square};
 ///
 /// Move generation runs millions of times per second during search, so the
 /// list is a plain array on the stack. The capacity is comfortably above the
-/// largest number of moves any chess position can have (218 legal moves is
-/// the known maximum).
+/// largest number of moves a position can have with material a game can
+/// produce (218 legal moves is the known maximum). `Position::from_fen`
+/// rejects positions with more material than that, so every parsed position
+/// fits.
 ///
 /// It dereferences to a slice, so `len()`, `iter()`, `contains()` and
 /// indexing all work.

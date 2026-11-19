@@ -104,6 +104,8 @@ from `board`.
   `FenError` variant naming the problem.
 - **FEN validation** (`fen.rs`): after parsing, a position is accepted only
   if each side has exactly one king, no pawn is on the first or eighth rank,
+  no side has more material than a game can produce (pawns plus pieces beyond
+  the starting set must not exceed eight),
   every claimed castling right has its king and rook on their home squares,
   the side not to move is not in check, and any en passant square is consistent with a double push by the side that
   just moved (correct rank, target square and the pawn's starting square
@@ -267,8 +269,10 @@ on this square attack?".
 - **`MoveList`** (`movegen/list.rs`): a fixed array of 256 moves on the
   stack with a length, dereferencing to a slice. Generation runs millions of
   times per second in search, so it must not allocate. The largest known
-  number of legal moves in any position is 218; 256 leaves room for
-  pseudo-legal extras. Pushing past the capacity panics rather than
+  number of legal moves in any position with material a game can produce is
+  218; 256 leaves room for pseudo-legal extras. FEN validation rejects
+  positions with more material than that (see FEN validation), so a parsed
+  position cannot overflow the list. Pushing past the capacity panics rather than
   corrupting memory.
 
 - **Pseudo-legal generation** (`movegen/pseudo.rs`): `pseudo_legal_moves`

@@ -55,6 +55,13 @@ pub enum FenError {
     },
     /// A pawn stands on the first or eighth rank.
     PawnOnBackRank,
+    /// A side has more material than a game can produce: more than eight
+    /// pawns, or more extra queens, rooks, bishops and knights than its
+    /// missing pawns could have promoted to.
+    ImpossibleMaterial {
+        /// The side with too much material.
+        color: Color,
+    },
     /// A castling right is claimed, but the king or the rook it needs is not
     /// on its home square.
     CastlingWithoutPieces,
@@ -93,6 +100,9 @@ impl fmt::Display for FenError {
                 write!(f, "{color:?} must have exactly one king, found {found}")
             }
             FenError::PawnOnBackRank => f.write_str("a pawn is on the first or eighth rank"),
+            FenError::ImpossibleMaterial { color } => {
+                write!(f, "{color:?} has more material than a game can produce")
+            }
             FenError::CastlingWithoutPieces => {
                 f.write_str("castling right without king and rook on their home squares")
             }
@@ -168,6 +178,20 @@ fn validate(pos: &Position) -> Result<(), FenError> {
         return Err(FenError::PawnOnBackRank);
     }
 
+    // Every piece beyond the starting set must be a promoted pawn. Besides
+    // rejecting nonsense, this bounds the number of moves a position can
+    // have, which the fixed-capacity move list relies on.
+    for color in Color::ALL {
+        let count = |kind| pos.pieces_of(color, kind).count();
+        let promoted = count(PieceKind::Queen).saturating_sub(1)
+            + count(PieceKind::Rook).saturating_sub(2)
+            + count(PieceKind::Bishop).saturating_sub(2)
+            + count(PieceKind::Knight).saturating_sub(2);
+        if count(PieceKind::Pawn) + promoted > 8 {
+            return Err(FenError::ImpossibleMaterial { color });
+        }
+    }
+
     let holds = |square, color, kind| pos.piece_at(square) == Some(Piece::new(color, kind));
     for color in Color::ALL {
         let (king, kingside_rook, queenside_rook) = match color {
@@ -229,7 +253,9 @@ impl Position {
     /// halfmove clock is 0 and the fullmove number is 1.
     ///
     /// Beyond syntax, the position must have exactly one king per side, no
-    /// pawns on the first or eighth rank, castling rights only where king
+    /// pawns on the first or eighth rank, no more material than a game can
+    /// produce (at most eight pawns, and extra pieces only in place of
+    /// missing pawns), castling rights only where king
     /// and rook are on their home squares, an en passant square only where
     /// the opponent's pawn could just have made a double push, and the side
     /// not to move must not be in check.
@@ -510,6 +536,49 @@ mod tests {
             "4k3/8/8/8/8/8/8/P3K3 w - - 0 1",
         ] {
             assert_eq!(err(fen), FenError::PawnOnBackRank, "{fen}");
+        }
+    }
+
+    #[test]
+    fn rejects_material_no_game_can_produce() {
+        let too_much = |color| FenError::ImpossibleMaterial { color };
+        // Nine pawns.
+        assert_eq!(
+            err("4k3/8/8/8/8/P7/PPPPPPPP/4K3 w - - 0 1"),
+            too_much(Color::White)
+        );
+        assert_eq!(
+            err("4k3/pppppppp/p7/8/8/8/8/4K3 w - - 0 1"),
+            too_much(Color::Black)
+        );
+        // Eight pawns and a second queen: nothing was left to promote.
+        assert_eq!(
+            err("4k3/8/8/8/8/8/PPPPPPPP/QQ2K3 w - - 0 1"),
+            too_much(Color::White)
+        );
+        // Three knights with all eight pawns.
+        assert_eq!(
+            err("nnn1k3/pppppppp/8/8/8/8/8/4K3 w - - 0 1"),
+            too_much(Color::Black)
+        );
+        // Twenty-six queens: enough moves to overflow a move list.
+        assert_eq!(
+            err("QQQQQQQQ/Q6Q/Q6Q/Q6Q/Q6Q/QQ5Q/ppQ4Q/knKQQQQQ w - - 0 1"),
+            too_much(Color::White)
+        );
+    }
+
+    #[test]
+    fn accepts_material_that_promotions_can_produce() {
+        for fen in [
+            // Seven pawns and a second queen.
+            "4k3/8/8/8/8/8/1PPPPPPP/QQ2K3 w - - 0 1",
+            // Nine queens and no pawns.
+            "7k/8/8/8/8/QQQ5/QQQ5/QQQ1K3 b - - 0 1",
+            // Ten knights and no pawns.
+            "nnnnk3/nnnnnn2/8/8/8/8/8/4K3 w - - 0 1",
+        ] {
+            assert!(Position::from_fen(fen).is_ok(), "{fen}");
         }
     }
 
