@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Nexxus Drako Multimedia
 
-//! Forsyth-Edwards Notation (FEN): reading positions from text.
+//! Forsyth-Edwards Notation (FEN): reading and writing positions as text.
 
 use std::fmt;
 use std::str::FromStr;
@@ -263,6 +263,48 @@ impl Position {
         validate(&pos)?;
         Ok(pos)
     }
+
+    /// Serialises the position as a six-field FEN string.
+    ///
+    /// The output is canonical: single spaces, castling letters in `KQkq`
+    /// order. Parsing the result gives back an equal position.
+    #[must_use]
+    pub fn to_fen(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl fmt::Display for Position {
+    /// Formats the position as FEN; see [`Position::to_fen`].
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rank in (0..8).rev() {
+            let mut empty = 0;
+            for file in 0..8 {
+                match self.piece_at(Square::new(file, rank)) {
+                    Some(piece) => {
+                        if empty > 0 {
+                            write!(f, "{empty}")?;
+                            empty = 0;
+                        }
+                        write!(f, "{}", piece.to_char())?;
+                    }
+                    None => empty += 1,
+                }
+            }
+            if empty > 0 {
+                write!(f, "{empty}")?;
+            }
+            if rank > 0 {
+                f.write_str("/")?;
+            }
+        }
+        write!(f, " {} {} ", self.side_to_move.to_char(), self.castling)?;
+        match self.en_passant {
+            Some(square) => write!(f, "{square}")?,
+            None => f.write_str("-")?,
+        }
+        write!(f, " {} {}", self.halfmove_clock, self.fullmove_number)
+    }
 }
 
 impl FromStr for Position {
@@ -516,6 +558,60 @@ mod tests {
         ] {
             assert_eq!(err(fen), FenError::EnPassantImpossible, "{fen}");
         }
+    }
+
+    /// Canonical FENs covering castling-right subsets, en passant squares for
+    /// both sides, promotions-in-waiting, sparse and crowded boards, and
+    /// extreme counters. Includes the standard perft reference positions.
+    const ROUND_TRIP_FENS: [&str; 14] = [
+        START_FEN,
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
+        "r3k2r/8/8/8/8/8/8/R3K2R b Kq - 3 20",
+        "r3k2r/8/8/8/8/8/8/R3K2R w Qk - 0 1",
+        "4k3/8/8/8/8/8/8/4K3 b - - 99 150",
+        "8/8/8/8/8/8/8/K6k w - - 65535 65535",
+        "k7/8/8/8/8/8/8/7K w - - 0 0",
+        "1n1q1b1r/P1P1P1P1/1k6/8/8/6K1/p1p1p1p1/R1B1Q1N1 b - - 7 42",
+    ];
+
+    #[test]
+    fn fen_round_trips_exactly() {
+        for fen in ROUND_TRIP_FENS {
+            let pos = Position::from_fen(fen).unwrap_or_else(|e| panic!("{fen}: {e}"));
+            assert!(pos.is_consistent(), "{fen}");
+            assert_eq!(pos.to_fen(), fen);
+            assert_eq!(pos.to_string(), fen);
+            assert_eq!(Position::from_fen(&pos.to_fen()).unwrap(), pos, "{fen}");
+        }
+    }
+
+    #[test]
+    fn startpos_serialises_to_start_fen() {
+        assert_eq!(Position::startpos().to_fen(), START_FEN);
+    }
+
+    #[test]
+    fn serialisation_is_canonical() {
+        let messy = " r3k2r/8/8/8/8/8/8/R3K2R\tb   qkQK  -  5   9 ";
+        let pos = Position::from_fen(messy).unwrap();
+        assert_eq!(pos.to_fen(), "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 5 9");
+    }
+
+    #[test]
+    fn four_field_input_serialises_with_default_counters() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - -").unwrap();
+        assert_eq!(pos.to_fen(), "4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+    }
+
+    #[test]
+    fn empty_position_serialises() {
+        assert_eq!(Position::empty().to_fen(), "8/8/8/8/8/8/8/8 w - - 0 1");
     }
 
     #[test]

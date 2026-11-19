@@ -30,6 +30,7 @@ once it has a first release.
 - FEN parsing: `Position::from_fen`, `Position::startpos`, `FenError`, with
   validation of king counts, pawn ranks, castling rights and the en passant
   square.
+- FEN serialisation: `Position::to_fen` and `Display`, with round-trip tests.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
