@@ -108,7 +108,7 @@ it later behind the same interface, with perft as the safety net.
 
 - [x] `attacks`: knight attack table
 - [x] `attacks`: king attack table
-- [ ] `attacks`: pawn attack tables
+- [x] `attacks`: pawn attack tables
 - [ ] `attacks`: slider attacks by ray scanning (the reference implementation)
 - [ ] `attacks`: relevant-occupancy masks and subset enumeration
 - [ ] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables

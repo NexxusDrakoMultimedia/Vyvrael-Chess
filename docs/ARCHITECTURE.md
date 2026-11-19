@@ -207,6 +207,11 @@ on this square attack?".
   - `king_attacks(square)`: the eight neighbouring squares. Castling is a
     move, not an attack, and is not in the table.
 
+  - `pawn_attacks(color, square)`: the two squares diagonally in front.
+    It is defined on all 64 squares because it is also used in reverse: the
+    pawns of one colour attacking a square stand on the other colour's attack
+    set of that square.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

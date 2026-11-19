@@ -52,3 +52,4 @@ once it has a first release.
   roadmap, dependencies, data, NNUE).
 - `attacks` module: knight attack table.
 - King attack table.
+- Pawn attack tables for both colours.
