@@ -260,6 +260,8 @@ impl Position {
                 parse_counter(fields[5]).ok_or(FenError::InvalidFullmoveNumber)?;
         }
 
+        // Pieces were hashed as they were placed; fold in the state fields.
+        pos.hash = pos.compute_hash();
         validate(&pos)?;
         Ok(pos)
     }

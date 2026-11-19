@@ -63,7 +63,7 @@ with a from-scratch recompute.
 - [x] `board`: FEN position validation (kings, pawns, castling, en passant)
 - [x] `board`: FEN serialisation and round-trip tests
 - [x] `board`: Zobrist keys from the seeded RNG
-- [ ] `board`: position hash (from scratch + incremental on placement)
+- [x] `board`: position hash (from scratch + incremental on placement)
 - [ ] `board`: make/unmake for quiet moves and captures
 - [ ] `board`: make/unmake for double pawn pushes and en passant
 - [ ] `board`: make/unmake for castling

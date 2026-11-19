@@ -33,6 +33,9 @@ once it has a first release.
 - FEN serialisation: `Position::to_fen` and `Display`, with round-trip tests.
 - Zobrist keys (`board::zobrist`), generated at compile time from stream
   `rng::stream::ZOBRIST` of the default seed.
+- `Position::hash`: Zobrist hash maintained incrementally, with
+  `compute_hash` as the from-scratch reference. The en passant file is hashed
+  only when an en passant capture is pseudo-legally possible.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

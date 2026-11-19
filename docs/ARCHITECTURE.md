@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`). Still planned: position hash, make/unmake. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash. Still planned: make/unmake. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -120,6 +120,20 @@ Implemented in `src/board/`, one small file per type, re-exported from
   initialisation or `unsafe`. The key for a castling-rights value is the XOR
   of its flags' keys, so the key for no rights is 0 and losing a right is
   hashed by XORing out just that right's key.
+- **Position hash** (`position.rs`): every `Position` stores its Zobrist hash
+  and keeps it current. `put_piece` and `remove_piece` XOR the piece key in
+  or out; the FEN parser folds in the state fields. `Position::hash()` is
+  constant time; `compute_hash()` rebuilds it from scratch and exists to
+  initialise and to verify (`is_consistent()` compares the two). The hash
+  covers placement, side to move, castling rights and the en passant file.
+  The halfmove clock and fullmove number are not hashed.
+- **En passant hashing rule:** the en passant file is hashed only when a pawn
+  of the side to move attacks the en passant square. A double push that
+  nobody can answer en passant then hashes the same as the identical position
+  reached another way, which is what repetition detection and the
+  transposition table need. The check is pseudo-legal: it ignores pins, so a
+  capture that would expose the king still counts. `Position::en_passant()`
+  itself always reports the square after a double push, as FEN does.
 
 ## How search, evaluation and UCI fit together (planned)
 
