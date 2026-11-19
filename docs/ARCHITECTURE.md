@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors). Still planned: position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing. Still planned: FEN serialisation, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -86,6 +86,16 @@ Implemented in `src/board/`, one small file per type, re-exported from
   an occupied square, removing from an empty one). `is_consistent()` checks
   that the views agree. `Position::empty()` is a building block, not a legal
   position.
+- **FEN parsing** (`fen.rs`): `Position::from_fen` (also `FromStr`) and
+  `Position::startpos()`. Fields are split on any whitespace. Either all six
+  fields or the first four (EPD style) are accepted; with four, the halfmove
+  clock is 0 and the fullmove number 1. Parsing is strict about syntax: 8
+  ranks of exactly 8 squares, no two digits in a row, `w`/`b`, a valid
+  castling field, a valid en passant square or `-`, and counters made only of
+  digits that fit in 16 bits (any value `0..=65535` is accepted, including a
+  fullmove number of 0, which some tools emit). Errors are reported as a
+  `FenError` variant naming the problem. Semantic validation of the position
+  is the next chunk and is not in the code yet.
 
 ## How search, evaluation and UCI fit together (planned)
 

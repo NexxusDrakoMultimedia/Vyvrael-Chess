@@ -59,7 +59,8 @@ with a from-scratch recompute.
 - [x] `board`: `CastlingRights`
 - [x] `board`: `Move` encoding with coordinate-notation display
 - [x] `board`: `Position` piece placement (bitboards + mailbox)
-- [ ] `board`: FEN parsing with validation
+- [x] `board`: FEN parsing (syntax)
+- [ ] `board`: FEN position validation (kings, pawns, castling, en passant)
 - [ ] `board`: FEN serialisation and round-trip tests
 - [ ] `board`: Zobrist keys from the seeded RNG
 - [ ] `board`: position hash (from scratch + incremental on placement)

@@ -27,6 +27,7 @@ once it has a first release.
   `CastlingRights`, `Move` (16-bit encoding with UCI display).
 - `Position`: piece placement as bitboards plus a square array, with the
   game-state fields and accessors.
+- FEN parsing: `Position::from_fen`, `Position::startpos`, `FenError`.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

@@ -19,16 +19,16 @@ use super::{Bitboard, CastlingRights, Color, Piece, PieceKind, Square};
 #[derive(Clone, PartialEq, Eq)]
 pub struct Position {
     /// Squares occupied by each piece kind, both colours together.
-    pieces: [Bitboard; PieceKind::COUNT],
+    pub(super) pieces: [Bitboard; PieceKind::COUNT],
     /// Squares occupied by each colour.
-    colors: [Bitboard; Color::COUNT],
+    pub(super) colors: [Bitboard; Color::COUNT],
     /// The piece on each square, if any.
-    board: [Option<Piece>; Square::COUNT],
-    side_to_move: Color,
-    castling: CastlingRights,
-    en_passant: Option<Square>,
-    halfmove_clock: u16,
-    fullmove_number: u16,
+    pub(super) board: [Option<Piece>; Square::COUNT],
+    pub(super) side_to_move: Color,
+    pub(super) castling: CastlingRights,
+    pub(super) en_passant: Option<Square>,
+    pub(super) halfmove_clock: u16,
+    pub(super) fullmove_number: u16,
 }
 
 impl Position {

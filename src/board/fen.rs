@@ -1,0 +1,350 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Nexxus Drako Multimedia
+
+//! Forsyth-Edwards Notation (FEN): reading positions from text.
+
+use std::fmt;
+use std::str::FromStr;
+
+use super::{Color, Piece, Position, Square};
+
+/// The FEN of the standard chess starting position.
+pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+/// Why a FEN string was rejected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FenError {
+    /// The string does not have 4 or 6 whitespace-separated fields.
+    FieldCount {
+        /// How many fields were found.
+        found: usize,
+    },
+    /// The piece placement does not have 8 ranks separated by `/`.
+    RankCount {
+        /// How many ranks were found.
+        found: usize,
+    },
+    /// A rank of the piece placement does not describe exactly 8 squares.
+    RankLength {
+        /// The rank number, 1 to 8.
+        rank: u8,
+    },
+    /// Two digits in a row in the piece placement (for example `44`).
+    ConsecutiveDigits {
+        /// The rank number, 1 to 8.
+        rank: u8,
+    },
+    /// A character in the piece placement is neither a piece nor a digit 1-8.
+    InvalidPieceChar(char),
+    /// The side to move is not `w` or `b`.
+    InvalidSideToMove,
+    /// The castling field is not `-` or distinct letters from `KQkq`.
+    InvalidCastling,
+    /// The en passant field is not `-` or a square.
+    InvalidEnPassant,
+    /// The halfmove clock is not a number that fits in 16 bits.
+    InvalidHalfmoveClock,
+    /// The fullmove number is not a number that fits in 16 bits.
+    InvalidFullmoveNumber,
+}
+
+impl fmt::Display for FenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            FenError::FieldCount { found } => {
+                write!(f, "expected 4 or 6 fields, found {found}")
+            }
+            FenError::RankCount { found } => {
+                write!(f, "expected 8 ranks in the piece placement, found {found}")
+            }
+            FenError::RankLength { rank } => {
+                write!(f, "rank {rank} does not describe exactly 8 squares")
+            }
+            FenError::ConsecutiveDigits { rank } => {
+                write!(f, "rank {rank} has two digits in a row")
+            }
+            FenError::InvalidPieceChar(c) => {
+                write!(f, "invalid character {c:?} in the piece placement")
+            }
+            FenError::InvalidSideToMove => f.write_str("side to move must be 'w' or 'b'"),
+            FenError::InvalidCastling => f.write_str("invalid castling rights field"),
+            FenError::InvalidEnPassant => f.write_str("invalid en passant field"),
+            FenError::InvalidHalfmoveClock => f.write_str("invalid halfmove clock"),
+            FenError::InvalidFullmoveNumber => f.write_str("invalid fullmove number"),
+        }
+    }
+}
+
+impl std::error::Error for FenError {}
+
+/// Parses an unsigned decimal number made only of ASCII digits.
+///
+/// Stricter than `str::parse`, which would also accept a leading `+`.
+fn parse_counter(field: &str) -> Option<u16> {
+    if field.is_empty() || !field.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    field.parse().ok()
+}
+
+/// Reads the piece placement field into `pos`.
+fn parse_placement(pos: &mut Position, placement: &str) -> Result<(), FenError> {
+    let ranks: Vec<&str> = placement.split('/').collect();
+    if ranks.len() != 8 {
+        return Err(FenError::RankCount { found: ranks.len() });
+    }
+    // FEN lists rank 8 first.
+    for (rank, text) in (0..8u8).rev().zip(ranks) {
+        let mut file = 0u8;
+        let mut after_digit = false;
+        for c in text.chars() {
+            if let Some(skip) = c.to_digit(10).filter(|d| (1..=8).contains(d)) {
+                if after_digit {
+                    return Err(FenError::ConsecutiveDigits { rank: rank + 1 });
+                }
+                after_digit = true;
+                file += skip as u8;
+            } else {
+                let piece = Piece::from_char(c).ok_or(FenError::InvalidPieceChar(c))?;
+                if file >= 8 {
+                    return Err(FenError::RankLength { rank: rank + 1 });
+                }
+                pos.put_piece(Square::new(file, rank), piece);
+                after_digit = false;
+                file += 1;
+            }
+            if file > 8 {
+                return Err(FenError::RankLength { rank: rank + 1 });
+            }
+        }
+        if file != 8 {
+            return Err(FenError::RankLength { rank: rank + 1 });
+        }
+    }
+    Ok(())
+}
+
+impl Position {
+    /// The standard chess starting position.
+    #[must_use]
+    pub fn startpos() -> Position {
+        Position::from_fen(START_FEN).expect("START_FEN is valid")
+    }
+
+    /// Parses a position from a FEN string.
+    ///
+    /// Fields are separated by any amount of whitespace. All six fields may
+    /// be given, or only the first four (as in EPD), in which case the
+    /// halfmove clock is 0 and the fullmove number is 1.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`FenError`] describing the first problem found.
+    pub fn from_fen(fen: &str) -> Result<Position, FenError> {
+        let fields: Vec<&str> = fen.split_whitespace().collect();
+        if fields.len() != 4 && fields.len() != 6 {
+            return Err(FenError::FieldCount {
+                found: fields.len(),
+            });
+        }
+
+        let mut pos = Position::empty();
+        parse_placement(&mut pos, fields[0])?;
+
+        let mut side = fields[1].chars();
+        pos.side_to_move = match (side.next().and_then(Color::from_char), side.next()) {
+            (Some(color), None) => color,
+            _ => return Err(FenError::InvalidSideToMove),
+        };
+
+        pos.castling = fields[2].parse().map_err(|_| FenError::InvalidCastling)?;
+
+        pos.en_passant = match fields[3] {
+            "-" => None,
+            square => Some(square.parse().map_err(|_| FenError::InvalidEnPassant)?),
+        };
+
+        if fields.len() == 6 {
+            pos.halfmove_clock = parse_counter(fields[4]).ok_or(FenError::InvalidHalfmoveClock)?;
+            pos.fullmove_number =
+                parse_counter(fields[5]).ok_or(FenError::InvalidFullmoveNumber)?;
+        }
+
+        Ok(pos)
+    }
+}
+
+impl FromStr for Position {
+    type Err = FenError;
+
+    /// Parses a FEN string; see [`Position::from_fen`].
+    fn from_str(s: &str) -> Result<Position, FenError> {
+        Position::from_fen(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{Bitboard, CastlingRights, PieceKind};
+    use super::*;
+
+    fn err(fen: &str) -> FenError {
+        Position::from_fen(fen).expect_err(fen)
+    }
+
+    #[test]
+    fn startpos_fields() {
+        let pos = Position::startpos();
+        assert!(pos.is_consistent());
+        assert_eq!(pos.occupied().count(), 32);
+        assert_eq!(pos.occupied_by(Color::White).0, 0x0000_0000_0000_FFFF);
+        assert_eq!(pos.occupied_by(Color::Black).0, 0xFFFF_0000_0000_0000);
+        assert_eq!(pos.pieces(PieceKind::Pawn).0, 0x00FF_0000_0000_FF00);
+        assert_eq!(pos.pieces(PieceKind::Knight).0, 0x4200_0000_0000_0042);
+        assert_eq!(pos.pieces(PieceKind::Bishop).0, 0x2400_0000_0000_0024);
+        assert_eq!(pos.pieces(PieceKind::Rook).0, 0x8100_0000_0000_0081);
+        assert_eq!(pos.pieces(PieceKind::Queen).0, 0x0800_0000_0000_0008);
+        assert_eq!(pos.pieces(PieceKind::King).0, 0x1000_0000_0000_0010);
+        assert_eq!(pos.king_square(Color::White), Some(Square::E1));
+        assert_eq!(pos.king_square(Color::Black), Some(Square::E8));
+        assert_eq!(pos.side_to_move(), Color::White);
+        assert_eq!(pos.castling_rights(), CastlingRights::ALL);
+        assert_eq!(pos.en_passant(), None);
+        assert_eq!(pos.halfmove_clock(), 0);
+        assert_eq!(pos.fullmove_number(), 1);
+    }
+
+    #[test]
+    fn parses_every_field() {
+        let fen = "r3k2r/8/8/3pP3/8/8/8/R3K2R w Kq d6 12 34";
+        let pos = Position::from_fen(fen).unwrap();
+        assert!(pos.is_consistent());
+        let white_rook = Piece::new(Color::White, PieceKind::Rook);
+        let black_pawn = Piece::new(Color::Black, PieceKind::Pawn);
+        assert_eq!(pos.piece_at(Square::A1), Some(white_rook));
+        assert_eq!(pos.piece_at(Square::D5), Some(black_pawn));
+        assert_eq!(pos.piece_at(Square::D6), None);
+        assert_eq!(
+            pos.pieces_of(Color::White, PieceKind::Pawn),
+            Bitboard::from_square(Square::E5)
+        );
+        assert_eq!(pos.side_to_move(), Color::White);
+        assert_eq!(
+            pos.castling_rights(),
+            CastlingRights::WHITE_KINGSIDE.with(CastlingRights::BLACK_QUEENSIDE)
+        );
+        assert_eq!(pos.en_passant(), Some(Square::D6));
+        assert_eq!(pos.halfmove_clock(), 12);
+        assert_eq!(pos.fullmove_number(), 34);
+    }
+
+    #[test]
+    fn black_to_move_and_from_str() {
+        let pos: Position = "4k3/8/8/8/8/8/8/4K3 b - - 0 1".parse().unwrap();
+        assert_eq!(pos.side_to_move(), Color::Black);
+        assert_eq!(pos.occupied().count(), 2);
+    }
+
+    #[test]
+    fn four_fields_default_the_counters() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - -").unwrap();
+        assert_eq!(pos.halfmove_clock(), 0);
+        assert_eq!(pos.fullmove_number(), 1);
+    }
+
+    #[test]
+    fn extra_whitespace_is_ignored() {
+        let spaced = "  rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR   w  KQkq\t-  0 1\n";
+        assert_eq!(Position::from_fen(spaced).unwrap(), Position::startpos());
+    }
+
+    #[test]
+    fn rejects_wrong_field_counts() {
+        assert_eq!(err(""), FenError::FieldCount { found: 0 });
+        assert_eq!(
+            err("8/8/8/8/8/8/8/8 w -"),
+            FenError::FieldCount { found: 3 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/8/4K3 w - - 0"),
+            FenError::FieldCount { found: 5 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/8/4K3 w - - 0 1 extra"),
+            FenError::FieldCount { found: 7 }
+        );
+    }
+
+    #[test]
+    fn rejects_bad_placement() {
+        assert_eq!(
+            err("4k3/8/8/8/8/8/4K3 w - - 0 1"),
+            FenError::RankCount { found: 7 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/8/8/4K3 w - - 0 1"),
+            FenError::RankCount { found: 9 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/8/4K2 w - - 0 1"),
+            FenError::RankLength { rank: 1 }
+        );
+        assert_eq!(
+            err("4k4/8/8/8/8/8/8/4K3 w - - 0 1"),
+            FenError::RankLength { rank: 8 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8/PPPPPPPPP/4K3 w - - 0 1"),
+            FenError::RankLength { rank: 2 }
+        );
+        assert_eq!(
+            err("4k3/8/8/8/8/8//4K3 w - - 0 1"),
+            FenError::RankLength { rank: 2 }
+        );
+        assert_eq!(
+            err("4k3/8/8/44/8/8/8/4K3 w - - 0 1"),
+            FenError::ConsecutiveDigits { rank: 5 }
+        );
+        for c in ['x', '9', '0', '-', 'é'] {
+            let fen = format!("4k3/8/8/3{c}4/8/8/8/4K3 w - - 0 1");
+            assert_eq!(err(&fen), FenError::InvalidPieceChar(c));
+        }
+    }
+
+    #[test]
+    fn rejects_bad_state_fields() {
+        let board = "4k3/8/8/8/8/8/8/4K3";
+        for side in ["W", "x", "wb", "white"] {
+            let fen = format!("{board} {side} - - 0 1");
+            assert_eq!(err(&fen), FenError::InvalidSideToMove, "{side}");
+        }
+        for castling in ["KK", "x", "kqz"] {
+            let fen = format!("{board} w {castling} - 0 1");
+            assert_eq!(err(&fen), FenError::InvalidCastling, "{castling}");
+        }
+        for ep in ["e9", "x", "e", "E3"] {
+            let fen = format!("{board} w - {ep} 0 1");
+            assert_eq!(err(&fen), FenError::InvalidEnPassant, "{ep}");
+        }
+        for clock in ["x", "-1", "+1", "65536", "1.5"] {
+            let fen = format!("{board} w - - {clock} 1");
+            assert_eq!(err(&fen), FenError::InvalidHalfmoveClock, "{clock}");
+            let fen = format!("{board} w - - 0 {clock}");
+            assert_eq!(err(&fen), FenError::InvalidFullmoveNumber, "{clock}");
+        }
+    }
+
+    #[test]
+    fn counters_accept_the_full_u16_range() {
+        let pos = Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 65535 65535").unwrap();
+        assert_eq!(pos.halfmove_clock(), u16::MAX);
+        assert_eq!(pos.fullmove_number(), u16::MAX);
+    }
+
+    #[test]
+    fn errors_have_messages() {
+        let message = FenError::RankLength { rank: 3 }.to_string();
+        assert_eq!(message, "rank 3 does not describe exactly 8 squares");
+        assert!(!FenError::InvalidCastling.to_string().is_empty());
+    }
+}
