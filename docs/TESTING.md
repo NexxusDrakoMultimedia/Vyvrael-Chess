@@ -104,6 +104,7 @@ unchanged.
 | Position | FEN | Deepest depth tested | Nodes at that depth | What it stresses |
 | --- | --- | --- | --- | --- |
 | 1: start position | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1` | 5 | 4,865,609 | Double pushes, the first en passant captures (depth 5) and the first checks. |
+| 2: Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1` | 4 | 4,085,603 | Castling in all four directions, castling rights lost by captures, pins, en passant, promotions. |
 
 The expected counts are the published reference values from the Chess
 Programming Wiki ("Perft Results",

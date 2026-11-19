@@ -37,3 +37,14 @@ fn start_position() {
         &counts,
     );
 }
+
+/// Position 2, "Kiwipete": castling both ways for both sides, pins, en
+/// passant and promotions in a crowded middlegame.
+#[test]
+fn kiwipete() {
+    let counts = [48, 2_039, 97_862, 4_085_603];
+    check(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        &counts,
+    );
+}

@@ -127,7 +127,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `perft`: node counting with divide
 - [x] `perft`: `perft` subcommand of the binary
 - [x] perft test: start position
-- [ ] perft test: Kiwipete (position 2)
+- [x] perft test: Kiwipete (position 2)
 - [ ] perft test: position 3
 - [ ] perft test: position 4 and its mirror
 - [ ] perft test: position 5
