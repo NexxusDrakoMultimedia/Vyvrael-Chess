@@ -27,6 +27,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | `board::Color` | Indices match `Color::ALL`; `flip` is an involution; FEN character round-trip. |
 
+| `board::Square` | Corner indices; every named constant parses from its own name; file/rank round-trip; `from_index` bounds; `offset` stops at edges without wrapping; malformed coordinates are rejected. |
+
 Rows are added as modules land.
 
 ## Perft (planned, milestone 2)
