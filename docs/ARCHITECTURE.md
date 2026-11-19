@@ -208,7 +208,8 @@ Implemented in `src/rng.rs`.
 All randomness in the engine goes through one module, `rng`. The tool crates
 are stubs with no dependencies today; when they need randomness they will use
 this module through a dependency on the engine crate (or mirror it exactly if
-that dependency is ever undesirable).
+that dependency is ever undesirable). Tools may take a `--seed` argument,
+which defaults to `DEFAULT_SEED`.
 
 - **Algorithm:** SplitMix64 (Steele, Lea and Flood, 2014; the reference
   implementation by Sebastiano Vigna is public domain). The state is one
@@ -247,7 +248,7 @@ that dependency is ever undesirable).
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
   strength-affecting randomness when the UCI option `DeterministicRNG` is
-  `false`. That path arrives with the UCI milestone and logs the seed it chose.
+  `false`. That path arrives with the UCI milestone and logs the seed it chose with `info string`.
 
 ### Table of randomness uses
 
@@ -269,8 +270,7 @@ subsystems never share or shift each other's numbers:
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 
 Planned uses (each gets a real row when it lands): magic-number search (milestone 2, not
-strength-affecting), test fixtures and property tests (not
-strength-affecting), datagen opening randomisation (milestone 8, not
+strength-affecting), property tests (not strength-affecting), datagen opening randomisation (milestone 8, not
 strength-affecting; per-game derived seeds), strength limiting through
 `UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
 non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the

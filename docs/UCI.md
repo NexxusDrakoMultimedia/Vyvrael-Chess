@@ -28,7 +28,7 @@ The "Status" column is the truth: only rows marked *implemented* work.
 | `isready` | planned | Reply `readyok` once initialisation is complete. |
 | `ucinewgame` | planned | Clear the transposition table and other per-game state. |
 | `position [startpos \| fen <fen>] [moves ...]` | planned | Set up the position and play the listed moves. |
-| `go` with `wtime`, `btime`, `winc`, `binc`, `movestogo`, `depth`, `movetime`, `infinite` | planned | Start a search on a separate thread; finish with `bestmove`. |
+| `go` with `wtime`, `btime`, `winc`, `binc`, `movestogo`, `depth`, `nodes`, `movetime`, `infinite` | planned | Start a search on a separate thread; finish with `bestmove`. |
 | `stop` | planned | Stop the search as soon as possible and print `bestmove`. |
 | `setoption name <name> value <value>` | planned | Set one of the options below. |
 | `quit` | planned | Stop any search and exit. |

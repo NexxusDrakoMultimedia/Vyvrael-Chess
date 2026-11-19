@@ -1,7 +1,7 @@
 # Roadmap
 
-Milestones are done in order, one branch per milestone, each branched from
-the previous milestone's branch. At the start of a milestone its chunk
+Milestones are done in order, one branch per milestone. A finished milestone
+is reviewed and merged into `main`, and the next one branches from there. At the start of a milestone its chunk
 checklist is written here; items are ticked off in the commits that complete
 them.
 
@@ -9,8 +9,8 @@ them.
 
 | # | Milestone | Branch | Status |
 | --- | --- | --- | --- |
-| 0 | Setup, licence, documentation set | `milestone/0-setup` | done (awaiting review) |
-| 1 | Board | `milestone/1-board` | done (awaiting review) |
+| 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
+| 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | not started |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |

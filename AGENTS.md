@@ -61,7 +61,12 @@ Update this table in the same commit that adds or changes a command.
 - Never weaken, skip or delete a test to make it pass. Fix the code.
 - Every commit is green (`fmt`, `clippy -D warnings`, `test --release`) and
   does one thing.
-- Commit locally only. Never push, merge, force-push or rewrite history.
+- Commit locally. At the end of a milestone, review it independently, fix
+  what the review confirms, then merge its branch into `main` locally.
+- Never push, force-push, tag or release on your own. Ask the maintainer when
+  it is the right moment (for example after a merge into `main`) and act only
+  on an explicit yes, each time. Do not rewrite history unless the maintainer
+  asks.
 - Stop and report at the end of each milestone before starting the next.
 - Training and data work must be reproducible: fixed seeds, recorded
   parameters, and a manifest committed with any net's documentation (not the
@@ -128,7 +133,7 @@ shared in the tool crates).
   commits that complete them.
 - Branching: one branch per milestone (`milestone/1-board`,
   `milestone/2-movegen`, ...), each started from the previous milestone's
-  branch. Do not merge; the maintainer reviews and merges.
+  branch. The agent reviews and merges it into `main` (see "Rules").
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 
@@ -142,8 +147,9 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 4. **Search:** negamax/alpha-beta, iterative deepening, quiescence, ordering,
    transposition table, null move, LMR. One feature per commit.
 5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
-   `RngSeed`.
-6. **Strength testing:** SPRT match script (fastchess or Cutechess).
+   `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
+6. **Strength testing:** SPRT match script (fastchess or Cutechess);
+   calibrate `UCI_Elo`.
 7. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
 8. **NNUE:** datagen, `bullet` training, quantised incremental inference.
 9. **Tablebases (optional, ask first):** Syzygy probing.
