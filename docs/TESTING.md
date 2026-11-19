@@ -32,20 +32,33 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `board::Move` | Size is 2 bytes; all 64 x 64 x 14 (from, to, kind) encodings round-trip; kinds encode distinctly; capture/promotion/castle predicates; UCI display; promoting to a pawn or king panics. |
 | `board::Position` (placement) | Empty-position defaults; `put_piece` updates the mailbox and all bitboards; `remove_piece` restores the empty position exactly; misuse panics; `is_consistent` detects five kinds of corrupted placement; `Debug` diagram. |
 | `board` FEN parsing | Start position bitboards and state; every field parsed; four-field (EPD) input; extra whitespace; each `FenError` syntax variant (field count, rank count, rank length, consecutive digits, bad piece character, bad side/castling/en passant/counters); counters accept the full 16-bit range. |
-| `board` FEN validation | Wrong king counts; pawns on back ranks; castling rights without king or rook at home (nine cases); partial rights accepted; plausible en passant squares accepted and nine impossible ones rejected. |
+| `board` FEN validation | Wrong king counts; pawns on back ranks; impossible material (nine pawns, extra pieces with all eight pawns, 26 queens) rejected and promotion-reachable material accepted; castling rights without king or rook at home (nine cases); partial rights accepted; plausible en passant squares accepted and nine impossible ones rejected; seven positions with the side not to move in check rejected, while check, checkmate and double check against the side to move are accepted. |
 | `board` FEN round-trip | 14 canonical FENs (start position, the standard perft reference positions, en passant for both sides, castling-right subsets, extreme counters) parse and serialise back byte for byte, and re-parse to an equal position; non-canonical input serialises canonically. |
 | `board::zobrist` | The 781 base keys equal the Zobrist stream in the documented order; all are distinct and non-zero; ten golden key values from an independent implementation; castling keys compose by XOR and all 16 rights values hash differently. |
-| `board::Position` (hash) | Golden hashes for the start position and after 1.e4 (independent implementation); incremental updates on placement equal a from-scratch recompute; side, castling and en passant each change the hash by exactly their key; counters are not hashed; en passant is hashed only when a pawn can capture (both colours, board edge, own pawns); editing pawns beside an en passant square keeps the hash right; parsed positions carry a correct hash. |
+| `board::Position` (hash) | Golden hashes for the start position and after 1.e4 (independent implementation); incremental updates on placement equal a from-scratch recompute; side, castling and en passant each change the hash by exactly their key; counters are not hashed; en passant is hashed only when a pawn can capture (both colours, board edge, own pawns) and only when that capture is legal (five illegal cases: rank exposure, file and diagonal pins, unanswered check, Black; four awkward legal cases); editing pawns beside an en passant square, or a pinning or shielding piece elsewhere, keeps the hash right; parsed positions carry a correct hash. |
 | `board` make/unmake | Each case plays a move, compares every field (including the hash) with a freshly parsed expected FEN, then unmakes and compares with the original. Covered so far: quiet piece and pawn moves, clock handling, captures, castling rights lost by king moves, rook moves and rook captures, clearing of the en passant square (hashed and unhashed), halfmove clock saturation, double pushes setting and replacing the en passant square (hashed when capturable), en passant captures by both colours in both directions and on the edge files, all four castling moves (rook placement, both rights spent, the other side's rights kept), promotions and capturing promotions to all four pieces for both colours (including capturing a rook on its home square), and an eight-move sequence unwound through every intermediate position. |
 | `board` move parsing | Kind detection for pushes, double pushes, captures, en passant (needs the en passant square), castling (king from its home square only), promotions and capturing promotions; display round-trips; malformed text and moves that do not fit the position are rejected; the documented lack of geometry checking is pinned by a test. |
+| `attacks` knight | Table equals the eight-step definition built with `Square::offset` for all 64 squares; counts for corner, edge and centre squares and the total of 336; symmetry. |
+| `attacks` king | Table equals the eight-neighbour definition for all 64 squares; counts for corner, edge and centre squares and the total of 420. |
+| `attacks` pawn | Both colours equal the two-step definition for all 64 squares; edge files, last ranks and the total of 98 per colour; the reverse-lookup identity for every pair of squares. |
+| `attacks` scan | Rook on an empty board equals rank plus file for all 64 squares; bishop counts and diagonal property; both stop at and include the first piece on each ray; a piece on the slider's own square changes nothing; a full board leaves only neighbours. |
+| `attacks::magic` masks | Mask sizes for sample squares and the classic table totals (102,400 rook and 5,248 bishop entries); the rook mask of a1 square by square; for every square and every arrangement inside the mask, filling all squares outside it does not change the scanned attacks; `subsets` yields each subset exactly once. |
+| `attacks::sliders` | Exhaustive: for all 64 squares and every relevant blocker arrangement (107,648 cases) the bishop and rook lookups equal the scan; 20,000 random full-board occupancies including queens; table layout and sizes; rebuilding the tables reproduces the same magic numbers and table; four pinned magic numbers and a fold of all 128 (recorded from this implementation as regression pins). |
+| `board` attack queries | Attackers of sample squares in the start position; check given by each piece kind, including pawns of both colours from both sides; positions that are not check (blocked sliders, pawns behind or straight ahead of the king); double check; only the side to move is asked about; a custom occupancy sees through a removed blocker; adjacent kings. |
+| `movegen::MoveList` | Starts empty; push keeps order; slice methods work through `Deref`; equality ignores unused slots; holds exactly 256 moves and panics on the 257th. |
+| `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces or straight ahead; no capture around the board edge, with the bait placed on the exact square a wrapping shift would reach, for both edge files and both colours. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge for either colour. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square, with the crossed and destination squares each tested for both colours; an attacked b-file square is allowed. |
+| `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched; legal moves keep the pseudo-legal order. |
+| `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
+| `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 
 Rows are added as modules land.
 
 During the milestone 1 review, make/unmake was also stress-tested outside the
 repository against an independent mailbox model over about 5.6 million
 pseudo-legal moves, and the FEN parser was fuzzed with a million mutated
-inputs; neither found a defect. Those harnesses are not committed, because
-they need a move generator: milestone 2's perft suite takes over that role.
+inputs; neither found a defect. Those harnesses were not committed. Their
+role is now filled by `tests/perft.rs` and `tests/consistency.rs`.
 
 ## Integration tests
 
@@ -53,12 +66,14 @@ Integration tests live in `tests/` and use only the public API.
 
 | File | What is checked |
 | --- | --- |
+| `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
+| `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
 
 The Opera Game's final FEN is the widely published one, so that checkpoint is
 independent of this code. The other checkpoint FENs were derived by hand.
 
-## Perft (planned, milestone 2)
+## Perft
 
 Perft ("performance test") counts the leaf nodes of the legal move tree to a
 fixed depth from a given position. Because the correct counts for standard
@@ -66,11 +81,73 @@ positions are published, any disagreement proves a move generation bug, and
 the *divide* mode (node count per root move) lets you bisect to the faulty
 move by comparing against a reference engine.
 
-Milestone 2 will add a perft integration test over the standard reference
-positions (start position, Kiwipete and the other well-known positions that
-stress castling, en passant, promotion and pins) and a `perft` subcommand
-with divide mode. The positions and their expected node counts will be listed
-here, with their source, when the tests land.
+### Running perft by hand
+
+```sh
+cargo run --release -- perft <depth> [--divide | --copy-make] [FEN]
+```
+
+The FEN is optional (the start position is used without it) and may be given
+quoted or unquoted. The node count goes to stdout as `nodes: N`; the time and
+speed go to stderr. With `--divide`, each legal first move is listed as
+`move: count` in alphabetical order before the total, which is the format
+other engines print, so the two lists can be compared line by line.
+`--copy-make` gives the same count by copying the position for each move (see
+below); the two flags cannot be combined.
+
+To find a move generation bug: run `--divide` here and in a trusted engine,
+pick a move whose count differs, play it in both, and repeat at one depth
+less until a position shows a move that one side has and the other lacks.
+
+### Make/unmake versus copy-make
+
+Known issue KI-4 asked for a measurement of the board's in-place make/unmake
+against "copy-make" (copy the position, play the move on the copy, discard
+it). `perft --copy-make` runs the same count that way.
+
+Measured on 2026-11-20 on the development machine (Windows, x86-64, rustc
+1.100.0, release profile, one thread), three runs each, median shown:
+
+| Position | Depth | Nodes | Make/unmake | Copy-make | Difference |
+| --- | --- | --- | --- | --- | --- |
+| Start position | 6 | 119,060,324 | 4,450 ms (26.8 M nodes/s) | 4,235 ms (28.1 M nodes/s) | copy-make 4.8% faster |
+| Kiwipete | 5 | 193,690,690 | 7,683 ms (25.2 M nodes/s) | 7,310 ms (26.5 M nodes/s) | copy-make 4.9% faster |
+
+Both node counts equal the published reference values. To repeat:
+
+```sh
+cargo run --release -- perft 6
+cargo run --release -- perft 6 --copy-make
+```
+
+Reading the result: copy-make is slightly faster in perft, by an amount
+(about 5%) that is small and specific to this workload. Perft does nothing
+but generate and make moves; search adds evaluation, hashing and ordering,
+which dilute the difference, and later per-position state (for example NNUE
+accumulators) changes the cost of copying. The engine keeps make/unmake as
+its interface, and `Position` is cheap to clone, so search can use either
+style. The choice for search is to be made in milestone 4 on search speed,
+not on perft.
+
+### Reference positions
+
+The integration tests in `tests/perft.rs` check **every depth from 1 to the
+one shown** against the published value, and that perft leaves the position
+unchanged.
+
+| Position | FEN | Deepest depth tested | Nodes at that depth | What it stresses |
+| --- | --- | --- | --- | --- |
+| 1: start position | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1` | 5 | 4,865,609 | Double pushes, the first en passant captures (depth 5) and the first checks. |
+| 2: Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1` | 4 | 4,085,603 | Castling in all four directions, castling rights lost by captures, pins, en passant, promotions. |
+| 3 | `8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1` | 6 | 11,030,083 | En passant that is illegal because it uncovers a rook on the rank, discovered checks, promotions at depth. |
+| 4 and its mirror | `r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1` | 5 | 15,833,292 | Starting in check, promotions with and without capture, castling for the side not to move; the mirror proves White and Black are treated alike. |
+| 5 | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8` | 4 | 2,103,487 | Capturing promotions with check, castling while a knight attacks the castling rook (still legal). |
+| 6 | `r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10` | 4 | 3,894,594 | Ordinary piece play at volume: bishop pins, many captures. |
+
+The expected counts are the published reference values from the Chess
+Programming Wiki ("Perft Results",
+<https://www.chessprogramming.org/Perft_Results>), which engines agree on.
+They were not produced by this engine.
 
 ## Strength matches and SPRT (planned, milestone 6)
 

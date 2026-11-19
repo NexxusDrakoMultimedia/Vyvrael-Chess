@@ -20,6 +20,10 @@ Layout:
 - `src/lib.rs`, `src/main.rs`: the engine crate `vyvrael` (library + binary).
   It has no dependencies and must never depend on the tool crates.
   - `src/rng.rs`: the only source of randomness.
+  - `src/attacks/`: attack tables per piece type.
+  - `src/movegen/`: move generation.
+  - `src/perft.rs`: perft node counting.
+  - `src/cli.rs`: the binary's command line (`main.rs` only calls it).
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.
@@ -35,7 +39,7 @@ Layout:
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
-| Perft | not implemented yet (milestone 2) |
+| Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Match script | not implemented yet (milestone 6) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 7) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 8) |

@@ -27,6 +27,8 @@ pub const DEFAULT_SEED: u32 = 0x3103_1996;
 pub mod stream {
     /// Zobrist hashing keys (`board::zobrist`).
     pub const ZOBRIST: u64 = 0;
+    /// Magic-number search for slider attack tables (`attacks::sliders`).
+    pub const MAGICS: u64 = 1;
 }
 
 /// SplitMix64's state increment (the 64-bit golden-ratio constant).

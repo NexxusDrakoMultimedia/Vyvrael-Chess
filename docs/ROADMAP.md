@@ -11,7 +11,7 @@ them.
 | --- | --- | --- | --- |
 | 0 | Setup, licence, documentation set | `milestone/0-setup` | done, merged into `main` |
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
-| 2 | Move generation | `milestone/2-movegen` | not started |
+| 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | not started |
 | 4 | Search | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
@@ -87,24 +87,70 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
-| KI-1 | **En passant hashing ignores pins.** The en passant file is hashed when a pawn of the side to move attacks the en passant square, even if that capture is illegal because it would expose the mover's own king. | Two positions that are the same under the rules can hash differently, so a repetition could be missed or a transposition-table entry not reused. Nothing consumes the hash yet (no search, no repetition detection). | Milestone 2: hash the file only when an en passant capture is legal. |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
-| KI-4 | **Make/unmake design is unmeasured.** `make_move` returns an `Undo` token and updates the position in place. This was chosen by reasoning, with no benchmark against copy-make. | None known. The choice may not be the fastest. | Milestone 2: compare with copy-make using perft node rates, record the numbers in `TESTING.md`, and keep or change the design on that evidence. |
-| KI-5 | **FEN validation does not detect that the side not to move is in check.** Such a position cannot arise in a game. | An impossible position loads without error. | Milestone 2, once attack generation exists. |
-| KI-6 | **No committed randomised make/unmake stress test.** The milestone 1 review ran one outside the repository. | Regressions are caught only by the fixed test cases. | Milestone 2: the perft suite fills this role. |
+| KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Not scheduled. If it matters (for example for UCI start-up time in milestone 5), embed the numbers the search finds as constants and keep the search as a test that reproduces them. |
 
-## Milestones 2 to 9
+## Milestone 2: move generation
+
+Scope: attack tables (magic bitboards for sliders, found with the seeded
+RNG), legal move generation, and perft against the published reference node
+counts. Move generation is not done until every perft test passes. Also due
+here: known issues KI-1, KI-4, KI-5 and KI-6.
+
+Approach: generate pseudo-legal moves per piece type, then filter out the
+ones that leave the mover's king attacked by making the move and testing.
+This is the simplest correct design; a faster pin-aware generator can replace
+it later behind the same interface, with perft as the safety net.
+
+- [x] `attacks`: knight attack table
+- [x] `attacks`: king attack table
+- [x] `attacks`: pawn attack tables
+- [x] `attacks`: slider attacks by ray scanning (the reference implementation)
+- [x] `attacks`: relevant-occupancy masks and subset enumeration
+- [x] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
+- [x] `board`: attackers of a square and in-check detection
+- [x] `movegen`: `MoveList`
+- [x] `movegen`: pseudo-legal knight moves
+- [x] `movegen`: pseudo-legal king moves (without castling)
+- [x] `movegen`: pseudo-legal bishop, rook and queen moves
+- [x] `movegen`: pawn pushes and double pushes
+- [x] `movegen`: pawn captures
+- [x] `movegen`: promotions
+- [x] `movegen`: en passant
+- [x] `movegen`: castling
+- [x] `movegen`: legality filter and `legal_moves`
+- [x] `perft`: node counting with divide
+- [x] `perft`: `perft` subcommand of the binary
+- [x] perft test: start position
+- [x] perft test: Kiwipete (position 2)
+- [x] perft test: position 3
+- [x] perft test: position 4 and its mirror
+- [x] perft test: position 5
+- [x] perft test: position 6
+- [x] KI-6: perft-driven consistency check of make/unmake and hashing
+- [x] KI-5: FEN rejects positions where the side not to move is in check
+- [x] KI-1: hash the en passant file only when the capture is legal
+- [x] KI-4: measure make/unmake against copy-make with perft
+- [x] End-of-milestone review and doc drift pass
+
+Added during the milestone: known issue KI-7 (start-up cost of the magic
+search), and from the end-of-milestone review a FEN check against impossible
+material (which could overflow the move list) and several strengthened tests.
+The review also ran perft on further published positions beyond the six in
+the test suite and found no wrong count.
+
+## Milestones 3 to 9
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: KI-1, KI-4, KI-5, KI-6.
+- Milestone 2: none left.
 - Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`.
-- Not yet scheduled: KI-2.
+- Not yet scheduled: KI-2, KI-7.
 
 ## Planned features
 
@@ -148,6 +194,12 @@ Constraints that already apply:
 
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
+
+## Carried into later milestones
+
+- Milestone 4 (search): choose between make/unmake and copy-make for the
+  search loop by measuring search speed. Perft showed copy-make about 5%
+  faster (see TESTING.md), which is not decisive on its own.
 
 ## Ideas for later
 

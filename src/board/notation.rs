@@ -54,9 +54,8 @@ impl Position {
     ///
     /// This checks only what is needed to choose the kind. It does **not**
     /// check that the piece can move that way or that the move is legal; a
-    /// rook "moving" like a knight is accepted as a quiet move. Once move
-    /// generation exists, match against the legal move list where legality
-    /// matters.
+    /// rook "moving" like a knight is accepted as a quiet move. Where legality
+    /// matters, match the result against `movegen::legal_moves`.
     ///
     /// # Errors
     ///
@@ -201,7 +200,7 @@ mod tests {
         assert_eq!(kind_of(&black, "e8c8"), MoveKind::QueenCastle);
 
         // Another piece making the same journey is not castling.
-        let queen = fen("4k3/8/8/8/8/8/8/K3Q3 w - - 0 1");
+        let queen = fen("7k/8/8/8/8/8/8/K3Q3 w - - 0 1");
         assert_eq!(kind_of(&queen, "e1g1"), MoveKind::Quiet);
         // Nor is a king away from its home square, or on the enemy's.
         let wandering = fen("8/8/8/4k3/8/8/8/4K3 b - - 0 1");

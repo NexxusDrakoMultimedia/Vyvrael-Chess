@@ -10,6 +10,11 @@ once it has a first release.
 
 ### Fixed
 
+- `Position::from_fen` accepted positions with more material than a game can
+  produce (for example 26 queens), which could generate more than 256 moves
+  and abort in `MoveList`. Such positions are now rejected with
+  `FenError::ImpossibleMaterial`. Found before any release.
+
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 
@@ -40,7 +45,7 @@ once it has a first release.
   `rng::stream::ZOBRIST` of the default seed.
 - `Position::hash`: Zobrist hash maintained incrementally, with
   `compute_hash` as the from-scratch reference. The en passant file is hashed
-  only when an en passant capture is pseudo-legally possible.
+  only when an en passant capture is legal.
 - `Position::make_move` / `unmake_move` with an `Undo` token, for every move
   kind: quiet moves, captures, double pawn pushes, en passant, castling and
   promotions.
@@ -50,3 +55,25 @@ once it has a first release.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
+- `attacks` module: knight attack table.
+- King attack table.
+- Pawn attack tables for both colours.
+- Slider attacks by ray scanning (`bishop_attacks_by_scan`,
+  `rook_attacks_by_scan`), the reference for the magic tables.
+- Relevant-occupancy masks and subset enumeration for magic bitboards.
+- Magic bitboards: `bishop_attacks`, `rook_attacks`, `queen_attacks`, with
+  magic numbers found by the seeded RNG (`rng::stream::MAGICS`).
+- `Position::attackers_to`, `is_attacked_by`, `checkers` and `in_check`.
+- `movegen` module with `MoveList`, a fixed-capacity stack-allocated list.
+- `pseudo_legal_moves`: knight, bishop, rook, queen and king moves, all pawn
+  moves (pushes, captures, promotions, en passant) and castling.
+- `legal_moves` and `Position::can_capture_king`.
+- `perft` module: `perft` and `divide`.
+- `perft` subcommand of the binary, with `--divide`, and a `help` command.
+- Perft acceptance tests against published node counts (`tests/perft.rs`).
+- Tree-walking consistency test of make/unmake, hashing and FEN
+  (`tests/consistency.rs`).
+- FEN validation rejects positions where the side not to move is in check
+  (`FenError::OpponentInCheck`).
+- `perft_copy_make` and `perft --copy-make`, with a recorded speed comparison
+  against make/unmake.
