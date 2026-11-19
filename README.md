@@ -63,6 +63,8 @@ lands:
   `engine.protocol` to `uci` in `config.yml`.
 
 This section will be replaced with tested instructions when UCI works.
+Running Vyvræl as a Lichess bot is a planned feature; see
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
 

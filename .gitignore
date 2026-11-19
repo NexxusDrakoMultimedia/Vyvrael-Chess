@@ -15,5 +15,9 @@
 /nets/
 /tablebases/
 
+# lichess-bot configuration holds an API token: never commit it
+/config.yml
+/lichess-bot/
+
 # Local tooling state
 /.remember/

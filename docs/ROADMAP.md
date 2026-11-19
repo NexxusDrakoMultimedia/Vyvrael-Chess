@@ -182,6 +182,8 @@ Scope summaries live in the "Build order" section of
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
+- After milestone 5: private `lichess-bot` smoke test; public after
+  milestone 4b (see "Planned features").
 - Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
@@ -310,6 +312,46 @@ Decided by the maintainer on 2026-11-20.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
   2026-11-20). The full scope is under "Milestone 6: strength testing"
   below.
+
+### Playing on Lichess with lichess-bot
+
+Wanted by the maintainer (2026-11-20). Run Vyvræl as a Lichess bot account
+through `lichess-bot`, the bridge program that connects a UCI engine to the
+Lichess API.
+
+What it needs:
+
+- **A working UCI engine.** `lichess-bot` speaks UCI to the engine, so this
+  cannot start before milestone 5.
+- **`lichess-bot` itself**, installed and run by the maintainer as a separate
+  program. Like Cute Chess and Ordo it is not vendored, not linked and not a
+  Cargo dependency. Its licence is to be confirmed on its official source and
+  recorded in [DEPENDENCIES.md](DEPENDENCIES.md) before first use.
+- **A Lichess bot account and API token**, created and held by the
+  maintainer. The token is a secret: it is never committed, never written
+  into a tracked file and never handled by an AI agent. The repository will
+  carry only an example configuration with a placeholder where the token
+  goes, and the real configuration file will be git-ignored.
+- **Documentation:** tested setup steps in the README (replacing the current
+  placeholder) and in `docs/UCI.md`, including which engine options to set.
+
+Plan:
+
+- **Earliest: after milestone 5**, as a private smoke test that the engine
+  plays complete games over the real protocol without losing on time,
+  crashing or making illegal moves.
+- **Going public: not before milestone 4b**, so the bot that other people
+  play has been through SPRT-tested search. Playing rated games with an
+  untested engine would say little and could annoy opponents.
+- Time management has to be sound first: `go wtime/btime/winc/binc` handling
+  is part of milestone 5, and a bot that flags is worse than no bot.
+- `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play once
+  they are calibrated.
+
+Open questions for the maintainer, to settle before going public: the bot's
+account name, which time controls and variants to accept, whether to accept
+rated games and challenges from humans, other bots or both, and where the bot
+will run (it needs a machine that stays on).
 
 ## Ideas for later
 
