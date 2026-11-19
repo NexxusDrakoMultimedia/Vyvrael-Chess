@@ -1,0 +1,29 @@
+[workspace]
+members = [".", "tools/vyvrael-data", "tools/vyvrael-train"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Nexxus Drako Multimedia"]
+repository = "https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess"
+
+[package]
+name = "vyvrael"
+description = "Vyvræl: a dragon-flavoured, aggressive UCI chess engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+# The engine crate deliberately has no dependencies. See docs/DEPENDENCIES.md
+# before adding one, and never depend on the tool crates from here.
+[dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

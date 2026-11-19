@@ -1,0 +1,19 @@
+# Build output
+/target
+
+# Chess data and compressed archives (see docs/DATA.md)
+*.pgn
+*.zst
+
+# Match and test-run output
+/matches/
+/match-output/
+*.match.log
+
+# Large third-party artefacts: never committed (see docs/DATA.md)
+/data/
+/nets/
+/tablebases/
+
+# Local tooling state
+/.remember/
