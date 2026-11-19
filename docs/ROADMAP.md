@@ -254,6 +254,15 @@ Decided by the maintainer on 2026-11-20.
   TESTING.md), which is not decisive on its own.
 - **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
   `isready` without a start-up delay.
+- **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
+  2026-11-20). `cutechess-cli` plays the matches and runs SPRT; Ordo turns
+  the resulting PGN into a rating list with error bars, which is also what
+  the `UCI_Elo` calibration needs. Both are external programs the scripts
+  call: they are not linked into the engine and are not Cargo dependencies.
+  At the start of milestone 6, before first use, confirm each tool's licence
+  on its official source and record it, with the version used, in
+  [DEPENDENCIES.md](DEPENDENCIES.md). Match output (PGN, logs) is not
+  committed.
 
 ## Ideas for later
 
