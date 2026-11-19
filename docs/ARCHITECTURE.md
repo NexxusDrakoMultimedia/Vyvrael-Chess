@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for every move kind. Still planned: parsing coordinate-notation moves against a position. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for every move kind, coordinate-notation move parsing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -171,6 +171,17 @@ Implemented in `src/board/`, one small file per type, re-exported from
   - A promotion places the promoted piece instead of the pawn; unmake puts
     a pawn back on the origin square. A capturing promotion also saves and
     restores the captured piece.
+- **Move parsing** (`notation.rs`): `Position::parse_move("e2e4")` reads UCI
+  coordinate notation and works out the `MoveKind` from the board, because
+  the notation does not say whether a move is a capture, a double push,
+  castling or en passant. Castling is a king moving two files along the rank
+  from its home square. It rejects malformed text, an empty or enemy origin
+  square, an own piece on the destination, a missing or unexpected promotion
+  letter, and a diagonal pawn move to an empty square that is not the en
+  passant square. **It does not check piece geometry or legality** (a rook
+  moving like a knight parses as a quiet move); that needs move generation
+  (milestone 2), after which UCI input should be matched against the legal
+  move list.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -44,6 +44,8 @@ once it has a first release.
 - `Position::make_move` / `unmake_move` with an `Undo` token, for every move
   kind: quiet moves, captures, double pawn pushes, en passant, castling and
   promotions.
+- `Position::parse_move`: reads UCI coordinate notation and infers the move
+  kind from the position.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
