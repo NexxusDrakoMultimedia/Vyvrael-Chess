@@ -54,7 +54,7 @@ with a from-scratch recompute.
 - [x] `board`: `Color`
 - [x] `board`: `Square` with coordinate parsing and display
 - [x] `board`: `PieceKind` and `Piece` with FEN characters
-- [ ] `board`: `Bitboard` type, set operations and bit iteration
+- [x] `board`: `Bitboard` type, set operations and bit iteration
 - [ ] `board`: file/rank masks and directional shifts
 - [ ] `board`: `CastlingRights`
 - [ ] `board`: `Move` encoding with coordinate-notation display

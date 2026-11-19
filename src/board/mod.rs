@@ -5,10 +5,12 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Board representation") for the design.
 
+mod bitboard;
 mod color;
 mod piece;
 mod square;
 
+pub use bitboard::{Bitboard, BitboardIter};
 pub use color::Color;
 pub use piece::{Piece, PieceKind};
 pub use square::{ParseSquareError, Square};

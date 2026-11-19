@@ -31,6 +31,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | `board::PieceKind`, `board::Piece` | Indices match `PieceKind::ALL`; letter round-trips in both cases; all twelve FEN piece characters round-trip; non-piece characters are rejected. |
 
+| `board::Bitboard` | Bit position equals square index; set/clear/toggle/with/without; set operators; `more_than_one`; `lsb`/`msb`/`pop_lsb` including the empty set; ascending iteration with exact length; `Debug` diagram orientation. |
+
 Rows are added as modules land.
 
 ## Perft (planned, milestone 2)
