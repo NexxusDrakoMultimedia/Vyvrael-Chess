@@ -150,12 +150,14 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 1. **Board:** `rng`, bitboards, FEN, make/unmake, Zobrist hashing.
 2. **Move generation:** magic bitboards, legal moves, perft acceptance tests.
 3. **Evaluation (hand-crafted):** material, tapered PSTs, behind an interface.
-4. **Search:** negamax/alpha-beta, iterative deepening, quiescence, ordering,
-   transposition table, null move, LMR. One feature per commit.
+4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
+   Heuristics wait for 4b so each can be accepted by SPRT.
 5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
    `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
 6. **Strength testing:** SPRT match script (fastchess or Cutechess);
    calibrate `UCI_Elo`.
+   - **4b, search heuristics** (after 6): move ordering, transposition table,
+     null move, LMR. One feature per commit, each with an SPRT result.
 7. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
 8. **NNUE:** datagen, `bullet` training, quantised incremental inference.
 9. **Tablebases (optional, ask first):** Syzygy probing.
