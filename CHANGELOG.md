@@ -61,4 +61,4 @@ once it has a first release.
 - `Position::attackers_to`, `is_attacked_by`, `checkers` and `in_check`.
 - `movegen` module with `MoveList`, a fixed-capacity stack-allocated list.
 - `pseudo_legal_moves`, generating knight, bishop, rook and queen moves,
-  king steps, pawn pushes and pawn captures so far.
+  king steps, pawn pushes, pawn captures and promotions so far.

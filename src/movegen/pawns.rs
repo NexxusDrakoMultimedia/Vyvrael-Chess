@@ -36,7 +36,7 @@ const fn last_rank(color: Color) -> Bitboard {
 }
 
 /// Single and double pushes onto empty squares. Pushes onto the last rank
-/// are promotions and are not generated here.
+/// are promotions; see [`promotions`].
 fn pushes(us: Color, pawns: Bitboard, empty: Bitboard, list: &mut MoveList) {
     let last_rank = last_rank(us);
     let after_one_step = match us {
@@ -56,7 +56,7 @@ fn pushes(us: Color, pawns: Bitboard, empty: Bitboard, list: &mut MoveList) {
 }
 
 /// Diagonal captures of enemy pieces. Captures onto the last rank are
-/// promotions and are not generated here.
+/// promotions; see [`promotions`].
 fn captures(us: Color, pawns: Bitboard, enemies: Bitboard, list: &mut MoveList) {
     let targets = enemies & !last_rank(us);
     for from in pawns {
@@ -66,10 +66,40 @@ fn captures(us: Color, pawns: Bitboard, enemies: Bitboard, list: &mut MoveList) 
     }
 }
 
+/// The pieces a pawn may promote to, most valuable first.
+const PROMOTION_PIECES: [PieceKind; 4] = [
+    PieceKind::Queen,
+    PieceKind::Rook,
+    PieceKind::Bishop,
+    PieceKind::Knight,
+];
+
+/// Pushes and captures onto the last rank: one move per promotion piece.
+fn promotions(us: Color, pawns: Bitboard, empty: Bitboard, enemies: Bitboard, list: &mut MoveList) {
+    let last_rank = last_rank(us);
+    for to in forward(us, pawns) & empty & last_rank {
+        let from = behind(us, to, 1);
+        for piece in PROMOTION_PIECES {
+            list.push(Move::new(from, to, MoveKind::Promotion(piece)));
+        }
+    }
+    // Only pawns one step from promoting can capture onto the last rank.
+    for from in pawns {
+        for to in pawn_attacks(us, from) & enemies & last_rank {
+            for piece in PROMOTION_PIECES {
+                list.push(Move::new(from, to, MoveKind::PromotionCapture(piece)));
+            }
+        }
+    }
+}
+
 /// Adds the pseudo-legal pawn moves of the side to move.
 pub(super) fn pawn_moves(pos: &Position, list: &mut MoveList) {
     let us = pos.side_to_move();
     let pawns = pos.pieces_of(us, PieceKind::Pawn);
-    pushes(us, pawns, !pos.occupied(), list);
-    captures(us, pawns, pos.occupied_by(us.flip()), list);
+    let empty = !pos.occupied();
+    let enemies = pos.occupied_by(us.flip());
+    pushes(us, pawns, empty, list);
+    captures(us, pawns, enemies, list);
+    promotions(us, pawns, empty, enemies, list);
 }

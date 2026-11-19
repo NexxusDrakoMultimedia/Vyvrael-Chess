@@ -32,7 +32,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
-| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal moves for knights, kings, sliders, pawn pushes and pawn captures. |
+| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal moves for knights, kings, sliders, pawn pushes, pawn captures and promotions. |
 | perft | planned (milestone 2) | Node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -269,7 +269,7 @@ on this square attack?".
   own small generator. A move to an enemy-occupied square is a `Capture`,
   otherwise `Quiet`; squares holding the mover's own pieces are masked out
   first. **Generated so far:** knights, king steps (not castling), bishops, rooks,
-  queens, pawn pushes and pawn captures.
+  queens, pawn pushes, pawn captures and promotions.
 
 - **Pawns** (`movegen/pawns.rs`) have their own generator because their
   moves depend on colour and they move and capture differently. Pushes are
@@ -277,7 +277,10 @@ on this square attack?".
   pawn set shifted forward and masked with the empty squares; a double push
   continues those single pushes that landed on the third rank (sixth for
   Black), so both squares must be empty. Captures use the pawn attack table
-  per pawn, masked with the enemy pieces.
+  per pawn, masked with the enemy pieces. A push or capture onto the last rank
+  becomes four moves, one per promotion piece (queen first); under-promotions
+  are always generated because they are sometimes the only winning or drawing
+  move.
 
 ## How search, evaluation and UCI fit together (planned)
 

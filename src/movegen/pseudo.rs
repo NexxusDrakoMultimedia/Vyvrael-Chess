@@ -71,8 +71,8 @@ fn slider_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// piece moves, king steps (no castling) and pawn pushes and captures (no
-/// promotions or en passant). See the checklist in `docs/ROADMAP.md`.
+/// piece moves, king steps (no castling) and pawn pushes, captures and
+/// promotions (no en passant). See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
@@ -100,6 +100,8 @@ mod tests {
                 MoveKind::Quiet => mv.to_string(),
                 MoveKind::Capture => format!("{mv}x"),
                 MoveKind::DoublePush => format!("{mv}+"),
+                MoveKind::Promotion(_) => mv.to_string(),
+                MoveKind::PromotionCapture(_) => format!("{mv}x"),
                 other => format!("{mv}:{other:?}"),
             })
             .collect();
@@ -251,6 +253,41 @@ mod tests {
         assert_eq!(edge, ["a3a4", "a3b4x"]);
         let black_edge = moves_of("4k3/8/7p/P5P1/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
         assert_eq!(black_edge, ["h6g5x", "h6h5"]);
+    }
+
+    #[test]
+    fn promotions_offer_all_four_pieces() {
+        let white = moves_of("1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(
+            white,
+            [
+                "a7a8b", "a7a8n", "a7a8q", "a7a8r", "a7b8bx", "a7b8nx", "a7b8qx", "a7b8rx"
+            ]
+        );
+        let black = moves_of("4k3/8/8/8/8/8/7p/4K1N1 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(
+            black,
+            [
+                "h2g1bx", "h2g1nx", "h2g1qx", "h2g1rx", "h2h1b", "h2h1n", "h2h1q", "h2h1r"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_blocked_pawn_cannot_promote() {
+        let blocked = moves_of("n3k3/P7/8/8/8/8/8/4K3 w - - 0 1", PieceKind::Pawn);
+        assert!(blocked.is_empty());
+    }
+
+    /// A pawn on the seventh rank makes promotions only: no plain push or
+    /// plain capture is generated alongside them.
+    #[test]
+    fn last_rank_moves_are_always_promotions() {
+        let pos = Position::from_fen("1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let pawn_moves = pseudo_legal_moves(&pos);
+        let pawn_moves = pawn_moves.iter().filter(|mv| mv.from() == Square::A7);
+        assert!(pawn_moves.clone().count() == 8);
+        assert!(pawn_moves.clone().all(|mv| mv.promotion().is_some()));
     }
 
     #[test]
