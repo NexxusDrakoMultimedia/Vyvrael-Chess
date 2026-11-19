@@ -79,6 +79,26 @@ impl Rng {
     pub const fn next_u32(&mut self) -> u32 {
         (self.next_u64() >> 32) as u32
     }
+    /// Returns a uniformly distributed integer in `0..bound`.
+    ///
+    /// Uses Lemire's multiply-and-reject method, so the result is unbiased
+    /// for every bound. Usually consumes one 64-bit output, occasionally more.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bound` is zero.
+    pub const fn next_below(&mut self, bound: u64) -> u64 {
+        assert!(bound > 0, "next_below: bound must be non-zero");
+        let mut product = (self.next_u64() as u128) * (bound as u128);
+        if (product as u64) < bound {
+            // 2^64 mod bound: low halves below this are over-represented.
+            let threshold = bound.wrapping_neg() % bound;
+            while (product as u64) < threshold {
+                product = (self.next_u64() as u128) * (bound as u128);
+            }
+        }
+        (product >> 64) as u64
+    }
 }
 
 impl Default for Rng {
@@ -241,6 +261,52 @@ mod tests {
             Rng::stream(DEFAULT_SEED, 0),
             Rng::stream(DEFAULT_SEED + 1, 0)
         );
+    }
+
+    /// Golden values computed with an independent implementation.
+    #[test]
+    fn golden_next_below() {
+        let mut rng = Rng::default();
+        let dice: Vec<u64> = (0..12).map(|_| rng.next_below(6)).collect();
+        assert_eq!(dice, [4, 5, 1, 5, 3, 1, 3, 2, 1, 2, 4, 5]);
+
+        let mut rng = Rng::default();
+        let draws: Vec<u64> = (0..6).map(|_| rng.next_below(1000)).collect();
+        assert_eq!(draws, [676, 981, 277, 983, 558, 218]);
+    }
+
+    #[test]
+    fn next_below_stays_in_range() {
+        let mut rng = Rng::default();
+        let bounds = [1, 2, 3, 7, 64, 1000, (1 << 63) + 1, u64::MAX];
+        for bound in bounds {
+            for _ in 0..2000 {
+                assert!(rng.next_below(bound) < bound);
+            }
+        }
+    }
+
+    #[test]
+    fn next_below_one_is_always_zero() {
+        let mut rng = Rng::default();
+        assert!((0..100).all(|_| rng.next_below(1) == 0));
+    }
+
+    #[test]
+    fn next_below_is_roughly_uniform() {
+        let mut rng = Rng::default();
+        let mut buckets = [0u32; 6];
+        for _ in 0..60_000 {
+            buckets[rng.next_below(6) as usize] += 1;
+        }
+        // Expected 10 000 each; 4 % is about 4.4 standard deviations.
+        assert!(buckets.iter().all(|&n| (9_600..=10_400).contains(&n)));
+    }
+
+    #[test]
+    #[should_panic(expected = "bound must be non-zero")]
+    fn next_below_zero_panics() {
+        Rng::default().next_below(0);
     }
 
     #[test]

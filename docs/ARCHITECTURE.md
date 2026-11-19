@@ -27,7 +27,7 @@ dependencies, so the engine binary stays small and builds fast.
 | Module | Status | Responsibility |
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
-| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64), `Rng::stream`, `DEFAULT_SEED`, `mix64`. |
+| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | board representation | planned (milestone 1) | Bitboards, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
@@ -45,8 +45,7 @@ layer writes to stdout.
 
 ## RNG design
 
-Implemented in `src/rng.rs`. The bounded-integer helper is *planned* and
-not in the code yet.
+Implemented in `src/rng.rs`.
 
 All randomness in the engine goes through one module, `rng`. The tool crates
 use it through their dependency on the engine crate (or mirror it exactly if
@@ -74,6 +73,9 @@ that dependency is ever undesirable).
   are different offsets into SplitMix64's single 2^64 cycle; with
   well-mixed offsets, an overlap within any practical run length is
   vanishingly unlikely.
+- **Bounded integers:** `next_below(bound)` returns a uniform integer in
+  `0..bound` using Lemire's multiply-and-reject method, so there is no modulo
+  bias for any bound. Use it for all sampling and shuffling.
 - **Golden tests:** known-answer tests pin the first outputs for seed
   `1234567` (the published SplitMix64 reference vector), seed `0` and
   `DEFAULT_SEED`, plus four derived streams. The `DEFAULT_SEED` and stream

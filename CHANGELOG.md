@@ -21,6 +21,7 @@ once it has a first release.
 - `rng` module: in-house SplitMix64 generator, `DEFAULT_SEED = 0x31031996`
   and golden-value tests.
 - `Rng::stream`: deterministic derived streams from a base seed and an index.
+- `Rng::next_below`: unbiased bounded integers.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
