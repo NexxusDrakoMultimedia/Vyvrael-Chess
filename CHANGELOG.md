@@ -51,3 +51,4 @@ once it has a first release.
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
 - `attacks` module: knight attack table.
+- King attack table.

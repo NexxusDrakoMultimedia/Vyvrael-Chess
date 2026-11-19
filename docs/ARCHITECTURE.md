@@ -204,6 +204,9 @@ on this square attack?".
   board edge).
   - `knight_attacks(square)`.
 
+  - `king_attacks(square)`: the eight neighbouring squares. Castling is a
+    move, not an attack, and is not in the table.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

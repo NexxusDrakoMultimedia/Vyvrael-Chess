@@ -7,4 +7,4 @@
 
 mod leapers;
 
-pub use leapers::knight_attacks;
+pub use leapers::{king_attacks, knight_attacks};

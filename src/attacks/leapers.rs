@@ -41,6 +41,36 @@ pub fn knight_attacks(square: Square) -> Bitboard {
     KNIGHT_ATTACKS[square.index()]
 }
 
+/// The squares a king on the single-square set `from` attacks.
+const fn king_pattern(from: Bitboard) -> Bitboard {
+    Bitboard(
+        from.north().0
+            | from.south().0
+            | from.east().0
+            | from.west().0
+            | from.north_east().0
+            | from.north_west().0
+            | from.south_east().0
+            | from.south_west().0,
+    )
+}
+
+static KING_ATTACKS: [Bitboard; Square::COUNT] = {
+    let mut table = [Bitboard::EMPTY; Square::COUNT];
+    let mut index = 0;
+    while index < Square::COUNT {
+        table[index] = king_pattern(Bitboard(1 << index));
+        index += 1;
+    }
+    table
+};
+
+/// The squares a king on `square` attacks (castling is not an attack).
+#[must_use]
+pub fn king_attacks(square: Square) -> Bitboard {
+    KING_ATTACKS[square.index()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,6 +113,29 @@ mod tests {
         assert_eq!(knight_attacks(Square::E4).count(), 8);
         let total: u32 = Square::all().map(|sq| knight_attacks(sq).count()).sum();
         assert_eq!(total, 336);
+    }
+
+    #[test]
+    fn king_attacks_match_the_step_definition() {
+        let steps: Vec<(i8, i8)> = (-1..=1)
+            .flat_map(|files| (-1..=1).map(move |ranks| (files, ranks)))
+            .filter(|&step| step != (0, 0))
+            .collect();
+        assert_eq!(steps.len(), 8);
+        for square in Square::all() {
+            assert_eq!(king_attacks(square), from_steps(square, &steps), "{square}");
+        }
+    }
+
+    #[test]
+    fn king_attack_counts() {
+        assert_eq!(king_attacks(Square::A1).count(), 3);
+        assert_eq!(king_attacks(Square::H8).count(), 3);
+        assert_eq!(king_attacks(Square::E1).count(), 5);
+        assert_eq!(king_attacks(Square::A5).count(), 5);
+        assert_eq!(king_attacks(Square::E4).count(), 8);
+        let total: u32 = Square::all().map(|sq| king_attacks(sq).count()).sum();
+        assert_eq!(total, 420);
     }
 
     #[test]
