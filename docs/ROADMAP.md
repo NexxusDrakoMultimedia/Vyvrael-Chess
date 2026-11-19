@@ -245,7 +245,8 @@ and are installed by the user. `docs/TESTING.md` documents them: install
 steps for Windows and Ubuntu, minimum versions, and how to confirm they work.
 
 - **Match scripts:** `scripts/match.sh` (bash) and `scripts/match.ps1`
-  (PowerShell) run a match between two engine binaries with SPRT.
+  (PowerShell) run a match between two engine binaries with SPRT. The two
+  take the same parameters and behave the same on both systems.
   - Parameters, all with sensible defaults: engine paths, engine names, time
     control, hash, rounds, concurrency, opening file, output directory.
   - `cutechess-cli` settings: `-each tc=10+0.1 option.Hash=16
@@ -256,8 +257,13 @@ steps for Windows and Ubuntu, minimum versions, and how to confirm they work.
   - Pass `option.DeterministicRNG=true` where reproducibility matters, and
     say so in the script's output.
 - **Rating scripts:** `scripts/rate.sh` and `scripts/rate.ps1` run Ordo over
-  one or more PGN files with a named anchor engine and write `ratings.txt`
-  and `ratings.csv`.
+  one or more PGN files with a named anchor engine (Ordo's `-A`) and write
+  `ratings.txt` and `ratings.csv`. Same parameters on both systems.
+- **Check the real flags.** Before writing either script, read
+  `cutechess-cli --help` and `ordo --help` from the installed versions and
+  use the flags they actually document. Do not assume a flag from memory or
+  from this document; if a flag named here does not exist in the installed
+  version, use the equivalent and say so in `docs/TESTING.md`.
 - **Portability:** no hard-coded paths. Detect the tools on `PATH`, fail with
   a clear message if one is missing, and keep the scripts working on both
   Windows 11 and Ubuntu.
@@ -269,9 +275,9 @@ steps for Windows and Ubuntu, minimum versions, and how to confirm they work.
 - **Acceptance rule:** only accept search and evaluation changes that SPRT
   shows to be a gain, and record the result in the commit message or in
   `docs/TESTING.md`.
-- **Chunks:** the match script, then the rate script, then the docs, each
-  tested at least by a dry run against a trivial engine or a smoke test with
-  a handful of games.
+- **Chunks:** the match script, then the rate script, then the docs. Each
+  script is smoke-tested with a few games against a trivial engine (or at
+  least a dry run) before it is committed.
 
 Also due in this milestone: calibration of `UCI_Elo` (see "Planned
 features") and known issue KI-8 (the evaluation's strength).
