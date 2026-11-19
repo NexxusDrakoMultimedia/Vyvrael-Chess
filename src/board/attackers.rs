@@ -53,6 +53,18 @@ impl Position {
         }
     }
 
+    /// Whether the side to move could capture the enemy king, which means
+    /// the side that just moved left its own king attacked. Such a position
+    /// cannot arise in a legal game.
+    ///
+    /// False if the side not to move has no king.
+    #[must_use]
+    pub fn can_capture_king(&self) -> bool {
+        let us = self.side_to_move();
+        self.king_square(us.flip())
+            .is_some_and(|king| self.is_attacked_by(king, us))
+    }
+
     /// Whether the side to move is in check.
     #[must_use]
     pub fn in_check(&self) -> bool {
@@ -169,6 +181,18 @@ mod tests {
             pos.attackers_to(Square::D4, pos.occupied()),
             squares(&[Square::D3, Square::D5])
         );
+    }
+
+    #[test]
+    fn can_capture_king_looks_at_the_side_not_to_move() {
+        // The white rook attacks the black king and it is White's move.
+        assert!(fen("4k3/8/8/8/8/8/8/4RK2 w - - 0 1").can_capture_king());
+        // Black to move in the same position is simply in check.
+        let black = fen("4k3/8/8/8/8/8/8/4RK2 b - - 0 1");
+        assert!(!black.can_capture_king());
+        assert!(black.in_check());
+        assert!(!Position::startpos().can_capture_king());
+        assert!(!Position::empty().can_capture_king());
     }
 
     #[test]

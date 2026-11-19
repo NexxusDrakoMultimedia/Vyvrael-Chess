@@ -62,3 +62,4 @@ once it has a first release.
 - `movegen` module with `MoveList`, a fixed-capacity stack-allocated list.
 - `pseudo_legal_moves`: knight, bishop, rook, queen and king moves, all pawn
   moves (pushes, captures, promotions, en passant) and castling.
+- `legal_moves` and `Position::can_capture_king`.

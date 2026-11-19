@@ -32,7 +32,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
-| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, complete pseudo-legal generation (all pieces, pawns and castling). |
+| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal generation (all pieces, pawns and castling) and `legal_moves`. |
 | perft | planned (milestone 2) | Node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -253,8 +253,8 @@ on this square attack?".
   knight standing on it would attack the knight, and the same holds for the
   other pieces (for pawns with the colours swapped), so six table lookups
   answer the question. The occupancy is a parameter so callers can ask "what
-  if this piece were gone?". `is_attacked_by`, `checkers` and `in_check` are
-  built on it.
+  if this piece were gone?". `is_attacked_by`, `checkers`, `in_check` and
+  `can_capture_king` are built on it.
 
 - **`MoveList`** (`movegen/list.rs`): a fixed array of 256 moves on the
   stack with a length, dereferencing to a slice. Generation runs millions of
@@ -292,6 +292,16 @@ on this square attack?".
   castling queenside the b-file square must be empty but may be attacked.
   The four castling options are small constant records, so the generator is
   one loop with no colour-specific code.
+
+- **Legality** (`movegen/legal.rs`): `legal_moves` plays each pseudo-legal
+  move on a scratch copy and keeps it unless the opponent could then capture
+  the mover's king (`Position::can_capture_king`). This single test covers
+  pins, king steps onto attacked squares, unanswered checks and the en
+  passant capture that uncovers an attack along the rank, with no special
+  cases to get wrong. It costs a make/unmake and an attack query per move;
+  a pin-aware generator that avoids this can replace it later behind the
+  same function, with perft as the safety net. An empty result means
+  checkmate when `in_check()` is true and stalemate otherwise.
 
 ## How search, evaluation and UCI fit together (planned)
 
