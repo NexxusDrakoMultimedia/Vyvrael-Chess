@@ -22,6 +22,7 @@ Layout:
   - `src/rng.rs`: the only source of randomness.
   - `src/attacks/`: attack tables per piece type.
   - `src/movegen/`: move generation.
+  - `src/eval/`: static evaluation.
   - `src/perft.rs`: perft node counting.
   - `src/cli.rs`: the binary's command line (`main.rs` only calls it).
   - `src/board/`: board representation (types, position, FEN, Zobrist

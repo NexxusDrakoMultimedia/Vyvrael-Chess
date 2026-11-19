@@ -158,7 +158,7 @@ principles (they are not copied from another engine), leaning towards the
 project's style: active pieces, advanced pawns and pressure towards the
 enemy king. They are a starting point to be tuned once SPRT exists.
 
-- [ ] `eval`: `Evaluator` interface and score conventions
+- [x] `eval`: `Evaluator` interface and score conventions
 - [ ] `eval`: material evaluator
 - [ ] `eval`: game phase
 - [ ] `eval`: tapered scores (middlegame/endgame pairs and blending)

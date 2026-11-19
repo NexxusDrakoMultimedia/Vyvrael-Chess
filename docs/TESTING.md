@@ -51,6 +51,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
+| `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view. |
 
 Rows are added as modules land.
 

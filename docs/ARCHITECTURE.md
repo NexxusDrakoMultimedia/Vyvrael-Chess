@@ -35,7 +35,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
-| evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
+| `eval` | in progress (milestone 3) | Static evaluation behind the `Evaluator` trait. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
@@ -330,6 +330,25 @@ on this square attack?".
   identifies itself on stderr, leaving stdout empty for the future UCI
   protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
   timing on stderr. Exit status 2 means the command line was not understood.
+
+## Evaluation
+
+In progress (milestone 3). `src/eval/` gives a position a score without
+searching.
+
+- **Scores** are `eval::Score`, an `i32` in centipawns (100 is about one
+  pawn).
+- **`Evaluator`** (`eval/mod.rs`) is the trait search will call:
+  `evaluate(&self, pos) -> Score` returns the score **from the side to move's
+  point of view**, which is what negamax needs, and `name()` identifies the
+  evaluator. Search holds it as a trait object, so the hand-crafted evaluation
+  and a later neural network are interchangeable and can be played against
+  each other. Evaluators add up "White minus Black" and convert with
+  `eval::relative_to`.
+- The trait takes the whole position each time. A network that updates
+  incrementally on make/unmake (milestone 8) will need notification hooks;
+  they will be added then as default methods, so existing evaluators do not
+  change.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -77,3 +77,4 @@ once it has a first release.
   (`FenError::OpponentInCheck`).
 - `perft_copy_make` and `perft --copy-make`, with a recorded speed comparison
   against make/unmake.
+- `eval` module: the `Evaluator` trait, `Score` and `relative_to`.
