@@ -42,7 +42,7 @@ Layout:
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
-| Match script | not implemented yet (milestone 6) |
+| Match script | not implemented yet (milestone 6: `scripts/match.sh`, `scripts/match.ps1`, `scripts/rate.sh`, `scripts/rate.ps1`) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 7) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 8) |
 
