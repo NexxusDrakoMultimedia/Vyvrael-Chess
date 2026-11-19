@@ -182,8 +182,9 @@ Scope summaries live in the "Build order" section of
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
-- After milestone 5: private `lichess-bot` smoke test; public after
-  milestone 4b (see "Planned features").
+- After milestone 5: private `lichess-bot` smoke test. Public only later,
+  after milestone 4b, which is the last of the four (see "Planned
+  features").
 - Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
@@ -295,6 +296,10 @@ Notes for whoever starts it:
 
 Decided by the maintainer on 2026-11-20.
 
+**Order of work: milestone 4, then 5, then 6, then 4b.** Milestone 4b is
+numbered after the search milestone it completes, but it is done last of
+these four.
+
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
   SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
@@ -341,12 +346,14 @@ What it needs:
 - **Documentation:** tested setup steps in the README (replacing the current
   placeholder) and in `docs/UCI.md`, including which engine options to set.
 
-Plan:
+Plan, in this order (the milestones run 4, 5, 6, then 4b, so the private
+test comes well before the bot is public):
 
-- **Earliest: after milestone 5**, as a private smoke test that the engine
+- **First, after milestone 5**, a private smoke test that the engine
   plays complete games over the real protocol without losing on time,
   crashing or making illegal moves.
-- **Going public: not before milestone 4b**, so the bot that other people
+- **Later, going public: not before milestone 4b**, which follows milestone
+  6, so the bot that other people
   play has been through SPRT-tested search. Playing rated games with an
   untested engine would say little and could annoy opponents.
 - Time management has to be sound first: `go wtime/btime/winc/binc` handling
