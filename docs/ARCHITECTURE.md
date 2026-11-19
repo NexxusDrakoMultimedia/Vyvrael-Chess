@@ -32,7 +32,8 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
-| move generation | planned (milestone 2) | Legal moves, perft. |
+| `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`. |
+| perft | planned (milestone 2) | Node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
@@ -254,6 +255,13 @@ on this square attack?".
   answer the question. The occupancy is a parameter so callers can ask "what
   if this piece were gone?". `is_attacked_by`, `checkers` and `in_check` are
   built on it.
+
+- **`MoveList`** (`movegen/list.rs`): a fixed array of 256 moves on the
+  stack with a length, dereferencing to a slice. Generation runs millions of
+  times per second in search, so it must not allocate. The largest known
+  number of legal moves in any position is 218; 256 leaves room for
+  pseudo-legal extras. Pushing past the capacity panics rather than
+  corrupting memory.
 
 ## How search, evaluation and UCI fit together (planned)
 

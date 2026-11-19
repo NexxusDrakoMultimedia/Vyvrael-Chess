@@ -59,3 +59,4 @@ once it has a first release.
 - Magic bitboards: `bishop_attacks`, `rook_attacks`, `queen_attacks`, with
   magic numbers found by the seeded RNG (`rng::stream::MAGICS`).
 - `Position::attackers_to`, `is_attacked_by`, `checkers` and `in_check`.
+- `movegen` module with `MoveList`, a fixed-capacity stack-allocated list.

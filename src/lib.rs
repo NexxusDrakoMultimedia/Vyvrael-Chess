@@ -9,6 +9,7 @@
 
 pub mod attacks;
 pub mod board;
+pub mod movegen;
 pub mod rng;
 
 /// Engine name as reported to UCI front ends (`id name`).
