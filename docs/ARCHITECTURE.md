@@ -10,8 +10,8 @@ intent for a later milestone, not code that exists.
 Cargo.toml              workspace root + engine package `vyvrael`
 src/lib.rs              engine library (all engine logic lives here)
 src/main.rs             engine binary (thin wrapper over the library)
-tools/vyvrael-data/     data and database tooling (stub; milestone 7)
-tools/vyvrael-train/    NNUE training (stub; milestone 8)
+tools/vyvrael-data/     data and database tooling (stub; milestone 8)
+tools/vyvrael-train/    NNUE training (stub; milestone 9)
 docs/                   documentation
 ```
 
@@ -348,7 +348,7 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
   each other. Evaluators add up "White minus Black" and convert with
   `eval::relative_to`.
 - The trait takes the whole position each time. A network that updates
-  incrementally on make/unmake (milestone 8) will need notification hooks;
+  incrementally on make/unmake (milestone 9) will need notification hooks;
   they will be added then as default methods, so existing evaluators do not
   change.
 
@@ -493,7 +493,7 @@ subsystems never share or shift each other's numbers:
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 | 1 | `stream::MAGICS` | Magic-number search |
 
-Planned uses (each gets a real row when it lands): datagen opening randomisation (milestone 8, not
+Planned uses (each gets a real row when it lands): datagen opening randomisation (milestone 9, not
 strength-affecting; per-game derived seeds), strength limiting through
 `UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
 non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the

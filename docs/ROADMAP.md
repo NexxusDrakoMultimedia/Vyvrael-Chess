@@ -16,10 +16,10 @@ them.
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | not started |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
-| 4b | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/4b-search-heuristics` | not started; follows milestone 6 |
-| 7 | Open data tooling | `milestone/7-data` | not started |
-| 8 | Neural evaluation (NNUE) | `milestone/8-nnue` | not started |
-| 9 | Endgame tablebases (optional, needs approval) | `milestone/9-tablebases` | not started |
+| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
+| 8 | Open data tooling | `milestone/8-data` | not started |
+| 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
+| 10 | Endgame tablebases (optional, needs approval) | `milestone/10-tablebases` | not started |
 
 ## Milestone 0: setup
 
@@ -88,7 +88,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
-| KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
+| KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
 | KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Milestone 5, before the UCI loop: embed the 128 numbers the search finds as constants and keep the search as a test proving the constants are what the seed produces. |
@@ -175,7 +175,7 @@ The end-of-milestone review found no defect in the evaluation code. It
 strengthened the tests (the blended total is now pinned at phases between
 the endpoints) and corrected two comments that overstated what the tables do.
 
-## Milestones 4 to 9
+## Milestones 4 to 10
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
@@ -183,8 +183,7 @@ that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
 - After milestone 5: private `lichess-bot` smoke test. Public only later,
-  after milestone 4b, which is the last of the four (see "Planned
-  features").
+  after milestone 7 (see "Planned features").
 - Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
@@ -296,16 +295,18 @@ Notes for whoever starts it:
 
 Decided by the maintainer on 2026-11-20.
 
-**Order of work: milestone 4, then 5, then 6, then 4b.** Milestone 4b is
-numbered after the search milestone it completes, but it is done last of
-these four.
+**Milestones are done in numerical order.** The search heuristics were
+first recorded as "milestone 4b", which read as if it came before milestone
+5; on 2026-11-20 it was renumbered to milestone 7. The milestones after it
+therefore sit one higher than in the original brief: open data tooling is 8,
+NNUE is 9 and tablebases are 10.
 
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
   SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
   So milestone 4 builds only the core that everything else depends on:
   negamax with alpha-beta, iterative deepening and quiescence search. UCI and
-  the match script follow. Milestone 4b then adds move ordering (hash move,
+  the match script follow. Milestone 7 then adds move ordering (hash move,
   MVV-LVA, killers, history), the transposition table, null-move pruning and
   late move reductions, one feature per commit, each with a recorded SPRT
   result. The core has nothing to be compared against, so it is checked by
@@ -346,13 +347,13 @@ What it needs:
 - **Documentation:** tested setup steps in the README (replacing the current
   placeholder) and in `docs/UCI.md`, including which engine options to set.
 
-Plan, in this order (the milestones run 4, 5, 6, then 4b, so the private
-test comes well before the bot is public):
+Plan, in this order (milestone 5 comes two milestones before milestone 7, so
+the private test comes well before the bot is public):
 
 - **First, after milestone 5**, a private smoke test that the engine
   plays complete games over the real protocol without losing on time,
   crashing or making illegal moves.
-- **Later, going public: not before milestone 4b**, which follows milestone
+- **Later, going public: not before milestone 7**, which follows milestone
   6, so the bot that other people
   play has been through SPRT-tested search. Playing rated games with an
   untested engine would say little and could annoy opponents.

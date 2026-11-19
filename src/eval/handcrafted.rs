@@ -62,7 +62,7 @@ impl Evaluator for HandCrafted {
 /// The evaluator the engine uses unless told otherwise.
 ///
 /// Today that is always [`HandCrafted`]. When the neural network arrives
-/// (milestone 8) this is where the choice between the two is made.
+/// (milestone 9) this is where the choice between the two is made.
 #[must_use]
 pub fn default_evaluator() -> Box<dyn Evaluator> {
     Box::new(HandCrafted)

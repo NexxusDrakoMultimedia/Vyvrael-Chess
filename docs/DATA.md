@@ -41,6 +41,6 @@ and each licence will be verified on the official page before first use.
 
 - Lichess open database (https://database.lichess.org/): standard game PGNs,
   puzzles and evaluations, for opening extraction, a tactical suite and
-  possibly training data (milestone 7).
-- Self-generated training data from Vyvræl's own `datagen` (milestone 8).
-- Syzygy tablebases, only if milestone 9 is approved.
+  possibly training data (milestone 8).
+- Self-generated training data from Vyvræl's own `datagen` (milestone 9).
+- Syzygy tablebases, only if milestone 10 is approved.

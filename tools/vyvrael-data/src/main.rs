@@ -3,8 +3,8 @@
 
 //! `vyvrael-data`: open data and database tooling for Vyvræl.
 //!
-//! Empty stub. The tooling itself is milestone 7 (see `docs/ROADMAP.md`).
+//! Empty stub. The tooling itself is milestone 8 (see `docs/ROADMAP.md`).
 
 fn main() {
-    eprintln!("vyvrael-data: not implemented yet; see docs/ROADMAP.md (milestone 7).");
+    eprintln!("vyvrael-data: not implemented yet; see docs/ROADMAP.md (milestone 8).");
 }

@@ -178,12 +178,12 @@ documented here, including how to read LLR, Elo estimates and error bars.
 Because of that, search is split (see "Decisions for milestones 4 to 6" in
 [ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
 correctness tests and fixed-depth node counts, and the search heuristics wait
-for milestone 4b, after the match script exists, so each has an SPRT result.
+for milestone 7, after the match script exists, so each has an SPRT result.
 
 SPRT results are recorded in the commit message of the change or in a table
 in this file.
 
-## Tactical test suites (planned, milestone 7)
+## Tactical test suites (planned, milestone 8)
 
 A tactical suite derived from the Lichess puzzle database will report the
 share of puzzles solved at a fixed depth or time. Details will be added with
