@@ -57,7 +57,7 @@ This section will be replaced with tested instructions when UCI works.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): design and module layout
 - [docs/UCI.md](docs/UCI.md): supported commands and options
 - [docs/TESTING.md](docs/TESTING.md): tests, perft, strength testing
-- [docs/ROADMAP.md](docs/ROADMAP.md): milestones and status
+- [docs/ROADMAP.md](docs/ROADMAP.md): milestones, status and known issues
 - [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md): dependencies and licences
 - [docs/DATA.md](docs/DATA.md): datasets, books, tablebases, networks
 - [docs/NNUE.md](docs/NNUE.md): neural evaluation

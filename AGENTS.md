@@ -162,6 +162,9 @@ behaviour must also:
   `docs/DATA.md` (datasets), `docs/NNUE.md` (networks), `docs/ROADMAP.md`
   (chunk status), and the README status line;
 - update this file if a command, convention or the build order changed;
+- record any limitation you knowingly leave behind in the "Known issues"
+  table in `docs/ROADMAP.md`, and remove the entry in the commit that fixes
+  it;
 - keep `///` doc comments on public items.
 
 At the end of each milestone, re-read the docs against the code and fix any

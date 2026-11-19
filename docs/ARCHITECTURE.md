@@ -106,7 +106,8 @@ from `board`.
   just moved (correct rank, target square and the pawn's starting square
   empty, that side's pawn directly beyond the target). These are the
   invariants make/unmake relies on. Rejecting rather than repairing means a
-  bad input is noticed instead of silently changed. **Not validated yet:**
+  bad input is noticed instead of silently changed; an opt-in repair mode is
+  planned for later (known issue KI-2). **Not validated yet:**
   that the side which just moved did not leave its own king in check; that
   needs attack generation and is planned for milestone 2. An en passant
   square is kept whenever a double push happened, whether or not a capture is
@@ -141,7 +142,8 @@ from `board`.
   nobody can answer en passant then hashes the same as the identical position
   reached another way, which is what repetition detection and the
   transposition table need. The check is pseudo-legal: it ignores pins, so a
-  capture that would expose the king still counts. `Position::en_passant()`
+  capture that would expose the king still counts (known issue KI-1 in
+  [ROADMAP.md](ROADMAP.md), to be tightened in milestone 2). `Position::en_passant()`
   itself always reports the square after a double push, as FEN does.
 - **Make/unmake** (`makemove.rs`): `Position::make_move(mv)` plays a move in
   place and returns an `Undo`; `Position::unmake_move(mv, undo)` takes it
@@ -152,8 +154,9 @@ from `board`.
   than keeping a history stack inside `Position`) keeps `Position` a plain
   value with no heap allocation; search will keep its own stack. `Undo` is
   `#[must_use]`. In-place make/unmake was chosen over copy-make because the
-  position is about 200 bytes and unmake touches only a few fields; this can
-  be revisited with measurements once perft exists.
+  position is about 200 bytes and unmake touches only a few fields; this is
+  unmeasured and will be decided on perft numbers in milestone 2 (known
+  issue KI-4).
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.
@@ -187,7 +190,7 @@ from `board`.
   passant square. **It does not check piece geometry or legality** (a rook
   moving like a knight parses as a quiet move); that needs move generation
   (milestone 2), after which UCI input should be matched against the legal
-  move list.
+  move list; that is due in milestone 5 (known issue KI-3).
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -77,19 +77,32 @@ an en passant square, and three follow-ups from the end-of-milestone review
 (documented and fully tested square constants, missing Black test cases, a
 version test that can fail).
 
-Left for milestone 2, because they need attack or move generation:
+What milestone 1 leaves open is recorded under "Known issues" below.
 
-- FEN validation does not yet reject positions where the side that just
-  moved left its own king in check.
-- `Position::parse_move` does not check piece geometry or legality; UCI
-  input should be matched against the legal move list once it exists.
-- A committed randomised make/unmake stress test (perft will provide it).
+## Known issues
+
+Limitations in the code as it stands, each with what it affects and when it
+is due to be fixed. An entry is removed in the commit that fixes it. The
+design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+| # | Issue | Effect today | Fix planned |
+| --- | --- | --- | --- |
+| KI-1 | **En passant hashing ignores pins.** The en passant file is hashed when a pawn of the side to move attacks the en passant square, even if that capture is illegal because it would expose the mover's own king. | Two positions that are the same under the rules can hash differently, so a repetition could be missed or a transposition-table entry not reused. Nothing consumes the hash yet (no search, no repetition detection). | Milestone 2: hash the file only when an en passant capture is legal. |
+| KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 7 at the latest, when third-party data is first read. |
+| KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
+| KI-4 | **Make/unmake design is unmeasured.** `make_move` returns an `Undo` token and updates the position in place. This was chosen by reasoning, with no benchmark against copy-make. | None known. The choice may not be the fastest. | Milestone 2: compare with copy-make using perft node rates, record the numbers in `TESTING.md`, and keep or change the design on that evidence. |
+| KI-5 | **FEN validation does not detect that the side not to move is in check.** Such a position cannot arise in a game. | An impossible position loads without error. | Milestone 2, once attack generation exists. |
+| KI-6 | **No committed randomised make/unmake stress test.** The milestone 1 review ran one outside the repository. | Regressions are caught only by the fixed test cases. | Milestone 2: the perft suite fills this role. |
 
 ## Milestones 2 to 9
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
-that milestone starts.
+that milestone starts, and must include the known issues due in it:
+
+- Milestone 2: KI-1, KI-4, KI-5, KI-6.
+- Milestone 5: KI-3.
+- Not yet scheduled: KI-2.
 
 ## Ideas for later
 
