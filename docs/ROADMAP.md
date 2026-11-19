@@ -128,7 +128,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `perft`: `perft` subcommand of the binary
 - [x] perft test: start position
 - [x] perft test: Kiwipete (position 2)
-- [ ] perft test: position 3
+- [x] perft test: position 3
 - [ ] perft test: position 4 and its mirror
 - [ ] perft test: position 5
 - [ ] perft test: position 6

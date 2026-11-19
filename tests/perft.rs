@@ -48,3 +48,11 @@ fn kiwipete() {
         &counts,
     );
 }
+
+/// Position 3: a rook endgame where en passant captures can expose the
+/// king along the rank, and with many checks.
+#[test]
+fn position_3() {
+    let counts = [14, 191, 2_812, 43_238, 674_624, 11_030_083];
+    check("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", &counts);
+}
