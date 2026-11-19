@@ -13,6 +13,7 @@ mod mv;
 mod piece;
 mod position;
 mod square;
+pub mod zobrist;
 
 pub use bitboard::{Bitboard, BitboardIter};
 pub use castling::{CastlingRights, ParseCastlingError};

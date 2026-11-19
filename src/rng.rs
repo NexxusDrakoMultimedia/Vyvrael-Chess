@@ -18,6 +18,17 @@
 /// Reference this constant; never repeat the literal elsewhere.
 pub const DEFAULT_SEED: u32 = 0x3103_1996;
 
+/// Stream indices of [`DEFAULT_SEED`] reserved by engine subsystems.
+///
+/// Each subsystem that needs deterministic random numbers takes its own
+/// stream with `Rng::stream(DEFAULT_SEED, stream::NAME)`, so adding a new
+/// consumer never shifts the numbers an existing one receives. Indices are
+/// never reused or renumbered.
+pub mod stream {
+    /// Zobrist hashing keys (`board::zobrist`).
+    pub const ZOBRIST: u64 = 0;
+}
+
 /// SplitMix64's state increment (the 64-bit golden-ratio constant).
 const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
 

@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation. Still planned: Zobrist hashing, make/unmake. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`). Still planned: position hash, make/unmake. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -111,6 +111,15 @@ Implemented in `src/board/`, one small file per type, re-exported from
   the canonical six-field form (single spaces, castling letters in `KQkq`
   order). A canonical FEN round-trips byte for byte, and parsing the output
   always gives back an equal position.
+- **Zobrist keys** (`zobrist.rs`): 781 base keys taken in order from stream
+  `stream::ZOBRIST` of the default seed: 768 piece keys
+  (`[colour][kind][square]`, white first, pawn to king, a1 to h8), 4 castling
+  flag keys (`K`, `Q`, `k`, `q`), 8 en passant file keys (a to h) and 1
+  side-to-move key (XORed in when Black is to move). The table is a `static`
+  built by a `const fn`, so it costs nothing at start-up and needs no lazy
+  initialisation or `unsafe`. The key for a castling-rights value is the XOR
+  of its flags' keys, so the key for no rights is 0 and losing a right is
+  hashed by XORing out just that right's key.
 
 ## How search, evaluation and UCI fit together (planned)
 
@@ -154,6 +163,10 @@ that dependency is ever undesirable).
 - **Bounded integers:** `next_below(bound)` returns a uniform integer in
   `0..bound` using Lemire's multiply-and-reject method, so there is no modulo
   bias for any bound. Use it for all sampling and shuffling.
+- **Stream registry:** `rng::stream` holds one named index per subsystem
+  (listed under the randomness table below). Indices are never reused or
+  renumbered, so adding a consumer cannot change the numbers an existing one
+  receives.
 - **Golden tests:** known-answer tests pin the first outputs for seed
   `1234567` (the published SplitMix64 reference vector), seed `0` and
   `DEFAULT_SEED`, plus four derived streams. The `DEFAULT_SEED` and stream
@@ -173,10 +186,17 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
-| *(none yet)* | | | | No code uses randomness yet. |
+| Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
+| Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
-Planned uses (each gets a real row when it lands): Zobrist keys (milestone 1,
-not strength-affecting), magic-number search (milestone 2, not
+Stream indices of the default seed are registered in `rng::stream` so that
+subsystems never share or shift each other's numbers:
+
+| Stream index | Constant | Used by |
+| --- | --- | --- |
+| 0 | `stream::ZOBRIST` | Zobrist keys |
+
+Planned uses (each gets a real row when it lands): magic-number search (milestone 2, not
 strength-affecting), test fixtures and property tests (not
 strength-affecting), datagen opening randomisation (milestone 8, not
 strength-affecting; per-game derived seeds).

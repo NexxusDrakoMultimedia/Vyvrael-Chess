@@ -31,6 +31,8 @@ once it has a first release.
   validation of king counts, pawn ranks, castling rights and the en passant
   square.
 - FEN serialisation: `Position::to_fen` and `Display`, with round-trip tests.
+- Zobrist keys (`board::zobrist`), generated at compile time from stream
+  `rng::stream::ZOBRIST` of the default seed.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).
