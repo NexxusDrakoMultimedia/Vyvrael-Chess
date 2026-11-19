@@ -163,3 +163,7 @@ behaviour must also:
 At the end of each milestone, re-read the docs against the code and fix any
 drift in a separate `docs:` commit before reporting. If a doc and the code
 disagree, say so explicitly in the report.
+
+For that re-read, or whenever a full documentation pass is asked for, use the
+default prompt in `docs/prompts/documentation-pass.md` (`/docs-pass` in Claude
+Code).
