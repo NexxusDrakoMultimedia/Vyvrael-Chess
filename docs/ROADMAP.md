@@ -69,7 +69,7 @@ with a from-scratch recompute.
 - [x] `board`: make/unmake for castling
 - [x] `board`: make/unmake for promotions
 - [x] `board`: coordinate-notation move parsing against a position
-- [ ] `board`: whole-game make/unmake regression test
+- [x] `board`: whole-game make/unmake regression test
 - [ ] End-of-milestone doc drift pass
 
 ## Milestones 2 to 9

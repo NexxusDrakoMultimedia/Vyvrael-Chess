@@ -46,6 +46,7 @@ once it has a first release.
   promotions.
 - `Position::parse_move`: reads UCI coordinate notation and infers the move
   kind from the position.
+- Whole-game regression tests (`tests/board_games.rs`).
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

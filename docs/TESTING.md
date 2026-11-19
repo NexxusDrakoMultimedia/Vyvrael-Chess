@@ -49,6 +49,17 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 Rows are added as modules land.
 
+## Integration tests
+
+Integration tests live in `tests/` and use only the public API.
+
+| File | What is checked |
+| --- | --- |
+| `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
+
+The Opera Game's final FEN is the widely published one, so that checkpoint is
+independent of this code. The other checkpoint FENs were derived by hand.
+
 ## Perft (planned, milestone 2)
 
 Perft ("performance test") counts the leaf nodes of the legal move tree to a
