@@ -99,7 +99,11 @@ impl Position {
                 let rook = self.lift(rook_from);
                 self.place(rook_to, rook);
             }
-            kind => unimplemented!("make_move: {kind:?} arrives in a later chunk"),
+            MoveKind::Promotion(kind) => self.place(to, Piece::new(us, kind)),
+            MoveKind::PromotionCapture(kind) => {
+                undo.captured = Some(self.lift(to));
+                self.place(to, Piece::new(us, kind));
+            }
         }
 
         self.halfmove_clock = if mover.kind == PieceKind::Pawn || undo.captured.is_some() {
@@ -146,10 +150,16 @@ impl Position {
             self.fullmove_number = self.fullmove_number.wrapping_sub(1);
         }
 
-        let mover = self.lift(to);
+        // After a promotion the piece on `to` is the promoted piece; what
+        // goes back to `from` is the pawn it used to be.
+        let arrived = self.lift(to);
+        let mover = match mv.promotion() {
+            Some(_) => Piece::new(us, PieceKind::Pawn),
+            None => arrived,
+        };
         match mv.kind() {
-            MoveKind::Quiet => self.place(from, mover),
-            MoveKind::Capture => {
+            MoveKind::Quiet | MoveKind::Promotion(_) => self.place(from, mover),
+            MoveKind::Capture | MoveKind::PromotionCapture(_) => {
                 self.place(from, mover);
                 let captured = undo.captured.expect("unmake_move: capture without a piece");
                 self.place(to, captured);
@@ -166,7 +176,6 @@ impl Position {
                 let rook = self.lift(rook_to);
                 self.place(rook_from, rook);
             }
-            kind => unimplemented!("unmake_move: {kind:?} arrives in a later chunk"),
         }
 
         self.castling = undo.castling;
@@ -436,6 +445,67 @@ mod tests {
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
             Move::new(Square::E1, Square::C1, MoveKind::QueenCastle),
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1",
+        );
+    }
+
+    const PROMOTIONS: [(PieceKind, char); 4] = [
+        (PieceKind::Knight, 'N'),
+        (PieceKind::Bishop, 'B'),
+        (PieceKind::Rook, 'R'),
+        (PieceKind::Queen, 'Q'),
+    ];
+
+    #[test]
+    fn promotions_replace_the_pawn_and_unmake_restores_it() {
+        for (kind, letter) in PROMOTIONS {
+            let captured = check(
+                "4k3/P7/8/8/8/8/8/4K3 w - - 3 40",
+                Move::new(Square::A7, Square::A8, MoveKind::Promotion(kind)),
+                &format!("{letter}3k3/8/8/8/8/8/8/4K3 b - - 0 40"),
+            );
+            assert_eq!(captured, None);
+
+            let lower = letter.to_ascii_lowercase();
+            check(
+                "4k3/8/8/8/8/8/7p/4K3 b - - 3 40",
+                Move::new(Square::H2, Square::H1, MoveKind::Promotion(kind)),
+                &format!("4k3/8/8/8/8/8/8/4K2{lower} w - - 0 41"),
+            );
+        }
+    }
+
+    #[test]
+    fn capturing_promotions_remove_the_victim_and_unmake_restores_both() {
+        let black_knight = Piece::new(Color::Black, PieceKind::Knight);
+        for (kind, letter) in PROMOTIONS {
+            let captured = check(
+                "1n2k3/P7/8/8/8/8/8/4K3 w - - 9 9",
+                Move::new(Square::A7, Square::B8, MoveKind::PromotionCapture(kind)),
+                &format!("1{letter}2k3/8/8/8/8/8/8/4K3 b - - 0 9"),
+            );
+            assert_eq!(captured, Some(black_knight));
+        }
+    }
+
+    #[test]
+    fn promoting_by_capturing_a_rook_at_home_revokes_its_right() {
+        check(
+            "r3k3/1P6/8/8/8/8/8/4K3 w q - 0 1",
+            Move::new(
+                Square::B7,
+                Square::A8,
+                MoveKind::PromotionCapture(PieceKind::Knight),
+            ),
+            "N3k3/8/8/8/8/8/8/4K3 b - - 0 1",
+        );
+        check(
+            "4k3/8/8/8/8/8/6p1/4K2R b K - 0 1",
+            Move::new(
+                Square::G2,
+                Square::H1,
+                MoveKind::PromotionCapture(PieceKind::Rook),
+            ),
+            "4k3/8/8/8/8/8/8/4K2r w - - 0 2",
         );
     }
 
