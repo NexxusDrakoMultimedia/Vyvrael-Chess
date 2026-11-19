@@ -22,3 +22,8 @@ readme = "README.md"
 # The engine crate deliberately has no dependencies. See docs/DEPENDENCIES.md
 # before adding one, and never depend on the tool crates from here.
 [dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
