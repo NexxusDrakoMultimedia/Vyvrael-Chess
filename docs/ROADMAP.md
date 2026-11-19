@@ -53,7 +53,7 @@ with a from-scratch recompute.
 - [x] `rng`: unbiased bounded integers
 - [x] `board`: `Color`
 - [x] `board`: `Square` with coordinate parsing and display
-- [ ] `board`: `PieceKind` and `Piece` with FEN characters
+- [x] `board`: `PieceKind` and `Piece` with FEN characters
 - [ ] `board`: `Bitboard` type, set operations and bit iteration
 - [ ] `board`: file/rank masks and directional shifts
 - [ ] `board`: `CastlingRights`

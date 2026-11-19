@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`. Still planned: pieces, bitboards, position, FEN, make/unmake, Zobrist hashing. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`. Still planned: bitboards, position, FEN, make/unmake, Zobrist hashing. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -46,6 +46,9 @@ Implemented in `src/board/`, one small file per type, re-exported from
   `index = rank * 8 + file`). The index is also the square's bit position in
   a bitboard. Files and ranks are plain `u8` values in `0..8`. `offset` steps
   by files and ranks and returns `None` at the board edge, so it cannot wrap.
+- **`PieceKind`** and **`Piece`** (`piece.rs`): `PieceKind` is
+  `Pawn = 0 .. King = 5` for array indexing; `Piece` pairs a `Color` with a
+  `PieceKind` and converts to and from FEN characters (`PNBRQK` / `pnbrqk`).
 
 ## How search, evaluation and UCI fit together (planned)
 

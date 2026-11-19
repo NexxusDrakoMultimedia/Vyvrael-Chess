@@ -6,7 +6,9 @@
 //! See `docs/ARCHITECTURE.md` ("Board representation") for the design.
 
 mod color;
+mod piece;
 mod square;
 
 pub use color::Color;
+pub use piece::{Piece, PieceKind};
 pub use square::{ParseSquareError, Square};

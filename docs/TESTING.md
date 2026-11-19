@@ -29,6 +29,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | `board::Square` | Corner indices; every named constant parses from its own name; file/rank round-trip; `from_index` bounds; `offset` stops at edges without wrapping; malformed coordinates are rejected. |
 
+| `board::PieceKind`, `board::Piece` | Indices match `PieceKind::ALL`; letter round-trips in both cases; all twelve FEN piece characters round-trip; non-piece characters are rejected. |
+
 Rows are added as modules land.
 
 ## Perft (planned, milestone 2)
