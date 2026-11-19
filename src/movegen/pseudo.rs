@@ -6,6 +6,7 @@
 //! attacked.
 
 use super::MoveList;
+use super::pawns::pawn_moves;
 use crate::attacks::{bishop_attacks, king_attacks, knight_attacks, queen_attacks, rook_attacks};
 use crate::board::{Bitboard, Move, MoveKind, PieceKind, Position, Square};
 
@@ -70,10 +71,12 @@ fn slider_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// knight, bishop, rook and queen moves and king steps (no castling, no pawns). See the checklist in `docs/ROADMAP.md`.
+/// piece moves, king steps (no castling) and pawn pushes (no pawn captures,
+/// promotions or en passant). See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
+    pawn_moves(pos, &mut list);
     knight_moves(pos, &mut list);
     king_moves(pos, &mut list);
     slider_moves(pos, &mut list);
@@ -85,8 +88,9 @@ mod tests {
     use super::*;
 
     /// The pseudo-legal moves made by pieces of `kind`, as sorted UCI
-    /// strings with `x` appended to captures, so that expected lists are
-    /// easy to read and the move kind is checked too.
+    /// strings with `x` appended to captures and `+` to double pushes, so
+    /// that expected lists are easy to read and the move kind is checked
+    /// too.
     fn moves_of(fen: &str, kind: PieceKind) -> Vec<String> {
         let pos = Position::from_fen(fen).unwrap();
         let mut moves: Vec<String> = pseudo_legal_moves(&pos)
@@ -95,6 +99,7 @@ mod tests {
             .map(|mv| match mv.kind() {
                 MoveKind::Quiet => mv.to_string(),
                 MoveKind::Capture => format!("{mv}x"),
+                MoveKind::DoublePush => format!("{mv}+"),
                 other => format!("{mv}:{other:?}"),
             })
             .collect();
@@ -187,6 +192,45 @@ mod tests {
         for kind in [PieceKind::Bishop, PieceKind::Rook, PieceKind::Queen] {
             assert!(moves_of(crate::board::START_FEN, kind).is_empty());
         }
+    }
+
+    #[test]
+    fn pawn_pushes_in_the_start_position() {
+        let white = moves_of(crate::board::START_FEN, PieceKind::Pawn);
+        assert_eq!(white.len(), 16);
+        assert_eq!(white.iter().filter(|mv| mv.ends_with('+')).count(), 8);
+        assert!(white.contains(&"e2e3".to_owned()));
+        assert!(white.contains(&"e2e4+".to_owned()));
+        let black = moves_of(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+            PieceKind::Pawn,
+        );
+        assert_eq!(black.len(), 16);
+        assert!(black.contains(&"e7e6".to_owned()));
+        assert!(black.contains(&"e7e5+".to_owned()));
+    }
+
+    #[test]
+    fn pawn_pushes_need_empty_squares() {
+        // Blocked directly in front: no push at all.
+        let blocked = moves_of("4k3/8/8/8/8/4p3/4P3/4K3 w - - 0 1", PieceKind::Pawn);
+        assert!(blocked.is_empty());
+        // Second square blocked: single push only.
+        let half = moves_of("4k3/8/8/8/4p3/8/4P3/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(half, ["e2e3"]);
+        // The same for Black.
+        let black = moves_of("4k3/4p3/8/4P3/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black, ["e7e6"]);
+        let black_blocked = moves_of("4k3/4p3/4P3/8/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert!(black_blocked.is_empty());
+    }
+
+    #[test]
+    fn only_pawns_on_their_starting_rank_double_push() {
+        let white = moves_of("4k3/8/8/8/8/4P3/P7/4K3 w - - 0 1", PieceKind::Pawn);
+        assert_eq!(white, ["a2a3", "a2a4+", "e3e4"]);
+        let black = moves_of("4k3/7p/4p3/8/8/8/8/4K3 b - - 0 1", PieceKind::Pawn);
+        assert_eq!(black, ["e6e5", "h7h5+", "h7h6"]);
     }
 
     #[test]

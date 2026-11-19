@@ -60,5 +60,5 @@ once it has a first release.
   magic numbers found by the seeded RNG (`rng::stream::MAGICS`).
 - `Position::attackers_to`, `is_attacked_by`, `checkers` and `in_check`.
 - `movegen` module with `MoveList`, a fixed-capacity stack-allocated list.
-- `pseudo_legal_moves`, generating knight, bishop, rook and queen moves and
-  king steps so far.
+- `pseudo_legal_moves`, generating knight, bishop, rook and queen moves,
+  king steps and pawn pushes so far.

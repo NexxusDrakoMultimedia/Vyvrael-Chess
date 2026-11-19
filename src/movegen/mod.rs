@@ -6,6 +6,7 @@
 //! See `docs/ARCHITECTURE.md` ("Attacks and move generation") for the design.
 
 mod list;
+mod pawns;
 mod pseudo;
 
 pub use list::MoveList;
