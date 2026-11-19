@@ -167,3 +167,9 @@ disagree, say so explicitly in the report.
 For that re-read, or whenever a full documentation pass is asked for, use the
 default prompt in `docs/prompts/documentation-pass.md` (`/docs-pass` in Claude
 Code).
+
+## Releases
+
+Prepare a release only when the maintainer asks. Use the default prompt in
+`docs/prompts/release.md` (`/release-prep` in Claude Code). Never tag, push or
+publish.
