@@ -130,7 +130,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] perft test: Kiwipete (position 2)
 - [x] perft test: position 3
 - [x] perft test: position 4 and its mirror
-- [ ] perft test: position 5
+- [x] perft test: position 5
 - [ ] perft test: position 6
 - [ ] KI-6: perft-driven consistency check of make/unmake and hashing
 - [ ] KI-5: FEN rejects positions where the side not to move is in check

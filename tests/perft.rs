@@ -72,3 +72,14 @@ fn position_4_and_its_mirror() {
         &counts,
     );
 }
+
+/// Position 5: a position that caught a bug in many engines, with a pawn
+/// about to promote by capture next to the enemy king.
+#[test]
+fn position_5() {
+    let counts = [44, 1_486, 62_379, 2_103_487];
+    check(
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+        &counts,
+    );
+}
