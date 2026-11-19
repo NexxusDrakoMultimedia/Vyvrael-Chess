@@ -5,6 +5,7 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Board representation") for the design.
 
+mod attackers;
 mod bitboard;
 mod castling;
 mod color;

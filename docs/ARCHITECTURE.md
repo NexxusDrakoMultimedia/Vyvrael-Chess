@@ -246,6 +246,15 @@ on this square attack?".
   - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
     the lookups move generation uses.
 
+- **Attack queries** (`board/attackers.rs`): `Position::attackers_to(square,
+  occupied)` returns every piece of either colour attacking a square. It
+  works backwards from the target: a knight attacks the square exactly when a
+  knight standing on it would attack the knight, and the same holds for the
+  other pieces (for pawns with the colours swapped), so six table lookups
+  answer the question. The occupancy is a parameter so callers can ask "what
+  if this piece were gone?". `is_attacked_by`, `checkers` and `in_check` are
+  built on it.
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`

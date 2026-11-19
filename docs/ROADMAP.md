@@ -97,8 +97,6 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Milestone 2: move generation
 
-<!-- KI-7 is recorded in the Known issues table. -->
-
 Scope: attack tables (magic bitboards for sliders, found with the seeded
 RNG), legal move generation, and perft against the published reference node
 counts. Move generation is not done until every perft test passes. Also due
@@ -115,7 +113,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `attacks`: slider attacks by ray scanning (the reference implementation)
 - [x] `attacks`: relevant-occupancy masks and subset enumeration
 - [x] `attacks`: magic numbers found with the seeded RNG, bishop and rook tables
-- [ ] `board`: attackers of a square and in-check detection
+- [x] `board`: attackers of a square and in-check detection
 - [ ] `movegen`: `MoveList`
 - [ ] `movegen`: pseudo-legal knight moves
 - [ ] `movegen`: pseudo-legal king moves (without castling)

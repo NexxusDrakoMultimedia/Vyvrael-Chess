@@ -58,3 +58,4 @@ once it has a first release.
 - Relevant-occupancy masks and subset enumeration for magic bitboards.
 - Magic bitboards: `bishop_attacks`, `rook_attacks`, `queen_attacks`, with
   magic numbers found by the seeded RNG (`rng::stream::MAGICS`).
+- `Position::attackers_to`, `is_attacked_by`, `checkers` and `in_check`.
