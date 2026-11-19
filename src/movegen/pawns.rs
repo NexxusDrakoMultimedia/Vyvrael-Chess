@@ -93,6 +93,19 @@ fn promotions(us: Color, pawns: Bitboard, empty: Bitboard, enemies: Bitboard, li
     }
 }
 
+/// En passant captures onto the position's en passant square, by each pawn
+/// that attacks it (there can be two).
+fn en_passant(pos: &Position, us: Color, pawns: Bitboard, list: &mut MoveList) {
+    let Some(target) = pos.en_passant() else {
+        return;
+    };
+    // The pawns that attack `target` stand where an enemy pawn on `target`
+    // would attack.
+    for from in pawn_attacks(us.flip(), target) & pawns {
+        list.push(Move::new(from, target, MoveKind::EnPassant));
+    }
+}
+
 /// Adds the pseudo-legal pawn moves of the side to move.
 pub(super) fn pawn_moves(pos: &Position, list: &mut MoveList) {
     let us = pos.side_to_move();
@@ -102,4 +115,5 @@ pub(super) fn pawn_moves(pos: &Position, list: &mut MoveList) {
     pushes(us, pawns, empty, list);
     captures(us, pawns, enemies, list);
     promotions(us, pawns, empty, enemies, list);
+    en_passant(pos, us, pawns, list);
 }

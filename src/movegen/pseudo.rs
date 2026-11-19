@@ -71,8 +71,7 @@ fn slider_moves(pos: &Position, list: &mut MoveList) {
 /// generator when only legal moves are wanted.
 ///
 /// **Incomplete while milestone 2 is in progress:** so far this generates
-/// piece moves, king steps (no castling) and pawn pushes, captures and
-/// promotions (no en passant). See the checklist in `docs/ROADMAP.md`.
+/// piece moves, king steps (no castling) and and all pawn moves. See the checklist in `docs/ROADMAP.md`.
 #[must_use]
 pub fn pseudo_legal_moves(pos: &Position) -> MoveList {
     let mut list = MoveList::new();
@@ -100,6 +99,7 @@ mod tests {
                 MoveKind::Quiet => mv.to_string(),
                 MoveKind::Capture => format!("{mv}x"),
                 MoveKind::DoublePush => format!("{mv}+"),
+                MoveKind::EnPassant => format!("{mv}ep"),
                 MoveKind::Promotion(_) => mv.to_string(),
                 MoveKind::PromotionCapture(_) => format!("{mv}x"),
                 other => format!("{mv}:{other:?}"),
@@ -288,6 +288,37 @@ mod tests {
         let pawn_moves = pawn_moves.iter().filter(|mv| mv.from() == Square::A7);
         assert!(pawn_moves.clone().count() == 8);
         assert!(pawn_moves.clone().all(|mv| mv.promotion().is_some()));
+    }
+
+    #[test]
+    fn en_passant_captures_onto_the_en_passant_square() {
+        let white = moves_of("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2", PieceKind::Pawn);
+        assert_eq!(white, ["e5d6ep", "e5e6"]);
+        let black = moves_of("4k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1", PieceKind::Pawn);
+        assert_eq!(black, ["d4d3", "d4e3ep"]);
+    }
+
+    #[test]
+    fn two_pawns_can_capture_en_passant() {
+        let moves = moves_of("4k3/8/8/2PpP3/8/8/8/4K3 w - d6 0 2", PieceKind::Pawn);
+        assert_eq!(moves, ["c5c6", "c5d6ep", "e5d6ep", "e5e6"]);
+    }
+
+    #[test]
+    fn no_en_passant_without_the_square_or_a_capturer() {
+        // Same pawns, but the en passant right has lapsed.
+        let lapsed = moves_of("4k3/8/8/3pP3/8/8/8/4K3 w - - 0 2", PieceKind::Pawn);
+        assert_eq!(lapsed, ["e5e6"]);
+        // An en passant square nobody attacks (after 1. e4).
+        let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
+            .unwrap();
+        let any = pseudo_legal_moves(&pos)
+            .iter()
+            .any(|mv| mv.kind() == MoveKind::EnPassant);
+        assert!(!any);
+        // The pawn on the far side of the board must not capture by wrapping.
+        let edge = moves_of("4k3/8/8/p6P/8/8/8/4K3 w - a6 0 2", PieceKind::Pawn);
+        assert_eq!(edge, ["h5h6"]);
     }
 
     #[test]

@@ -121,7 +121,7 @@ it later behind the same interface, with perft as the safety net.
 - [x] `movegen`: pawn pushes and double pushes
 - [x] `movegen`: pawn captures
 - [x] `movegen`: promotions
-- [ ] `movegen`: en passant
+- [x] `movegen`: en passant
 - [ ] `movegen`: castling
 - [ ] `movegen`: legality filter and `legal_moves`
 - [ ] `perft`: node counting with divide
