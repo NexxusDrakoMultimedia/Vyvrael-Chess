@@ -22,7 +22,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 
 | Area | What is checked |
 | --- | --- |
-| crate root | The ASCII fallback name is ASCII; the version constant matches the manifest. |
+| crate root | The ASCII fallback name is ASCII; the version constant is three dot-separated numbers and is the version written in `Cargo.toml`. |
 | `rng` | Golden values for seeds `1234567` (published SplitMix64 vector), `0` and `DEFAULT_SEED`; same seed gives the same sequence; different seeds differ; `next_u32` is the high half of `next_u64`; usable in `const` context; golden values for derived streams; 1000 streams and the base generator all start differently; `next_below` golden values, range, rough uniformity and the zero-bound panic. |
 
 | `board::Color` | Indices match `Color::ALL`; `flip` is an involution; FEN character round-trip. |
