@@ -22,6 +22,91 @@ impl Bitboard {
     /// The set of all 64 squares.
     pub const FULL: Bitboard = Bitboard(u64::MAX);
 
+    /// The a-file. Shift left by `n` for the file `n` to its right.
+    pub const FILE_A: Bitboard = Bitboard(0x0101_0101_0101_0101);
+
+    /// The h-file.
+    pub const FILE_H: Bitboard = Bitboard(0x8080_8080_8080_8080);
+
+    /// The first rank. Shift left by `8 * n` for the rank `n` above it.
+    pub const RANK_1: Bitboard = Bitboard(0xFF);
+
+    /// The eighth rank.
+    pub const RANK_8: Bitboard = Bitboard(0xFF00_0000_0000_0000);
+
+    /// All squares of a file (`0..8`, where 0 is the a-file).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `file` is 8 or more.
+    #[must_use]
+    pub const fn file(file: u8) -> Bitboard {
+        assert!(file < 8, "Bitboard::file: file out of range");
+        Bitboard(Bitboard::FILE_A.0 << file)
+    }
+
+    /// All squares of a rank (`0..8`, where 0 is the first rank).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `rank` is 8 or more.
+    #[must_use]
+    pub const fn rank(rank: u8) -> Bitboard {
+        assert!(rank < 8, "Bitboard::rank: rank out of range");
+        Bitboard(Bitboard::RANK_1.0 << (rank * 8))
+    }
+
+    /// Every square moved one rank up (towards rank 8). Squares on rank 8
+    /// fall off the board.
+    #[must_use]
+    pub const fn north(self) -> Bitboard {
+        Bitboard(self.0 << 8)
+    }
+
+    /// Every square moved one rank down (towards rank 1).
+    #[must_use]
+    pub const fn south(self) -> Bitboard {
+        Bitboard(self.0 >> 8)
+    }
+
+    /// Every square moved one file right (towards the h-file). Squares on
+    /// the h-file fall off the board rather than wrapping to the a-file.
+    #[must_use]
+    pub const fn east(self) -> Bitboard {
+        Bitboard((self.0 & !Bitboard::FILE_H.0) << 1)
+    }
+
+    /// Every square moved one file left (towards the a-file), without
+    /// wrapping.
+    #[must_use]
+    pub const fn west(self) -> Bitboard {
+        Bitboard((self.0 & !Bitboard::FILE_A.0) >> 1)
+    }
+
+    /// Every square moved one step diagonally up and right.
+    #[must_use]
+    pub const fn north_east(self) -> Bitboard {
+        self.north().east()
+    }
+
+    /// Every square moved one step diagonally up and left.
+    #[must_use]
+    pub const fn north_west(self) -> Bitboard {
+        self.north().west()
+    }
+
+    /// Every square moved one step diagonally down and right.
+    #[must_use]
+    pub const fn south_east(self) -> Bitboard {
+        self.south().east()
+    }
+
+    /// Every square moved one step diagonally down and left.
+    #[must_use]
+    pub const fn south_west(self) -> Bitboard {
+        self.south().west()
+    }
+
     /// The set containing only `square`.
     #[must_use]
     pub const fn from_square(square: Square) -> Bitboard {
@@ -320,6 +405,63 @@ mod tests {
         assert_eq!(Bitboard::EMPTY.into_iter().next(), None);
         assert_eq!(Bitboard::FULL.into_iter().count(), 64);
         assert!(Bitboard::FULL.into_iter().eq(Square::all()));
+    }
+
+    #[test]
+    fn file_and_rank_masks() {
+        assert_eq!(Bitboard::file(0), Bitboard::FILE_A);
+        assert_eq!(Bitboard::file(7), Bitboard::FILE_H);
+        assert_eq!(Bitboard::rank(0), Bitboard::RANK_1);
+        assert_eq!(Bitboard::rank(7), Bitboard::RANK_8);
+        for square in Square::all() {
+            for line in 0..8 {
+                let on_file = Bitboard::file(line).contains(square);
+                let on_rank = Bitboard::rank(line).contains(square);
+                assert_eq!(on_file, square.file() == line);
+                assert_eq!(on_rank, square.rank() == line);
+            }
+        }
+        let mut union = Bitboard::EMPTY;
+        for line in 0..8 {
+            assert_eq!(Bitboard::file(line).count(), 8);
+            assert_eq!(Bitboard::rank(line).count(), 8);
+            union |= Bitboard::file(line);
+        }
+        assert_eq!(union, Bitboard::FULL);
+    }
+
+    /// Every shift must agree with `Square::offset` for every square,
+    /// including dropping squares that would leave the board.
+    #[test]
+    fn shifts_agree_with_square_offset() {
+        type Shift = fn(Bitboard) -> Bitboard;
+        let shifts: [(Shift, i8, i8); 8] = [
+            (Bitboard::north, 0, 1),
+            (Bitboard::south, 0, -1),
+            (Bitboard::east, 1, 0),
+            (Bitboard::west, -1, 0),
+            (Bitboard::north_east, 1, 1),
+            (Bitboard::north_west, -1, 1),
+            (Bitboard::south_east, 1, -1),
+            (Bitboard::south_west, -1, -1),
+        ];
+        for (shift, files, ranks) in shifts {
+            for square in Square::all() {
+                let expected = square
+                    .offset(files, ranks)
+                    .map_or(Bitboard::EMPTY, Bitboard::from_square);
+                let actual = shift(Bitboard::from_square(square));
+                assert_eq!(actual, expected, "{square} by ({files}, {ranks})");
+            }
+        }
+    }
+
+    #[test]
+    fn shifting_a_full_board_drops_one_line() {
+        assert_eq!(Bitboard::FULL.north(), !Bitboard::RANK_1);
+        assert_eq!(Bitboard::FULL.south(), !Bitboard::RANK_8);
+        assert_eq!(Bitboard::FULL.east(), !Bitboard::FILE_A);
+        assert_eq!(Bitboard::FULL.west(), !Bitboard::FILE_H);
     }
 
     #[test]

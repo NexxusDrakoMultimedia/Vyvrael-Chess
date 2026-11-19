@@ -53,7 +53,10 @@ Implemented in `src/board/`, one small file per type, re-exported from
   bit `i` for square index `i`. It supports the set operators (`&`, `|`, `^`,
   `!`), membership edits, `lsb`/`msb`/`pop_lsb`, and iteration over member
   squares in ascending index order. Its `Debug` output is an 8x8 diagram with
-  rank 8 at the top.
+  rank 8 at the top. `Bitboard::file` and `Bitboard::rank` give line masks,
+  and the eight one-step shifts (`north`, `south`, `east`, `west` and the four
+  diagonals) move a whole set at once; east/west shifts mask the edge file
+  first so squares never wrap around the board.
 
 ## How search, evaluation and UCI fit together (planned)
 
