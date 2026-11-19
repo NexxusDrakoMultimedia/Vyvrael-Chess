@@ -41,8 +41,8 @@ once it has a first release.
 - `Position::hash`: Zobrist hash maintained incrementally, with
   `compute_hash` as the from-scratch reference. The en passant file is hashed
   only when an en passant capture is pseudo-legally possible.
-- `Position::make_move` / `unmake_move` with an `Undo` token, for quiet moves
-  and captures.
+- `Position::make_move` / `unmake_move` with an `Undo` token, for quiet moves,
+  captures, double pawn pushes and en passant.
 - Documentation set: `README.md`, `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, this changelog and `docs/` (architecture, UCI, testing,
   roadmap, dependencies, data, NNUE).

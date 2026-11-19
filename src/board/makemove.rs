@@ -26,6 +26,12 @@ impl Undo {
     }
 }
 
+/// The square of the pawn captured by an en passant move: on the file the
+/// capturing pawn arrives on and the rank it leaves from.
+const fn en_passant_victim(from: Square, to: Square) -> Square {
+    Square::new(to.file(), from.rank())
+}
+
 impl Position {
     /// Plays `mv` for the side to move and returns the [`Undo`] that takes it
     /// back.
@@ -64,6 +70,15 @@ impl Position {
             MoveKind::Quiet => self.place(to, mover),
             MoveKind::Capture => {
                 undo.captured = Some(self.lift(to));
+                self.place(to, mover);
+            }
+            MoveKind::DoublePush => {
+                self.place(to, mover);
+                // The en passant target is the square the pawn passed over.
+                self.en_passant = Some(Square::new(from.file(), (from.rank() + to.rank()) / 2));
+            }
+            MoveKind::EnPassant => {
+                undo.captured = Some(self.lift(en_passant_victim(from, to)));
                 self.place(to, mover);
             }
             kind => unimplemented!("make_move: {kind:?} arrives in a later chunk"),
@@ -120,6 +135,12 @@ impl Position {
                 self.place(from, mover);
                 let captured = undo.captured.expect("unmake_move: capture without a piece");
                 self.place(to, captured);
+            }
+            MoveKind::DoublePush => self.place(from, mover),
+            MoveKind::EnPassant => {
+                self.place(from, mover);
+                let captured = undo.captured.expect("unmake_move: capture without a piece");
+                self.place(en_passant_victim(from, to), captured);
             }
             kind => unimplemented!("unmake_move: {kind:?} arrives in a later chunk"),
         }
@@ -262,6 +283,90 @@ mod tests {
             "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
             quiet(Square::E1, Square::E2),
             "4k3/8/8/3pP3/8/8/4K3/8 b - - 1 1",
+        );
+    }
+
+    fn double_push(from: Square, to: Square) -> Move {
+        Move::new(from, to, MoveKind::DoublePush)
+    }
+
+    fn en_passant(from: Square, to: Square) -> Move {
+        Move::new(from, to, MoveKind::EnPassant)
+    }
+
+    #[test]
+    fn double_pushes_set_the_en_passant_square() {
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        check(START_FEN, double_push(Square::E2, Square::E4), after_e4);
+        // A second double push replaces the previous en passant square.
+        check(
+            after_e4,
+            double_push(Square::D7, Square::D5),
+            "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2",
+        );
+    }
+
+    /// When an enemy pawn can capture, the en passant key enters the hash;
+    /// `check` proves it by comparing with a freshly parsed position.
+    #[test]
+    fn double_push_beside_an_enemy_pawn_is_hashed() {
+        let before = "4k3/3p4/8/4P3/8/8/8/4K3 b - - 0 1";
+        let after = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2";
+        check(before, double_push(Square::D7, Square::D5), after);
+
+        let mut pos = Position::from_fen(before).unwrap();
+        let _undo = pos.make_move(double_push(Square::D7, Square::D5));
+        assert_eq!(pos.hashed_en_passant_file(), Some(3));
+    }
+
+    #[test]
+    fn en_passant_captures_remove_the_pawn_beside_the_origin() {
+        let black_pawn = Piece::new(Color::Black, PieceKind::Pawn);
+        let white_pawn = Piece::new(Color::White, PieceKind::Pawn);
+
+        let captured = check(
+            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2",
+            en_passant(Square::E5, Square::D6),
+            "4k3/8/3P4/8/8/8/8/4K3 b - - 0 2",
+        );
+        assert_eq!(captured, Some(black_pawn));
+
+        // Capturing towards the other side.
+        check(
+            "4k3/8/8/2Pp4/8/8/8/4K3 w - d6 0 1",
+            en_passant(Square::C5, Square::D6),
+            "4k3/8/3P4/8/8/8/8/4K3 b - - 0 1",
+        );
+
+        let captured = check(
+            "4k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1",
+            en_passant(Square::D4, Square::E3),
+            "4k3/8/8/8/8/4p3/8/4K3 w - - 0 2",
+        );
+        assert_eq!(captured, Some(white_pawn));
+    }
+
+    #[test]
+    fn en_passant_on_the_edge_files() {
+        check(
+            "4k3/p7/8/1P6/8/8/8/4K3 b - - 0 1",
+            double_push(Square::A7, Square::A5),
+            "4k3/8/8/pP6/8/8/8/4K3 w - a6 0 2",
+        );
+        check(
+            "4k3/8/8/pP6/8/8/8/4K3 w - a6 0 2",
+            en_passant(Square::B5, Square::A6),
+            "4k3/8/P7/8/8/8/8/4K3 b - - 0 2",
+        );
+        check(
+            "4k3/8/8/8/6p1/8/7P/4K3 w - - 0 1",
+            double_push(Square::H2, Square::H4),
+            "4k3/8/8/8/6pP/8/8/4K3 b - h3 0 1",
+        );
+        check(
+            "4k3/8/8/8/6pP/8/8/4K3 b - h3 0 1",
+            en_passant(Square::G4, Square::H3),
+            "4k3/8/8/8/8/7p/8/4K3 w - - 0 2",
         );
     }
 

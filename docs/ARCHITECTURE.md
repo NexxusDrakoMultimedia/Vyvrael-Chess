@@ -28,7 +28,7 @@ dependencies, so the engine binary stays small and builds fast.
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
-| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for quiet moves and captures. Still planned: make/unmake for double pushes, en passant, castling and promotions. |
+| `board` | in progress (milestone 1) | Board representation. Implemented so far: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position` (placement and state accessors), FEN parsing with validation and FEN serialisation, Zobrist keys (`board::zobrist`), position hash, make/unmake for quiet moves, captures, double pushes and en passant. Still planned: make/unmake for castling and promotions. |
 | move generation | planned (milestone 2) | Magic bitboards, legal moves, perft. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -161,9 +161,11 @@ Implemented in `src/board/`, one small file per type, re-exported from
   - The halfmove clock resets on pawn moves and captures and otherwise
     saturates at 65535. The fullmove number increases after Black's move
     using wrapping arithmetic, so unmake is exact even at the 16-bit limit.
-  - **Not implemented yet:** double pawn pushes, en passant, castling and
-    promotions. `make_move` panics with `unimplemented!` for those kinds until
-    their chunks land.
+  - A double push sets the en passant square to the square the pawn passed
+    over. An en passant capture removes the pawn standing on the destination
+    file and the origin rank, not on the destination square.
+  - **Not implemented yet:** castling and promotions. `make_move` panics with
+    `unimplemented!` for those kinds until their chunks land.
 
 ## How search, evaluation and UCI fit together (planned)
 
