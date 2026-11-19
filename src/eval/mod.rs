@@ -8,10 +8,12 @@
 
 mod material;
 mod phase;
+mod pst;
 mod tapered;
 
 pub use material::{Material, material_balance, material_of, piece_value};
 pub use phase::{MAX_PHASE, game_phase, phase_weight};
+pub use pst::{piece_square, piece_square_balance};
 pub use tapered::Tapered;
 
 use crate::board::{Color, Position};

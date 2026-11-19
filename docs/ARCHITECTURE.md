@@ -373,6 +373,23 @@ searching.
   so negating a pair negates the result exactly; that keeps the evaluation
   symmetric between the colours.
 
+- **Piece-square tables** (`eval/pst.rs`): a `Tapered` bonus for each piece
+  kind on each square, saying where that piece usually stands well.
+  `piece_square(piece, square)` looks one up and `piece_square_balance(pos)`
+  sums White's minus Black's.
+  - The tables are written in the source the way a board is printed (rank 8
+    at the top, from White's side) and converted at compile time to
+    square-indexed arrays. A black piece uses the same table with the board
+    flipped top to bottom, so the two sides are treated identically.
+  - Every table is symmetric between the queenside and the kingside; a test
+    enforces it.
+  - The values were written for this project from general chess principles,
+    not copied from another engine, and lean towards the project's style.
+    They are untuned (known issue KI-8).
+  - **Tables written so far:** pawns (middlegame: take the centre and do not
+    leave the d- and e-pawns at home; endgame: each step towards promotion is
+    worth more than the last).
+
 ## How search, evaluation and UCI fit together (planned)
 
 The UCI front end owns the current position and the option values. On `go`
