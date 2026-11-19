@@ -36,8 +36,18 @@ cargo build --release        # binary at target/release/vyvrael
 cargo test --workspace --release
 ```
 
-Running the binary currently prints the engine name and version to stderr and
-exits. The UCI loop arrives in milestone 5.
+Running the binary with no arguments prints the engine name and version to
+stderr and exits; the UCI loop arrives in milestone 5. One subcommand exists
+so far:
+
+```sh
+cargo run --release -- perft 5            # count positions 5 moves deep
+cargo run --release -- perft 3 --divide   # the same, split by first move
+cargo run --release -- help
+```
+
+`perft` takes an optional FEN after the depth. See
+[docs/TESTING.md](docs/TESTING.md) for what the numbers mean.
 
 ## Using it in a GUI or lichess-bot
 

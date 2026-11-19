@@ -49,6 +49,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces, straight ahead, or around the board edge. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square; an attacked b-file square is allowed. |
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
 
 Rows are added as modules land.
 
@@ -69,7 +70,7 @@ Integration tests live in `tests/` and use only the public API.
 The Opera Game's final FEN is the widely published one, so that checkpoint is
 independent of this code. The other checkpoint FENs were derived by hand.
 
-## Perft (planned, milestone 2)
+## Perft
 
 Perft ("performance test") counts the leaf nodes of the legal move tree to a
 fixed depth from a given position. Because the correct counts for standard
@@ -77,11 +78,26 @@ positions are published, any disagreement proves a move generation bug, and
 the *divide* mode (node count per root move) lets you bisect to the faulty
 move by comparing against a reference engine.
 
-Milestone 2 will add a perft integration test over the standard reference
-positions (start position, Kiwipete and the other well-known positions that
-stress castling, en passant, promotion and pins) and a `perft` subcommand
-with divide mode. The positions and their expected node counts will be listed
-here, with their source, when the tests land.
+### Running perft by hand
+
+```sh
+cargo run --release -- perft <depth> [--divide] [FEN]
+```
+
+The FEN is optional (the start position is used without it) and may be given
+quoted or unquoted. The node count goes to stdout as `nodes: N`; the time and
+speed go to stderr. With `--divide`, each legal first move is listed as
+`move: count` in alphabetical order before the total, which is the format
+other engines print, so the two lists can be compared line by line.
+
+To find a move generation bug: run `--divide` here and in a trusted engine,
+pick a move whose count differs, play it in both, and repeat at one depth
+less until a position shows a move that one side has and the other lacks.
+
+### Reference positions
+
+The perft integration tests and their expected node counts are listed here as
+they land.
 
 ## Strength matches and SPRT (planned, milestone 6)
 

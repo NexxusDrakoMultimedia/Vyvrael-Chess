@@ -33,6 +33,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | in progress (milestone 2) | Attack tables per piece type. |
 | `movegen` | in progress (milestone 2) | Move generation. Implemented so far: `MoveList`, pseudo-legal generation (all pieces, pawns and castling) and `legal_moves`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `help`. |
 | `perft` | implemented | `perft` and `divide`: node counting for testing move generation. |
 | evaluation | planned (milestone 3) | Hand-crafted eval behind an interface a network can replace. |
 | search | planned (milestone 4) | Alpha-beta search and its heuristics. |
@@ -308,6 +309,13 @@ on this square attack?".
   move. They walk the pseudo-legal moves with make/unmake on one position and
   skip moves after which the king could be captured, so they exercise exactly
   the code search will use.
+
+- **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
+  binary's commands against any pair of writers, so tests run it on in-memory
+  buffers and `main.rs` is only a few lines. With no arguments the binary
+  identifies itself on stderr, leaving stdout empty for the future UCI
+  protocol. `perft <depth> [--divide] [FEN]` prints node counts on stdout and
+  timing on stderr. Exit status 2 means the command line was not understood.
 
 ## How search, evaluation and UCI fit together (planned)
 

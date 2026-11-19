@@ -64,3 +64,4 @@ once it has a first release.
   moves (pushes, captures, promotions, en passant) and castling.
 - `legal_moves` and `Position::can_capture_king`.
 - `perft` module: `perft` and `divide`.
+- `perft` subcommand of the binary, with `--divide`, and a `help` command.
