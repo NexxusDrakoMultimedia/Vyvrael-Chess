@@ -271,7 +271,10 @@ subsystems never share or shift each other's numbers:
 Planned uses (each gets a real row when it lands): magic-number search (milestone 2, not
 strength-affecting), test fixtures and property tests (not
 strength-affecting), datagen opening randomisation (milestone 8, not
-strength-affecting; per-game derived seeds).
+strength-affecting; per-game derived seeds), strength limiting through
+`UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
+non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the
+opt-in).
 
 ## Design decisions
 

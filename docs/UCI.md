@@ -43,7 +43,14 @@ The "Status" column is the truth: only rows marked *implemented* work.
 | `RngSeed` | spin | `822286742` (`0x31031996`) | planned | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. |
 | `EvalFile` | string | to be decided | planned (milestone 8) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 8) | Select the NNUE or the hand-crafted evaluation. |
+| `UCI_LimitStrength` | check | `false` | planned (milestone 5) | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged. |
+| `UCI_Elo` | spin | to be decided by calibration | planned (milestone 5, calibrated in milestone 6) | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`. Minimum, maximum and default come from measured strength. |
 | `SyzygyPath` | string | empty | optional (milestone 9) | Path to Syzygy tablebases, only if that milestone is approved. |
+
+Strength limiting uses randomness to weaken play, so it is governed by
+`DeterministicRNG` and `RngSeed`: non-deterministic by default, reproducible
+when `DeterministicRNG` is `true`. See "Planned features" in
+[ROADMAP.md](ROADMAP.md).
 
 `DeterministicRNG` and `RngSeed` only govern *strength-affecting*
 randomness. Zobrist keys, magic numbers and similar tables are always

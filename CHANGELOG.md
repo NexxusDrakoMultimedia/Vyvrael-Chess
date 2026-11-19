@@ -13,6 +13,11 @@ once it has a first release.
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 
+### Planned
+
+- Strength limiting with the standard UCI options `UCI_LimitStrength` and
+  `UCI_Elo` (roadmap entry only; no code yet).
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

@@ -101,8 +101,53 @@ Scope summaries live in the "Build order" section of
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: KI-1, KI-4, KI-5, KI-6.
-- Milestone 5: KI-3.
+- Milestone 5: KI-3, plus the `UCI_LimitStrength` and `UCI_Elo` options
+  (see "Planned features").
+- Milestone 6: calibration of `UCI_Elo`.
 - Not yet scheduled: KI-2.
+
+## Planned features
+
+Committed features that are not a milestone of their own. Each is scheduled
+into the milestones named here and added to their chunk checklists.
+
+### Strength limiting with the standard UCI options
+
+Let a GUI or `lichess-bot` make Vyvræl play at a chosen, weaker rating using
+the two options defined by the UCI protocol:
+
+- `UCI_LimitStrength` (check, default `false`): when `true`, the engine
+  plays at the rating in `UCI_Elo` instead of full strength.
+- `UCI_Elo` (spin): the target rating. Its minimum, maximum and default are
+  set from measured strength, not guessed.
+
+Plan:
+
+- **Milestone 5 (UCI):** expose both options and wire them to the weakening
+  mechanism. One option per chunk, as for the other options.
+- **Milestone 6 (strength testing):** calibrate. Play the limited engine at
+  several `UCI_Elo` settings against opponents of known rating with the match
+  script, fit the mapping from setting to measured Elo, and record the method,
+  the opponents and the results in `TESTING.md`. Until this is done the
+  options are documented as uncalibrated.
+
+Constraints that already apply:
+
+- Weakening is **strength-affecting randomness** (see the randomness rules in
+  [AGENTS.md](../AGENTS.md)). It draws from the `rng` module, is seeded from
+  system entropy by default, and is reproducible with `DeterministicRNG` and
+  `RngSeed`. It gets its own row in the randomness table in
+  [ARCHITECTURE.md](ARCHITECTURE.md).
+- With `UCI_LimitStrength = false` (the default) play must be unchanged: no
+  node, time or Elo difference. This is checked with a fixed-depth node-count
+  comparison.
+- The weakening mechanism (for example limiting nodes or depth, or choosing
+  among near-best moves with some probability) is chosen in milestone 5 and
+  recorded as a design decision. Weak play should still look like chess:
+  plausible mistakes rather than random moves.
+
+Open question for the maintainer: whether to also offer a non-standard
+`Skill Level` option, as some engines do. Not planned unless asked for.
 
 ## Ideas for later
 
