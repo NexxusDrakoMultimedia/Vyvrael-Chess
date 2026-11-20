@@ -29,6 +29,7 @@ work is actually done is this:
 
 1. **The tooling branch** (`tooling/testing-scripts`): the match and rating
    scripts and the installer. See "Testing tooling (before milestone 6)".
+   Done on 2026-11-21.
 2. **Queued task 1:** the options `Seed` and `Variety` and the `bench`
    command. See "Queued work".
 3. **Milestone 6:** strength testing.
@@ -171,7 +172,7 @@ interface that a neural network can implement later. The hand-crafted
 evaluation stays as fallback and baseline.
 
 Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
-the match script (built before milestone 6). Until then it is checked for correctness
+the match scripts. Until then it is checked for correctness
 only (symmetry, known material balances, phase arithmetic), and its strength
 is recorded as unmeasured in known issue KI-8.
 
@@ -315,7 +316,8 @@ Constraints that already apply:
 - Weakening is **strength-affecting randomness** (see the randomness rules in
   [AGENTS.md](../AGENTS.md)). It draws from the `rng` module, is seeded from
   system entropy by default, and is reproducible with `DeterministicRNG` and
-  `RngSeed`. It gets its own row in the randomness table in
+  `RngSeed` (with the single option `Seed` once queued task 1 is done). It
+  gets its own row in the randomness table in
   [ARCHITECTURE.md](ARCHITECTURE.md).
 - With `UCI_LimitStrength = false` (the default) play must be unchanged: no
   node, time or Elo difference. This is checked with a fixed-depth node-count
@@ -380,8 +382,9 @@ Open, for the maintainer:
 ## Testing tooling (before milestone 6)
 
 Decided by the maintainer on 2026-11-20. The match and rating scripts and
-the installer work are built on a branch of their own,
-`tooling/testing-scripts`, before milestone 6 uses them.
+the installer work were built on a branch of their own,
+`tooling/testing-scripts`, before milestone 6 uses them. **Done: reviewed
+and merged into `main` on 2026-11-21.**
 
 - **Scripts, one set per system, same behaviour and flags:**
   `scripts/windows/match.ps1` and `scripts/windows/rate.ps1` (PowerShell),
@@ -461,8 +464,9 @@ stay out of git.
 
 Two tasks asked for by the maintainer. Each gets a branch of its own from
 `main`, small commits, and no version bump, tag or release. The first
-follows the tooling branch; the second waits until milestone 7 is done (the
-maintainer's decision of 2026-11-21).
+follows the tooling branch, which is merged, so it is next; the second
+waits until milestone 7 is done (the maintainer's decision of 2026-11-21).
+See "Order of work".
 
 ### 1. Optional determinism: `Seed`, `Variety`, `bench`
 
