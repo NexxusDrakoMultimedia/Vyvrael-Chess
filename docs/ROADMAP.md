@@ -44,7 +44,8 @@ them. lichess-bot runs on the Linux machine only. The scripts and the
 installer still work on both systems.
 
 Where the releases fall: **0.1.0-alpha.1** came before step 1, after
-milestone 5; **0.1.0** follows step 3; **0.2.0** follows step 4. The
+milestone 5; **0.1.0-alpha.2** follows step 2; **0.1.0** follows step 3;
+**0.2.0** follows step 4. The
 casual-only Lichess bot starts once the maintainer has tagged
 0.1.0-alpha.1, so it runs alongside all of the steps above; rated play
 waits for 0.2.0 and the branding.
@@ -360,6 +361,7 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | Version | When | What it needs |
 | --- | --- | --- |
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
+| 0.1.0-alpha.2 | after queued task 1 | The options `Seed` and `Variety` and the `bench` command, with their tests and docs; the three gates green; complete games in `cutechess-cli` as for alpha.1. Still an alpha: `UCI_Elo` is not calibrated, and the only measurement is the snapshot of alpha.1, which its notes may cite as such because full-strength play is unchanged. Plain builds made by hand. |
 | 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
 | 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the `avx2` primary build, the optional `pext` and plain builds, and binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
@@ -516,7 +518,9 @@ Results recorded so far:
 ## Queued work (requested 2026-11-21)
 
 Two tasks asked for by the maintainer. Each gets a branch of its own from
-`main`, small commits, and no version bump, tag or release. The first
+`main` and small commits. Neither task bumps the version, tags or releases
+by itself; the first is followed by the release of 0.1.0-alpha.2, prepared
+as a separate step (see "Releases"). The first
 follows the tooling branch, which is merged, so it is next; the second
 waits until milestone 7 is done (the maintainer's decision of 2026-11-21).
 See "Order of work".
