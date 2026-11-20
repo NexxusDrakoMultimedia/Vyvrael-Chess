@@ -313,6 +313,26 @@ class MatchShTest(Fixture, unittest.TestCase):
             )
             self.refused(result, "--test-name")
 
+    def test_plain_names_are_accepted_whatever_the_locale(self):
+        # On Linux a UTF-8 locale made the name check refuse plain ASCII.
+        names = ["Vyvrael 0.1.0-a1", "Vyvrael dev-1a2b3c4", "A", "Vyvrael (test) ~x #2"]
+        for locale in ("C", "C.UTF-8", "en_US.UTF-8", "en_AU.UTF-8", "de_DE.UTF-8"):
+            env = {"LC_ALL": locale, "LANG": locale}
+            for name in names:
+                result = self.run_script(
+                    "h2h", "--test", self.test_build.as_posix(), "--test-name", name,
+                    "--base", self.base_build.as_posix(), "--base-name", "Vyvrael base",
+                    "--rounds", "5", *self.common(), env=env,
+                )
+                self.assertEqual(result.returncode, 0, f"{locale} {name!r}: {result.stderr}")
+                self.assertIn(f"name={name}", shlex.split(result.stdout))
+            result = self.run_script(
+                "h2h", "--test", self.test_build.as_posix(), "--test-name", "Vyvræl dev",
+                "--base", self.base_build.as_posix(), "--base-name", "Vyvrael base",
+                "--rounds", "5", *self.common(), env=env,
+            )
+            self.refused(result, "must be plain ASCII")
+
     def test_gauntlet_opponents_must_be_known_and_present(self):
         self.refused(self.gauntlet("--opponent", "Nobody 9"), 'no engine named "Nobody 9"',
                      "Stockfish 19-1500")
