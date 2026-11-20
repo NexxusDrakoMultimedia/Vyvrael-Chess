@@ -662,8 +662,10 @@ and option is listed in [UCI.md](UCI.md).
     thread. Each weakened search gets a generator of its own, seeded by one
     draw from it, so the random sequence of a game depends on the commands
     and not on how far each search got. Full-strength play never draws from
-    it. `ucinewgame` restarts the generator when the seed was chosen by the
-    user (`DeterministicRNG`), so each game replays on its own.
+    it. `ucinewgame` restarts the generator: from the chosen seed under
+    `DeterministicRNG`, otherwise from a new entropy seed that is logged
+    there. Either way one logged number replays one game, including the
+    later games of a session, which is how match tools play.
   - **End of input** without `quit` lets a running search finish and report,
     so a script that pipes commands in gets its answer.
 
@@ -742,7 +744,7 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
 | Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
-| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` when the engine starts, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` when the engine starts and again at every `ucinewgame`, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` each time | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
 | Weakened move choice (`search::weakened_move`, used when `UCI_LimitStrength` is on) | implemented | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 

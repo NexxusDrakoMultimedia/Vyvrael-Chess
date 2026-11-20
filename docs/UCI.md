@@ -45,7 +45,7 @@ package name needs one.
 | --- | --- | --- |
 | `uci` | implemented | Prints the `id` lines, the option list, then `uciok`. |
 | `isready` | implemented | Replies `readyok`, also while a search is running. The first one builds the attack tables (a few milliseconds), so the first search does not pay for them on the clock. |
-| `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. |
+| `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
 | `position [startpos \| fen <fen>] [moves ...]` | implemented | Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
 | `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. |
@@ -137,9 +137,10 @@ this means for a GUI:
   it has always looked at every move. The first pass (one ply) always
   completes, as the first depth of the ordinary search does.
 - The moves are random, so two games differ unless `DeterministicRNG` is on.
-  With it on, `ucinewgame` starts the random sequence again, so each game
-  can be replayed by itself, given the same commands and limits that do not
-  depend on the clock (`nodes`, or time that is never used up).
+  `ucinewgame` starts the random sequence again, from the chosen seed or
+  from a new logged entropy seed, so each game can be replayed by itself,
+  given the same commands and limits that do not depend on the clock
+  (`nodes`, or time that is never used up).
 - **The rating is not calibrated.** The settings are ordered (a higher
   rating looks further and errs less) but nothing has been measured yet.
   Calibration is milestone 6.
@@ -151,10 +152,12 @@ info string rng seed 3141592653 (system entropy)
 info string rng seed 822286742 (RngSeed)
 ```
 
-The line is sent in reply to `uci`, just before `uciok`, and again whenever
-one of the two options changes the seed. To replay a game that used an
-entropy seed, set `RngSeed` to the logged number and `DeterministicRNG` to
-`true`.
+The line is sent in reply to `uci`, just before `uciok`, whenever one of the
+two options changes the seed, and at every `ucinewgame` when the seed comes
+from system entropy, because **every game takes a seed of its own**. With a
+chosen seed (`DeterministicRNG`) every game starts from that same seed. To
+replay a game, set `RngSeed` to the number logged at its `ucinewgame` and
+`DeterministicRNG` to `true`, then send the same commands.
 
 `DeterministicRNG` and `RngSeed` only govern *strength-affecting*
 randomness. Zobrist keys, magic numbers and similar tables are always

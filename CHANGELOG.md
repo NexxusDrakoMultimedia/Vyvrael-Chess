@@ -10,6 +10,11 @@ once it has a first release.
 
 ### Fixed
 
+- A limited-strength game played with an entropy seed could not be replayed
+  from the logged seed after the first game of a session. Every
+  `ucinewgame` now takes and logs a seed of its own when no seed was chosen.
+  Found in the milestone 5 review, before any release.
+
 - Limited-strength play under a clock looked only at the first root moves
   in generation order, and with very little time played the first move
   unsearched with a made-up score of 0. It now scores every move in passes

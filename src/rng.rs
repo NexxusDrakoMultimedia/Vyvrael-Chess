@@ -42,8 +42,8 @@ pub mod stream {
 /// it has exactly one permitted caller: seeding strength-affecting
 /// randomness when the UCI option `DeterministicRNG` is `false`. Everything
 /// else must be reproducible from [`DEFAULT_SEED`] or a seed the user gave.
-/// The caller logs the seed, so even such a run can be replayed afterwards
-/// by passing the logged value as `RngSeed`.
+/// The caller takes one seed per game and logs it, so even such a game can
+/// be replayed afterwards by passing the logged value as `RngSeed`.
 ///
 /// The standard library's `RandomState` is the source: every new one gets
 /// keys derived from operating-system randomness. That keeps the engine

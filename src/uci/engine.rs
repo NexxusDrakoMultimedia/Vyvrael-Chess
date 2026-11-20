@@ -152,12 +152,15 @@ impl Engine {
                 self.end_search();
                 self.position = Position::startpos();
                 self.history.clear();
-                // With a chosen seed every game starts the random sequence
-                // again, so a game can be replayed on its own. With an
-                // entropy seed the sequence simply runs on.
-                if self.options.deterministic_rng {
-                    self.rng = Rng::stream(self.seed, stream::STRENGTH);
+                // Every game starts its random sequence afresh, so that any
+                // game can be replayed by itself from one logged number.
+                // With a chosen seed that is the same seed again; without
+                // one it is a new seed from system entropy, logged here.
+                if !self.options.deterministic_rng {
+                    self.seed = entropy_seed();
+                    self.log_seed();
                 }
+                self.rng = Rng::stream(self.seed, stream::STRENGTH);
             }
             Command::Position { fen, moves } => self.set_position(fen.as_deref(), &moves),
             Command::Go(params) => self.go(&params),
@@ -482,6 +485,18 @@ mod tests {
             captured.lines().last().unwrap(),
             &format!("info string rng seed {fresh} (system entropy)")
         );
+        // Fresh, not the user's seed kept under another label: switching
+        // on and off four more times does not give 5 every time.
+        let again: Vec<u32> = (0..4)
+            .map(|_| {
+                engine.handle("setoption name DeterministicRNG value true");
+                assert_eq!(engine.rng_seed(), 5);
+                engine.handle("setoption name DeterministicRNG value false");
+                engine.rng_seed()
+            })
+            .collect();
+        assert!(again.iter().any(|&seed| seed != 5), "{again:?}");
+        let fresh = engine.rng_seed();
         // `RngSeed` alone does not touch a seed that came from entropy.
         let before = captured.lines().len();
         engine.handle("setoption name RngSeed value 77");
@@ -597,6 +612,53 @@ mod tests {
             ])),
             stable(&session(&["go depth 3"]))
         );
+    }
+
+    /// The seed logged for a game, read back from an `info string`.
+    fn logged_seed(line: &str) -> u32 {
+        let rest = line.strip_prefix("info string rng seed ").unwrap();
+        rest.split(' ').next().unwrap().parse().unwrap()
+    }
+
+    /// Without a chosen seed every game gets its own entropy seed, logged
+    /// at `ucinewgame`. That one number is enough to replay the game, also
+    /// the second game of a session, which is what a match tool plays: one
+    /// engine process, `ucinewgame` between games.
+    #[test]
+    fn each_game_of_an_entropy_session_can_be_replayed() {
+        let (mut engine, captured) = engine();
+        engine.handle("setoption name UCI_LimitStrength value true");
+        let mut games = Vec::new();
+        for _ in 0..3 {
+            engine.handle("ucinewgame");
+            let seed = logged_seed(captured.lines().last().unwrap());
+            assert_eq!(seed, engine.rng_seed());
+            let mut moves = Vec::new();
+            for position in ["position startpos", "position startpos moves e2e4 e7e5"] {
+                engine.handle(position);
+                engine.handle(GO);
+                engine.wait();
+                moves.push(captured.lines().last().unwrap().clone());
+            }
+            games.push((seed, moves));
+        }
+        // The games did not share a seed.
+        assert!(games.iter().any(|(seed, _)| *seed != games[0].0));
+
+        for (seed, moves) in games {
+            let replay = weakened(
+                seed,
+                &[
+                    "ucinewgame",
+                    "position startpos",
+                    GO,
+                    "position startpos moves e2e4 e7e5",
+                    GO,
+                ],
+            );
+            let replayed: Vec<String> = best_of(&replay).into_iter().cloned().collect();
+            assert_eq!(replayed, moves, "seed {seed}");
+        }
     }
 
     #[test]

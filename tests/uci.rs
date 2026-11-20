@@ -111,7 +111,14 @@ fn a_whole_conversation() {
     engine.send("ucinewgame");
     engine.send("position startpos moves e2e4 e7e5");
     engine.send("go depth 3");
-    let search = engine.lines_until("bestmove");
+    let mut search = engine.lines_until("bestmove");
+    // A new game takes a new seed for strength-affecting randomness and
+    // says which, so that the game can be replayed.
+    let seed = search.remove(0);
+    assert!(
+        seed.starts_with("info string rng seed ") && seed.ends_with(" (system entropy)"),
+        "{seed}"
+    );
 
     // The same search, made directly through the library.
     let mut pos = Position::startpos();
