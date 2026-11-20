@@ -50,6 +50,7 @@ Layout:
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
 | Script tests | `python3 -m unittest discover -s scripts/tests` |
+| Install Cute Chess and Ordo (Windows) | `python scripts/install_tools.py --dry-run` first |
 | Install external tools (Linux) | `python3 scripts/install_tools.py --dry-run` first; see `docs/TESTING.md` |
 | Install the ladder's engines (Linux) | `python3 scripts/install_tools.py --engines --dry-run` first; `--only "<name>"` for one; `--verify` to check them |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |

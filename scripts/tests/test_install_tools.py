@@ -615,12 +615,15 @@ def run_main(argv: list[str]) -> str:
     """Runs the installer's `main` offline and returns what it printed.
 
     Downloading and running programs are replaced by mocks that fail the
-    test, so a mistake here can never fetch, build or start anything.
+    test, so a mistake here can never fetch, build or start anything. The
+    system is given as Linux, whatever the tests run on: these tests are of
+    the Linux installer, and on Windows `main` takes another path (tested in
+    test_windows_tools.py).
     """
     forbidden = AssertionError("the test tried to leave the sandbox")
     with mock.patch.object(install_tools, "download", side_effect=forbidden), mock.patch.object(
         install_tools.subprocess, "run", side_effect=forbidden
-    ), redirect_stdout(io.StringIO()) as out:
+    ), mock.patch.object(sys, "platform", "linux"), redirect_stdout(io.StringIO()) as out:
         install_tools.main(argv)
     return out.getvalue()
 

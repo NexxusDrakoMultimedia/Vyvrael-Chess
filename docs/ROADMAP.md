@@ -382,7 +382,7 @@ Part A, the installer:
   options
 - [x] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
   timeouts
-- [ ] Install Cute Chess and Ordo on Windows from the official releases
+- [x] Install Cute Chess and Ordo on Windows from the official releases
 - [ ] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
   Linux and Windows instructions
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
-"""Vyvræl tooling installer for Linux: Cute Chess, Ordo and lichess-bot.
+"""Vyvræl tooling installer: Cute Chess, Ordo, lichess-bot and the ladder's
+opponent engines on Linux; Cute Chess and Ordo on Windows.
 
 Installs the three external programs the project uses for strength testing
 and for playing on Lichess. They are separate programs: nothing is vendored
@@ -818,8 +819,23 @@ def main(argv: list[str] | None = None) -> None:
             say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")
         return
+    if sys.platform == "win32":
+        # Windows: the two tools only, from their official zip archives.
+        import windows_tools
+
+        if args.engines or args.only or args.verify:
+            die(
+                "the ladder's engines are installed by this script on Linux only; on"
+                " Windows take each one from its project's own release"
+            )
+        failed = windows_tools.install_tools_windows(
+            ctx, args.tool or DEFAULT_TOOLS, args.force
+        )
+        if failed:
+            die(f"the check failed for {', '.join(failed)} (see above)")
+        return
     if not sys.platform.startswith("linux") and not args.dry_run:
-        die("this installer supports Linux only; see docs/TESTING.md for other systems")
+        die("this installer supports Linux and Windows only; see docs/TESTING.md")
 
     if args.verify and not args.engines:
         # Check what is there and change nothing.

@@ -28,6 +28,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   writes a text table and a CSV, and prints the order with a reminder of
   what the numbers do not say.
 - `scripts/windows/rate.ps1`: the same rating script for Windows.
+- `scripts/install_tools.py` on Windows installs Cute Chess 1.5.1 and Ordo
+  1.2.6 from their official zip archives, checked by SHA-256, without
+  administrator rights, and prints the two lines to put in
+  `scripts/local.env`. It reports a missing Visual C++ runtime and never
+  installs it. lichess-bot and the ladder's engines are not installed on
+  Windows.
 - `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
   engines, pinned (14 binaries for 24 of the ladder's 25 names; Orion 1.1
   is left out, because it exists for Windows only).
