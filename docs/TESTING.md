@@ -407,14 +407,16 @@ once, by the maintainer on the Linux machine on 2026-11-21**:
 | --- | --- |
 | Installed and passing the check (21 names) | Stockfish 19 and its six limited entries, Arasan 26.1 and its two, Viridithas 20, Reckless 0.9.0, Stash 37.0, Rodent IV and its two, Vice 1.1, Fruit 2.1, Rustic Alpha 1.5, 2.4 and 3.0.6 |
 | Built, but failing the check | Ethereal 12.75: it crashed at the first `go`. The cause is in its source (data declared 64-byte aligned, allocated with `calloc`), which a current gcc no longer tolerates. It has since been taken out of the installer. |
-| Build failed | Weiss 2.0: a current gcc warns about sign comparisons, and the makefile's `-Werror` made that fatal. The pin now builds without `-Werror`; not yet run again. |
-| Skipped | Princhess 0.22.0: `clang` was not installed. |
+| Build failed, since fixed | Weiss 2.0: a current gcc warns about sign comparisons, and the makefile's `-Werror` made that fatal. The pin now builds without `-Werror`, and the maintainer confirmed that it then installs and works. |
+| Skipped, since installed | Princhess 0.22.0: `clang` was not installed. With it installed, the maintainer confirmed that Princhess builds and works. |
 
 Every download matched its SHA-256, the shared Rustic Alpha archive was
 fetched once, a failing engine did not stop the others, and the engine list
-was written with the 22 names installed. What that run did not cover: the
-tool install (`cutechess-cli`, Ordo) and a real match or rating run with the
-bash scripts.
+was written with the 22 names installed. All 13 engines the installer now
+provides have therefore been installed on Linux at least once. A real match
+and a rating run with the bash scripts followed (see "Strength matches,
+SPRT and ratings"). Not recorded: how `cutechess-cli` and Ordo were
+installed on that machine, by this script or otherwise.
 
 ### Cute Chess and Ordo on Windows
 
@@ -556,9 +558,10 @@ nothing.
 and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
 The maintainer has run the tooling on the Windows workstation with
 0.1.0-a1 and confirmed that it works (2026-11-21); which scripts and modes
-that covered is not recorded. The bash scripts have not yet completed a
-real match or rating run: the first attempt on the Linux machine was
-stopped by a fault in `match.sh`'s name check, since fixed.
+that covered is not recorded. The maintainer has also run the bash scripts on the
+Linux machine (2026-11-21): a dry run, a real gauntlet with `match.sh` and
+a rating with `rate.sh` all completed, after a fault in `match.sh`'s name
+check that the first attempt met was fixed.
 
 ### Settings that differ between machines
 
