@@ -673,7 +673,11 @@ which defaults to `DEFAULT_SEED`.
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
   strength-affecting randomness when the UCI option `DeterministicRNG` is
-  `false`. That path arrives with the UCI milestone and logs the seed it chose with `info string`.
+  `false`. `rng::entropy_seed()` is that path and the only code that reads
+  system entropy; it takes its randomness from the standard library's
+  `RandomState`, so the engine stays free of dependencies. Its caller logs
+  the seed with `info string`, so even such a run can be replayed by giving
+  the logged value as `RngSeed`.
 
 ### Table of randomness uses
 
@@ -696,6 +700,7 @@ subsystems never share or shift each other's numbers:
 | --- | --- | --- |
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 | 1 | `stream::MAGICS` | Magic-number search |
+| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI options select (system entropy, or `RngSeed`), not necessarily the default seed. |
 
 Planned uses (each gets a real row when it lands): datagen opening randomisation (milestone 9, not
 strength-affecting; per-game derived seeds), strength limiting through

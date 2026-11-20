@@ -29,6 +29,32 @@ pub mod stream {
     pub const ZOBRIST: u64 = 0;
     /// Magic-number search for slider attack tables (`attacks::sliders`).
     pub const MAGICS: u64 = 1;
+    /// Randomness that changes how strongly the engine plays: weakened move
+    /// choice under `UCI_LimitStrength` (`uci`). Unlike the others, this
+    /// stream is taken from the seed the UCI options select, which is not
+    /// the default seed unless `DeterministicRNG` says so.
+    pub const STRENGTH: u64 = 2;
+}
+
+/// A 32-bit seed taken from the operating system's randomness.
+///
+/// **This is the only place in the project that reads ambient entropy**, and
+/// it has exactly one permitted caller: seeding strength-affecting
+/// randomness when the UCI option `DeterministicRNG` is `false`. Everything
+/// else must be reproducible from [`DEFAULT_SEED`] or a seed the user gave.
+/// The caller logs the seed, so even such a run can be replayed afterwards
+/// by passing the logged value as `RngSeed`.
+///
+/// The standard library's `RandomState` is the source: every new one gets
+/// keys derived from operating-system randomness. That keeps the engine
+/// free of dependencies.
+#[must_use]
+pub fn entropy_seed() -> u32 {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
+    let keyed = RandomState::new().build_hasher().finish();
+    (mix64(keyed) >> 32) as u32
 }
 
 /// SplitMix64's state increment (the 64-bit golden-ratio constant).
@@ -329,5 +355,33 @@ mod tests {
             rng.next_u64()
         };
         assert_eq!(FIRST, 0xAD20_D299_6597_755F);
+    }
+
+    #[test]
+    fn stream_indices_are_distinct() {
+        let indices = [stream::ZOBRIST, stream::MAGICS, stream::STRENGTH];
+        assert_eq!(indices, [0, 1, 2], "indices are never renumbered");
+    }
+
+    /// The strength stream of a seed is pinned like the others, so that a
+    /// game replayed from a logged seed stays replayable.
+    #[test]
+    fn golden_strength_stream() {
+        let mut rng = Rng::stream(DEFAULT_SEED, stream::STRENGTH);
+        // Computed with an independent implementation of SplitMix64.
+        let golden = [
+            0x924E_45DE_572A_5660,
+            0x506D_A39B_AB71_4DD7,
+            0x2A91_45FE_1058_8711,
+        ];
+        assert_eq!(take(&mut rng, 3), golden);
+    }
+
+    /// Entropy seeds are not reproducible by design, so all that can be
+    /// tested is that they vary: eight of them are not all the same.
+    #[test]
+    fn entropy_seeds_vary() {
+        let seeds: Vec<u32> = (0..8).map(|_| entropy_seed()).collect();
+        assert!(seeds.iter().any(|&seed| seed != seeds[0]), "{seeds:?}");
     }
 }

@@ -219,7 +219,7 @@ Chunk checklist. One commit per item unless noted.
   own thread; the binary runs it when started without arguments
 - [x] `uci`: option `Hash`
 - [x] `uci`: option `Threads`
-- [ ] `rng`: a seed from system entropy and the stream for
+- [x] `rng`: a seed from system entropy and the stream for
   strength-affecting randomness
 - [ ] `uci`: options `DeterministicRNG` and `RngSeed`
 - [ ] `search`: weakened move choice for limited strength

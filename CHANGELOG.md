@@ -174,3 +174,6 @@ once it has a first release.
   (milestone 7).
 - UCI option `Threads` (spin, default 1, minimum 1, maximum 1): the search
   is single-threaded, so 1 is the only value accepted.
+- `rng::entropy_seed`, the one permitted reader of system entropy, and
+  `rng::stream::STRENGTH`, the stream for randomness that affects playing
+  strength. Nothing uses them yet.
