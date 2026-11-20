@@ -40,13 +40,60 @@ mod tests {
         assert!(!ENGINE_NAME.is_ascii());
     }
 
-    /// The version must be three dot-separated numbers and must be the
-    /// version written in the workspace manifest.
+    /// Whether `version` is three dot-separated numbers, optionally
+    /// followed by `-` and a pre-release tag of dot-separated words made of
+    /// letters, digits and hyphens (`0.1.0`, `0.1.0-alpha.1`), as Semantic
+    /// Versioning writes versions. Build metadata (`+...`) is not used.
+    fn is_version(version: &str) -> bool {
+        let (core, pre_release) = match version.split_once('-') {
+            Some((core, pre_release)) => (core, Some(pre_release)),
+            None => (version, None),
+        };
+        let numbers: Vec<&str> = core.split('.').collect();
+        let number = |part: &&str| {
+            !part.is_empty()
+                && part.bytes().all(|byte| byte.is_ascii_digit())
+                && (*part == "0" || !part.starts_with('0'))
+        };
+        let word = |part: &str| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        };
+        numbers.len() == 3
+            && numbers.iter().all(number)
+            && pre_release.is_none_or(|tag| tag.split('.').all(word))
+    }
+
+    #[test]
+    fn what_counts_as_a_version() {
+        for good in ["0.1.0", "1.0.0", "12.34.56", "0.1.0-alpha.1", "0.2.0-rc-1"] {
+            assert!(is_version(good), "{good}");
+        }
+        for bad in [
+            "",
+            "0.1",
+            "0.1.0.0",
+            "0.1.x",
+            "01.1.0",
+            "0.1.0-",
+            "0.1.0-alpha..1",
+            "0.1.0-alpha.",
+            "0.1.0 alpha",
+            "0.1.0+build",
+            "v0.1.0",
+            "0.1.0-alpha_1",
+        ] {
+            assert!(!is_version(bad), "{bad}");
+        }
+    }
+
+    /// The version must be a version (see [`is_version`]) and must be the
+    /// one written in the workspace manifest.
     #[test]
     fn version_is_the_manifest_version() {
-        let parts: Vec<&str> = ENGINE_VERSION.split('.').collect();
-        assert_eq!(parts.len(), 3, "{ENGINE_VERSION}");
-        assert!(parts.iter().all(|part| part.parse::<u32>().is_ok()));
+        assert!(is_version(ENGINE_VERSION), "{ENGINE_VERSION}");
 
         let manifest = include_str!("../Cargo.toml");
         let line = format!("version = \"{ENGINE_VERSION}\"");
