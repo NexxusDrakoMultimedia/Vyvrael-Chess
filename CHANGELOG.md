@@ -60,9 +60,10 @@ once it has a first release.
   was not applied, and no longer counts a tool as installed when its files
   are gone or the pinned commit or digest changed.
 
-- `scripts/install_tools.py`: a tool whose post-install check fails is no
-  longer recorded as installed and the run now exits with an error; Cute
-  Chess is refused up front on machines that are not x86_64.
+- `scripts/install_tools.py`: a tool that cannot be started by its
+  post-install check (it cannot be run, times out, or exits with 126 or 127)
+  is no longer recorded as installed and the run now exits with an error;
+  Cute Chess is refused up front on machines that are not x86_64.
 
 ### Added
 

@@ -683,9 +683,14 @@ INSTALLERS = {
 # ---------------------------------------------------------------- checks
 def verify(ctx: Ctx, tool: str) -> bool:
     """Runs the installed tool once, shows its first line of output and
-    returns whether it worked: it started and exited with status 0.
+    returns whether it could be started.
 
-    A tool without a check (lichess-bot, which needs an account) passes.
+    It fails when the launcher cannot be run at all, when it times out, or
+    when it exits with 126 or 127: the shell's own statuses for a program it
+    could not execute or find. Any other status counts as started and is
+    printed, because nobody has yet confirmed which status these two
+    commands end with. A tool without a check (lichess-bot, which needs an
+    account) passes.
     """
     commands = {"cutechess": ["cutechess-cli", "--version"], "ordo": ["ordo", "-h"]}
     if tool not in commands:
@@ -700,11 +705,15 @@ def verify(ctx: Ctx, tool: str) -> bool:
         return False
     lines = (result.stdout or result.stderr or "").strip().splitlines()
     first = lines[0] if lines else "(no output)"
-    if result.returncode != 0:
+    if result.returncode in (126, 127):
         command = " ".join([name, *rest])
-        say(f"  check FAILED: `{command}` exited with status {result.returncode}: {first}")
+        say(f"  check FAILED: `{command}` could not be started")
+        say(f"  (status {result.returncode}): {first}")
         return False
-    say(f"  check: {first}")
+    if result.returncode != 0:
+        say(f"  check: {first} (exit status {result.returncode})")
+    else:
+        say(f"  check: {first}")
     return True
 
 

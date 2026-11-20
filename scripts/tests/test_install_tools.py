@@ -624,7 +624,8 @@ class DryRun(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 record_as_installed(tmp, tool)
                 out = run_main(["--prefix", tmp, "--dry-run", "--tool", tool])
-                self.assertIn(f"{tool}: {install_tools.PINS[tool]['version']} already installed", out)
+                version = install_tools.PINS[tool]["version"]
+                self.assertIn(f"{tool}: {version} already installed", out)
                 self.assertNotIn("would install", out, tool)
                 self.assertNotIn("would build", out, tool)
 
@@ -847,13 +848,22 @@ class Checks(unittest.TestCase):
         command = runner.call_args.args[0]
         self.assertEqual((Path(command[0]).name, command[1:]), ("cutechess-cli", ["--version"]))
 
-    def test_fails_on_a_non_zero_exit_status(self):
-        result = self.finished(126, stderr="cannot execute binary file: Exec format error\n")
-        passed, out, _ = self.verify("ordo", return_value=result)
-        self.assertIs(passed, False)
-        self.assertIn("check FAILED", out)
-        self.assertIn("status 126", out)
-        self.assertIn("Exec format error", out)
+    def test_fails_when_the_shell_could_not_execute_or_find_the_program(self):
+        for status, message in ((126, "Exec format error"), (127, "not found")):
+            result = self.finished(status, stderr=message + "\n")
+            passed, out, _ = self.verify("ordo", return_value=result)
+            self.assertIs(passed, False, status)
+            self.assertIn("check FAILED", out)
+            self.assertIn(f"status {status}", out)
+            self.assertIn(message, out)
+
+    def test_any_other_exit_status_counts_as_started_and_is_shown(self):
+        # Nobody has confirmed that these commands end with status 0.
+        for status in (1, 2, 125, 128, 255, -11):
+            result = self.finished(status, "ordo 1.2.6\n")
+            passed, out, _ = self.verify("ordo", return_value=result)
+            self.assertIs(passed, True, status)
+            self.assertEqual(out, f"  check: ordo 1.2.6 (exit status {status})\n")
 
     def test_fails_when_the_program_cannot_be_started_or_hangs(self):
         timeout = install_tools.subprocess.TimeoutExpired("ordo", 120)

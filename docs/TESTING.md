@@ -308,9 +308,12 @@ What to know before running it:
   uncomment it only when you put the token there.
 - After installing, it runs `cutechess-cli --version` and `ordo -h` once and
   prints the first line, which is the check that the tools work. A tool is
-  recorded as installed only when that check starts and exits with status 0.
-  Otherwise the run ends with an error, and the next run installs the tool
-  again instead of reporting it as already installed.
+  recorded as installed only when that check could start the program. The
+  check fails when the launcher cannot be run, times out, or exits with 126
+  or 127 (the shell could not execute or find the program); then the run
+  ends with an error, and the next run installs the tool again instead of
+  reporting it as already installed. Any other exit status counts as started
+  and is printed beside the first line.
 - The pinned Cute Chess file is an x86_64 AppImage; on any other machine the
   script stops before downloading it.
 
@@ -319,9 +322,10 @@ Status: the script's helper functions are covered by offline unit tests
 download and install nothing. **The installer itself has not yet been run
 end to end.** Three details can only be confirmed by a real run: that this
 Cute Chess AppImage runs `cutechess-cli` when given a leading `cli` argument,
-that `cutechess-cli --version` and `ordo -h` exit with status 0 (the check
-treats anything else as a failed install), and that lichess-bot reads its
-token from `LICHESS_BOT_TOKEN`.
+which exit status `cutechess-cli --version` and `ordo -h` end with (until
+that is known the check accepts any status except 126 and 127, so it cannot
+yet tell a program that starts and then fails from one that works), and that
+lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
 On Windows, and for the match and rating scripts themselves, see milestone 6
 in [ROADMAP.md](ROADMAP.md): manual install steps are still to be written.
