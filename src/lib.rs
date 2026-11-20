@@ -60,6 +60,8 @@ mod tests {
                 && part
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                // A word of digits only is a number and follows their rule.
+                && (!part.bytes().all(|byte| byte.is_ascii_digit()) || number(&part))
         };
         numbers.len() == 3
             && numbers.iter().all(number)
@@ -68,7 +70,15 @@ mod tests {
 
     #[test]
     fn what_counts_as_a_version() {
-        for good in ["0.1.0", "1.0.0", "12.34.56", "0.1.0-alpha.1", "0.2.0-rc-1"] {
+        for good in [
+            "0.1.0",
+            "1.0.0",
+            "12.34.56",
+            "0.1.0-alpha.1",
+            "0.2.0-rc-1",
+            "0.1.0-0",
+            "0.1.0-alpha.0a",
+        ] {
             assert!(is_version(good), "{good}");
         }
         for bad in [
@@ -84,6 +94,8 @@ mod tests {
             "0.1.0+build",
             "v0.1.0",
             "0.1.0-alpha_1",
+            "0.1.0-alpha.01",
+            "0.1.0-01",
         ] {
             assert!(!is_version(bad), "{bad}");
         }
