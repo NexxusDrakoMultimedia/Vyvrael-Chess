@@ -54,8 +54,10 @@ impl Position {
     ///
     /// This checks only what is needed to choose the kind. It does **not**
     /// check that the piece can move that way or that the move is legal; a
-    /// rook "moving" like a knight is accepted as a quiet move. Where legality
-    /// matters, match the result against `movegen::legal_moves`.
+    /// rook "moving" like a knight is accepted as a quiet move. It is meant
+    /// for trusted input such as recorded games. **For input that is not
+    /// trusted (a GUI, a file, a user), use `movegen::find_legal_move`
+    /// instead**, which only ever returns a legal move.
     ///
     /// # Errors
     ///

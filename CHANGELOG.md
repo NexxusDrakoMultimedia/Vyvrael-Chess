@@ -155,3 +155,7 @@ once it has a first release.
 - The 128 magic numbers are embedded as constants (`attacks/magics.rs`), so
   the engine no longer searches for them at start-up. A test proves they are
   exactly what the seeded search finds.
+- `movegen::find_legal_move`: turns a move written in UCI notation into a
+  move only if it is legal. This is the entry point for input that is not
+  trusted; `Position::parse_move` stays for trusted input such as recorded
+  games.
