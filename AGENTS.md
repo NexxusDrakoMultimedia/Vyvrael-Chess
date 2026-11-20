@@ -56,7 +56,7 @@ Layout:
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
-| Match script | not implemented yet (milestone 6: `scripts/match.sh`, `scripts/match.ps1`, `scripts/rate.sh`, `scripts/rate.ps1`) |
+| Match and rating scripts | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/match.ps1`, `scripts/windows/rate.ps1`, `scripts/linux/match.sh`, `scripts/linux/rate.sh`) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
@@ -155,6 +155,9 @@ shared in the tool crates).
 - Branching: one branch per milestone (`milestone/1-board`,
   `milestone/2-movegen`, ...), each started from the previous milestone's
   branch. The agent reviews and merges it into `main` (see "Rules").
+  Release preparation (`release/<version>`) and tooling
+  (`tooling/<name>`) get branches of their own; the maintainer reviews a
+  release branch and does the tagging.
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 
@@ -168,8 +171,8 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
    Heuristics wait for milestone 7 so each can be accepted by SPRT.
 5. **UCI:** the protocol loop and its options (see `docs/UCI.md`).
-6. **Strength testing:** SPRT match script with Cute Chess, ratings with
-   Ordo; calibrate `UCI_Elo`.
+6. **Strength testing:** measure Vyvræl against the opponent ladder with
+   the match and rating scripts (Cute Chess, Ordo); calibrate `UCI_Elo`.
 7. **Search heuristics:** move ordering, transposition table, null move,
    LMR. One feature per commit, each with an SPRT result.
 8. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.

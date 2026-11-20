@@ -337,8 +337,10 @@ that is known the check accepts any status except 126 and 127, so it cannot
 yet tell a program that starts and then fails from one that works), and that
 lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
-On Windows, and for the match and rating scripts themselves, see milestone 6
-in [ROADMAP.md](ROADMAP.md): manual install steps are still to be written.
+The installer does not yet cover Windows, the ladder's opponent engines or
+the match and rating scripts. They are planned on the branch
+`tooling/testing-scripts`; see "Testing tooling" in
+[ROADMAP.md](ROADMAP.md).
 
 ## Opponent ladder (Ladder Baseline 1)
 
@@ -377,8 +379,8 @@ inferred from it.
 Search, evaluation and network changes are accepted only when a sequential
 probability ratio test (SPRT) against the previous version shows a gain. A
 match script using Cute Chess (`cutechess-cli`), with Ordo for rating
-lists, will be added in milestone 6 (scope in [ROADMAP.md](ROADMAP.md)) and
-documented here, including how to read LLR, Elo estimates and error bars.
+lists, will be added before milestone 6 (see "Testing tooling" in
+[ROADMAP.md](ROADMAP.md)) and documented here, including how to read LLR, Elo estimates and error bars.
 Because of that, search is split (see "Decisions for milestones 4 to 6" in
 [ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
 correctness tests and fixed-depth node counts, and the search heuristics wait
