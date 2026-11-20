@@ -327,6 +327,32 @@ Notes for whoever starts it:
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
   already covers match output and `*.pgn`.
 
+## Milestone 7: search heuristics (order of work for captures)
+
+Set by the maintainer on 2026-11-20. The chunk checklist is written when the
+milestone starts; this fixes the order in which capture ordering and
+quiescence pruning are built, so that each step has a clean baseline to be
+measured against.
+
+1. **MVV-LVA with promotions.** Simple, and the baseline for everything
+   after it. The quiescence search already orders captures this way
+   (milestone 4, `search/ordering.rs`); what remains is to use it for the
+   captures of the main search as well.
+2. **The transposition-table move first**, when the table has one for the
+   position. This needs the transposition table, which is also milestone 7.
+3. **Static exchange evaluation (SEE)**, compared with the baseline by SPRT
+   on the Linux machine. It is kept only if the SPRT shows a gain.
+4. **Delta pruning last**, tested separately by its own SPRT, so that its
+   effect is not mixed up with SEE's.
+
+Steps 3 and 4 change which moves the search looks at, so unlike plain
+ordering they can change its results. That is why each gets its own SPRT.
+The matches run on the Linux machine with the scripts from milestone 6;
+results from different machines are not compared with each other.
+
+The other milestone 7 heuristics (killer moves, history, null-move pruning,
+late move reductions) are ordered when the milestone starts.
+
 ## Decisions for milestones 4 to 6
 
 Decided by the maintainer on 2026-11-20.
@@ -337,8 +363,9 @@ first recorded as "milestone 4b", which read as if it came before milestone
 therefore sit one higher than in the original brief: open data tooling is 8,
 NNUE is 9 and tablebases are 10.
 
-- **One ordering heuristic had to come early.** Quiescence search orders
-  captures most valuable victim first in milestone 4, not milestone 7.
+- **One ordering heuristic had to come early.** Approved by the maintainer
+  on 2026-11-20. Quiescence search orders captures most valuable victim first
+  in milestone 4, not milestone 7.
   Measured without it, one test position needed more than 20 million nodes
   where 3,067 suffice, so the search did not finish. Ordering captures does
   not change the value the search returns, only its cost, so there is
