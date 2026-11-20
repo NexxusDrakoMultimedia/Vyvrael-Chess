@@ -570,6 +570,41 @@ transposition table, pruning) come in milestone 7, one at a time.
     captures that cannot help (delta pruning, static exchange evaluation) is
     left to milestone 7.
 
+### Playing below full strength
+
+`search/weaken.rs`, for the UCI option `UCI_LimitStrength`.
+
+A weakened engine should make plausible mistakes, not random moves.
+`weakened_move` therefore:
+
+1. searches **every** root move, each with its own full-window search, to a
+   shallow depth (a weaker player sees less far), which gives every move an
+   exact score, not only the best one;
+2. adds to each score a random error between minus and plus `noise`
+   centipawns, the sum of two uniform draws, so small errors are common and
+   large ones rare;
+3. plays the move with the best misjudged score, and reports its true score.
+
+The error is bounded, so a blunder larger than twice the noise cannot
+happen: the engine may prefer the second-best quiet move, but it does not
+leave a queen hanging unless the noise is that large. Forced mates are
+judged exactly, for and against. Positions that are drawn by rule right
+after a root move (repetition, fifty moves, bare material) are scored as
+draws here, because a search never scores its own root as a draw.
+
+`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (400) to `ELO_MAX`
+(1800) to a depth (2 below the middle of the range, 3 above) and a noise
+(300 centipawns at the bottom, falling evenly to 20 at the top). **These
+numbers are provisional.** They only order the settings. What rating each
+setting really plays at is measured in milestone 6 and the mapping is
+refitted then; until that is done the rating is a label.
+
+The generator is handed in by the caller and advanced identically for
+every root move, whatever its score, so the choice is a function of the
+position, the weakening and the seed. With a deadline the number of root
+moves finished depends on the machine; for a reproducible weakened game use
+`DeterministicRNG` with a depth or node limit, or generous time.
+
 ## UCI
 
 In progress (milestone 5). `src/uci/` is the protocol layer; every command
@@ -692,6 +727,7 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 | Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
 | Seed of strength-affecting randomness (`uci::Engine`) | implemented (nothing draws from it yet) | **Yes** | `rng::entropy_seed()` when the engine starts, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Weakened move choice (`search::weakened_move`) | implemented (not reachable from UCI yet) | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
 Stream indices of the default seed are registered in `rng::stream` so that

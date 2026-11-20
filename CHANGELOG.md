@@ -182,3 +182,6 @@ once it has a first release.
   strength-affecting randomness comes from system entropy unless
   `DeterministicRNG` is on, and is logged with `info string` in reply to
   `uci` and whenever it changes. No randomness is drawn yet.
+- `search::weakened_move`: chooses a move at reduced strength by searching
+  every root move to a shallow depth and misjudging each score by a bounded
+  random amount. Not reachable from UCI yet.

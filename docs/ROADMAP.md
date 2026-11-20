@@ -222,7 +222,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `rng`: a seed from system entropy and the stream for
   strength-affecting randomness
 - [x] `uci`: options `DeterministicRNG` and `RngSeed`
-- [ ] `search`: weakened move choice for limited strength
+- [x] `search`: weakened move choice for limited strength
 - [ ] `uci`: option `UCI_LimitStrength`
 - [ ] `uci`: option `UCI_Elo` (uncalibrated until milestone 6)
 - [ ] Integration test: drive the binary over stdin and stdout
