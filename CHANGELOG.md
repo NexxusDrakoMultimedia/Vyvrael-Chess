@@ -8,7 +8,7 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
-## [0.1.0-alpha.1] - 2026-11-20
+## [0.1.0-alpha.1] - 2026-11-21
 
 The first release: a complete UCI chess engine, in alpha. Release notes:
 [docs/releases/0.1.0-alpha.1.md](docs/releases/0.1.0-alpha.1.md).

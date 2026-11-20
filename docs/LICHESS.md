@@ -123,8 +123,8 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
    too.
 9. **Conservative time controls.** Under `challenge:`, take `bullet` out of
    `time_controls:` and keep `blitz`, `rapid` and `classical`; keep
-   `variants:` at `standard` only; keep `concurrency: 1`. A suggested start
-   is `min_base: 180` and `min_increment: 2`, so every game has an
+   `variants:` at `standard` only; keep `concurrency: 1`. Set
+   `min_base: 180` and `min_increment: 2`, so every game has an
    increment. Never accept UltraBullet (lichess-bot's default file says bots
    may not play it and offers no such entry).
 10. **Challenge games only.** lichess-bot plays challenges; do not enter
@@ -155,8 +155,9 @@ The Lichess Bots team membership is already done.
   clean first game, are unconfirmed until step 14.
 - "10+0.1" is the time control of the project's own matches (ten seconds
   plus a tenth of a second per move). Lichess increments are whole seconds,
-  so it cannot be set there; the values in step 9 are a suggestion in its
-  place, for the maintainer to decide.
+  so it cannot be set there; the values in step 9 (three minutes and two
+  seconds a move as the fastest game) stand in its place, as the maintainer
+  confirmed on 2026-11-21.
 - The bot rules and the Terms of Service points are the maintainer's
   reading, recorded here as given.
 

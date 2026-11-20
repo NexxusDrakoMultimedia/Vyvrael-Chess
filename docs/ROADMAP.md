@@ -343,10 +343,13 @@ and the older milestone 6 text below disagree, this section holds.
   centipawns; `-recover`.
 - **SPRT bounds, alpha, beta and a round cap are required arguments.** There
   are no silent defaults; `TESTING.md` gives example bounds.
-- **Machine profiles** set only defaults (concurrency, priority, tool
-  locations); every one can be overridden. Proposed concurrency, still to be
-  confirmed by the maintainer: 6 on the Windows workstation, 3 at low
-  priority on the Linux machine, never more than the physical cores.
+- **No named machine profiles** (the maintainer, 2026-11-21): no machine
+  name appears in a script or a flag. Defaults for concurrency, priority and
+  tool locations come from a git-ignored local file, of which the
+  repository carries an example, and every one can be overridden by an
+  argument. Concurrency, confirmed by the maintainer: 6 on the Windows
+  workstation, 3 at low priority on the Linux machine, never more than the
+  physical cores.
 - **No personal paths** in scripts or docs: tools come from `PATH`,
   arguments, environment variables or a git-ignored local file.
 - **Installer:** it also installs Linux builds of the ladder opponents and
