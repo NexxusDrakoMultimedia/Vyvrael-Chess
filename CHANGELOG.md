@@ -3,10 +3,25 @@
 All notable changes to Vyvræl are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and the project intends to follow [Semantic Versioning](https://semver.org/)
-once it has a first release.
+and the project follows [Semantic Versioning](https://semver.org/). Before
+1.0.0 a minor version may change anything.
 
 ## [Unreleased]
+
+## [0.1.0-alpha.1] - 2026-11-20
+
+The first release: a complete UCI chess engine, in alpha. Release notes:
+[docs/releases/0.1.0-alpha.1.md](docs/releases/0.1.0-alpha.1.md).
+
+- **Strength is unmeasured** (known issue KI-8). No rating is claimed.
+- **`UCI_Elo` is not calibrated**: its settings are ordered, not measured.
+- **A casual-only Lichess bot is planned**; rated play waits for 0.2.0.
+- **Built under the 0rwx X scale**: written by AI coding agents and curated
+  by the maintainer, with trust resting on tests, documentation and small
+  commits.
+
+Entries marked "found before any release" describe defects that never
+shipped; they are kept as a record of what the reviews caught.
 
 ### Changed
 
@@ -239,3 +254,6 @@ once it has a first release.
 - UCI option `Move Overhead` (spin, default 30, 0 to 5000 ms): time kept
   back from every time limit for delays the engine cannot measure, such as
   the network between a Lichess game and the engine.
+
+[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/tag/v0.1.0-alpha.1

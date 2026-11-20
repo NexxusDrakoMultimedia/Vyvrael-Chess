@@ -83,6 +83,7 @@ are in [docs/LICHESS.md](docs/LICHESS.md).
 - [docs/TESTING.md](docs/TESTING.md): tests, perft, strength testing
 - [docs/ROADMAP.md](docs/ROADMAP.md): milestones, status and known issues
 - [docs/LICHESS.md](docs/LICHESS.md): the Lichess bot, its policy and rules
+- [docs/releases/](docs/releases/): release notes
 - [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md): dependencies and licences
 - [docs/DATA.md](docs/DATA.md): datasets, books, tablebases, networks
 - [docs/NNUE.md](docs/NNUE.md): neural evaluation

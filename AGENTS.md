@@ -209,5 +209,5 @@ For that re-read, or any full documentation pass, use the default prompt in
 ## Releases
 
 Prepare a release only when the maintainer asks. Use the default prompt in
-`docs/prompts/release.md` (`/release-prep` in Claude Code). Never tag, push or
-publish.
+`docs/prompts/release.md` (`/release-prep` in Claude Code). Release notes go
+in `docs/releases/<version>.md`. Never tag, push or publish.
