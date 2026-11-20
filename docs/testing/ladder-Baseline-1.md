@@ -26,6 +26,7 @@ First opponent-ladder measurement for Vyvræl testing. Vyvræl itself was **not*
 | Draw adjudication | move 34, 10 moves, within 20 cp |
 | Resign adjudication | 3 moves, 700 cp, two-sided |
 | Engine options | Hash 64 MB, Threads 1 (as configured; not stored in the PGN) |
+| Tools | Cute Chess 1.5.1 (Qt 6.8.3, Windows 11 26H2, x86_64), Ordo 1.2.6 (versions added 2026-11-21 by the maintainer) |
 | Outcomes | 295 White wins, 287 Black wins, 18 draws; 559 games ended by adjudication |
 | Failures | none (no crashes, timeouts, illegal moves or stalls) |
 
@@ -76,7 +77,7 @@ installer generates, and this baseline is due to be run again.
 
 ## How to read this
 
-- **Use the order, not the magnitudes.** Many pairings were lopsided, so Ordo's total spread (about 3000 points) is exaggerated.
+- **Use the order, not the magnitudes.** Many pairings were lopsided, so Ordo's scale is stretched: the total spread (about 3000 points) says more about that than about the engines.
 - **Many neighbours are tied.** With 48 games per engine the error bars are ±250 to ±500. Stockfish 19, Reckless and Viridithas are indistinguishable; so are Stockfish 19-2200 and -2400, and the Rustic versions are not in version order.
 - **Nominal `UCI_Elo` is not strength.** At 10+0.1 the Stockfish entries do not match their labels.
 - **Orion 1.1 is mid-table**, not a weak engine.

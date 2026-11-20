@@ -335,9 +335,9 @@ then, and the release notes of 0.2.0 say so.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
 of Ladder Baseline 1 and its Ordo anchor (Stockfish 19 = 0), not to
-Lichess, CCRL or FIDE ratings. That scale is stretched at the low end: the
-limited-strength engines of the baseline rate far below the numbers in their
-names. So documentation and the bot's profile must say which scale a number
+Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
+most visibly at the low end: the limited-strength engines of the baseline
+rate far below the numbers in their names. So documentation and the bot's profile must say which scale a number
 refers to, and must not state a Lichess rating that the measurements do not
 support.
 
@@ -361,23 +361,29 @@ whether there are further alphas, is the maintainer's call.
 
 ### Release artifacts
 
-Decided:
+Decided by the maintainer (the last two points on 2026-11-21):
 
 - A release ships binaries for Windows and Linux on x86-64, each with a
   SHA-256 checksum file beside it. 0.1.0-alpha.1 did.
-- Those binaries are generic builds: plain release builds for any x86-64
-  processor, never `target-cpu=native`.
-- The maintainer owns the release workflow, because `.github/workflows` is
-  a protected path that agents do not edit. Agents prepare a release; the
-  maintainer tags and publishes it.
+- Each system gets two builds: a generic one, a plain release build for any
+  x86-64 processor, and one for processors with AVX2 and BMI2. Neither is
+  ever built with `target-cpu=native`, and there is no AVX-512 build.
+  0.1.0-alpha.1 shipped the generic builds only.
+- The binaries are built by a workflow, not by hand. The maintainer owns
+  that workflow, because `.github/workflows` is a protected path that agents
+  do not edit: an agent may propose its contents in a document for the
+  maintainer to put in place.
+- Agents prepare a release; the maintainer tags and publishes it.
 - Binaries are attached to the release and never committed.
 
 Open, for the maintainer:
 
-- Whether an AVX2/BMI2 build is shipped beside the generic one. Queued task
-  2 is to document how to make such a build; shipping one is not decided.
-- Whether the binaries are built by a workflow or by hand, as those of
-  0.1.0-alpha.1 were, and how they are named from one release to the next.
+- Which release is the first with an AVX2/BMI2 build and with workflow-built
+  binaries.
+- The exact processor level the AVX2/BMI2 build names (`x86-64-v3` or
+  `haswell`), to be settled with the measurements of queued task 2, which
+  also documents how to make that build.
+- How the files are named from one release to the next.
 
 ## Testing tooling (before milestone 6)
 
@@ -459,6 +465,12 @@ build (for example `results-0.1.0-alpha.1.md`), with:
 
 Ordo's text and CSV output may sit beside it. PGN files, logs and run notes
 stay out of git.
+
+Results recorded so far:
+
+- [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md): the first
+  alpha against the lower rungs of the ladder, a snapshot from before
+  milestone 6.
 
 ## Queued work (requested 2026-11-21)
 
@@ -582,7 +594,8 @@ To go into the chunk checklist when it is written:
 
 - Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
   on (Ladder Baseline 1 and its Ordo anchor, not Lichess, CCRL or FIDE)
-  and that the scale is stretched at the low end.
+  and that the scale is stretched by lopsided results, most visibly at the
+  low end.
 - Robustness, wanted before 0.2.0 because the bot plays in public:
   - a test that feeds the UCI loop malformed and unexpected input and
     asserts that it never panics. The release profile uses
