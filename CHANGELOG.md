@@ -166,3 +166,6 @@ once it has a first release.
 - `uci`: time management. A move gets an equal share of the remaining time
   (over `movestogo` or 30 moves) plus three quarters of the increment, never
   more than is on the clock less a 30 ms overhead.
+- **The engine speaks UCI.** Started without arguments, the binary reads
+  UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`,
+  `quit`) and searches on its own thread. No options yet.

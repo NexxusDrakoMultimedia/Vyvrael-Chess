@@ -37,7 +37,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
 | `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
-| UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
+| `uci` | in progress (milestone 5) | The UCI protocol. Implemented so far: command parsing, output formatting, time management, and the engine session with the search on its own thread. |
 
 ## Board representation
 
@@ -570,14 +570,55 @@ transposition table, pruning) come in milestone 7, one at a time.
     captures that cannot help (delta pruning, static exchange evaluation) is
     left to milestone 7.
 
-## How search, evaluation and UCI fit together (planned)
+## UCI
 
-The UCI front end owns the current position and the option values. On `go`
-it hands a copy of the position and the search limits to a search thread, so
-the main thread keeps reading stdin and can act on `stop`. Search calls the
-evaluation through a trait, so the hand-crafted evaluation and the NNUE
+In progress (milestone 5). `src/uci/` is the protocol layer; every command
+and option is listed in [UCI.md](UCI.md).
+
+- **Parsing** (`uci/command.rs`): `parse(line)` turns a line into a
+  `Command`. It knows the grammar and nothing about chess, so it is tested
+  without an engine. It is forgiving where the protocol asks for it: words
+  before the first known command are skipped and unknown `go` words ignored.
+- **Output** (`uci/output.rs`): `info_line`, `bestmove_line` and
+  `score_text` build the lines the engine sends.
+- **Time management** (`uci/time.rs`): `time_for_move` gives a move an equal
+  share of the remaining time (over `movestogo`, or 30 moves) plus three
+  quarters of the increment, capped at what is on the clock less a 30 ms
+  overhead. `limits_for` combines it with `depth`, `nodes` and `infinite`
+  into the search's `Limits`. The scheme is deliberately plain: schemes that
+  react to the search change playing strength and wait for milestone 7.
+- **The engine** (`uci/engine.rs`): `Engine` owns the current position, the
+  hashes of the positions the game went through, and the running search.
+  `Engine::handle(line)` acts on one line; `run(input, out)` is the loop the
+  binary uses.
+  - **Two threads.** The thread that calls `handle` reads commands. `go`
+    copies the position and history and starts the search on a second
+    thread, so `stop`, `isready` and `quit` are answered while the engine
+    thinks. They share two things: the output, behind a mutex, written one
+    whole line at a time and flushed; and an `AtomicBool` that the search
+    reads every 1,024 nodes.
+  - **One search at a time.** `stop`, `quit`, `ucinewgame`, `position` and a
+    second `go` all end the running search and wait for its `bestmove`
+    before doing anything else, so there are never two.
+  - **Untrusted input.** A move in a `position` command is looked up with
+    `movegen::find_legal_move`; an illegal one, or a bad FEN, refuses the
+    whole command and leaves the position as it was. Nothing illegal reaches
+    `make_move`.
+  - **`go infinite`** (and a `go` with no limit at all) answers only after
+    `stop`, as the protocol requires, even when the search itself ended at
+    once.
+  - **End of input** without `quit` lets a running search finish and report,
+    so a script that pipes commands in gets its answer.
+
+## How search, evaluation and UCI fit together
+
+The UCI layer owns the current position and the option values. On `go` it
+hands a copy of the position and the search limits to a search thread, so
+the command thread keeps reading stdin and can act on `stop`. Search calls
+the evaluation through a trait, so the hand-crafted evaluation and the NNUE
 evaluation are interchangeable and can be compared by SPRT. Only the UCI
-layer writes to stdout.
+layer writes to stdout; the other commands of the binary (`perft`, `eval`,
+`search`) are separate and never run in the same process as the loop.
 
 ## RNG design
 

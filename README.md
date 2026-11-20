@@ -37,9 +37,9 @@ cargo build --release        # binary at target/release/vyvrael
 cargo test --workspace --release
 ```
 
-Running the binary with no arguments prints the engine name and version to
-stderr and exits; the UCI loop arrives in milestone 5. Three subcommands exist
-so far, `perft`, `eval` and `search`:
+Run with no arguments, the binary speaks UCI on standard input and output
+(see [docs/UCI.md](docs/UCI.md)). It also has three subcommands, `perft`,
+`eval` and `search`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep

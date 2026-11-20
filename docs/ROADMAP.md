@@ -215,7 +215,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `uci`: output formatting (`info`, scores, `bestmove`)
 - [x] `uci`: time management (from `wtime`, `btime`, increments,
   `movestogo`, `movetime` to a deadline)
-- [ ] `uci`: the engine session and protocol loop, with the search on its
+- [x] `uci`: the engine session and protocol loop, with the search on its
   own thread; the binary runs it when started without arguments
 - [ ] `uci`: option `Hash`
 - [ ] `uci`: option `Threads`
