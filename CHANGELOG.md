@@ -16,9 +16,11 @@ once it has a first release.
   README, the package description and the crate documentation. "Playing for
   the attack" is a style goal; the engine's strength is not measured yet.
 - The time kept back on every move is no longer a fixed 30 ms: it is the
-  new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone, and
-  `uci::time_for_move` and `uci::limits_for` take the overhead as an
-  argument. With the default, play is as before.
+  new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone;
+  `uci::MOVE_OVERHEAD_DEFAULT` and `uci::MOVE_OVERHEAD_MAX` give the
+  option's default and limit in milliseconds, and `uci::time_for_move` and
+  `uci::limits_for` take the overhead as an argument. With the default,
+  play is as before.
 - The Lichess plan: a casual-only bot account (`Vyvrael-Chess`) after the
   first alpha release, and rated play only after 0.2.0. It replaces the
   earlier plan of a private test first. The branding requirement now gates
