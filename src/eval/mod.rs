@@ -31,7 +31,12 @@ pub type Score = i32;
 /// Search talks to evaluation only through this trait, so the hand-crafted
 /// evaluation and a neural network are interchangeable and can be compared
 /// by playing them against each other.
-pub trait Evaluator {
+///
+/// Evaluators must be `Send + Sync`: search runs on its own thread (so the
+/// engine can still hear `stop`), and later on several threads at once, all
+/// sharing one evaluator. An evaluator that needs scratch state per search
+/// must keep it outside the shared object.
+pub trait Evaluator: Send + Sync {
     /// The static evaluation of `pos` **from the point of view of the side
     /// to move**: positive means the side to move stands better.
     ///
@@ -85,6 +90,30 @@ mod tests {
 
     /// Search will hold the evaluator as a trait object so it can be swapped
     /// at run time (hand-crafted or network).
+    /// The evaluator is created on one thread and used on another, and can
+    /// be shared by several at once.
+    #[test]
+    fn evaluators_cross_and_share_threads() {
+        fn assert_send_sync<T: Send + Sync + ?Sized>() {}
+        assert_send_sync::<dyn Evaluator>();
+        assert_send_sync::<Box<dyn Evaluator>>();
+
+        let evaluator: Box<dyn Evaluator> = Box::new(WhiteIsAPawnUp);
+        let moved = std::thread::spawn(move || evaluator.evaluate(&Position::startpos()));
+        assert_eq!(moved.join().unwrap(), 100);
+
+        let shared: std::sync::Arc<dyn Evaluator> = std::sync::Arc::new(WhiteIsAPawnUp);
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                let evaluator = std::sync::Arc::clone(&shared);
+                std::thread::spawn(move || evaluator.evaluate(&Position::startpos()))
+            })
+            .collect();
+        for worker in workers {
+            assert_eq!(worker.join().unwrap(), 100);
+        }
+    }
+
     #[test]
     fn evaluators_can_be_used_as_trait_objects() {
         let evaluator: Box<dyn Evaluator> = Box::new(WhiteIsAPawnUp);

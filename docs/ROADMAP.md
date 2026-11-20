@@ -190,7 +190,7 @@ alpha-beta returns exactly the score of a plain minimax search, draws are
 recognised, and fixed-depth node counts are pinned so that any change in
 behaviour is noticed.
 
-- [ ] `eval`: `Send + Sync` bounds on `Evaluator`
+- [x] `eval`: `Send + Sync` bounds on `Evaluator`
 - [ ] `search`: score constants and mate-score arithmetic
 - [ ] `search`: negamax with alpha-beta at fixed depth
 - [ ] `search`: draw detection (fifty-move rule, repetition, bare material)
@@ -344,7 +344,7 @@ NNUE is 9 and tablebases are 10.
   late move reductions, one feature per commit, each with a recorded SPRT
   result. The core has nothing to be compared against, so it is checked by
   correctness tests (mates found, known node counts at fixed depth).
-- **`Evaluator` gets `Send + Sync` bounds** as the first chunk of milestone 4,
+- **`Evaluator` gets `Send + Sync` bounds** (done) as the first chunk of milestone 4,
   so the evaluator can be handed to the search thread. A later network
   evaluator must therefore keep any mutable per-search state outside the
   trait object.

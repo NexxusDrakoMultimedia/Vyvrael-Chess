@@ -347,6 +347,10 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
   and a later neural network are interchangeable and can be played against
   each other. Evaluators add up "White minus Black" and convert with
   `eval::relative_to`.
+- `Evaluator` requires `Send + Sync`, because search runs on its own thread
+  and, with several search threads, they all share one evaluator. An
+  evaluator that needs scratch state per search (a network's accumulators)
+  must keep it outside the shared object.
 - The trait takes the whole position each time. A network that updates
   incrementally on make/unmake (milestone 9) will need notification hooks;
   they will be added then as default methods, so existing evaluators do not
