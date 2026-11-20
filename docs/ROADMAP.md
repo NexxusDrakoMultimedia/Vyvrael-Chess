@@ -13,7 +13,7 @@ them.
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
-| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | in progress |
+| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
@@ -90,7 +90,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
-| KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search takes about 2.6 s and depth 4 about 20 s on the development machine. | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
+| KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
 | KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Milestone 5, before the UCI loop: embed the 128 numbers the search finds as constants and keep the search as a test proving the constants are what the seed produces. |
 
@@ -203,7 +203,7 @@ behaviour is noticed.
 - [x] `cli`: `search` subcommand
 - [x] `search`: pinned fixed-depth node counts
 - [x] `search`: measure make/unmake against copy-make and choose
-- [ ] End-of-milestone review and doc drift pass
+- [x] End-of-milestone review and doc drift pass
 
 ## Milestones 5 to 10
 
@@ -213,7 +213,8 @@ that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
 - After milestone 5: private `lichess-bot` smoke test. Public only later,
-  after milestone 7 (see "Planned features").
+  after milestone 7 and the branding (see "Playing on Lichess with
+  lichess-bot").
 - Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
@@ -393,7 +394,7 @@ NNUE is 9 and tablebases are 10.
   `isready` without a start-up delay.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
   2026-11-20). The full scope is under "Milestone 6: strength testing"
-  below.
+  above.
 
 ### Branding, required before going public
 

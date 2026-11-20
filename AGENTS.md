@@ -32,6 +32,7 @@ Layout:
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
 - `scripts/`: helper scripts and their tests (the external-tool installer).
+- `branding/`: brand assets, all rights reserved, not under the GPL.
 - `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.
 
 ## Commands
@@ -122,8 +123,7 @@ shared in the tool crates).
 - Classify every use in the table in `docs/ARCHITECTURE.md` with a one-line
   justification. If unsure, treat it as strength-affecting and tell the
   maintainer.
-- Multithreaded search is not bit-for-bit reproducible; see
-  `docs/TESTING.md` for reproducible-run settings.
+- Multithreaded search is not bit-for-bit reproducible; see `docs/TESTING.md`.
 
 ## Chunk-and-commit workflow
 
@@ -160,8 +160,7 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
    `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
 6. **Strength testing:** SPRT match script with Cute Chess, ratings with
-   Ordo;
-   calibrate `UCI_Elo`.
+   Ordo; calibrate `UCI_Elo`.
 7. **Search heuristics:** move ordering, transposition table, null move,
    LMR. One feature per commit, each with an SPRT result.
 8. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
@@ -191,9 +190,8 @@ At the end of each milestone, re-read the docs against the code and fix any
 drift in a separate `docs:` commit before reporting. If a doc and the code
 disagree, say so explicitly in the report.
 
-For that re-read, or whenever a full documentation pass is asked for, use the
-default prompt in `docs/prompts/documentation-pass.md` (`/docs-pass` in Claude
-Code).
+For that re-read, or any full documentation pass, use the default prompt in
+`docs/prompts/documentation-pass.md` (`/docs-pass` in Claude Code).
 
 ## Releases
 

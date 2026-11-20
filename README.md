@@ -22,8 +22,9 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is in progress.** The engine generates legal moves, passes perft and can score a position, but cannot
-play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged.** The engine generates legal moves, passes perft, scores a position and
+searches for the best move, but cannot play a game yet: it does not speak
+UCI (milestone 5). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run

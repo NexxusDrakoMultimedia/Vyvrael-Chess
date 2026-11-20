@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -163,7 +163,8 @@ from `board`.
   captured piece, the previous castling rights, en passant square and
   halfmove clock, and the previous hash. Returning it to the caller (rather
   than keeping a history stack inside `Position`) keeps `Position` a plain
-  value with no heap allocation; search will keep its own stack. `Undo` is
+  value with no heap allocation; a caller that unmakes moves keeps its own
+  stack. `Undo` is
   `#[must_use]`. Both styles are supported: in-place make/unmake, and
   copy-make (clone the position, about 200 bytes, and make the move on the
   clone). Measured with perft in milestone 2, copy-make was about 5% faster
@@ -321,10 +322,11 @@ on this square attack?".
 - **Perft** (`perft.rs`): `perft(pos, depth)` counts the leaf nodes of the
   legal move tree, and `divide(pos, depth)` gives the count below each first
   move. They walk the pseudo-legal moves with make/unmake on one position and
-  skip moves after which the king could be captured, so they exercise exactly
-  the code search will use. `perft_copy_make` counts the same tree by cloning
-  the position for each move; it exists only to measure the two styles
-  against each other (see [TESTING.md](TESTING.md)).
+  skip moves after which the king could be captured, so they exercise move
+  generation, make and unmake together. `perft_copy_make` counts the same
+  tree by cloning the position for each move, which is the style the search
+  uses; the two were measured against each other (see
+  [TESTING.md](TESTING.md)).
 
 - **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
   binary's commands against any pair of writers, so tests run it on in-memory
@@ -423,7 +425,9 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
 
 ## Search
 
-In progress (milestone 4). `src/search/` looks ahead to choose a move.
+Implemented in `src/search/`, which looks ahead to choose a move. This is
+the core only: the heuristics that make a search fast (move ordering, a
+transposition table, pruning) come in milestone 7, one at a time.
 
 - **Scores** (`search/score.rs`) are the evaluator's `Score` (centipawns)
   extended with checkmate. `MATE` is 31,000 and `INFINITY`, the bound no score
@@ -481,8 +485,9 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   "triangular" table): a node that finds a new best move stores that move
   followed by its child's line. The line is shorter than the depth when it
   ends in a mate or a draw. It is what UCI reports as `pv`, and it is also a
-  check on the search: playing it out must reach a position whose evaluation
-  is the reported score.
+  check on the search: playing it out must reach a position whose quiescence
+  value is the reported score (the line stops where quiescence search takes
+  over and does not list the captures played beyond it).
 
 - **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
   depth, node count and deadline; the search stops at whichever comes first.
