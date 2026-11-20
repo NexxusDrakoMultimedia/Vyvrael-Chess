@@ -86,7 +86,6 @@ fn fixed_depth_searches_give_the_recorded_results() {
             "{fen} at depth {depth}"
         );
         assert!(!searcher.was_stopped());
-        assert_eq!(pos, Position::from_fen(fen).unwrap());
     }
 }
 

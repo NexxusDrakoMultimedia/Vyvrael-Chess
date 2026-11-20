@@ -113,11 +113,38 @@ mod tests {
         assert!(!is_repetition(&partway, &keys));
     }
 
+    /// The two rules that limit where a repetition is looked for cannot be
+    /// shown with a real game: a position an odd number of plies back has
+    /// the other side to move, and one from before a pawn move or capture
+    /// has different pawns or pieces, so neither can have the same hash. A
+    /// made-up history, with the current hash planted where it must be
+    /// ignored, shows them.
+    #[test]
+    fn only_keys_within_the_clock_and_an_even_distance_count() {
+        let at_clock = |clock: u32| fen(&format!("4k3/8/8/8/8/8/8/R3K3 w - - {clock} 60"));
+        let pos = at_clock(4);
+        let same = pos.hash();
+        assert_eq!(at_clock(2).hash(), same, "the clock is not hashed");
+
+        // Two and four plies back, within the clock's reach: repetitions.
+        assert!(is_repetition(&pos, &[1, 2, same, 3]));
+        assert!(is_repetition(&pos, &[same, 1, 2, 3]));
+        // One and three plies back: the other side was to move.
+        assert!(!is_repetition(&pos, &[1, 2, 3, same]));
+        assert!(!is_repetition(&pos, &[1, same, 2, 3]));
+        // Four plies back, but a capture or pawn move was made two or three
+        // plies ago: out of reach.
+        assert!(!is_repetition(&at_clock(3), &[same, 1, 2, 3]));
+        assert!(!is_repetition(&at_clock(2), &[same, 1, 2, 3]));
+        assert!(is_repetition(&at_clock(2), &[1, 2, same, 3]));
+        assert!(!is_repetition(&at_clock(1), &[1, 2, same, 3]));
+    }
+
     #[test]
     fn the_other_side_to_move_is_a_different_position() {
         // Same placement as the start, but reached with Black to move, by
-        // White losing a tempo with the knight. An odd number of plies back
-        // never counts.
+        // White losing a tempo with the knight: a different position, with
+        // a different hash.
         let mut pos = Position::startpos();
         let keys = play(&mut pos, &["g1f3", "g8f6", "f3g1"]);
         assert!(!is_repetition(&pos, &keys));
@@ -125,9 +152,9 @@ mod tests {
     }
 
     #[test]
-    fn a_pawn_move_or_capture_cuts_off_earlier_positions() {
-        // A key equal to the current hash sits further back than the
-        // halfmove clock reaches, so it cannot be a repetition.
+    fn repetition_is_found_again_after_a_pawn_move() {
+        // The knights repeat the start position; then, after a pawn move
+        // each, they repeat the new position.
         let mut pos = Position::startpos();
         let mut keys = play(&mut pos, &["g1f3", "g8f6", "f3g1", "f6g8"]);
         assert!(is_repetition(&pos, &keys));

@@ -909,14 +909,48 @@ mod tests {
         assert_eq!(informed.best_move.unwrap().to_string(), "g8h8");
     }
 
-    /// The winning side must not walk into a repetition inside its own
-    /// search line, with no game history at all.
+    /// A perpetual check, with no game history at all: a queen and a rook
+    /// down, White checks on e8 and h5 for ever, and Black's king has one
+    /// square each time. The fourth ply returns to the root position, which
+    /// the search can only know from the hashes it recorded on its own way
+    /// down.
     #[test]
-    fn the_winning_side_avoids_repeating_within_the_search() {
-        let text = "7k/8/8/8/8/2K5/8/1Q6 w - - 10 30";
-        // b1c1, h8g8, c1b1, g8h8 returns to the root position.
+    fn a_repetition_inside_the_search_line_is_a_draw() {
+        let text = "6k1/6p1/8/7Q/8/7K/1r6/q7 w - - 0 1";
+        let root = fen(text);
+        let mut pos = root.clone();
+        for (check, only_reply) in [("h5e8", "g8h7"), ("e8h5", "h7g8")] {
+            let mv = pos.parse_move(check).unwrap();
+            let _undo = pos.make_move(mv);
+            let replies = legal_moves(&pos);
+            assert_eq!(replies.len(), 1, "after {check}");
+            assert_eq!(replies[0].to_string(), only_reply);
+            let _undo = pos.make_move(replies[0]);
+        }
+        assert_eq!(pos.hash(), root.hash(), "four plies return to the root");
+
+        // Three plies do not reach the repetition: White is simply lost.
+        assert!(search(text, 3).score < -300);
+        // Four do, and the draw is the best White can get.
+        let mut searcher = Search::new(&HandCrafted).with_history(&[1, 2, 3]);
+        let outcome = searcher.fixed_depth(&root, 4);
+        assert_eq!(outcome.score, DRAW);
+        let line: Vec<String> = outcome.pv.iter().map(ToString::to_string).collect();
+        assert_eq!(line, ["h5e8", "g8h7", "e8h5", "h7g8"]);
+        // The search took back every hash it recorded, including those of
+        // the many illegal moves it tried while in check.
+        assert_eq!(searcher.keys, [1, 2, 3]);
+
+        // The same perpetual entered from outside: the queen starts on e2,
+        // so the root position never comes back. The position that repeats
+        // is the one after Qe8+, one ply down, which only the hashes
+        // recorded inside the tree can show. It comes back at ply 5.
+        let text = "6k1/6p1/8/8/8/7K/1r2Q3/q7 w - - 0 1";
+        assert!(search(text, 4).score < -300);
         let outcome = search(text, 5);
-        assert!(outcome.score > 500, "{outcome:?}");
+        assert_eq!(outcome.score, DRAW);
+        let line: Vec<String> = outcome.pv.iter().map(ToString::to_string).collect();
+        assert_eq!(line, ["e2e8", "g8h7", "e8h5", "h7g8", "h5e8"]);
     }
 
     #[test]
@@ -944,8 +978,13 @@ mod tests {
         let outcome = search("4k3/8/8/8/8/8/8/3rK3 w - - 0 1", 2);
         assert_eq!(outcome.score, DRAW);
         assert_eq!(outcome.best_move.unwrap().to_string(), "e1d1");
-        // King and knight against king: every line is drawn at once.
-        assert_eq!(search("4k3/8/8/8/8/8/8/3NK3 w - - 0 1", 3).score, DRAW);
+        // King and knight against king: every line is drawn at once, so the
+        // search visits the root and one node per root move, however deep it
+        // was asked to go.
+        let dead = fen("4k3/8/8/8/8/8/8/3NK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        assert_eq!(searcher.fixed_depth(&dead, 3).score, DRAW);
+        assert_eq!(searcher.nodes(), 1 + legal_moves(&dead).len() as u64);
     }
 
     const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
@@ -953,22 +992,70 @@ mod tests {
     const ROOK_ENDGAME: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
 
     #[test]
-    fn a_node_limit_stops_the_search_and_restores_everything() {
-        let original = fen(KIWIPETE);
-        let pos = original.clone();
+    fn a_node_limit_stops_the_search_and_restores_the_key_history() {
+        let pos = fen(KIWIPETE);
         let mut searcher = Search::new(&HandCrafted)
             .with_history(&[1, 2, 3])
             .with_limits(Limits::nodes(500));
         let outcome = searcher.fixed_depth(&pos, 4);
         assert!(searcher.was_stopped());
         assert_eq!(searcher.nodes(), 500, "stops exactly at the limit");
-        // Unwinding took every move back.
-        assert_eq!(pos, original);
+        // Unwinding took back every hash recorded on the way down. (The
+        // position itself cannot change: the search only borrows it.)
         assert_eq!(searcher.keys, [1, 2, 3]);
-        // Whatever move it names was searched completely and is legal.
+        // Whatever move it names is legal; the next test checks that it was
+        // searched completely.
         if let Some(mv) = outcome.best_move {
-            assert!(legal_moves(&original).contains(&mv));
+            assert!(legal_moves(&pos).contains(&mv));
         }
+    }
+
+    /// A search cut short answers from the root moves it finished and from
+    /// nothing else. White is a queen down here, so every move scores far
+    /// below zero; the half-searched move comes back as zero and would win
+    /// the comparison if it were allowed to take part.
+    #[test]
+    fn an_interrupted_search_ignores_the_move_it_was_working_on() {
+        let pos = fen("4k3/8/8/3q4/8/8/P7/4K3 w - - 0 1");
+        let depth = 3;
+        // The exact value of each root move, in the order they are tried.
+        let mut exact = Vec::new();
+        for &mv in &legal_moves(&pos) {
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            let mut child = Search::new(&HandCrafted);
+            child.keys.push(pos.hash());
+            let score = -child.negamax(&next, depth - 1, 1, -INFINITY, INFINITY);
+            assert!(score < -300, "{mv}: {score}");
+            exact.push((score, mv));
+        }
+        // What the search may answer: nothing, or the best of the first one,
+        // two, three... root moves, the earliest of equals.
+        let mut allowed = vec![(DRAW, None)];
+        for done in 1..=exact.len() {
+            let best = exact[..done].iter().map(|&(score, _)| score).max().unwrap();
+            let first = exact[..done].iter().find(|&&(score, _)| score == best);
+            allowed.push((best, first.map(|&(_, mv)| mv)));
+        }
+
+        let mut full = Search::new(&HandCrafted);
+        let complete = full.fixed_depth(&pos, depth);
+        assert_eq!(allowed.last(), Some(&(complete.score, complete.best_move)));
+        let total = full.nodes();
+
+        let mut named_a_move = 0;
+        for quarter in 1..=3 {
+            let limit = total * quarter / 4;
+            let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(limit));
+            let outcome = searcher.fixed_depth(&pos, depth);
+            assert!(searcher.was_stopped(), "limit {limit}");
+            assert!(
+                allowed.contains(&(outcome.score, outcome.best_move)),
+                "limit {limit}: {outcome:?}"
+            );
+            named_a_move += u32::from(outcome.best_move.is_some());
+        }
+        assert!(named_a_move >= 2, "the limits must fall between root moves");
     }
 
     #[test]
@@ -990,7 +1077,6 @@ mod tests {
         // Seen before the first node, since zero is a multiple of the interval.
         assert_eq!(searcher.nodes(), 0);
         assert_eq!(outcome.best_move, None);
-        assert_eq!(pos, fen(KIWIPETE));
 
         // A flag that is never raised does not disturb the search.
         let calm = AtomicBool::new(false);
@@ -1006,7 +1092,6 @@ mod tests {
         searcher.fixed_depth(&pos, 6);
         assert!(searcher.was_stopped());
         assert!(searcher.nodes() <= CHECK_INTERVAL);
-        assert_eq!(pos, fen(KIWIPETE));
     }
 
     /// Runs iterative deepening and collects the reports.
@@ -1056,6 +1141,16 @@ mod tests {
         let (lost, reports, _) = iterate("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", Limits::depth(12));
         assert_eq!(lost.score, mated_in(2));
         assert_eq!(reports.last().unwrap().depth, 2);
+        // A mate score alone does not end the search. Here depth 1 already
+        // reports mate in two (Re8+ Qxe8, Qxe8#), seen through the checks
+        // and captures of quiescence search, which does not look at every
+        // move and so cannot prove it the shortest. The search goes on until
+        // the mate fits inside the depth, at depth 3.
+        let (outcome, reports, _) =
+            iterate("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", Limits::depth(12));
+        assert_eq!(reports[0].score, mate_in(3), "seen at depth 1");
+        assert_eq!(reports.len(), 3, "but only proven at depth 3");
+        assert_eq!(outcome.score, mate_in(3));
     }
 
     #[test]
@@ -1088,9 +1183,12 @@ mod tests {
     #[test]
     fn the_first_iteration_always_completes() {
         // A node limit smaller than one iteration, and a raised stop flag.
-        let (outcome, reports, _) = iterate(KIWIPETE, Limits::nodes(1));
+        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(1));
         assert_eq!(reports.len(), 1);
         assert_eq!(outcome, search(KIWIPETE, 1));
+        // The limit is noticed between iterations, so no second one is
+        // started only to be thrown away: nothing was interrupted.
+        assert!(!stopped);
 
         let flag = AtomicBool::new(true);
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
@@ -1143,8 +1241,13 @@ mod tests {
         ] {
             let pos = fen(text);
             assert_eq!(quiet_value(&pos, 0), HandCrafted.evaluate(&pos), "{text}");
-            assert_eq!(pos, fen(text));
         }
+        // Valued on its own (ply 0), a dead position is not called a draw,
+        // just as the root of a search is not; inside a line it is.
+        let dead = fen("4k3/8/8/8/8/8/8/3NK3 w - - 0 1");
+        assert_ne!(HandCrafted.evaluate(&dead), DRAW);
+        assert_eq!(quiet_value(&dead, 0), HandCrafted.evaluate(&dead));
+        assert_eq!(quiet_value(&dead, 1), DRAW);
     }
 
     #[test]
@@ -1188,6 +1291,14 @@ mod tests {
         // King takes queen: bare kings, which is level.
         assert_eq!(quiet_value(&checked, 0), 0);
         assert!(HandCrafted.evaluate(&checked) < -800);
+        // A skewer: White is a queen for a rook up, but the king is in
+        // check, must step aside, and the queen behind it falls. Standing
+        // pat here would claim the material; the truth is a draw at best
+        // (the king retakes the rook).
+        let skewered = fen("4r2k/8/8/8/8/8/4K3/4Q3 w - - 0 1");
+        assert!(skewered.in_check());
+        assert!(HandCrafted.evaluate(&skewered) > 300);
+        assert_eq!(quiet_value(&skewered, 0), DRAW);
     }
 
     #[test]
@@ -1204,7 +1315,6 @@ mod tests {
         let value = searcher.quiesce(&pos, 0, -INFINITY, INFINITY);
         assert!(value.abs() < 2_000, "{value}");
         assert!(searcher.nodes() < 1_000_000, "{}", searcher.nodes());
-        assert_eq!(pos, fen(KIWIPETE));
     }
 
     /// The shortcut in `has_legal_move` must agree with real legality on
