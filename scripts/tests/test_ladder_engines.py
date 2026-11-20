@@ -77,12 +77,8 @@ class LadderEnginesTest(unittest.TestCase):
             self.assertIn(engine["archive"], ("none", "tar.gz", "zip"), name)
             self.assertRegex(engine["licence"], r"^(GPL-[23]\.0|AGPL-3\.0|MIT)$", name)
             self.assertGreater(len(engine["notes"]), 10, name)
-            if engine["sha256"] is None:
-                # Allowed only for a source archive of one exact commit.
-                self.assertEqual(engine["method"], "build", name)
-                self.assertRegex(engine["url"], r"/archive/[0-9a-f]{40}\.tar\.gz$", name)
-            else:
-                self.assertRegex(engine["sha256"], r"^[0-9a-f]{64}$", name)
+            # Nothing is fetched without a digest, source archives included.
+            self.assertRegex(engine["sha256"] or "", r"^[0-9a-f]{64}$", name)
             if "member_sha256" in engine:
                 self.assertRegex(engine["member_sha256"], r"^[0-9a-f]{64}$", name)
             # A download that is the binary itself must have a digest.

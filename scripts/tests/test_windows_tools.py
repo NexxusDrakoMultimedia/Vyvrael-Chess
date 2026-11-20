@@ -121,6 +121,63 @@ class WindowsToolsTest(unittest.TestCase):
         self.assertEqual(failed, ["ordo"])
         self.assertEqual(ctx.installed_entry("windows:ordo"), {})
 
+    def test_the_check_fails_a_program_that_dies_silently(self):
+        ctx = self.ctx()
+        program = windows_tools.program_path(ctx, "ordo")
+        program.parent.mkdir(parents=True)
+        program.write_bytes(b"")
+
+        really_run = windows_tools.subprocess.run
+
+        def run_as(code: str):
+            # Runs this Python in place of the installed program.
+            return lambda command, **kwargs: really_run([sys.executable, "-c", code], **kwargs)
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            with mock.patch.object(windows_tools.subprocess, "run",
+                                   run_as("import sys; sys.exit(53)")):
+                silent = WindowsToolsTest.real_check(ctx, "ordo")
+            with mock.patch.object(windows_tools.subprocess, "run",
+                                   run_as("import sys; print('Ordo 1.2.6'); sys.exit(1)")):
+                talks = WindowsToolsTest.real_check(ctx, "ordo")
+            with mock.patch.object(windows_tools.subprocess, "run",
+                                   run_as("print('cutechess-cli 1.5.1')")):
+                fine = WindowsToolsTest.real_check(ctx, "ordo")
+        self.assertEqual((silent, talks, fine), (False, True, True))
+        self.assertIn("check FAILED: exit status 53 and no output", out.getvalue())
+        self.assertIn("check: Ordo 1.2.6 (exit status 1)", out.getvalue())
+
+    real_check = staticmethod(windows_tools.check)
+
+    def test_all_means_both_tools_and_the_list_is_checked_first(self):
+        prefix = str(self.tmp / "prefix")
+        out = io.StringIO()
+        with mock.patch.object(sys, "platform", "win32"), redirect_stdout(out):
+            install_tools.main(["--prefix", prefix, "--tool", "all"])
+        self.assertIn("CUTECHESS_CLI=", out.getvalue())
+        self.assertIn("ORDO=", out.getvalue())
+        # A name that cannot be installed stops the run before anything is fetched.
+        self.downloads.clear()
+        with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()), \
+                self.assertRaises(SystemExit):
+            windows_tools.install_tools_windows(
+                self.ctx(), ["cutechess", "lichess-bot"], True
+            )
+        self.assertEqual(self.downloads, [])
+
+    def test_list_on_windows_shows_the_windows_tools(self):
+        prefix = str(self.tmp / "prefix")
+        with mock.patch.object(sys, "platform", "win32"), redirect_stdout(io.StringIO()):
+            install_tools.main(["--prefix", prefix, "--tool", "ordo"])
+        out = io.StringIO()
+        with mock.patch.object(sys, "platform", "win32"), redirect_stdout(out):
+            install_tools.main(["--prefix", prefix, "--list"])
+        lines = out.getvalue().splitlines()
+        self.assertRegex(lines[0], r"^cutechess +pinned v1\.5\.1 +not installed$")
+        self.assertRegex(lines[1], r"^ordo +pinned v1\.2\.6 +installed$")
+        self.assertIn("on Linux only", out.getvalue())
+
     def test_a_wrong_digest_is_refused(self):
         self.pins["ordo"]["sha256"] = "0" * 64
         with self.assertRaises(SystemExit):

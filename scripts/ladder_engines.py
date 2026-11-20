@@ -24,7 +24,7 @@ from __future__ import annotations
 #   method    "download" (an official binary) or "build" (official source)
 #   url       the file fetched: a binary, an archive of binaries, or a source
 #             archive of one exact tag or commit
-#   sha256    digest of that file, enforced on download
+#   sha256    digest of that file, enforced on download; every entry has one
 #   archive   "none" (the file is the binary), "tar.gz" or "zip"
 #   binary    path of the engine inside the archive's one top directory (or
 #             the member's name in a flat zip), after any build
@@ -139,7 +139,7 @@ ENGINES = [
         "method": "build",
         "url": "https://github.com/princesslana/princhess/archive/"
         "000c92c076246a3385ff2b29aacc227c38eeda8b.tar.gz",
-        "sha256": None,
+        "sha256": "a21d53cefdcad7b4355aef565a07ca379a29277d9b89f01fe22c41f8e2013883",
         "archive": "tar.gz",
         "binary": "target/release/princhess",
         "build": {
@@ -155,7 +155,8 @@ ENGINES = [
         "notes": "Built from the tag's commit with the project's own `make build` command. "
         "The official Linux binary is not used: its tablebase code was compiled for the "
         "release machine's processor and contains AVX-512 instructions. No digest is "
-        "published for the source archive; the commit fixes what is fetched. The build "
+        "published for the source archive; this one is what GitHub served for the "
+        "commit on 2026-11-21. The build "
         "needs libclang as well as cargo and a C compiler, and a build from an archive "
         "may report itself as version 0.0.0-dev: the version comes from git upstream.",
     },

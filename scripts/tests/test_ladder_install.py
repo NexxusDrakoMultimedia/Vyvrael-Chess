@@ -179,6 +179,67 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(ctx.installed_entry("engine:Test 1.0")["command"],
                          engine["build"]["command"])
 
+    def test_an_engine_without_a_digest_is_refused(self):
+        url, _ = self.serve("bare", b"ELF")
+        _, present, failed, printed = self.install([self.engine(url=url, sha256=None)])
+        self.assertEqual((present, failed), ([], ["Test 1.0"]))
+        self.assertIn("has no SHA-256 in its pin", printed)
+        self.assertEqual(self.downloads, [])
+
+    def test_a_download_that_fails_does_not_stop_the_other_engines(self):
+        good_url, digest = self.serve("good", b"ELF good")
+        gone = self.engine("Gone 1", url="https://example.invalid/gone", sha256="0" * 64)
+        good = self.engine("Good 2", url=good_url, sha256=digest)
+        real = self.fake_download
+
+        def flaky(url, dest, sha256):
+            if url.endswith("/gone"):
+                raise OSError("server answered 404")
+            return real(url, dest, sha256)
+
+        with mock.patch.object(install_tools, "download", flaky):
+            ctx, present, failed, printed = self.install([gone, good])
+        self.assertEqual((present, failed), ([good], ["Gone 1"]))
+        self.assertIn("error: Gone 1: OSError: server answered 404", printed)
+        self.assertTrue((ctx.prefix / "engines" / "good-2" / "test-bin").is_file())
+
+    def test_a_failed_reinstall_leaves_the_working_install_as_it_was(self):
+        url, digest = self.serve("bare", b"ELF v1")
+        engine = self.engine(url=url, sha256=digest)
+        ctx, _, _, _ = self.install([engine])
+        program = ctx.prefix / "engines" / "test-1.0" / "test-bin"
+        (self.served / "bare").write_bytes(b"ELF tampered")
+        ctx, present, failed, _ = self.install([engine], force=True)
+        self.assertEqual((present, failed), ([], ["Test 1.0"]))
+        # Still on disk, still recorded, so a later run does not fetch again.
+        self.assertEqual(program.read_bytes(), b"ELF v1")
+        self.assertTrue(ladder_install.is_installed(ctx, engine))
+
+    def test_an_engine_missing_a_file_beside_it_is_installed_again(self):
+        url, digest = self.tarball("pack.tar.gz", {"top/engine": b"ELF", "top/net.nnue": b"net"})
+        engine = self.engine(url=url, sha256=digest, archive="tar.gz", binary="engine",
+                             beside=["net.nnue"])
+        ctx, _, _, _ = self.install([engine])
+        net = ctx.prefix / "engines" / "test-1.0" / "net.nnue"
+        self.assertTrue(ladder_install.is_installed(ctx, engine))
+        net.unlink()
+        self.assertFalse(ladder_install.is_installed(ctx, engine))
+        self.install([engine])
+        self.assertEqual(net.read_bytes(), b"net")
+        self.assertEqual(len(self.downloads), 2)
+
+    def test_a_dry_run_notes_a_missing_tool_and_changes_nothing(self):
+        engine = self.source_engine()
+        with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
+            ctx, _, _, _ = self.install([engine])
+        before = ctx.manifest.read_text()
+        with mock.patch.object(shutil, "which", lambda tool: None):
+            ctx, present, failed, printed = self.install([engine], force=True, dry_run=True)
+        self.assertEqual(failed, [])
+        self.assertIn("a real run would skip this engine", printed)
+        self.assertEqual(ctx.manifest.read_text(), before)
+        self.assertTrue(ladder_install.is_installed(ctx, engine))
+
     def test_a_missing_build_tool_is_named_and_nothing_is_fetched(self):
         engine = self.source_engine(build={"tools": ["gcc", "no-such-tool-xyz", "make"]})
         with mock.patch.object(shutil, "which",

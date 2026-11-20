@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -59,11 +60,14 @@ def is_installed(ctx, engine: dict) -> bool:
     """Whether this exact pin is installed: recorded with the same address,
     digest and build command, and with its program still on disk."""
     entry = ctx.installed_entry(manifest_key(engine))
+    home = engine_dir(ctx, engine)
     return (
         entry.get("url") == engine["url"]
         and entry.get("sha256") == engine["sha256"]
         and entry.get("command") == engine.get("build", {}).get("command")
         and installed_binary(ctx, engine).is_file()
+        # What the engine needs beside it (a network, a book, personalities).
+        and all((home / Path(extra).name).exists() for extra in engine.get("beside", []))
     )
 
 
@@ -160,13 +164,22 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
     dest = engine_dir(ctx, engine)
     how = "download" if engine["method"] == "download" else "build from source"
     tools.say(f"{name}: {engine['version']} ({how}) -> {dest}")
+    if not engine.get("sha256"):
+        tools.die(f"{name} has no SHA-256 in its pin; nothing is fetched without one")
     lacking = missing_tools(engine)
     if lacking:
-        tools.die(
+        problem = (
             f"{name} is built from source and needs {', '.join(lacking)}, which"
-            f" {'is' if len(lacking) == 1 else 'are'} not on PATH. Install"
-            f" {'it' if len(lacking) == 1 else 'them'} and run again; nothing was changed."
+            f" {'is' if len(lacking) == 1 else 'are'} not on PATH"
         )
+        if ctx.dry:
+            # A dry run reports and goes on; it does not fail.
+            tools.say(f"  note: {problem}; a real run would skip this engine")
+        else:
+            tools.die(
+                f"{problem}. Install {'it' if len(lacking) == 1 else 'them'} and run"
+                " again; nothing was changed."
+            )
     if ctx.dry:
         tools.say(f"  would download {engine['url']}")
         if engine["method"] == "build":
@@ -234,8 +247,10 @@ def install_engines(ctx, only: list[str] | None, force: bool) -> tuple[list[dict
 
     Returns the engines now installed and the names of those that failed.
     One engine failing (a missing build tool, a build error, a checksum that
-    does not match) does not stop the others: its message has been printed
-    and it is not recorded as installed.
+    does not match, a download that does not answer) does not stop the
+    others: its message is printed and this run records nothing for it. An
+    earlier install of the same engine is left as it was, on disk and in the
+    record: a failure happens before anything is swapped into place.
     """
     chosen = select(only)
     fetched = {"dir": tempfile.mkdtemp(prefix="vyvrael-fetched-")}
@@ -249,7 +264,12 @@ def install_engines(ctx, only: list[str] | None, force: bool) -> tuple[list[dict
             try:
                 info = install_engine(ctx, engine, fetched)
             except SystemExit:
-                ctx.forget(manifest_key(engine))
+                failed.append(engine["name"])
+                continue
+            except Exception as problem:  # noqa: BLE001 - one engine must not stop the rest
+                # A network error, a broken archive, a full disk.
+                print(f"error: {engine['name']}: {type(problem).__name__}: {problem}",
+                      file=sys.stderr)
                 failed.append(engine["name"])
                 continue
             if info is not None:

@@ -123,7 +123,9 @@ def install(ctx, tool: str) -> dict | None:
 def check(ctx, tool: str) -> bool:
     """Starts the installed program once and shows its first line of output.
 
-    Fails when it cannot be started or does not answer within two minutes.
+    Fails when it cannot be started, does not answer within two minutes, or
+    ends with an error status without printing anything, which is what a
+    program does that cannot load a library it needs.
     """
     program = program_path(ctx, tool)
     try:
@@ -135,20 +137,26 @@ def check(ctx, tool: str) -> bool:
         tools.say(f"  check FAILED: {problem}")
         return False
     lines = (result.stdout or result.stderr or "").strip().splitlines()
-    tools.say(f"  check: {lines[0] if lines else '(no output)'}")
+    if result.returncode != 0 and not lines:
+        tools.say(f"  check FAILED: exit status {result.returncode} and no output")
+        return False
+    status = f" (exit status {result.returncode})" if result.returncode != 0 else ""
+    tools.say(f"  check: {lines[0] if lines else '(no output)'}{status}")
     return True
 
 
 def install_tools_windows(ctx, wanted: list[str], force: bool) -> list[str]:
     """Installs the wanted tools and returns the names that failed."""
     failed = []
+    # The whole list is checked before anything is installed.
     for tool in wanted:
         if tool not in PINS:
             tools.die(
                 f"{tool} is not installed on Windows by this script"
                 + (": lichess-bot runs on the Linux machine only (docs/LICHESS.md)"
-                   if tool == "lichess-bot" else "")
+                   if tool == "lichess-bot" else f" (it installs {', '.join(PINS)})")
             )
+    for tool in wanted:
         if is_installed(ctx, tool) and not force:
             tools.say(f"{tool}: {PINS[tool]['version']} already installed"
                       " (use --force to reinstall)")

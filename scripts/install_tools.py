@@ -806,6 +806,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     ctx = Ctx(args)
+    if args.list and sys.platform == "win32":
+        import windows_tools
+
+        for tool, pin in windows_tools.PINS.items():
+            have = "installed" if windows_tools.is_installed(ctx, tool) else "not installed"
+            say(f"{tool:12} pinned {pin['version']:14} {have}")
+        say("lichess-bot and the ladder's engines are installed on Linux only")
+        say(f"prefix {ctx.prefix}")
+        return
     if args.list:
         for tool in TOOLS:
             pin = PINS[tool]
@@ -828,9 +837,10 @@ def main(argv: list[str] | None = None) -> None:
                 "the ladder's engines are installed by this script on Linux only; on"
                 " Windows take each one from its project's own release"
             )
-        failed = windows_tools.install_tools_windows(
-            ctx, args.tool or DEFAULT_TOOLS, args.force
-        )
+        wanted = args.tool or DEFAULT_TOOLS
+        if "all" in wanted:
+            wanted = list(windows_tools.PINS)
+        failed = windows_tools.install_tools_windows(ctx, wanted, args.force)
         if failed:
             die(f"the check failed for {', '.join(failed)} (see above)")
         return
@@ -891,8 +901,8 @@ def main(argv: list[str] | None = None) -> None:
         )
     if engines_failed:
         die(
-            f"not installed: {', '.join(engines_failed)} (see above). Nothing of them was"
-            " left in place; the other engines are unaffected."
+            f"not installed: {', '.join(engines_failed)} (see above). Nothing was changed"
+            " for them; the other engines are unaffected."
         )
     if engines_broken:
         die(
