@@ -152,3 +152,6 @@ once it has a first release.
   measuring it 3 to 5% faster than make/unmake in the search loop.
 - Brand assets in `branding/`: the engine's avatar and the NXD fractal
   background, all rights reserved and outside the code's GPL.
+- The 128 magic numbers are embedded as constants (`attacks/magics.rs`), so
+  the engine no longer searches for them at start-up. A test proves they are
+  exactly what the seeded search finds.

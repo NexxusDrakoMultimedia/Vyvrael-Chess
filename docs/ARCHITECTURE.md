@@ -255,9 +255,16 @@ on this square attack?".
     h8 and then the rook squares. A candidate is kept when filling the slice
     from the scanned reference attacks produces no conflicting slot. Because
     the stream is fixed, every run finds the same numbers; a test pins them.
-  - *When.* The tables are built on first use behind a `LazyLock`, not at
-    compile time: the search is too heavy for `const` evaluation. It takes
-    about 0.1 s in a release build (known issue KI-7).
+  - *Embedded, not searched for at start-up.* The 128 numbers the search
+    finds are constants in `attacks/magics.rs`. The search itself is test
+    code: a test runs it and requires exactly the embedded numbers and
+    exactly the table the engine builds, so the numbers remain reproducible
+    from the seed and cannot be edited by hand unnoticed.
+  - *When.* The tables are built on first use behind a `LazyLock`, by
+    filling each square's slice from its embedded number, which takes a few
+    milliseconds. While filling, each number is checked to be a magic number
+    for its mask; a wrong one stops the engine at once instead of giving
+    wrong attacks.
   - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
     the lookups move generation uses.
 
@@ -631,7 +638,7 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
-| Magic-number search (`attacks::sliders`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, on first use | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
+| Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 

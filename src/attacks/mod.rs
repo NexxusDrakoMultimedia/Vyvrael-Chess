@@ -7,6 +7,7 @@
 
 mod leapers;
 pub mod magic;
+mod magics;
 mod scan;
 mod sliders;
 

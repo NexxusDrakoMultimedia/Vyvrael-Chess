@@ -3,15 +3,18 @@
 
 //! Bishop, rook and queen attacks by magic-bitboard lookup.
 //!
-//! The tables are built once, on first use. The magic numbers are found by
-//! trial with the seeded generator (`rng::stream::MAGICS`), so every build
-//! and every run finds exactly the same numbers and builds the same tables.
+//! The tables are built once, on first use, from the magic numbers embedded
+//! in `magics.rs`. Those numbers were found by trial with the seeded
+//! generator (`rng::stream::MAGICS`); the search is kept here as test code,
+//! and a test proves that it still finds exactly the embedded numbers.
 
 use std::sync::LazyLock;
 
 use super::magic::{bishop_relevant_mask, rook_relevant_mask, subsets};
+use super::magics::{BISHOP_MAGICS, ROOK_MAGICS};
 use super::scan::{bishop_attacks_by_scan, rook_attacks_by_scan};
 use crate::board::{Bitboard, Square};
+#[cfg(test)]
 use crate::rng::{DEFAULT_SEED, Rng, stream};
 
 /// How to find one square's slice of the shared attack table.
@@ -50,11 +53,44 @@ struct Tables {
 
 static TABLES: LazyLock<Tables> = LazyLock::new(build_tables);
 
+/// One square's slice of the attack table: for every arrangement of
+/// blockers on `mask`, the attacks stored in the slot `magic` sends it to.
+///
+/// # Panics
+///
+/// Panics if `magic` sends two arrangements with different attacks to the
+/// same slot, that is, if it is not a magic number for this mask. The
+/// embedded numbers are checked this way every time the tables are built;
+/// the check costs nothing next to the work it guards.
+fn fill_slice(
+    mask: Bitboard,
+    magic: u64,
+    attacks_of: impl Fn(Bitboard) -> Bitboard,
+) -> Vec<Bitboard> {
+    let shift = 64 - mask.count();
+    let mut slice = vec![Bitboard::EMPTY; 1usize << mask.count()];
+    for occupied in subsets(mask) {
+        let attacks = attacks_of(occupied);
+        let slot = &mut slice[(occupied.0.wrapping_mul(magic) >> shift) as usize];
+        // No attack set is empty (a slider always sees a neighbouring
+        // square), so an empty slot is one not written yet.
+        assert!(
+            *slot == Bitboard::EMPTY || *slot == attacks,
+            "{magic:#018X} is not a magic number for this mask"
+        );
+        *slot = attacks;
+    }
+    slice
+}
+
 /// Finds a magic number for one square and returns it with the filled slice.
+/// Test code: the engine uses the numbers this found, embedded in
+/// `magics.rs`.
 ///
 /// Candidates with few set bits work best, so each is the AND of three
 /// random numbers. A candidate is accepted when no two blocker arrangements
 /// with different attacks land in the same slot.
+#[cfg(test)]
 fn find_magic(
     mask: Bitboard,
     attacks_of: impl Fn(Bitboard) -> Bitboard,
@@ -101,18 +137,16 @@ fn find_magic(
 }
 
 fn build_tables() -> Tables {
-    let mut rng = Rng::stream(DEFAULT_SEED, stream::MAGICS);
     let mut tables = Tables {
         bishop: [Entry::EMPTY; Square::COUNT],
         rook: [Entry::EMPTY; Square::COUNT],
         attacks: Vec::with_capacity(5_248 + 102_400),
     };
-    // Order matters for reproducibility: all bishop squares a1..h8, then
-    // all rook squares, drawing from one generator.
     for square in Square::all() {
         let mask = bishop_relevant_mask(square);
         let scan = |occupied| bishop_attacks_by_scan(square, occupied);
-        let (magic, slice) = find_magic(mask, scan, &mut rng);
+        let magic = BISHOP_MAGICS[square.index()];
+        let slice = fill_slice(mask, magic, scan);
         tables.bishop[square.index()] = Entry {
             mask: mask.0,
             magic,
@@ -124,7 +158,8 @@ fn build_tables() -> Tables {
     for square in Square::all() {
         let mask = rook_relevant_mask(square);
         let scan = |occupied| rook_attacks_by_scan(square, occupied);
-        let (magic, slice) = find_magic(mask, scan, &mut rng);
+        let magic = ROOK_MAGICS[square.index()];
+        let slice = fill_slice(mask, magic, scan);
         tables.rook[square.index()] = Entry {
             mask: mask.0,
             magic,
@@ -243,17 +278,51 @@ mod tests {
         }
     }
 
-    /// Building the tables again gives the same magic numbers: the search is
-    /// a pure function of the seeded stream.
-    #[test]
-    fn magic_search_is_reproducible() {
-        let again = build_tables();
-        let tables = &*TABLES;
+    /// Runs the seeded search the embedded numbers came from: all bishop
+    /// squares a1..h8, then all rook squares, drawing from one generator.
+    /// Returns the numbers and the attack table the search fills.
+    fn search_magics() -> (Vec<u64>, Vec<u64>, Vec<Bitboard>) {
+        let mut rng = Rng::stream(DEFAULT_SEED, stream::MAGICS);
+        let (mut bishop, mut rook, mut attacks) = (Vec::new(), Vec::new(), Vec::new());
         for square in Square::all() {
-            let i = square.index();
-            assert_eq!(again.bishop[i].magic, tables.bishop[i].magic, "{square}");
-            assert_eq!(again.rook[i].magic, tables.rook[i].magic, "{square}");
+            let scan = |occupied| bishop_attacks_by_scan(square, occupied);
+            let (magic, slice) = find_magic(bishop_relevant_mask(square), scan, &mut rng);
+            bishop.push(magic);
+            attacks.extend(slice);
         }
-        assert_eq!(again.attacks, tables.attacks);
+        for square in Square::all() {
+            let scan = |occupied| rook_attacks_by_scan(square, occupied);
+            let (magic, slice) = find_magic(rook_relevant_mask(square), scan, &mut rng);
+            rook.push(magic);
+            attacks.extend(slice);
+        }
+        (bishop, rook, attacks)
+    }
+
+    /// The embedded numbers are not arbitrary: the seeded search finds
+    /// exactly them, and fills exactly the table the engine builds from
+    /// them. Run twice, the search gives the same result: it is a pure
+    /// function of the seeded stream.
+    #[test]
+    fn the_embedded_magics_are_what_the_seeded_search_finds() {
+        let (bishop, rook, attacks) = search_magics();
+        let print = |found: &[u64]| {
+            let lines: Vec<String> = found.iter().map(|m| format!("{m:#018X}")).collect();
+            lines.join("\n")
+        };
+        assert!(bishop == BISHOP_MAGICS, "bishops:\n{}", print(&bishop));
+        assert!(rook == ROOK_MAGICS, "rooks:\n{}", print(&rook));
+        assert_eq!(attacks, TABLES.attacks);
+        assert_eq!(search_magics(), (bishop, rook, attacks));
+    }
+
+    #[test]
+    #[should_panic(expected = "is not a magic number")]
+    fn a_number_that_is_not_magic_is_refused() {
+        let mask = rook_relevant_mask(Square::A1);
+        // Multiplying by zero sends every arrangement to slot 0.
+        fill_slice(mask, 0, |occupied| {
+            rook_attacks_by_scan(Square::A1, occupied)
+        });
     }
 }
