@@ -384,7 +384,18 @@ the opening file's location in `BOOK`; the output folder `matches/` is
 git-ignored.
 
 ```sh
-cutechess-cli   -engine name="Vyvrael 0.1.0-a1" cmd=target/release/vyvrael proto=uci           option.Hash=64 option.Threads=1   -engine name="Vyvrael 0.1.0-a1 (2)" cmd=target/release/vyvrael proto=uci           option.Hash=64 option.Threads=1   -each tc=10+0.1   -openings file="$BOOK" format=epd order=random   -games 2 -repeat -rounds 10   -resign movecount=3 score=700 twosided=true   -draw movenumber=34 movecount=10 score=20   -recover -concurrency 6 -srand 822286742 -ratinginterval 10   -pgnout matches/selfplay.pgn
+cutechess-cli \
+  -engine name="Vyvrael 0.1.0-a1" cmd=target/release/vyvrael proto=uci \
+          option.Hash=64 option.Threads=1 \
+  -engine name="Vyvrael 0.1.0-a1 (2)" cmd=target/release/vyvrael proto=uci \
+          option.Hash=64 option.Threads=1 \
+  -each tc=10+0.1 \
+  -openings file="$BOOK" format=epd order=random \
+  -games 2 -repeat -rounds 10 \
+  -resign movecount=3 score=700 twosided=true \
+  -draw movenumber=34 movecount=10 score=20 \
+  -recover -concurrency 6 -srand 822286742 -ratinginterval 10 \
+  -pgnout matches/selfplay.pgn
 ```
 
 For games against other engines, add `-tournament gauntlet`, keep Vyvræl as
@@ -417,7 +428,7 @@ games were not kept in the repository.
 Forty games against five opponents say nothing reliable about a rating;
 that is milestone 6 (known issue KI-8).
 
-## Strength matches and SPRT (planned, milestone 6)
+## Strength matches and SPRT (planned, before milestone 6)
 
 Search, evaluation and network changes are accepted only when a sequential
 probability ratio test (SPRT) against the previous version shows a gain. A

@@ -33,8 +33,10 @@ bestmove d2d4
 quit
 ```
 
-It has been tested by driving the binary over pipes. It has not yet been
-tried in a GUI or with lichess-bot.
+It has been tested by driving the binary over pipes (`tests/uci.rs`) and by
+playing complete games under `cutechess-cli`; see "Complete games in
+cutechess-cli" in [TESTING.md](TESTING.md). It has not yet been tried in a
+GUI or with lichess-bot.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands

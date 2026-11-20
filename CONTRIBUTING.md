@@ -43,7 +43,7 @@ CI runs the same commands.
 Any change to search, evaluation or the network is accepted only if an SPRT
 match against the previous version shows a gain. Record the SPRT result
 (bounds, games, LLR, Elo estimate) in the commit message or in
-`docs/TESTING.md`. Until the match script exists (milestone 6), search changes
+`docs/TESTING.md`. Until the match scripts exist (planned before milestone 6), search changes
 need at least a fixed-depth node-count and correctness check.
 
 ## Commits

@@ -150,7 +150,7 @@ interface that a neural network can implement later. The hand-crafted
 evaluation stays as fallback and baseline.
 
 Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
-the match script (milestone 6). Until then it is checked for correctness
+the match script (built before milestone 6). Until then it is checked for correctness
 only (symmetry, known material balances, phase arithmetic), and its strength
 is recorded as unmeasured in known issue KI-8.
 
@@ -249,7 +249,7 @@ Design decisions taken at the start of the milestone:
   moves that looked nearly as good, not random ones. The numbers are
   provisional until calibration in milestone 6.
 
-## Milestones 5 to 10
+## Milestones 6 to 10
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
@@ -417,8 +417,8 @@ Notes for whoever starts it:
 
 - `scripts/install_tools.py` already installs pinned versions of both tools
   (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
-  been run end to end. Windows install steps are still to be documented by
-  hand, since the installer is Linux-only by the maintainer's choice.
+  been run end to end. It is Linux-only today; Windows support is planned
+  (see "Testing tooling" above).
 
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
@@ -447,7 +447,7 @@ measured against.
 
 Steps 3 and 4 change which moves the search looks at, so unlike plain
 ordering they can change its results. That is why each gets its own SPRT.
-The matches run on the Linux machine with the scripts from milestone 6;
+The matches run on the Linux machine with the match scripts;
 results from different machines are not compared with each other.
 
 The other milestone 7 heuristics (killer moves, history, null-move pruning,
@@ -473,7 +473,8 @@ NNUE is 9 and tablebases are 10.
   ordering in the main search still waits for milestone 7.
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
-  SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
+  SPRT needs the match script (before milestone 6), which needs UCI
+  (milestone 5).
   So milestone 4 builds only the core that everything else depends on:
   negamax with alpha-beta, iterative deepening and quiescence search. UCI and
   the match script follow. Milestone 7 then adds move ordering (hash move,

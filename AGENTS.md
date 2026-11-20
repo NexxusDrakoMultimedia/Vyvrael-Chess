@@ -153,8 +153,9 @@ shared in the tool crates).
   checklist into `docs/ROADMAP.md` and commit it, then tick items off in the
   commits that complete them.
 - Branching: one branch per milestone (`milestone/1-board`,
-  `milestone/2-movegen`, ...), each started from the previous milestone's
-  branch. The agent reviews and merges it into `main` (see "Rules").
+  `milestone/2-movegen`, ...), each started from `main` once the previous
+  milestone is merged. The agent reviews and merges it into `main` (see
+  "Rules").
   Release preparation (`release/<version>`) and tooling
   (`tooling/<name>`) get branches of their own; the maintainer reviews a
   release branch and does the tagging.
