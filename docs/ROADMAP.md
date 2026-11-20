@@ -213,7 +213,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
   `go`, `stop`, `setoption`, `quit`)
 - [x] `uci`: output formatting (`info`, scores, `bestmove`)
-- [ ] `uci`: time management (from `wtime`, `btime`, increments,
+- [x] `uci`: time management (from `wtime`, `btime`, increments,
   `movestogo`, `movetime` to a deadline)
 - [ ] `uci`: the engine session and protocol loop, with the search on its
   own thread; the binary runs it when started without arguments

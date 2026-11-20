@@ -8,6 +8,8 @@
 
 mod command;
 mod output;
+mod time;
 
 pub use command::{Command, GoParams, parse};
 pub use output::{bestmove_line, info_line, score_text};
+pub use time::{MOVE_OVERHEAD, MOVES_ASSUMED, limits_for, time_for_move};

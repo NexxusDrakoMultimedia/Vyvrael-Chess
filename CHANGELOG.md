@@ -163,3 +163,6 @@ once it has a first release.
   acts on them yet.
 - `uci`: formatting of `info` and `bestmove` lines and of scores
   (`cp` and `mate`).
+- `uci`: time management. A move gets an equal share of the remaining time
+  (over `movestogo` or 30 moves) plus three quarters of the increment, never
+  more than is on the clock less a 30 ms overhead.
