@@ -406,7 +406,7 @@ that added `Move Overhead`:
 | Run | Games | Mate | Draw by rule | Adjudicated | Illegal moves, crashes, stalls, time losses |
 | --- | --- | --- | --- | --- | --- |
 | Self-play | 20 | 2 | 2 | 16 | 0 |
-| Gauntlet against Arasan 26.1-1500, Stockfish 19-1320, Rodent IV-1600, Vice 1.1 and Rustic Alpha 1.5 | 40 | 4 | 2 | 34 | 0 |
+| Gauntlet against Arasan 26.1-1500, Stockfish 19-1320, Rodent IV-1600, Vice 1.1 and Rustic Alpha 1.5 | 40 | 6 | 2 | 32 | 0 |
 
 The longest game ran 238 plies. In the gauntlet log `cutechess-cli` warned
 four times, "EngineProcess: Destroyed while process is still running"; each
