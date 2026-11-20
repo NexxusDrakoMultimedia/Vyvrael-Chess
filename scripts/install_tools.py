@@ -776,6 +776,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="also write a user service for lichess-bot under ~/.config (not enabled)",
     )
+    parser.add_argument(
+        "--engines",
+        action="store_true",
+        help="install the ladder's opponent engines (see scripts/ladder_engines.py)"
+        " instead of the tools",
+    )
+    parser.add_argument(
+        "--only",
+        action="append",
+        metavar="ENGINE",
+        help='install only this ladder engine, by its name in the ladder, for example'
+        ' --only "Vice 1.1" (repeatable; implies --engines)',
+    )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")
     parser.add_argument("--dry-run", action="store_true", help="show what would be done")
@@ -790,12 +803,20 @@ def main(argv: list[str] | None = None) -> None:
             pin = PINS[tool]
             have = ctx.installed_version(tool) or "not installed"
             say(f"{tool:12} pinned {pin['version']:14} installed: {have}  ({pin['licence']})")
+        import ladder_engines
+        import ladder_install
+
+        for engine in ladder_engines.ENGINES:
+            have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
+            say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")
         return
     if not sys.platform.startswith("linux") and not args.dry_run:
         die("this installer supports Linux only; see docs/TESTING.md for other systems")
 
-    wanted = args.tool or DEFAULT_TOOLS
+    # --engines (or --only) installs engines; tools then only if asked for.
+    engines_wanted = args.engines or bool(args.only)
+    wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
     if "all" in wanted:
         wanted = TOOLS
     failed = []
@@ -816,7 +837,12 @@ def main(argv: list[str] | None = None) -> None:
         else:
             ctx.forget(tool)
             failed.append(tool)
-    if not args.dry_run:
+    engines_failed = []
+    if engines_wanted:
+        import ladder_install
+
+        _, engines_failed = ladder_install.install_engines(ctx, args.only, args.force)
+    if not args.dry_run and wanted:
         path_hint(ctx)
         if "lichess-bot" in wanted:
             say(LICHESS_NEXT_STEPS)
@@ -824,6 +850,11 @@ def main(argv: list[str] | None = None) -> None:
         die(
             f"the check failed for {', '.join(failed)} (see above). The files are in place under"
             f" {ctx.prefix} but not recorded as installed, so the next run installs again."
+        )
+    if engines_failed:
+        die(
+            f"not installed: {', '.join(engines_failed)} (see above). Nothing of them was"
+            " left in place; the other engines are unaffected."
         )
 
 

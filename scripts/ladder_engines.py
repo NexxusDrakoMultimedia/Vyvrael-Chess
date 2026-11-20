@@ -26,9 +26,11 @@ from __future__ import annotations
 #             archive of one exact tag or commit
 #   sha256    digest of that file, enforced on download
 #   archive   "none" (the file is the binary), "tar.gz" or "zip"
-#   binary    path of the engine inside the archive, or inside the built tree
+#   binary    path of the engine inside the archive's one top directory (or
+#             the member's name in a flat zip), after any build
 #   member_sha256  digest of the binary inside an archive holding several
-#   beside    files the engine needs next to it, inside the archive
+#   beside    files and directories the engine needs next to it, by the same
+#             kind of path; they are installed beside the binary
 #   build     for method "build": the directory to build in, the command (a
 #             list of arguments, no shell), extra environment, and the tools
 #             that must be on PATH
@@ -47,7 +49,7 @@ ENGINES = [
         "sf_19/stockfish-linux-x86-64-universal.tar.gz",
         "sha256": "9defc0d4e55d49c65a6d042f3e571a39fcea499ade6dbe741b53b8c65e03611f",
         "archive": "tar.gz",
-        "binary": "stockfish/stockfish-linux-x86-64-universal",
+        "binary": "stockfish-linux-x86-64-universal",
         "hash": True,
         "threads": True,
         "limit": (1320, 3190),
@@ -65,8 +67,8 @@ ENGINES = [
         "v26.1/arasan-linux-binaries-26.1.tar.gz",
         "sha256": "33c0c4f8f70c3ed5e4aa086b9cffd542ad7af616ab4adc9662e9b56fcff91ac5",
         "archive": "tar.gz",
-        "binary": "26.1/arasanx-64-avx2-bmi2",
-        "beside": ["26.1/arasanv8-20261005.nnue", "26.1/book.bin"],
+        "binary": "arasanx-64-avx2-bmi2",
+        "beside": ["arasanv8-20261005.nnue", "book.bin"],
         "hash": True,
         "threads": True,
         "limit": (1000, 3450),

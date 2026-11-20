@@ -30,8 +30,13 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 - `scripts/windows/rate.ps1`: the same rating script for Windows.
 - `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
   engines, pinned (14 binaries for 24 of the ladder's 25 names; Orion 1.1
-  is left out, because it exists for Windows only). The installer does not act on
-  it yet.
+  is left out, because it exists for Windows only).
+- `scripts/install_tools.py --engines` installs those engines on Linux
+  under `<prefix>/engines`, each in a directory of its own: an official
+  binary where there is one, otherwise a build from the official source.
+  `--only "<name>"` installs one. It never uses sudo, names a missing build
+  tool and carries on with the other engines, and leaves nothing behind of
+  an engine whose download or build failed.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 
