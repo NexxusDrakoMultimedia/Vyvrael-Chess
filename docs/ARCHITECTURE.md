@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -445,8 +445,8 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     they leave the king capturable, exactly as perft does.
   - A node with no legal move scores `mated_in(ply)` if in check and `DRAW`
     otherwise, so stalemate is never mistaken for a win.
-  - At depth 0 the evaluator is called. Until quiescence search lands, that
-    means positions are judged in the middle of exchanges.
+  - At depth 0 the quiescence search takes over (below), so positions are
+    not judged in the middle of an exchange.
   - Moves are searched in generation order. Ordering them well is what makes
     alpha-beta efficient; it is deliberately left to milestone 7.
   - **Correctness is tested against plain minimax**, which has no pruning to
@@ -511,6 +511,35 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     find a shorter one.
   - With no ordering heuristics or tables yet, iterating to depth N gives
     exactly the result of a direct depth-N search; a test relies on that.
+
+- **Quiescence search.** A static evaluation only means something in a quiet
+  position. Evaluating at a fixed depth would count a queen that has just
+  taken a defended pawn as a pawn won, because the recapture lies beyond the
+  horizon. So when the main search runs out of depth it continues with
+  captures and queen promotions only, until nothing is left to take.
+  - The side to move may always decline to capture, so its static evaluation
+    is a floor under its score ("standing pat"). If that floor already
+    reaches `beta`, the node is cut off at once.
+  - In check there is no standing pat: every legal move is searched, and
+    having none is checkmate. This is also why a mate whose last move gives
+    check is seen one ply earlier than the nominal depth.
+  - It has no depth limit. Captures cannot continue for ever, and a ply cap
+    (`MAX_PLY`) is the backstop.
+  - Of the draw rules only insufficient material is checked here, because a
+    capture can leave bare kings. Captures are irreversible, so no repetition
+    can arise and the fifty-move clock restarts.
+  - **Captures are tried most valuable victim first** (`search/ordering.rs`),
+    with the least valuable attacker breaking ties and promotions counted as
+    the material they gain. Alpha-beta returns the same value in any order,
+    but the cost differs enormously: with captures in generation order one
+    busy middlegame position (Kiwipete) took more than 20 million nodes to
+    resolve, against 3,067 with this ordering, for the same value wherever
+    both finished. So unlike the move ordering of the main search, which
+    waits for milestone 7 and SPRT, this ordering is part of the core: without
+    it the search does not finish.
+  - No other pruning is used beyond alpha-beta and standing pat. Skipping
+    captures that cannot help (delta pruning, static exchange evaluation) is
+    left to milestone 7.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -14,11 +14,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use super::ordering::captures_first;
 use super::{
     DRAW, INFINITY, Limits, MATE, MAX_PLY, fifty_moves_reached, insufficient_material,
     is_repetition, mated_in,
 };
-use crate::board::{Move, Position};
+use crate::board::{Move, PieceKind, Position};
 use crate::eval::{Evaluator, Score};
 use crate::movegen::legal_moves;
 use crate::movegen::pseudo_legal_moves;
@@ -325,15 +326,17 @@ impl<'a> Search<'a> {
             // The value is ignored: every caller checks `stopped` first.
             return DRAW;
         }
-        self.nodes += 1;
         // The root is never scored as a draw here: a move must still be
         // chosen there. Everywhere else a drawn position ends the line.
         if self.is_draw(pos) {
+            self.nodes += 1;
             return DRAW;
         }
-        if depth == 0 {
-            return self.evaluator.evaluate(pos);
+        if depth == 0 || ply >= MAX_PLY {
+            // Out of depth: do not evaluate in the middle of an exchange.
+            return self.quiesce(pos, ply, alpha, beta);
         }
+        self.nodes += 1;
 
         let mut best = -INFINITY;
         let mut any_legal = false;
@@ -375,6 +378,92 @@ impl<'a> Search<'a> {
     }
 }
 
+impl Search<'_> {
+    /// Quiescence search: the value of `pos` once the captures have been
+    /// played out, within the window `alpha..beta`.
+    ///
+    /// A static evaluation is only meaningful in a quiet position. Stopping
+    /// the search at a fixed depth and evaluating there would, for example,
+    /// count a queen that has just taken a defended pawn as a pawn won (the
+    /// "horizon effect"). So at the horizon the search continues, but with
+    /// captures and queen promotions only:
+    ///
+    /// - The side to move may always decline to capture, so the static
+    ///   evaluation is a lower bound on its score ("standing pat").
+    /// - When it is in check there is no standing pat: every legal move is
+    ///   searched, and having none is checkmate.
+    ///
+    /// Captures cannot go on for ever, so this ends without a depth limit.
+    ///
+    /// `ply` 0 means the position is being valued on its own, not as part of
+    /// a search from somewhere else; like the root of the main search, it is
+    /// then not scored as a dead draw.
+    fn quiesce(&mut self, pos: &mut Position, ply: usize, mut alpha: Score, beta: Score) -> Score {
+        if self.should_stop() {
+            return DRAW;
+        }
+        self.nodes += 1;
+        // A capture can leave too little material to mate with. Repetition
+        // and the fifty-move rule cannot arise here: captures are
+        // irreversible.
+        if ply > 0 && insufficient_material(pos) {
+            return DRAW;
+        }
+
+        let in_check = pos.in_check();
+        let mut best = -INFINITY;
+        if !in_check || ply >= MAX_PLY {
+            let stand_pat = self.evaluator.evaluate(pos);
+            if stand_pat >= beta || ply >= MAX_PLY {
+                return stand_pat;
+            }
+            best = stand_pat;
+            alpha = alpha.max(stand_pat);
+        }
+
+        let mut any_legal = false;
+        // Most valuable victim first: see `ordering.rs` for why this is not
+        // optional here.
+        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
+            if !in_check && !is_tactical(mv) {
+                continue;
+            }
+            let undo = pos.make_move(mv);
+            if pos.can_capture_king() {
+                pos.unmake_move(mv, undo);
+                continue;
+            }
+            any_legal = true;
+            let score = -self.quiesce(pos, ply + 1, -beta, -alpha);
+            pos.unmake_move(mv, undo);
+            if self.stopped {
+                return DRAW;
+            }
+            if score > best {
+                best = score;
+                if score > alpha {
+                    alpha = score;
+                    if alpha >= beta {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if in_check && !any_legal {
+            mated_in(ply)
+        } else {
+            best
+        }
+    }
+}
+
+/// Whether quiescence search looks at `mv` when not in check: captures (en
+/// passant and capturing promotions included) and promotions to a queen.
+fn is_tactical(mv: Move) -> bool {
+    mv.is_capture() || mv.promotion() == Some(PieceKind::Queen)
+}
+
 /// The score of a position whose side to move has no legal move: checkmate
 /// if it is in check, stalemate otherwise.
 fn no_moves_score(pos: &Position, ply: usize) -> Score {
@@ -402,18 +491,30 @@ mod tests {
             .unwrap()
     }
 
+    /// The exact quiescence value of a position: a full window leaves
+    /// nothing to prune against.
+    fn quiet_value(pos: &mut Position, ply: usize) -> Score {
+        Search::new(&HandCrafted).quiesce(pos, ply, -INFINITY, INFINITY)
+    }
+
     /// Plain minimax with no pruning at all: the definition that alpha-beta
-    /// must agree with. Returns the score and the number of nodes visited.
+    /// must agree with. Its leaves are valued by a full-window quiescence
+    /// search, the same leaf value the real search uses. Returns the score
+    /// and counts the nodes visited, quiescence nodes included.
     fn minimax(pos: &mut Position, depth: u32, ply: usize, nodes: &mut u64) -> Score {
-        *nodes += 1;
         // The same draw rules as the real search, apart from repetition,
         // which cannot arise within three plies of these positions.
         if ply > 0 && Search::new(&HandCrafted).is_draw(pos) {
+            *nodes += 1;
             return DRAW;
         }
         if depth == 0 {
-            return HandCrafted.evaluate(pos);
+            let mut leaf = Search::new(&HandCrafted);
+            let value = leaf.quiesce(pos, ply, -INFINITY, INFINITY);
+            *nodes += leaf.nodes();
+            return value;
         }
+        *nodes += 1;
         let moves = legal_moves(pos);
         if moves.is_empty() {
             return no_moves_score(pos, ply);
@@ -455,11 +556,7 @@ mod tests {
                 // The move it names really leads to that score.
                 let mv = outcome.best_move.unwrap();
                 let undo = pos.make_move(mv);
-                let reply = if depth == 1 {
-                    HandCrafted.evaluate(&pos)
-                } else {
-                    minimax(&mut pos, depth - 1, 1, &mut 0)
-                };
+                let reply = minimax(&mut pos, depth - 1, 1, &mut 0);
                 pos.unmake_move(mv, undo);
                 assert_eq!(-reply, expected, "{text} depth {depth} move {mv}");
             }
@@ -491,6 +588,11 @@ mod tests {
         let outcome = search(text, 2);
         assert_eq!(outcome.score, mate_in(1));
         assert_eq!(best(text, 2), "a1a8");
+        assert_eq!(
+            search(text, 1).score,
+            mate_in(1),
+            "seen at depth 1 through the check"
+        );
         // Deeper searches still report the same, quickest, mate.
         assert_eq!(search(text, 4).score, mate_in(1));
     }
@@ -503,8 +605,11 @@ mod tests {
         let outcome = search(text, 4);
         assert_eq!(outcome.score, mate_in(3));
         assert!(["b1b7", "a2a7"].contains(&best(text, 4).as_str()));
-        // Not visible one ply too shallow.
-        assert!(!crate::search::is_mate_score(search(text, 3).score));
+        // One ply shallower the mating move is the last one searched; the
+        // quiescence search sees that the reply to its check does not exist.
+        assert_eq!(search(text, 3).score, mate_in(3));
+        // Shallower than that the mate is beyond the horizon.
+        assert!(!crate::search::is_mate_score(search(text, 2).score));
     }
 
     #[test]
@@ -571,10 +676,10 @@ mod tests {
                 }
                 // These positions have no mate or draw within four plies, so
                 // the line runs the full depth and ends in a position whose
-                // evaluation, seen from the root side, is the score.
+                // quiescence value, seen from the root side, is the score.
                 assert_eq!(outcome.pv.len(), depth as usize, "{text} depth {depth}");
                 let from_root_side = if depth % 2 == 0 { 1 } else { -1 };
-                let leaf = HandCrafted.evaluate(&pos) * from_root_side;
+                let leaf = quiet_value(&mut pos, depth as usize) * from_root_side;
                 assert_eq!(leaf, outcome.score, "{text} depth {depth}");
             }
         }
@@ -661,9 +766,11 @@ mod tests {
 
     #[test]
     fn bare_material_is_a_draw_inside_the_tree() {
-        // Black can take the last white piece that could ever mate.
-        let outcome = search("4k3/8/8/8/8/8/3r4/3RK3 b - - 0 1", 2);
+        // After the rooks come off there are only kings: White must
+        // recapture (the alternatives stay a rook down) and that is a draw.
+        let outcome = search("4k3/8/8/8/8/8/8/3rK3 w - - 0 1", 2);
         assert_eq!(outcome.score, DRAW);
+        assert_eq!(outcome.best_move.unwrap().to_string(), "e1d1");
         // King and knight against king: every line is drawn at once.
         assert_eq!(search("4k3/8/8/8/8/8/8/3NK3 w - - 0 1", 3).score, DRAW);
     }
@@ -765,14 +872,15 @@ mod tests {
 
     #[test]
     fn iteration_stops_once_a_mate_is_proven() {
-        // Mate in two is first seen at depth 4; nothing deeper is searched.
+        // Mate in two (three plies) is proven at depth 3; nothing deeper is
+        // searched.
         let (outcome, reports, _) = iterate("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", Limits::depth(12));
         assert_eq!(outcome.score, mate_in(3));
-        assert_eq!(reports.last().unwrap().depth, 4);
-        // Being mated in one is seen at depth 3.
+        assert_eq!(reports.last().unwrap().depth, 3);
+        // Being mated in one (two plies) is proven at depth 2.
         let (lost, reports, _) = iterate("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", Limits::depth(12));
         assert_eq!(lost.score, mated_in(2));
-        assert_eq!(reports.last().unwrap().depth, 3);
+        assert_eq!(reports.last().unwrap().depth, 2);
     }
 
     #[test]
@@ -789,11 +897,17 @@ mod tests {
     /// last depth that finished, which is always a complete, legal answer.
     #[test]
     fn an_interrupted_iteration_is_discarded() {
-        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(3_000));
+        // Find how many nodes two and three iterations take, then set the
+        // limit between them so the third is cut off partway.
+        let (_, two, _) = iterate(KIWIPETE, Limits::depth(2));
+        let (_, three, _) = iterate(KIWIPETE, Limits::depth(3));
+        let (after_two, after_three) = (two[1].nodes, three[2].nodes);
+        let limit = after_two + (after_three - after_two) / 2;
+
+        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(limit));
         assert!(stopped);
-        let finished = reports.last().unwrap().depth;
-        assert!((1..4).contains(&finished), "{finished}");
-        assert_eq!(outcome, search(KIWIPETE, finished));
+        assert_eq!(reports.last().unwrap().depth, 2);
+        assert_eq!(outcome, search(KIWIPETE, 2));
     }
 
     #[test]
@@ -820,6 +934,102 @@ mod tests {
         let (outcome, reports, _) = iterate(KIWIPETE, Limits::depth(0));
         assert_eq!(reports.len(), 1);
         assert_eq!(outcome, search(KIWIPETE, 1));
+    }
+
+    #[test]
+    fn a_quiet_position_is_worth_its_static_evaluation() {
+        for text in [
+            crate::board::START_FEN,
+            "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
+            "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R4RK1 w - - 0 1",
+        ] {
+            let mut pos = fen(text);
+            assert_eq!(
+                quiet_value(&mut pos, 0),
+                HandCrafted.evaluate(&pos),
+                "{text}"
+            );
+            assert_eq!(pos, fen(text));
+        }
+    }
+
+    #[test]
+    fn quiescence_plays_out_a_winning_capture() {
+        // White is a queen for a rook down on the board, but takes the queen.
+        let mut pos = fen("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
+        assert!(HandCrafted.evaluate(&pos) < -300);
+        assert!(quiet_value(&mut pos, 0) > 300);
+    }
+
+    /// The horizon effect: at depth 1 a search that evaluated straight away
+    /// would take the pawn with the queen, not seeing the recapture.
+    #[test]
+    fn does_not_grab_a_defended_pawn_with_the_queen() {
+        let text = "4k3/8/3p4/4p3/8/8/4Q3/4K3 w - - 0 1";
+        // The capture really is available and really loses the queen.
+        let mut pos = fen(text);
+        let grab = pos.parse_move("e2e5").unwrap();
+        assert!(legal_moves(&pos).contains(&grab));
+        let _undo = pos.make_move(grab);
+        // After dxe5 White has a bare king against a pawn.
+        assert!(
+            -quiet_value(&mut pos, 1) < 0,
+            "the queen is lost after dxe5"
+        );
+
+        for depth in 1..=3 {
+            assert_ne!(best(text, depth), "e2e5", "depth {depth}");
+            assert!(search(text, depth).score > 500, "depth {depth}");
+        }
+    }
+
+    #[test]
+    fn quiescence_does_not_stand_pat_in_check() {
+        // Checkmated: no standing pat, no moves.
+        let mut mated = fen("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1");
+        assert_eq!(quiet_value(&mut mated, 0), mated_in(0));
+        assert_eq!(quiet_value(&mut mated, 5), mated_in(5));
+        // In check with two ways out, taking the queen or stepping aside:
+        // the value is what the best of them leads to, not the static
+        // evaluation of the checked position.
+        let mut checked = fen("4k3/8/8/8/8/8/3q4/4K3 w - - 0 1");
+        assert_eq!(legal_moves(&checked).len(), 2);
+        // King takes queen: bare kings, which is level.
+        assert_eq!(quiet_value(&mut checked, 0), 0);
+        assert!(HandCrafted.evaluate(&checked) < -800);
+    }
+
+    #[test]
+    fn quiescence_considers_queen_promotions() {
+        let mut pos = fen("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1");
+        let before = HandCrafted.evaluate(&pos);
+        assert!(quiet_value(&mut pos, 0) > before + 500);
+    }
+
+    #[test]
+    fn quiescence_terminates_on_a_position_full_of_captures() {
+        let mut searcher = Search::new(&HandCrafted);
+        let mut pos = fen(KIWIPETE);
+        let value = searcher.quiesce(&mut pos, 0, -INFINITY, INFINITY);
+        assert!(value.abs() < 2_000, "{value}");
+        assert!(searcher.nodes() < 1_000_000, "{}", searcher.nodes());
+        assert_eq!(pos, fen(KIWIPETE));
+    }
+
+    #[test]
+    fn tactical_moves() {
+        use crate::board::{MoveKind, Square};
+        let mv = |kind| Move::new(Square::E7, Square::E8, kind);
+        assert!(is_tactical(mv(MoveKind::Capture)));
+        assert!(is_tactical(mv(MoveKind::EnPassant)));
+        assert!(is_tactical(mv(MoveKind::Promotion(PieceKind::Queen))));
+        assert!(is_tactical(mv(MoveKind::PromotionCapture(
+            PieceKind::Knight
+        ))));
+        assert!(!is_tactical(mv(MoveKind::Promotion(PieceKind::Rook))));
+        assert!(!is_tactical(mv(MoveKind::Quiet)));
+        assert!(!is_tactical(mv(MoveKind::DoublePush)));
+        assert!(!is_tactical(mv(MoveKind::KingCastle)));
     }
 
     #[test]

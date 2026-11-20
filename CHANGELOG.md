@@ -97,3 +97,5 @@ once it has a first release.
 - The principal variation (`Outcome::pv`).
 - Search limits (`Limits`: depth, nodes, deadline) and an external stop flag.
 - Iterative deepening (`Search::iterate`) with a progress `Report` per depth.
+- Quiescence search: captures and queen promotions are played out before a
+  position is evaluated, most valuable victim first.

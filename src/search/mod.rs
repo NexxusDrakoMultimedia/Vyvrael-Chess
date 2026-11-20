@@ -8,6 +8,7 @@
 mod draw;
 mod limits;
 mod negamax;
+mod ordering;
 mod score;
 
 pub use draw::{fifty_moves_reached, insufficient_material, is_repetition};

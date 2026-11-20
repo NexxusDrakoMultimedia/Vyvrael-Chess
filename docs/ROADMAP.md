@@ -197,7 +197,8 @@ behaviour is noticed.
 - [x] `search`: principal variation
 - [x] `search`: limits and stopping (depth, nodes, time, stop flag)
 - [x] `search`: iterative deepening with progress reports
-- [ ] `search`: quiescence search
+- [x] `search`: quiescence search, with captures ordered most valuable victim
+  first
 - [ ] `cli`: `search` subcommand
 - [ ] `search`: pinned fixed-depth node counts
 - [ ] `search`: measure make/unmake against copy-make and choose
@@ -334,6 +335,13 @@ first recorded as "milestone 4b", which read as if it came before milestone
 therefore sit one higher than in the original brief: open data tooling is 8,
 NNUE is 9 and tablebases are 10.
 
+- **One ordering heuristic had to come early.** Quiescence search orders
+  captures most valuable victim first in milestone 4, not milestone 7.
+  Measured without it, one test position needed more than 20 million nodes
+  where 3,067 suffice, so the search did not finish. Ordering captures does
+  not change the value the search returns, only its cost, so there is
+  nothing for SPRT to compare beyond "finishes" and "does not". Move
+  ordering in the main search still waits for milestone 7.
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
   SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
