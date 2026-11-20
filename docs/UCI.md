@@ -97,9 +97,14 @@ Nothing a GUI sends can make the engine play an illegal move or crash.
 
 ## Options
 
+Option names are matched without regard to letter case. A value of the wrong
+type or out of range is refused with an `info string`, and the option keeps
+its old value. An option set while a search is running applies from the next
+search.
+
 | Option | Type | Default | Status | Behaviour |
 | --- | --- | --- | --- | --- |
-| `Hash` | spin | to be decided | planned (milestone 5) | Transposition table size in MiB. |
+| `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
 | `Threads` | spin | `1` | planned (milestone 5) | Number of search threads. |
 | `DeterministicRNG` | check | `false` | planned (milestone 5) | When `false`, strength-affecting randomness is seeded from system entropy at startup and the chosen seed is logged with `info string`. When `true`, it is seeded from `RngSeed`. |
 | `RngSeed` | spin | `822286742` (`0x31031996`) | planned (milestone 5) | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. |

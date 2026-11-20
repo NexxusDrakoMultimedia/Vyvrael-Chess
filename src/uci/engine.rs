@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::{Command, GoParams, bestmove_line, info_line, limits_for, parse};
+use super::{Command, GoParams, Options, bestmove_line, info_line, limits_for, parse};
 use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
 use crate::eval::default_evaluator;
@@ -57,6 +57,8 @@ pub struct Engine {
     worker: Option<JoinHandle<()>>,
     /// Whether the running search reports only when told to stop.
     until_stopped: bool,
+    /// The values of the UCI options.
+    options: Options,
 }
 
 impl Engine {
@@ -71,7 +73,14 @@ impl Engine {
             stop: Arc::new(AtomicBool::new(false)),
             worker: None,
             until_stopped: false,
+            options: Options::default(),
         }
+    }
+
+    /// The current values of the options.
+    #[must_use]
+    pub const fn options(&self) -> &Options {
+        &self.options
     }
 
     /// Acts on one line of input. Returns `false` when the line was `quit`
@@ -81,6 +90,9 @@ impl Engine {
             Command::Uci => {
                 self.say(&format!("id name {ENGINE_NAME} {ENGINE_VERSION}"));
                 self.say(&format!("id author {ENGINE_AUTHOR}"));
+                for declaration in Options::declarations() {
+                    self.say(&declaration);
+                }
                 self.say("uciok");
             }
             Command::IsReady => {
@@ -97,8 +109,12 @@ impl Engine {
             Command::Position { fen, moves } => self.set_position(fen.as_deref(), &moves),
             Command::Go(params) => self.go(&params),
             Command::Stop => self.end_search(),
-            Command::SetOption { name, .. } => {
-                self.say(&format!("info string unknown option: {name}"));
+            Command::SetOption { name, value } => {
+                // An option applies from the next search on; a running one
+                // keeps the values it started with.
+                if let Err(problem) = self.options.set(&name, value.as_deref()) {
+                    self.say(&format!("info string {problem}"));
+                }
             }
             Command::Quit => {
                 self.end_search();
@@ -303,6 +319,35 @@ mod tests {
         assert_eq!(lines[0], format!("id name Vyvræl {ENGINE_VERSION}"));
         assert_eq!(lines[1], "id author Nexxus Drako Multimedia");
         assert_eq!(lines.last().unwrap(), "uciok");
+    }
+
+    #[test]
+    fn uci_lists_the_options_before_uciok() {
+        let lines = session(&["uci"]);
+        let declared: Vec<&String> = lines
+            .iter()
+            .filter(|line| line.starts_with("option "))
+            .collect();
+        assert_eq!(declared.len(), Options::declarations().len());
+        assert!(!declared.is_empty());
+        let first = lines.iter().position(|line| line.starts_with("option "));
+        assert!(first.unwrap() >= 2, "after the id lines");
+        assert_eq!(lines.last().unwrap(), "uciok");
+    }
+
+    #[test]
+    fn setoption_changes_an_option_and_says_nothing() {
+        let (mut engine, captured) = engine();
+        engine.handle("setoption name Hash value 128");
+        assert_eq!(engine.options().hash_mb, 128);
+        assert!(captured.lines().is_empty());
+        // A refused value is reported and changes nothing.
+        engine.handle("setoption name Hash value 0");
+        assert_eq!(engine.options().hash_mb, 128);
+        assert_eq!(
+            captured.lines(),
+            ["info string Hash: expected a whole number from 1 to 65536, got `0`"]
+        );
     }
 
     #[test]

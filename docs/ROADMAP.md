@@ -217,7 +217,7 @@ Chunk checklist. One commit per item unless noted.
   `movestogo`, `movetime` to a deadline)
 - [x] `uci`: the engine session and protocol loop, with the search on its
   own thread; the binary runs it when started without arguments
-- [ ] `uci`: option `Hash`
+- [x] `uci`: option `Hash`
 - [ ] `uci`: option `Threads`
 - [ ] `rng`: a seed from system entropy and the stream for
   strength-affecting randomness

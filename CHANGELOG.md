@@ -169,3 +169,6 @@ once it has a first release.
 - **The engine speaks UCI.** Started without arguments, the binary reads
   UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`,
   `quit`) and searches on its own thread. No options yet.
+- UCI option `Hash` (spin, default 16, 1 to 65536 MiB). It is accepted and
+  stored but has no effect until there is a transposition table
+  (milestone 7).

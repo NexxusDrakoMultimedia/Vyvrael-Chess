@@ -587,6 +587,12 @@ and option is listed in [UCI.md](UCI.md).
   overhead. `limits_for` combines it with `depth`, `nodes` and `infinite`
   into the search's `Limits`. The scheme is deliberately plain: schemes that
   react to the search change playing strength and wait for milestone 7.
+- **Options** (`uci/options.rs`): `Options` holds the value of every UCI
+  option. `Options::declarations()` gives the `option` lines for `uci` and
+  `Options::set(name, value)` checks and stores a value; an option exists
+  only in those two places, so what the GUI is shown and what the engine
+  accepts cannot drift apart. A test sets every declared option to its
+  declared default and requires that nothing changes.
 - **The engine** (`uci/engine.rs`): `Engine` owns the current position, the
   hashes of the positions the game went through, and the running search.
   `Engine::handle(line)` acts on one line; `run(input, out)` is the loop the
