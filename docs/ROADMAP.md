@@ -14,7 +14,7 @@ them.
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
-| 5 | UCI | `milestone/5-uci` | not started |
+| 5 | UCI | `milestone/5-uci` | in progress |
 | 6 | Strength testing | `milestone/6-strength` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
@@ -204,6 +204,51 @@ behaviour is noticed.
 - [x] `search`: pinned fixed-depth node counts
 - [x] `search`: measure make/unmake against copy-make and choose
 - [x] End-of-milestone review and doc drift pass
+
+## Milestone 5: UCI
+
+Chunk checklist. One commit per item unless noted.
+
+- [ ] `attacks`: embed the magic numbers as constants, with the search kept
+  as a test (fixes KI-7)
+- [ ] `movegen`: find a move given as text among the legal moves (fixes KI-3)
+- [ ] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
+  `go`, `stop`, `setoption`, `quit`)
+- [ ] `uci`: output formatting (`info`, scores, `bestmove`)
+- [ ] `uci`: time management (from `wtime`, `btime`, increments,
+  `movestogo`, `movetime` to a deadline)
+- [ ] `uci`: the engine session and protocol loop, with the search on its
+  own thread; the binary runs it when started without arguments
+- [ ] `uci`: option `Hash`
+- [ ] `uci`: option `Threads`
+- [ ] `rng`: a seed from system entropy and the stream for
+  strength-affecting randomness
+- [ ] `uci`: options `DeterministicRNG` and `RngSeed`
+- [ ] `search`: weakened move choice for limited strength
+- [ ] `uci`: option `UCI_LimitStrength`
+- [ ] `uci`: option `UCI_Elo` (uncalibrated until milestone 6)
+- [ ] Integration test: drive the binary over stdin and stdout
+- [ ] End-of-milestone review and doc drift pass
+
+Design decisions taken at the start of the milestone:
+
+- **Illegal input never reaches `make_move`.** A move in a `position`
+  command is looked up among the legal moves. If one is not found the whole
+  command is refused with an `info string` and the previous position stays.
+- **One search thread.** The loop reads commands on the main thread and the
+  search runs on a second one, so `stop`, `isready` and `quit` are answered
+  while it thinks. `Threads` is offered with a minimum and maximum of 1 until
+  a parallel search exists.
+- **`Hash` is accepted and stored but has no effect yet.** There is no
+  transposition table before milestone 7. The option exists now because
+  match tools set it.
+- **No pondering, `searchmoves` or `go mate`.** They are not offered;
+  unknown `go` words are ignored, as the protocol asks.
+- **Weakening (for `UCI_LimitStrength`)**: search every root move to a
+  shallow depth that grows with `UCI_Elo`, add random noise that shrinks with
+  it to each move's score, and play the best noisy score. Mistakes are then
+  moves that looked nearly as good, not random ones. The numbers are
+  provisional until calibration in milestone 6.
 
 ## Milestones 5 to 10
 
