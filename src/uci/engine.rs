@@ -22,7 +22,7 @@ use crate::board::{Bitboard, Position, Square};
 use crate::eval::default_evaluator;
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
-use crate::search::{ELO_DEFAULT, Limits, Report, Search, Weakening, weakened_move};
+use crate::search::{Limits, Report, Search, Weakening, weakened_move};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Where protocol output goes, shared by the command thread and the search
@@ -266,7 +266,7 @@ impl Engine {
         // sequence of games does not depend on how far each search got.
         let weakened = self.options.limit_strength.then(|| {
             (
-                Weakening::for_elo(ELO_DEFAULT),
+                Weakening::for_elo(self.options.elo),
                 Rng::from_state(self.rng.next_u64()),
             )
         });
@@ -568,6 +568,35 @@ mod tests {
             best[0] != best[1]
         });
         assert!(differs);
+    }
+
+    #[test]
+    fn the_rating_sets_how_weakly_it_plays() {
+        // The two ends of the range differ in how far they look, which the
+        // `info` line shows.
+        let low = weakened(3, &["setoption name UCI_Elo value 400", GO]);
+        assert!(low[2].starts_with("info depth 2 "), "{}", low[2]);
+        let high = weakened(3, &["setoption name UCI_Elo value 1800", GO]);
+        assert!(high[2].starts_with("info depth 3 "), "{}", high[2]);
+        // A rating out of range is refused and the old one kept.
+        let refused = weakened(3, &["setoption name UCI_Elo value 3000", GO]);
+        assert_eq!(
+            refused[2],
+            "info string UCI_Elo: expected a whole number from 400 to 1800, got `3000`"
+        );
+        assert_eq!(
+            refused[3..],
+            weakened(3, &[GO])[2..],
+            "still the default rating"
+        );
+        // Without `UCI_LimitStrength` the rating changes nothing.
+        assert_eq!(
+            stable(&session(&[
+                "setoption name UCI_Elo value 400",
+                "go depth 3"
+            ])),
+            stable(&session(&["go depth 3"]))
+        );
     }
 
     #[test]

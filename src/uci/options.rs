@@ -8,6 +8,7 @@
 //! list the engine accepts cannot drift apart. `docs/UCI.md` documents each.
 
 use crate::rng::DEFAULT_SEED;
+use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN};
 
 /// Default size of the transposition table, in mebibytes.
 pub const HASH_DEFAULT: u32 = 16;
@@ -35,6 +36,9 @@ pub struct Options {
     pub rng_seed: u32,
     /// `UCI_LimitStrength`: whether to play below full strength.
     pub limit_strength: bool,
+    /// `UCI_Elo`: the rating to play at when `UCI_LimitStrength` is on.
+    /// Not calibrated yet: see `search::Weakening::for_elo`.
+    pub elo: u32,
 }
 
 impl Default for Options {
@@ -45,6 +49,7 @@ impl Default for Options {
             deterministic_rng: false,
             rng_seed: DEFAULT_SEED,
             limit_strength: false,
+            elo: ELO_DEFAULT,
         }
     }
 }
@@ -60,6 +65,7 @@ impl Options {
             check("DeterministicRNG", false),
             spin("RngSeed", DEFAULT_SEED, 0, u32::MAX),
             check("UCI_LimitStrength", false),
+            spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
         ]
     }
 
@@ -82,6 +88,7 @@ impl Options {
             "uci_limitstrength" => {
                 self.limit_strength = parse_check("UCI_LimitStrength", value)?;
             }
+            "uci_elo" => self.elo = parse_spin("UCI_Elo", value, ELO_MIN, ELO_MAX)?,
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -287,5 +294,47 @@ mod tests {
         assert!(!options.limit_strength);
         assert!(options.set("UCI_LimitStrength", Some("1")).is_err());
         assert!(options.set("UCI_LimitStrength", None).is_err());
+    }
+
+    #[test]
+    fn elo() {
+        assert_eq!(
+            Options::declarations()[5],
+            "option name UCI_Elo type spin default 1200 min 400 max 1800"
+        );
+        let mut options = Options::default();
+        assert_eq!(options.elo, 1200);
+        for (text, value) in [("400", 400), ("1800", 1800), ("1350", 1350)] {
+            assert_eq!(options.set("UCI_Elo", Some(text)), Ok(()));
+            assert_eq!(options.elo, value);
+        }
+        for bad in ["399", "1801", "0", "2800", "strong"] {
+            assert_eq!(
+                options.set("uci_elo", Some(bad)),
+                Err(format!(
+                    "UCI_Elo: expected a whole number from 400 to 1800, got `{bad}`"
+                ))
+            );
+        }
+        assert_eq!(options.elo, 1350);
+        // Setting the rating does not switch limiting on.
+        assert!(!options.limit_strength);
+    }
+
+    /// The whole list, in order: what a GUI is shown.
+    #[test]
+    fn the_declared_options() {
+        let names: Vec<String> = declared().into_iter().map(|(name, _)| name).collect();
+        assert_eq!(
+            names,
+            [
+                "Hash",
+                "Threads",
+                "DeterministicRNG",
+                "RngSeed",
+                "UCI_LimitStrength",
+                "UCI_Elo"
+            ]
+        );
     }
 }

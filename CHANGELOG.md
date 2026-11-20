@@ -188,3 +188,6 @@ once it has a first release.
 - UCI option `UCI_LimitStrength` (check, default `false`). When on, `go`
   plays a weakened move, at a fixed provisional level until `UCI_Elo`
   exists. When off, play is exactly as before.
+- UCI option `UCI_Elo` (spin, default 1200, 400 to 1800): the rating to play
+  at when `UCI_LimitStrength` is on. **Not calibrated**: the settings are
+  ordered, but what rating each really plays at is measured in milestone 6.

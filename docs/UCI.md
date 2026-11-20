@@ -111,7 +111,7 @@ search.
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
-| `UCI_Elo` | spin | to be decided by calibration | planned (milestone 5, calibrated in milestone 6) | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`. Minimum, maximum and default come from measured strength. |
+| `UCI_Elo` | spin | `1200` (400 to 1800) | implemented, **uncalibrated** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A higher number looks further ahead (2 plies below 1100, 3 from there) and misjudges moves less (by up to 300 centipawns at 400, falling evenly to 20 at 1800). The range, the default and this mapping are provisional: they are replaced by measured values in milestone 6. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
