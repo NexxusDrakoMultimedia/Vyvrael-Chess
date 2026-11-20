@@ -421,6 +421,23 @@ is a starting point, not a commitment:
 - Credit and the 0rwx level X disclosure, which belongs wherever the engine
   is presented, not only in the README.
 
+Assets offered by the maintainer for the branding (2026-11-20). Both are
+Nexxus Drako Multimedia's own work, not third-party material:
+
+- **The NXD fractal background** (`NXDFractal.svg`): a 500 by 500 low-poly
+  field of triangles running from dark red (`#7f0000`) through orange to gold
+  (`#f3c601`). It also gives the branding its palette.
+- **Renders of Nexxus Drako**, the company's dragon character (red hair, red
+  wings). Among them are a square render already set on the fractal
+  background and a round one with a gold ring on dark red, which are the
+  shapes an avatar needs.
+
+None of these is in the repository yet. Before any is added, the maintainer
+settles two things: which image serves which use (bot avatar, README, release
+page), and the licence the assets are published under. They are brand assets,
+so they need not carry the code's GPL; whatever is chosen is stated next to
+the files.
+
 Artwork and other brand assets follow the project's rules for third-party
 material: nothing is used without a clear licence, and its source and licence
 are recorded.
