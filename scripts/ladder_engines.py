@@ -196,7 +196,7 @@ ENGINES = [
         "build": {
             "dir": "src",
             "command": ["make", "basic", "CC=gcc",
-                        "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -Werror -O3 -flto "
+                        "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -O3 -flto "
                         "-march=haswell -DUSE_PEXT"],
             "tools": ["gcc", "make"],
         },
@@ -204,8 +204,9 @@ ENGINES = [
         "threads": True,
         "limit": None,
         "notes": "No official Linux binary. The makefile's flags are given again with "
-        "-march=haswell for -march=native. They include -Werror, so a newer gcc that "
-        "warns about this 2021 source would stop the build.",
+        "-march=haswell for -march=native, and without its -Werror: a current gcc "
+        "warns about sign comparisons in this 2021 source, and with -Werror those "
+        "warnings stopped the build on the maintainer's Linux machine (2026-11-21).",
     },
     {
         "name": "Rodent IV",
