@@ -13,7 +13,7 @@ them.
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
-| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | not started |
+| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
@@ -90,6 +90,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
+| KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
 | KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Milestone 5, before the UCI loop: embed the 128 numbers the search finds as constants and keep the search as a test proving the constants are what the seed produces. |
 
@@ -175,7 +176,36 @@ The end-of-milestone review found no defect in the evaluation code. It
 strengthened the tests (the blended total is now pinned at phases between
 the endpoints) and corrected two comments that overstated what the tables do.
 
-## Milestones 4 to 10
+## Milestone 4: search core
+
+Scope: the part of search that everything else depends on. Negamax with
+alpha-beta pruning, iterative deepening and quiescence search, plus what a
+search needs to be correct in a real game: mate scores, draw detection, a
+principal variation, and a way to stop. Move ordering, the transposition
+table, null-move pruning and late move reductions are milestone 7, where
+each can be accepted by SPRT.
+
+There is no earlier search to compare against, so this milestone is checked
+by correctness, not strength: forced mates are found at the right depth,
+alpha-beta returns exactly the score of a plain minimax search, draws are
+recognised, and fixed-depth node counts are pinned so that any change in
+behaviour is noticed.
+
+- [x] `eval`: `Send + Sync` bounds on `Evaluator`
+- [x] `search`: score constants and mate-score arithmetic
+- [x] `search`: negamax with alpha-beta at fixed depth
+- [x] `search`: draw detection (fifty-move rule, repetition, bare material)
+- [x] `search`: principal variation
+- [x] `search`: limits and stopping (depth, nodes, time, stop flag)
+- [x] `search`: iterative deepening with progress reports
+- [x] `search`: quiescence search, with captures ordered most valuable victim
+  first
+- [x] `cli`: `search` subcommand
+- [x] `search`: pinned fixed-depth node counts
+- [x] `search`: measure make/unmake against copy-make and choose
+- [x] End-of-milestone review and doc drift pass
+
+## Milestones 5 to 10
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
@@ -183,10 +213,12 @@ that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
 - After milestone 5: private `lichess-bot` smoke test. Public only later,
-  after milestone 7 (see "Planned features").
+  after milestone 7 and the branding (see "Playing on Lichess with
+  lichess-bot").
 - Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
   (see "Planned features").
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
+- Milestone 7: KI-9.
 - Not yet scheduled: KI-2.
 
 ## Planned features
@@ -296,6 +328,32 @@ Notes for whoever starts it:
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
   already covers match output and `*.pgn`.
 
+## Milestone 7: search heuristics (order of work for captures)
+
+Set by the maintainer on 2026-11-20. The chunk checklist is written when the
+milestone starts; this fixes the order in which capture ordering and
+quiescence pruning are built, so that each step has a clean baseline to be
+measured against.
+
+1. **MVV-LVA with promotions.** Simple, and the baseline for everything
+   after it. The quiescence search already orders captures this way
+   (milestone 4, `search/ordering.rs`); what remains is to use it for the
+   captures of the main search as well.
+2. **The transposition-table move first**, when the table has one for the
+   position. This needs the transposition table, which is also milestone 7.
+3. **Static exchange evaluation (SEE)**, compared with the baseline by SPRT
+   on the Linux machine. It is kept only if the SPRT shows a gain.
+4. **Delta pruning last**, tested separately by its own SPRT, so that its
+   effect is not mixed up with SEE's.
+
+Steps 3 and 4 change which moves the search looks at, so unlike plain
+ordering they can change its results. That is why each gets its own SPRT.
+The matches run on the Linux machine with the scripts from milestone 6;
+results from different machines are not compared with each other.
+
+The other milestone 7 heuristics (killer moves, history, null-move pruning,
+late move reductions) are ordered when the milestone starts.
+
 ## Decisions for milestones 4 to 6
 
 Decided by the maintainer on 2026-11-20.
@@ -306,6 +364,14 @@ first recorded as "milestone 4b", which read as if it came before milestone
 therefore sit one higher than in the original brief: open data tooling is 8,
 NNUE is 9 and tablebases are 10.
 
+- **One ordering heuristic had to come early.** Approved by the maintainer
+  on 2026-11-20. Quiescence search orders captures most valuable victim first
+  in milestone 4, not milestone 7.
+  Measured without it, one test position needed more than 20 million nodes
+  where 3,067 suffice, so the search did not finish. Ordering captures does
+  not change the value the search returns, only its cost, so there is
+  nothing for SPRT to compare beyond "finishes" and "does not". Move
+  ordering in the main search still waits for milestone 7.
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
   SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
@@ -316,19 +382,75 @@ NNUE is 9 and tablebases are 10.
   late move reductions, one feature per commit, each with a recorded SPRT
   result. The core has nothing to be compared against, so it is checked by
   correctness tests (mates found, known node counts at fixed depth).
-- **`Evaluator` gets `Send + Sync` bounds** as the first chunk of milestone 4,
+- **`Evaluator` gets `Send + Sync` bounds** (done) as the first chunk of milestone 4,
   so the evaluator can be handed to the search thread. A later network
   evaluator must therefore keep any mutable per-search state outside the
   trait object.
-- **Make/unmake or copy-make is chosen by measuring search.** Milestone 4
-  starts with make/unmake, then measures both styles in the real search loop
-  and keeps the faster. Perft showed copy-make about 5% faster (see
-  TESTING.md), which is not decisive on its own.
+- **Make/unmake or copy-make is chosen by measuring search** (done: the
+  search uses copy-make). Milestone 4 started with make/unmake, measured both
+  styles in the real search loop and kept the faster. Copy-make was 3 to 5%
+  faster with identical node counts; the numbers are in TESTING.md.
 - **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
   `isready` without a start-up delay.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
   2026-11-20). The full scope is under "Milestone 6: strength testing"
-  below.
+  above.
+
+### Branding, required before going public
+
+Required by the maintainer (2026-11-20): Vyvræl gets its branding before it
+is published anywhere the public meets it, whether that is a Lichess bot
+account, a rating list, a release or an announcement. Private testing does
+not need it. **Going public is blocked until this is done.**
+
+Vyvræl is an **Australian** engine and is to be presented as one wherever a
+country is asked for or shown: the Lichess bot profile's flag, rating lists
+and engine directories that record a nationality, and the project's own
+description.
+
+What the branding has to cover is the maintainer's to decide. The list below
+is a starting point, not a commitment:
+
+- Name and spelling rules: `Vyvræl`, with `Vyvrael` only where ASCII is
+  required, and how the name is written in prose and in file names.
+- A logo or avatar (the dragon theme), in the sizes the places it appears
+  need, with its licence stated.
+- A one-line description and a short paragraph, used consistently in the
+  README, the bot profile and any listing.
+- The bot profile itself: name, flag, bio, links.
+- What the engine says about itself over UCI (`id name`, `id author`).
+- Credit and the 0rwx level X disclosure, which belongs wherever the engine
+  is presented, not only in the README.
+
+Assets offered by the maintainer for the branding (2026-11-20). Both are
+Nexxus Drako Multimedia's own work, not third-party material:
+
+- **The NXD fractal background** (`NXDFractal.svg`): a 500 by 500 low-poly
+  field of triangles running from dark red (`#7f0000`) through orange to gold
+  (`#f3c601`). It also gives the branding its palette.
+- **Renders of Nexxus Drako**, the dragon VTuber who owns Nexxus Drako
+  Multimedia (red hair, red wings). The avatar shows the engine's maker as
+  well as the engine. Among them are a square render already set on the fractal
+  background and a round one with a gold ring on dark red, which are the
+  shapes an avatar needs.
+
+**Licence (decided by the maintainer, 2026-11-20): all rights reserved.** The
+brand assets are not covered by the code's GPL-3.0-or-later. They live in
+their own directory, `branding/`, with a notice saying so, and the README's
+licence section makes clear that the GPL covers the code only.
+
+**Avatar (decided by the maintainer, 2026-11-20): the square render of Nexxus
+Drako already set on the fractal background.** It is the image for the bot
+profile and wherever else one picture stands for the engine.
+
+In the repository: the avatar (`branding/vyvrael-avatar.png`, the
+maintainer's 1920 by 1920 original) and the fractal background
+(`branding/nxd-fractal.svg`). The other renders are not, and are added only
+if a use for them is decided.
+
+Artwork and other brand assets follow the project's rules for third-party
+material: nothing is used without a clear licence, and its source and licence
+are recorded.
 
 ### Playing on Lichess with lichess-bot
 
@@ -359,7 +481,7 @@ the private test comes well before the bot is public):
   plays complete games over the real protocol without losing on time,
   crashing or making illegal moves.
 - **Later, going public: not before milestone 7**, which follows milestone
-  6, so the bot that other people
+  6, **and not before the branding above is done**, so the bot that other people
   play has been through SPRT-tested search. Playing rated games with an
   untested engine would say little and could annoy opponents.
 - Time management has to be sound first: `go wtime/btime/winc/binc` handling
@@ -367,7 +489,8 @@ the private test comes well before the bot is public):
 - `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play once
   they are calibrated.
 
-Open questions for the maintainer, to settle before going public: the bot's
+Open questions for the maintainer, to settle before going public: the
+branding (see above), the bot's
 account name, which time controls and variants to accept, whether to accept
 rated games and challenges from humans, other bots or both, and where the bot
 will run (it needs a machine that stays on).

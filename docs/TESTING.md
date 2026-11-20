@@ -14,7 +14,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --release
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these.
+CI (`.github/workflows/ci.yml`) runs exactly these, and then the offline
+tests of the tool installer (see "Installing the external tools" below).
 
 ## Unit tests
 
@@ -49,15 +50,23 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces or straight ahead; no capture around the board edge, with the bait placed on the exact square a wrapping shift would reach, for both edge files and both colours. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge for either colour. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square, with the crossed and destination squares each tested for both colours; an attacked b-file square is allowed. |
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched; legal moves keep the pseudo-legal order. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
+| `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
 | `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
-| `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view. |
+| `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
 | `eval::Material` | Piece values keep the usual orderings (bishop above knight, two rooks above a queen, rook above knight plus pawn); the start position is balanced at full material; a missing queen scores +900 or -900 depending on the side to move; rook against knight and pawn, bishop against knight, bare kings. |
 | `eval` game phase | The start position is 24; kings and pawns are 0; each piece kind adds its weight for both colours; nine queens are capped at 24. |
 | `eval::Tapered` | `blend` equals `mg` at phase 24 and `eg` at phase 0, is a weighted average in between and monotonic; a flat pair blends to itself; `blend(-x) == -blend(x)` at every phase, including fractional averages; component-wise arithmetic; a phase outside 0 to 24 panics. |
 | `eval` piece-square tables | Visual tables map to the right squares; Black uses each table flipped top to bottom; every table is left-right symmetric; the pawn table is zero on the back ranks, accelerates towards promotion in the endgame and prefers advanced centre pawns in the middlegame; the balance is White minus Black, zero at the start, and negates when colours are swapped and the board flipped; knights and bishops prefer the centre to the rim and development to the back rank; rooks prefer the seventh rank and central files; the queen's middlegame values are small and her endgame values favour the centre; the king scores best on g1 and b1 in the middlegame, both castled squares beat the home square, every step up the board is worse, and the centre is best in the endgame; every piece kind has a table. |
 | `eval::HandCrafted` | Colour symmetry on eight positions (a position and its colour-swapped mirror score the same for the side to move, and every part of the breakdown negates); the side to move only changes the sign; the start position is exactly level; the breakdown after 1.e4 adds up by hand; material outweighs placement; the total equals material plus the blend at the position's own phase for twelve positions covering seven different phases; one advanced king scored exactly at three phases (-7 with queens and rooks on, +18 with queens only, +44 with bare kings); `default_evaluator` is the hand-crafted one. |
+| `search` scores | The ranges nest (evaluations below `MATE_BOUND`, mates below `INFINITY`); `mated_in` and `mate_in` mirror each other; quicker mates and slower defeats score higher; ordinary scores are not mate scores; `moves_to_mate` counts full moves with the right sign. |
+| `search` negamax | Alpha-beta returns exactly the score of an unpruned minimax on nine positions (to depth 3 on quiet ones, depth 2 on busy middlegames, because unpruned minimax with a quiescence search at every leaf is very expensive there), visits no more nodes, restores the position, and names a move that leads to that score; pruning more than halves the work at depth 4 in a rook endgame; a hanging queen is taken; mate in one and mate in two are found at the right depth with the right score, and not one ply early; the losing side sees mate coming; checkmate and stalemate at the root; the three stalemating moves of a queen ending are avoided at depths 1 to 3 and no mate is reported before it is there; node counting; depth 0 is rejected. |
+| `search` draws | Bare kings and single minor pieces are insufficient, anything that might mate is not; knights going out and back repeat the start position; the same placement with the other side to move does not; with a made-up history, a matching key an odd number of plies back or beyond the halfmove clock's reach does not count; empty and short histories are safe; the fifty-move threshold is 100 plies. In search: the losing side takes a repetition from the game history that it cannot see without it; a perpetual check with no game history is a draw by the hashes the search records on its own way down, both when the line returns to the root and when it returns to a position one ply below it, and those hashes are all taken back afterwards; the fifty-move rule ends a line that had a mate, except when the mate lands on the hundredth ply; bare material is a draw inside the tree, at the first node of every line (checked by node count). |
+| `search` principal variation | On five positions (to depth 3 or 4 on quiet ones, depth 2 on busy middlegames) the line starts with the best move, consists of legal moves, runs the full depth, and ends in a position whose quiescence value (seen from the root side) equals the reported score; the line of a mate in two is three plies and ends in checkmate; no line when the root has no legal move. |
+| `search` limits | `Limits` constructors and combinations. A node limit stops the search exactly at the limit and leaves the repetition history as it was; a search cut short at three different limits answers only from the root moves it finished, never from the one it was working on; a generous limit changes nothing; a raised stop flag ends the search before the first node while an unraised one does not disturb it; a deadline already passed ends the search within one check interval. |
+| `search` iterative deepening | Iterating to depth 3 equals a direct depth-3 search on three positions, with one report per depth that matches a direct search of that depth and with nodes and time increasing; iteration stops at the depth where a mate is proven (3 for mate in two, 2 for being mated in one) and not before: a mate in two already seen at depth 1 through quiescence is searched on to depth 3; it ends after one iteration when the root is checkmate or stalemate; a node limit that interrupts an iteration returns the last completed depth; the first iteration completes even with a one-node limit, a raised stop flag or a passed deadline, and a limit reached between iterations does not count as an interruption; a depth limit of 0 still searches one ply; a `Search` stopped by a limit can be used again and starts afresh. |
+| `search` quiescence | A quiet position is worth its static evaluation; a winning capture is played out; a queen does not grab a defended pawn at depths 1 to 3 (the horizon effect); no standing pat in check (checkmate is scored by ply, a forced recapture is followed); queen promotions are considered; it terminates on a position full of captures in under a million nodes and restores it; bare kings after a capture are a draw; which moves count as tactical. Capture ordering: most valuable victim first, least valuable attacker breaking ties, promotions and en passant in their place, and the ordering only reorders (same moves, captures before quiet moves, generation order kept when nothing can be captured). The minimax-agreement and principal-variation tests now value their leaves with a full-window quiescence search. Stalemate at the horizon is a draw whatever the window, and a one-ply search does not walk into one; the two shortcuts that rule stalemate out without playing moves agree with full move generation on every position not in check of five trees (over 5,000 positions, with pins, en passant and stalemates), and a position whose only movable piece is pinned is recognised as stalemate. In check there is no standing pat (a skewered queen is not counted as material kept). A dead position is valued by its evaluation on its own, at ply 0, and as a draw inside a line. |
 
 Rows are added as modules land.
 
@@ -79,14 +88,76 @@ and the endgame, the game phase, and the total from White's point of view and
 from the side to move's. It does not search, so it says how the position
 looks, not what is about to happen in it. All numbers are centipawns.
 
+## Pinned search results
+
+A fixed-depth search uses no clock and no randomness, so everything it
+reports is determined by the code. `tests/search_pins.rs` records the score,
+node count and principal variation for seven positions.
+
+These numbers were **recorded from this implementation**; they are not an
+independent reference the way perft counts are. What they give is change
+detection: an edit to move generation order, to the evaluation or to the
+search that alters behaviour at fixed depth fails this test, including edits
+that were not meant to alter anything.
+
+This is the "fixed-depth node-count check" that search changes need while
+SPRT is not yet available. When a deliberate change makes a pin fail:
+
+1. Confirm the new behaviour is intended. For a search or evaluation change
+   that means an SPRT result once the match script exists.
+2. Update the numbers in the same commit and say so in its message.
+
+Never update a pin just to get a green run.
+
+| Position | Depth | Score | Nodes |
+| --- | --- | --- | --- |
+| Start position | 4 | 0 | 28,793 |
+| Kiwipete | 2 | +44 | 391,308 |
+| Position 3 | 5 | +107 | 63,892 |
+| Position 4 | 2 | -418 | 23,562 |
+| Position 5 | 2 | +541 | 5,857 |
+| Position 6 | 2 | +22 | 27,964 |
+| Queen against two pawns | 4 | +683 | 15,714 |
+
+The Kiwipete figure shows the cost of searching without move ordering (known
+issue KI-9): two plies there take more nodes than five in the rook endgame.
+
+## Running a search by hand
+
+```sh
+cargo run --release -- search <depth> [FEN]
+```
+
+searches the position (the start position without a FEN) by iterative
+deepening to the given depth. It prints one line per completed depth, in the
+vocabulary of UCI `info` lines, and then the best move:
+
+```
+depth 1 score cp 40 nodes 21 pv d2d4
+depth 2 score cp 0 nodes 243 pv d2d4 d7d5
+bestmove d2d4
+```
+
+- `score cp N` is in centipawns for the side to move; `score mate N` means
+  mate in N moves (negative: the side to move is being mated).
+- `nodes` counts positions visited since the search began, quiescence search
+  included.
+- `pv` is the line of best play the score comes from.
+- Time and speed go to stderr, so stdout is identical on every run and can be
+  compared between versions.
+
+A fixed-depth search uses no clock and no randomness, so it is fully
+reproducible: the same position and depth always give the same lines.
+
 ## Integration tests
 
 Integration tests live in `tests/` and use only the public API.
 
 | File | What is checked |
 | --- | --- |
-| `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS; archive extraction refuses paths and symlinks that escape; a failed reinstall leaves the old install alone; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
+| `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included; archive extraction refuses paths and symlinks that escape, chained links included; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
+| `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
 
@@ -144,10 +215,26 @@ Reading the result: copy-make is slightly faster in perft, by an amount
 (about 5%) that is small and specific to this workload. Perft does nothing
 but generate and make moves; search adds evaluation, hashing and ordering,
 which dilute the difference, and later per-position state (for example NNUE
-accumulators) changes the cost of copying. The engine keeps make/unmake as
-its interface, and `Position` is cheap to clone, so search can use either
-style. The choice for search is to be made in milestone 4 on search speed,
-not on perft.
+accumulators) changes the cost of copying. So the decision was deferred to a measurement
+inside the real search, made in milestone 4.
+
+Measured on 2026-11-20 on the same machine, by building the search both ways
+and running `search` to a fixed depth, three runs each, median shown. The
+node counts are identical, which confirms the two builds perform the same
+search:
+
+| Position | Depth | Nodes | Make/unmake | Copy-make | Difference |
+| --- | --- | --- | --- | --- | --- |
+| Start position | 6 | 3,001,490 | 629 ms | 598 ms | copy-make 4.9% faster |
+| Kiwipete | 3 | 4,513,442 | 1,483 ms | 1,442 ms | copy-make 2.8% faster |
+| Position 3 | 7 | 2,517,193 | 481 ms | 461 ms | copy-make 4.2% faster |
+
+Copy-make was faster in all nine pairs of runs but one, where the two tied.
+The margin is small but consistent, so **the search uses copy-make**. It
+also makes the search simpler: there is no unmake step to get wrong, and the
+search takes the position by shared reference. The make/unmake build used for
+this comparison was the search as committed before the switch; the pinned
+node counts in `tests/search_pins.rs` did not change across it.
 
 ### Reference positions
 
@@ -197,20 +284,49 @@ What to know before running it:
 - **Where things go:** programs under `~/.local/share/vyvrael-tools`, launchers
   in `~/.local/bin`. With `--prefix DIR` everything, launchers included, stays
   under `DIR`. Re-running is safe; `--force` reinstalls.
+- **A re-run skips what is already installed** (recorded at the pinned
+  version, commit and digest, with its files still there) but still rewrites
+  that tool's launchers, so a new `--bin-dir` or an added `--systemd` takes
+  effect without `--force`. `--engine` is only used when `config.yml` is
+  first written; after that, edit `config.yml`.
+- **What a lichess-bot reinstall keeps:** `config.yml`, the virtual
+  environment, and any top-level file or directory of yours that the release
+  does not ship. Everything the release ships is replaced by the pinned
+  version, so edits to its files and files added inside its directories
+  (its `engines/`, for example) are lost. Without `--engine` the generated
+  `config.yml` therefore points at `<prefix>/engines/vyvrael`, outside that
+  directory; put the engine binary there.
+- **`vyvrael-lichess-bot` runs from lichess-bot's own directory**, whatever
+  directory you call it from, because lichess-bot reads `./config.yml`. A
+  relative path on its command line is therefore read from that directory.
 - **Your Lichess token is never written by the script.** `config.yml` is
   created with an empty token and readable only by you. The script does not
   upgrade the account to a bot account (that is irreversible) and does not
-  start anything. With `--systemd` it also writes a user service and an empty
-  token file under `~/.config`, without enabling them.
+  start anything. With `--systemd` it also writes a user service and a token
+  file under `~/.config`, without enabling them. The token file holds only a
+  commented-out `LICHESS_BOT_TOKEN=` line: lichess-bot lets that variable
+  replace the token in `config.yml` whenever it is set, even to nothing, so
+  uncomment it only when you put the token there.
 - After installing, it runs `cutechess-cli --version` and `ordo -h` once and
-  prints the first line, which is the check that the tools work.
+  prints the first line, which is the check that the tools work. A tool is
+  recorded as installed only when that check could start the program. The
+  check fails when the launcher cannot be run, times out, or exits with 126
+  or 127 (the shell could not execute or find the program); then the run
+  ends with an error, and the next run installs the tool again instead of
+  reporting it as already installed. Any other exit status counts as started
+  and is printed beside the first line.
+- The pinned Cute Chess file is an x86_64 AppImage; on any other machine the
+  script stops before downloading it.
 
 Status: the script's helper functions are covered by offline unit tests
 (`python3 -m unittest discover -s scripts/tests`, also run in CI), which
 download and install nothing. **The installer itself has not yet been run
-end to end.** Two details can only be confirmed by a real run: that this
+end to end.** Three details can only be confirmed by a real run: that this
 Cute Chess AppImage runs `cutechess-cli` when given a leading `cli` argument,
-and that lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
+which exit status `cutechess-cli --version` and `ordo -h` end with (until
+that is known the check accepts any status except 126 and 127, so it cannot
+yet tell a program that starts and then fails from one that works), and that
+lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
 On Windows, and for the match and rating scripts themselves, see milestone 6
 in [ROADMAP.md](ROADMAP.md): manual install steps are still to be written.

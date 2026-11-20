@@ -10,6 +10,15 @@ once it has a first release.
 
 ### Fixed
 
+- A stalemate at the search horizon was scored as the static evaluation, so
+  a one-ply search could play a stalemating move and report a won position.
+  Quiescence search now scores stalemate as a draw. Found in the milestone 4
+  review, before any release.
+
+- A `Search` that had been stopped by a limit could not be used again:
+  `iterate` panicked and `fixed_depth` returned no move. Each call now starts
+  a new search. Found in the milestone 4 review, before any release.
+
 - `Position::from_fen` accepted positions with more material than a game can
   produce (for example 26 queens), which could generate more than 256 moves
   and abort in `MoveList`. Such positions are now rejected with
@@ -17,6 +26,44 @@ once it has a first release.
 
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
+
+- `scripts/install_tools.py`: a `$` in the install path is now escaped in the
+  systemd unit's `ExecStart`, where systemd would have expanded it.
+
+- `scripts/install_tools.py`: the token file written with `--systemd` no
+  longer sets an empty `LICHESS_BOT_TOKEN`, which lichess-bot would have used
+  in place of a token kept in `config.yml`. The line is commented out.
+
+- `scripts/install_tools.py`: a download that is redirected away from HTTPS
+  is now refused; only the first address was checked before.
+
+- `scripts/install_tools.py`: archive extraction now refuses paths that go
+  through a link inside the archive, which closes an escape through chained
+  symlinks on Python versions without `tarfile.data_filter`.
+
+- `scripts/install_tools.py`: a reinstall interrupted while swapping
+  directories no longer costs the previous install (and its `config.yml`) on
+  the next run; it is restored from the `.old` directory first.
+
+- `scripts/install_tools.py`: the `vyvrael-lichess-bot` launcher now changes
+  into lichess-bot's directory first, so it finds `config.yml` from anywhere.
+
+- `scripts/install_tools.py`: reinstalling lichess-bot no longer deletes the
+  user's own top-level files, and the default engine path is now
+  `<prefix>/engines/vyvrael`, outside the directory a reinstall replaces.
+
+- `scripts/install_tools.py`: `--dry-run` now reports an already installed
+  tool as such, as a real run does, instead of saying it would install it.
+
+- `scripts/install_tools.py`: a re-run over an installed tool now rewrites
+  its launchers and honours `--bin-dir` and `--systemd`, says when `--engine`
+  was not applied, and no longer counts a tool as installed when its files
+  are gone or the pinned commit or digest changed.
+
+- `scripts/install_tools.py`: a tool that cannot be started by its
+  post-install check (it cannot be run, times out, or exits with 126 or 127)
+  is no longer recorded as installed and the run now exits with an error;
+  Cute Chess is refused up front on machines that are not x86_64.
 
 ### Added
 
@@ -88,3 +135,20 @@ once it has a first release.
 - `eval` subcommand of the binary, printing the evaluation and its parts.
 - `scripts/install_tools.py`: a Linux installer for pinned versions of Cute
   Chess, Ordo and lichess-bot, with offline tests. Not yet run end to end.
+- `Evaluator` now requires `Send + Sync`, so it can be used from the search
+  thread.
+- `search` module: score constants and mate-score arithmetic.
+- Fixed-depth negamax search with alpha-beta pruning (`search::Search`).
+- Draw detection in search: insufficient material, repetition (with game
+  history through `Search::with_history`) and the fifty-move rule.
+- The principal variation (`Outcome::pv`).
+- Search limits (`Limits`: depth, nodes, deadline) and an external stop flag.
+- Iterative deepening (`Search::iterate`) with a progress `Report` per depth.
+- Quiescence search: captures and queen promotions are played out before a
+  position is evaluated, most valuable victim first.
+- `search` subcommand of the binary: fixed-depth search with a line per depth.
+- Pinned fixed-depth search results (`tests/search_pins.rs`).
+- The search plays moves on copies of the position (copy-make) after
+  measuring it 3 to 5% faster than make/unmake in the search loop.
+- Brand assets in `branding/`: the engine's avatar and the NXD fractal
+  background, all rights reserved and outside the code's GPL.

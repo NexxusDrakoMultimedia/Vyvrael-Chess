@@ -33,10 +33,10 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| search | planned (milestone 4) | Alpha-beta search and its heuristics. |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -163,13 +163,16 @@ from `board`.
   captured piece, the previous castling rights, en passant square and
   halfmove clock, and the previous hash. Returning it to the caller (rather
   than keeping a history stack inside `Position`) keeps `Position` a plain
-  value with no heap allocation; search will keep its own stack. `Undo` is
+  value with no heap allocation; a caller that unmakes moves keeps its own
+  stack. `Undo` is
   `#[must_use]`. Both styles are supported: in-place make/unmake, and
   copy-make (clone the position, about 200 bytes, and make the move on the
   clone). Measured with perft in milestone 2, copy-make was about 5% faster
-  (numbers in [TESTING.md](TESTING.md)). That is too small and too
-  perft-specific to settle the question, so the choice for search is left to
-  milestone 4, to be made on search speed.
+  (numbers in [TESTING.md](TESTING.md)). Milestone 4 measured both inside the real
+  search and copy-make was again 3 to 5% faster, with identical node counts,
+  so **the search uses copy-make**. `make_move` and `unmake_move` remain: perft
+  uses them, and they are the right tool wherever a move really must be taken
+  back on the same position.
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.
@@ -319,10 +322,11 @@ on this square attack?".
 - **Perft** (`perft.rs`): `perft(pos, depth)` counts the leaf nodes of the
   legal move tree, and `divide(pos, depth)` gives the count below each first
   move. They walk the pseudo-legal moves with make/unmake on one position and
-  skip moves after which the king could be captured, so they exercise exactly
-  the code search will use. `perft_copy_make` counts the same tree by cloning
-  the position for each move; it exists only to measure the two styles
-  against each other (see [TESTING.md](TESTING.md)).
+  skip moves after which the king could be captured, so they exercise move
+  generation, make and unmake together. `perft_copy_make` counts the same
+  tree by cloning the position for each move, which is the style the search
+  uses; the two were measured against each other (see
+  [TESTING.md](TESTING.md)).
 
 - **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
   binary's commands against any pair of writers, so tests run it on in-memory
@@ -330,7 +334,9 @@ on this square attack?".
   identifies itself on stderr, leaving stdout empty for the future UCI
   protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
-  parts. Exit status 2 means the command line was not understood.
+  parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
+  prints one line per depth and the best move, with timing on stderr so that
+  stdout is identical on every run. Exit status 2 means the command line was not understood.
 
 ## Evaluation
 
@@ -347,6 +353,10 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
   and a later neural network are interchangeable and can be played against
   each other. Evaluators add up "White minus Black" and convert with
   `eval::relative_to`.
+- `Evaluator` requires `Send + Sync`, because search runs on its own thread
+  and, with several search threads, they all share one evaluator. An
+  evaluator that needs scratch state per search (a network's accumulators)
+  must keep it outside the shared object.
 - The trait takes the whole position each time. A network that updates
   incrementally on make/unmake (milestone 9) will need notification hooks;
   they will be added then as default methods, so existing evaluators do not
@@ -412,6 +422,146 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
   move. A sign error, a table read from the wrong side or a term applied to
   one colour only all break that, so the tests check it on a spread of
   positions.
+
+## Search
+
+Implemented in `src/search/`, which looks ahead to choose a move. This is
+the core only: the heuristics that make a search fast (move ordering, a
+transposition table, pruning) come in milestone 7, one at a time.
+
+- **Scores** (`search/score.rs`) are the evaluator's `Score` (centipawns)
+  extended with checkmate. `MATE` is 31,000 and `INFINITY`, the bound no score
+  reaches, is 32,000. A position where the side to move is checkmated `ply`
+  plies from the root scores `mated_in(ply) = -MATE + ply`, and the mirror
+  image is `mate_in(ply)`. Counting the distance into the score makes the
+  search prefer the quickest mate and, when lost, the longest defence, with no
+  extra logic. Anything with absolute value at least `MATE_BOUND`
+  (`MATE - MAX_PLY`) is a mate score; evaluations stay far below it.
+  `moves_to_mate` converts a mate score to the signed move count UCI reports.
+  `MAX_PLY` is 128.
+
+- **Negamax with alpha-beta** (`search/negamax.rs`): `Search::fixed_depth`
+  searches a position to an exact depth and returns an `Outcome` (score and
+  best move). Negamax is minimax written once for both sides: a position is
+  worth the best, over its moves, of the negated value of what each move leads
+  to. Alpha-beta skips moves that cannot matter: `alpha` is what the side to
+  move is already sure of and `beta` what the opponent can already hold it to,
+  so once a move reaches `beta` the rest are not examined.
+  - The search is **fail-soft**: a result outside the window is a bound on the
+    true value. The root searches with the full window, so its score is exact.
+  - Moves are taken straight from `pseudo_legal_moves`, played on a copy of
+    the position, and skipped if they leave the king capturable. The search
+    never modifies the position it is given ("copy-make"); see the
+    make/unmake discussion under "Board representation" for why.
+  - A node with no legal move scores `mated_in(ply)` if in check and `DRAW`
+    otherwise, so stalemate is never mistaken for a win.
+  - At depth 0 the quiescence search takes over (below), so positions are
+    not judged in the middle of an exchange.
+  - Moves are searched in generation order. Ordering them well is what makes
+    alpha-beta efficient; it is deliberately left to milestone 7.
+  - **Correctness is tested against plain minimax**, which has no pruning to
+    get wrong: on nine positions, two or three plies deep, the two must return
+    the same score, and the move alpha-beta names must lead to that score.
+
+- **Draws** (`search/draw.rs`): inside the tree a position is scored `DRAW`
+  at once when it is drawn by rule, which both saves work and stops the
+  search walking in circles.
+  - *Insufficient material:* bare kings, or one knight or bishop in total.
+    Deliberately conservative: wrongly claiming a draw is far worse than
+    missing one.
+  - *Repetition:* the position's hash already occurred. `Search` keeps the
+    hashes of the game so far (given with `with_history`) followed by the
+    path from the root. One earlier occurrence counts, although the rules
+    need three in all: a position that can be repeated once can be repeated
+    again. Only positions with the same side to move and within reach of the
+    halfmove clock are compared.
+  - *Fifty-move rule:* a halfmove clock of 100, unless the side to move is
+    checkmated, because a mate delivered on the hundredth ply still wins.
+  - The root is never scored as drawn, since a move must still be returned
+    there.
+
+- **Principal variation.** `Outcome::pv` is the line of best play the score
+  comes from, starting with the best move. `Search` keeps one line per ply (a
+  "triangular" table): a node that finds a new best move stores that move
+  followed by its child's line. The line is shorter than the depth when it
+  ends in a mate or a draw. It is what UCI reports as `pv`, and it is also a
+  check on the search: playing it out must reach a position whose quiescence
+  value is the reported score (the line stops where quiescence search takes
+  over and does not list the captures played beyond it).
+
+- **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
+  depth, node count and deadline; the search stops at whichever comes first.
+  A stop flag (an `AtomicBool` given with `with_stop_flag`) lets another
+  thread end a running search, which is how UCI `stop` will work.
+  - The node limit is exact: the search stops at the first node beyond it.
+    The flag and the clock are read once every 1,024 nodes, because reading
+    them at every node would cost more than the search.
+  - Once any limit trips, a latch makes every node return immediately. The
+    recursion unwinds normally, so the repetition history is restored exactly
+    (the position itself is never modified); values returned on the way out
+    are ignored.
+  - A stopped search is incomplete. `fixed_depth` then reports only the root
+    moves it finished. Iterative deepening (next) discards an unfinished
+    iteration entirely and keeps the last complete one.
+  - Use depth or node limits for anything that must be reproducible. Time
+    limits depend on the machine.
+
+- **Iterative deepening.** `Search::iterate` searches depth 1, then 2, and so
+  on until a limit is reached, calling a `report` callback with a `Report`
+  (depth, score, nodes, elapsed time, principal variation) after each
+  completed depth, and returns the outcome of the deepest one that finished.
+  - It looks wasteful, but each level of the tree is many times larger than
+    the last, so repeating the shallow levels costs little. In return the
+    search can be stopped at any moment and still has a complete answer,
+    which is what playing to a clock needs. Later, the earlier iterations
+    will also feed move ordering (milestone 7).
+  - The first iteration always completes, whatever the limits, so there is
+    always a move to play. An interrupted iteration is discarded.
+  - It ends early when the root has no legal move, and when a forced mate
+    has been found within the depth searched, since a deeper search cannot
+    find a shorter one.
+  - With no ordering heuristics or tables yet, iterating to depth N gives
+    exactly the result of a direct depth-N search; a test relies on that.
+
+- **Quiescence search.** A static evaluation only means something in a quiet
+  position. Evaluating at a fixed depth would count a queen that has just
+  taken a defended pawn as a pawn won, because the recapture lies beyond the
+  horizon. So when the main search runs out of depth it continues with
+  captures and queen promotions only, until nothing is left to take.
+  - The side to move may always decline to capture, so its static evaluation
+    is a floor under its score ("standing pat"). If that floor already
+    reaches `beta`, the node is cut off at once.
+  - In check there is no standing pat: every legal move is searched, and
+    having none is checkmate. This is also why a mate whose last move gives
+    check is seen one ply earlier than the nominal depth.
+  - It has no depth limit. Captures cannot continue for ever, and a ply cap
+    (`MAX_PLY`) is the backstop.
+  - Not in check and with no legal move at all, the position is stalemate
+    and scores `DRAW`. This is tested before standing pat, because the side
+    that cannot move is usually far behind and the evaluation would call the
+    position won for the other side. Generating moves at every node only for
+    this would cost about a fifth of the search's speed, so a glance at the
+    bitboards comes first: when the king is not in check, a pawn or knight
+    that shares no rank, file or diagonal with its own king cannot be pinned,
+    so one with a square to go to proves there is a legal move. Moves are
+    generated for the test only when no such piece exists.
+  - Of the draw rules only insufficient material is checked here, because a
+    capture can leave bare kings. Captures cannot repeat a position and they
+    restart the fifty-move clock. The quiet moves that get out of a check can
+    do neither, and quiescence does not test them for repetition or the
+    fifty-move rule; the main search does, one ply deeper.
+  - **Captures are tried most valuable victim first** (`search/ordering.rs`),
+    with the least valuable attacker breaking ties and promotions counted as
+    the material they gain. Alpha-beta returns the same value in any order,
+    but the cost differs enormously: with captures in generation order one
+    busy middlegame position (Kiwipete) took more than 20 million nodes to
+    resolve, against 3,067 with this ordering, for the same value wherever
+    both finished. So unlike the move ordering of the main search, which
+    waits for milestone 7 and SPRT, this ordering is part of the core: without
+    it the search does not finish.
+  - No other pruning is used beyond alpha-beta and standing pat. Skipping
+    captures that cannot help (delta pruning, static exchange evaluation) is
+    left to milestone 7.
 
 ## How search, evaluation and UCI fit together (planned)
 

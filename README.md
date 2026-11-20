@@ -3,7 +3,7 @@ Dragon-flavoured, aggressive, vibecoded UCI-compatible chess engine written in R
 
 ## What it is
 
-Vyvræl is a chess engine by Nexxus Drako Multimedia. It speaks the
+Vyvræl is an Australian chess engine by Nexxus Drako Multimedia. It speaks the
 [UCI protocol](docs/UCI.md), so it plugs into chess GUIs and into
 `lichess-bot`. It aims for an aggressive style: king attacks, initiative and
 piece activity, built on a foundation that is correct first.
@@ -22,8 +22,9 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search) has not started.** The engine generates legal moves, passes perft and can score a position, but cannot
-play chess yet. See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged.** The engine generates legal moves, passes perft, scores a position and
+searches for the best move, but cannot play a game yet: it does not speak
+UCI (milestone 5). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
@@ -37,19 +38,20 @@ cargo test --workspace --release
 ```
 
 Running the binary with no arguments prints the engine name and version to
-stderr and exits; the UCI loop arrives in milestone 5. Two subcommands exist
-so far, `perft` and `eval`:
+stderr and exits; the UCI loop arrives in milestone 5. Three subcommands exist
+so far, `perft`, `eval` and `search`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
 cargo run --release -- perft 3 --divide   # the same, split by first move
 cargo run --release -- perft 5 --copy-make  # same count, copy-make style
 cargo run --release -- eval               # static evaluation, with its parts
+cargo run --release -- search 4           # search 4 plies and name the best move
 cargo run --release -- help
 ```
 
-`perft` takes an optional FEN after the depth, and `eval` takes an optional
-FEN. See
+`perft` and `search` take an optional FEN after the depth, and `eval` takes an
+optional FEN. See
 [docs/TESTING.md](docs/TESTING.md) for what the numbers mean.
 
 ## Using it in a GUI or lichess-bot
@@ -84,3 +86,6 @@ Copyright (C) 2026 Nexxus Drako Multimedia.
 Vyvræl is free software, licensed under the GNU General Public License,
 version 3 or (at your option) any later version (GPL-3.0-or-later). See
 [LICENSE.md](LICENSE.md). It comes with no warranty.
+
+The brand assets in [`branding/`](branding/README.md) are the exception: they
+are all rights reserved and are not covered by the GPL.
