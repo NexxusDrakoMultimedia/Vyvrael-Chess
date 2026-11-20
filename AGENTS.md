@@ -59,7 +59,7 @@ Layout:
 | Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
 | Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |
 | Run a match (Windows) | `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first; see `-Help` |
-| Rate PGN files (Windows) | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/rate.ps1`) |
+| Rate PGN files (Windows) | `scripts/windows/rate.ps1 [options] FILE.pgn ...`; see `-Help` |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 

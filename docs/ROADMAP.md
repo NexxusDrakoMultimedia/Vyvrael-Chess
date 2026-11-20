@@ -369,7 +369,7 @@ Part B, the match and rating scripts:
   versions, times) and the progress log
 - [x] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
 - [x] `scripts/windows/match.ps1`: the same behaviour and flags
-- [ ] `scripts/windows/rate.ps1`: the same behaviour and flags
+- [x] `scripts/windows/rate.ps1`: the same behaviour and flags
 - [ ] `docs/TESTING.md`: running the scripts, the fixed defaults, example
   SPRT bounds, pitfalls
 

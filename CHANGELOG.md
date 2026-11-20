@@ -27,6 +27,7 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   anchor engine (by default "Stockfish 19" at 0, as in Ladder Baseline 1),
   writes a text table and a CSV, and prints the order with a reminder of
   what the numbers do not say.
+- `scripts/windows/rate.ps1`: the same rating script for Windows.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 
