@@ -100,3 +100,4 @@ once it has a first release.
 - Quiescence search: captures and queen promotions are played out before a
   position is evaluated, most valuable victim first.
 - `search` subcommand of the binary: fixed-depth search with a line per depth.
+- Pinned fixed-depth search results (`tests/search_pins.rs`).

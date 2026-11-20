@@ -87,6 +87,40 @@ and the endgame, the game phase, and the total from White's point of view and
 from the side to move's. It does not search, so it says how the position
 looks, not what is about to happen in it. All numbers are centipawns.
 
+## Pinned search results
+
+A fixed-depth search uses no clock and no randomness, so everything it
+reports is determined by the code. `tests/search_pins.rs` records the score,
+node count and principal variation for seven positions.
+
+These numbers were **recorded from this implementation**; they are not an
+independent reference the way perft counts are. What they give is change
+detection: an edit to move generation order, to the evaluation or to the
+search that alters behaviour at fixed depth fails this test, including edits
+that were not meant to alter anything.
+
+This is the "fixed-depth node-count check" that search changes need while
+SPRT is not yet available. When a deliberate change makes a pin fail:
+
+1. Confirm the new behaviour is intended. For a search or evaluation change
+   that means an SPRT result once the match script exists.
+2. Update the numbers in the same commit and say so in its message.
+
+Never update a pin just to get a green run.
+
+| Position | Depth | Score | Nodes |
+| --- | --- | --- | --- |
+| Start position | 4 | 0 | 28,793 |
+| Kiwipete | 2 | +44 | 391,308 |
+| Position 3 | 5 | +107 | 63,892 |
+| Position 4 | 2 | -418 | 23,562 |
+| Position 5 | 2 | +541 | 5,857 |
+| Position 6 | 2 | +22 | 27,964 |
+| Queen against two pawns | 4 | +683 | 15,714 |
+
+The Kiwipete figure shows the cost of searching without move ordering (known
+issue KI-9): two plies there take more nodes than five in the rook endgame.
+
 ## Running a search by hand
 
 ```sh
@@ -122,6 +156,7 @@ Integration tests live in `tests/` and use only the public API.
 | --- | --- |
 | `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS; archive extraction refuses paths and symlinks that escape; a failed reinstall leaves the old install alone; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
+| `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" below. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
 

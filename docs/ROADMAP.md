@@ -201,7 +201,7 @@ behaviour is noticed.
 - [x] `search`: quiescence search, with captures ordered most valuable victim
   first
 - [x] `cli`: `search` subcommand
-- [ ] `search`: pinned fixed-depth node counts
+- [x] `search`: pinned fixed-depth node counts
 - [ ] `search`: measure make/unmake against copy-make and choose
 - [ ] End-of-milestone review and doc drift pass
 
