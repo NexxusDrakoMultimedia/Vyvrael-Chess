@@ -450,8 +450,8 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   - Moves are searched in generation order. Ordering them well is what makes
     alpha-beta efficient; it is deliberately left to milestone 7.
   - **Correctness is tested against plain minimax**, which has no pruning to
-    get wrong: on eight positions at depths 1 to 3 the two must return the
-    same score, and the move alpha-beta names must lead to that score.
+    get wrong: on nine positions, two or three plies deep, the two must return
+    the same score, and the move alpha-beta names must lead to that score.
 
 - **Draws** (`search/draw.rs`): inside the tree a position is scored `DRAW`
   at once when it is drawn by rule, which both saves work and stops the

@@ -531,18 +531,36 @@ mod tests {
     /// Pruning must never change the answer, only the work.
     #[test]
     fn alpha_beta_agrees_with_minimax() {
+        // Unpruned minimax with a full quiescence search at every leaf is
+        // very expensive on busy positions, so those go one ply less deep.
         let positions = [
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 b - - 0 10",
-            "7k/8/8/8/8/8/R7/1R4K1 w - - 0 1",
-            "4k3/8/8/3q4/8/8/8/3RK3 b - - 0 1",
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                3,
+            ),
+            (KIWIPETE, 2),
+            ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1", 3),
+            (
+                "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+                2,
+            ),
+            (
+                "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+                2,
+            ),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 b - - 0 10",
+                2,
+            ),
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 3),
+            ("4k3/8/8/3q4/8/8/8/3RK3 b - - 0 1", 3),
+            (
+                "r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 0 1",
+                2,
+            ),
         ];
-        for text in positions {
-            for depth in 1..=3 {
+        for (text, deepest) in positions {
+            for depth in 1..=deepest {
                 let mut pos = fen(text);
                 let mut minimax_nodes = 0;
                 let expected = minimax(&mut pos, depth, 0, &mut minimax_nodes);
@@ -565,11 +583,11 @@ mod tests {
 
     #[test]
     fn pruning_saves_work_at_depth() {
-        let text = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let text = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
         let mut minimax_nodes = 0;
-        minimax(&mut fen(text), 3, 0, &mut minimax_nodes);
+        minimax(&mut fen(text), 4, 0, &mut minimax_nodes);
         let mut searcher = Search::new(&HandCrafted);
-        searcher.fixed_depth(&mut fen(text), 3);
+        searcher.fixed_depth(&mut fen(text), 4);
         assert!(searcher.nodes() * 2 < minimax_nodes);
     }
 
@@ -656,15 +674,23 @@ mod tests {
     /// leads to the reported score.
     #[test]
     fn the_principal_variation_explains_the_score() {
+        // Busy middlegames are searched less deep: without move ordering
+        // (milestone 7) every extra ply there costs a great deal.
         let positions = [
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 b - - 0 10",
-            "4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1",
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                3,
+            ),
+            (KIWIPETE, 2),
+            (ROOK_ENDGAME, 4),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 b - - 0 10",
+                2,
+            ),
+            ("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1", 4),
         ];
-        for text in positions {
-            for depth in 1..=4u32 {
+        for (text, deepest) in positions {
+            for depth in 1..=deepest {
                 let outcome = search(text, depth);
                 assert_eq!(outcome.pv.first().copied(), outcome.best_move, "{text}");
                 assert!(outcome.pv.len() <= depth as usize, "{text} depth {depth}");
@@ -674,7 +700,7 @@ mod tests {
                     assert!(legal_moves(&pos).contains(mv), "{text}: {mv} is not legal");
                     let _undo = pos.make_move(*mv);
                 }
-                // These positions have no mate or draw within four plies, so
+                // These positions have no mate or draw within these depths, so
                 // the line runs the full depth and ends in a position whose
                 // quiescence value, seen from the root side, is the score.
                 assert_eq!(outcome.pv.len(), depth as usize, "{text} depth {depth}");
@@ -776,6 +802,8 @@ mod tests {
     }
 
     const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+    /// Perft position 3: few pieces, so deeper searches stay quick.
+    const ROOK_ENDGAME: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
 
     #[test]
     fn a_node_limit_stops_the_search_and_restores_everything() {
@@ -798,9 +826,9 @@ mod tests {
 
     #[test]
     fn a_generous_node_limit_changes_nothing() {
-        let unlimited = search(KIWIPETE, 3);
+        let unlimited = search(ROOK_ENDGAME, 3);
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(u64::MAX));
-        let limited = searcher.fixed_depth(&mut fen(KIWIPETE), 3);
+        let limited = searcher.fixed_depth(&mut fen(ROOK_ENDGAME), 3);
         assert!(!searcher.was_stopped());
         assert_eq!(limited, unlimited);
     }
@@ -820,7 +848,7 @@ mod tests {
         // A flag that is never raised does not disturb the search.
         let calm = AtomicBool::new(false);
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&calm);
-        assert_eq!(searcher.fixed_depth(&mut pos, 3), search(KIWIPETE, 3));
+        assert_eq!(searcher.fixed_depth(&mut pos, 2), search(KIWIPETE, 2));
         assert!(!searcher.was_stopped());
     }
 
@@ -848,8 +876,8 @@ mod tests {
     fn iterating_to_a_depth_equals_searching_that_depth() {
         for text in [
             crate::board::START_FEN,
-            KIWIPETE,
-            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1",
+            ROOK_ENDGAME,
         ] {
             let (outcome, reports, stopped) = iterate(text, Limits::depth(3));
             assert!(!stopped);
@@ -897,17 +925,17 @@ mod tests {
     /// last depth that finished, which is always a complete, legal answer.
     #[test]
     fn an_interrupted_iteration_is_discarded() {
-        // Find how many nodes two and three iterations take, then set the
-        // limit between them so the third is cut off partway.
-        let (_, two, _) = iterate(KIWIPETE, Limits::depth(2));
-        let (_, three, _) = iterate(KIWIPETE, Limits::depth(3));
-        let (after_two, after_three) = (two[1].nodes, three[2].nodes);
-        let limit = after_two + (after_three - after_two) / 2;
+        // Find how many nodes three and four iterations take, then set the
+        // limit between them so the fourth is cut off partway.
+        let (_, three, _) = iterate(ROOK_ENDGAME, Limits::depth(3));
+        let (_, four, _) = iterate(ROOK_ENDGAME, Limits::depth(4));
+        let (after_three, after_four) = (three[2].nodes, four[3].nodes);
+        let limit = after_three + (after_four - after_three) / 2;
 
-        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(limit));
+        let (outcome, reports, stopped) = iterate(ROOK_ENDGAME, Limits::nodes(limit));
         assert!(stopped);
-        assert_eq!(reports.last().unwrap().depth, 2);
-        assert_eq!(outcome, search(KIWIPETE, 2));
+        assert_eq!(reports.last().unwrap().depth, 3);
+        assert_eq!(outcome, search(ROOK_ENDGAME, 3));
     }
 
     #[test]
