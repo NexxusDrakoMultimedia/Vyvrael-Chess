@@ -196,9 +196,11 @@ These follow the Terms of Service points above.
   - **stop the bot instead of letting it run**: Ctrl-C in its terminal, or
     `systemctl --user stop vyvrael-lichess-bot` if it runs as the service
     the installer writes. Fix the cause before starting it again.
-  - Known risk: that service is written with `Restart=always`, so a bot
-    that keeps failing is restarted every ten seconds. Do not enable the
-    service until the bot has played cleanly from a terminal.
+  - The service restarts the bot only after a failure, waits 30 seconds
+    each time, and gives up after three failed starts in ten minutes
+    (`systemctl --user status vyvrael-lichess-bot` then shows it as
+    failed). That limits the damage; it does not replace looking. Do not
+    enable the service until the bot has played cleanly from a terminal.
 - **No boosting.** No rated games against the maintainer's own accounts or
   bots, and no arranged results.
 - **No sandbagging.** On a rated account, do not weaken the engine with

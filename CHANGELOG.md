@@ -76,6 +76,11 @@ shipped; they are kept as a record of what the reviews caught.
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 
+- `scripts/install_tools.py`: the lichess-bot service it writes restarted
+  the bot for ever, every ten seconds, whatever went wrong. It now restarts
+  only after a failure, 30 seconds apart, and gives up after three failed
+  starts in ten minutes, so a broken bot cannot abort game after game.
+
 - `scripts/install_tools.py`: the next steps printed after installing
   lichess-bot no longer tell the user to enable the service at once. They
   now say to set `config.yml` up as `docs/LICHESS.md` describes before the
