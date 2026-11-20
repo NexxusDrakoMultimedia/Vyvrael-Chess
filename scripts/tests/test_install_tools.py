@@ -20,7 +20,9 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path, PurePosixPath
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import install_tools  # noqa: E402
@@ -256,6 +258,36 @@ class Systemd(unittest.TestCase):
         self.assertIn("WorkingDirectory=/opt/my tools\n", unit)
         self.assertIn("EnvironmentFile=/home/me/.config/vyvrael/lichess-token.env\n", unit)
         self.assertEqual(len(re.findall(r"(?m)^\[(Unit|Service|Install)\]$", unit)), 3)
+
+
+class TokenFile(unittest.TestCase):
+    """The service's token file, written under a temporary XDG_CONFIG_HOME."""
+
+    def write(self, tmp: str) -> Path:
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}), redirect_stdout(io.StringIO()):
+            install_tools.write_systemd_unit(Path(tmp) / "lichess-bot", Path(tmp) / "python")
+        return Path(tmp) / "vyvrael/lichess-token.env"
+
+    def test_template_does_not_set_the_variable(self):
+        # lichess-bot overrides config.yml's token whenever the variable is
+        # present, so the template must not define it, not even as empty.
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = self.write(tmp)
+            lines = env_file.read_text().splitlines()
+            active = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
+            self.assertEqual(active, [])
+            self.assertIn("# LICHESS_BOT_TOKEN=", lines)
+            self.assertTrue((Path(tmp) / "systemd/user/vyvrael-lichess-bot.service").is_file())
+            if os.name != "nt":
+                self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o600)
+
+    def test_an_existing_token_file_is_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = Path(tmp) / "vyvrael/lichess-token.env"
+            env_file.parent.mkdir()
+            env_file.write_text("LICHESS_BOT_TOKEN=placeholder\n")
+            self.write(tmp)
+            self.assertEqual(env_file.read_text(), "LICHESS_BOT_TOKEN=placeholder\n")
 
 
 class Private(unittest.TestCase):

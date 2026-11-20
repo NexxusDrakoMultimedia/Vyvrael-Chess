@@ -286,8 +286,11 @@ What to know before running it:
 - **Your Lichess token is never written by the script.** `config.yml` is
   created with an empty token and readable only by you. The script does not
   upgrade the account to a bot account (that is irreversible) and does not
-  start anything. With `--systemd` it also writes a user service and an empty
-  token file under `~/.config`, without enabling them.
+  start anything. With `--systemd` it also writes a user service and a token
+  file under `~/.config`, without enabling them. The token file holds only a
+  commented-out `LICHESS_BOT_TOKEN=` line: lichess-bot lets that variable
+  replace the token in `config.yml` whenever it is set, even to nothing, so
+  uncomment it only when you put the token there.
 - After installing, it runs `cutechess-cli --version` and `ordo -h` once and
   prints the first line, which is the check that the tools work.
 

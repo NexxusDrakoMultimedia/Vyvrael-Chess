@@ -20,7 +20,7 @@ Every tool is pinned to an exact version in PINS below, so two runs install
 the same thing. Updating a tool means editing PINS in a reviewed commit.
 
 It never: writes your Lichess token anywhere (the only token file it makes is
-an empty, owner-only template), upgrades the account to BOT (irreversible; run
+an owner-only template that sets nothing), upgrades the account to BOT (irreversible; run
 `vyvrael-lichess-bot -u` yourself), or enables or starts any service.
 """
 from __future__ import annotations
@@ -414,24 +414,41 @@ def install_lichess_bot(ctx: Ctx) -> None:
     )
 
 
+# The assignment is commented out on purpose. lichess-bot replaces the token
+# from config.yml whenever LICHESS_BOT_TOKEN is present in its environment,
+# empty or not, so a bare `LICHESS_BOT_TOKEN=` line would blank a token kept
+# in config.yml as soon as the service is used.
+TOKEN_ENV_TEMPLATE = (
+    "# Lichess API token for the vyvrael-lichess-bot service (scope: bot:play).\n"
+    "# To use it, remove the leading '# ' from the last line and put the token\n"
+    "# after the '='. Leave the line commented out to use the token from\n"
+    "# config.yml instead: while this variable is set, even to nothing, it\n"
+    "# replaces that one.\n"
+    "# LICHESS_BOT_TOKEN=\n"
+)
+
+
 def write_systemd_unit(dest: Path, python: Path) -> None:
-    """Writes a user service and an empty token file. Does not enable either.
+    """Writes a user service and a token file template. Does not enable either.
 
     systemd only looks for user units under the user's configuration
     directory, so these two files are the one thing that cannot live under
     --prefix. That is why they are written only when --systemd is given.
+    An existing token file is never rewritten.
     """
     config_home = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     env_file = config_home / "vyvrael/lichess-token.env"
     if not env_file.exists():
-        write_private(env_file, "LICHESS_BOT_TOKEN=\n")
+        write_private(env_file, TOKEN_ENV_TEMPLATE)
+        state = "sets nothing until you edit it"
     else:
         env_file.chmod(0o600)
+        state = "left as it was"
     unit = config_home / "systemd/user/vyvrael-lichess-bot.service"
     unit.parent.mkdir(parents=True, exist_ok=True)
     unit.write_text(systemd_unit(python, dest / "lichess-bot.py", dest, env_file))
     say(f"  wrote {unit} (NOT enabled or started)")
-    say(f"  token file: {env_file} (empty; only you can read it)")
+    say(f"  token file: {env_file} ({state}; only you can read it)")
 
 
 INSTALLERS = {
@@ -471,8 +488,10 @@ LICHESS_NEXT_STEPS = """
 lichess-bot next steps (manual by design):
   1. Use a FRESH Lichess account with zero games.
   2. Create an API token with only the bot:play scope. Give it to the bot
-     through the LICHESS_BOT_TOKEN environment variable (with --systemd: put
-     it in ~/.config/vyvrael/lichess-token.env). Never commit it.
+     through the LICHESS_BOT_TOKEN environment variable (with --systemd:
+     uncomment that line in ~/.config/vyvrael/lichess-token.env and put the
+     token after the '='). Never commit it. While the variable is set, even
+     to nothing, it replaces any token in config.yml.
   3. Build Vyvræl, then run once: vyvrael-lichess-bot -u
      That upgrades the account to BOT. It is IRREVERSIBLE.
   4. Afterwards: vyvrael-lichess-bot

@@ -30,6 +30,10 @@ once it has a first release.
 - `scripts/install_tools.py`: a `$` in the install path is now escaped in the
   systemd unit's `ExecStart`, where systemd would have expanded it.
 
+- `scripts/install_tools.py`: the token file written with `--systemd` no
+  longer sets an empty `LICHESS_BOT_TOKEN`, which lichess-bot would have used
+  in place of a token kept in `config.yml`. The line is commented out.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool
