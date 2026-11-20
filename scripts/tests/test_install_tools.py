@@ -34,17 +34,24 @@ def args(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**base)
 
 
-def tar_with(path: Path, members: list[tuple[str, bytes]], links: list[tuple[str, str]] = ()) -> None:
+def tar_with(
+    path: Path,
+    members: list[tuple[str, bytes]],
+    links: list[tuple[str, str]] = (),
+    hard_links: list[tuple[str, str]] = (),
+) -> None:
+    """Writes an archive: symlinks first, then hard links, then files."""
     with tarfile.open(path, "w:gz") as tar:
+        for kind, pairs in ((tarfile.SYMTYPE, links), (tarfile.LNKTYPE, hard_links)):
+            for name, target in pairs:
+                info = tarfile.TarInfo(name)
+                info.type = kind
+                info.linkname = target
+                tar.addfile(info)
         for name, data in members:
             info = tarfile.TarInfo(name)
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
-        for name, target in links:
-            info = tarfile.TarInfo(name)
-            info.type = tarfile.SYMTYPE
-            info.linkname = target
-            tar.addfile(info)
 
 
 class Pins(unittest.TestCase):
@@ -161,6 +168,55 @@ class Extract(unittest.TestCase):
             tar_with(archive, [], links=[("pkg/link", "../../outside")])
             with self.assertRaises(SystemExit):
                 install_tools.safe_extract(archive, Path(tmp) / "out")
+
+    def refused_before_extraction(self, **archive) -> None:
+        """Asserts the installer's own check stops the archive.
+
+        Extraction is replaced by a mock, so this holds on Pythons without
+        `tarfile.data_filter` too, where nothing else would stop it.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.tar.gz"
+            tar_with(path, archive.pop("members", []), **archive)
+            with mock.patch.object(tarfile.TarFile, "extractall") as extractall:
+                with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                    install_tools.safe_extract(path, Path(tmp) / "out")
+                extractall.assert_not_called()
+
+    def test_rejects_a_chain_of_links_that_climbs_out(self):
+        # Each link is harmless alone: `up` is the archive root, and `up2`
+        # reads as pkg/ until `up` exists, when it becomes the parent.
+        self.refused_before_extraction(
+            members=[("pkg/up2/evil.txt", b"x")],
+            links=[("pkg/up", ".."), ("pkg/up2", "up/..")],
+        )
+
+    def test_rejects_a_link_target_that_goes_through_a_link(self):
+        self.refused_before_extraction(links=[("pkg/up", ".."), ("pkg/up2", "up/..")])
+
+    def test_rejects_a_file_under_a_link(self):
+        self.refused_before_extraction(
+            members=[("pkg/dir/file.txt", b"x")], links=[("pkg/dir", ".")]
+        )
+
+    def test_rejects_a_hard_link_to_a_symlink(self):
+        # A copy of `a/b/up` at the top would point two levels above it.
+        self.refused_before_extraction(
+            links=[("a/b/up", "../..")], hard_links=[("copy", "a/b/up")]
+        )
+
+    def test_accepts_links_that_stay_inside(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.tar.gz"
+            tar_with(
+                path,
+                [("pkg/readme.txt", b"hello"), ("pkg/sub/file.txt", b"x")],
+                links=[("pkg/link", "readme.txt"), ("pkg/sub/up", "../readme.txt")],
+                hard_links=[("pkg/same", "pkg/readme.txt")],
+            )
+            with mock.patch.object(tarfile.TarFile, "extractall") as extractall:
+                install_tools.safe_extract(path, Path(tmp) / "out")
+                extractall.assert_called_once()
 
     def test_single_subdir_falls_back_to_the_directory_itself(self):
         with tempfile.TemporaryDirectory() as tmp:

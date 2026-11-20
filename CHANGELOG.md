@@ -37,6 +37,10 @@ once it has a first release.
 - `scripts/install_tools.py`: a download that is redirected away from HTTPS
   is now refused; only the first address was checked before.
 
+- `scripts/install_tools.py`: archive extraction now refuses paths that go
+  through a link inside the archive, which closes an escape through chained
+  symlinks on Python versions without `tarfile.data_filter`.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

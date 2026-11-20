@@ -29,6 +29,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shlex
 import shutil
@@ -145,7 +146,14 @@ def download(url: str, dest: Path, sha256: str | None) -> str:
 
 # ---------------------------------------------------------------- archives
 def safe_extract(archive: Path, dest: Path) -> None:
-    """Extracts a tar archive, refusing entries that would land outside `dest`."""
+    """Extracts a tar archive, refusing entries that would land outside `dest`.
+
+    Every name and link target is checked before anything is extracted, so
+    the check cannot see where a link really leads once it exists. Paths are
+    therefore also refused when they go through one of the archive's own
+    links: that is the only way a chain of individually harmless links can
+    climb out of `dest`. Source archives of a git commit never need it.
+    """
     dest = dest.resolve()
     dest.mkdir(parents=True, exist_ok=True)
 
@@ -155,14 +163,33 @@ def safe_extract(archive: Path, dest: Path) -> None:
             die(f"unsafe path in archive: {name}")
 
     with tarfile.open(archive) as tar:
-        for member in tar.getmembers():
+        members = tar.getmembers()
+        links = {posixpath.normpath(m.name) for m in members if m.issym() or m.islnk()}
+
+        def check_no_link_on_the_way(path: str, what: str) -> None:
+            parts = [part for part in path.split("/") if part not in ("", ".")]
+            prefix = ""
+            for part in parts[:-1]:
+                prefix = posixpath.normpath(posixpath.join(prefix, part))
+                if prefix in links:
+                    die(f"{what} goes through a link in the archive: {path}")
+
+        for member in members:
             check(member.name)
+            check_no_link_on_the_way(member.name, "path")
             if member.issym():
                 # A symlink target is relative to the link's own directory.
-                check(os.path.join(os.path.dirname(member.name), member.linkname))
+                target = posixpath.join(posixpath.dirname(member.name), member.linkname)
+                check(target)
+                check_no_link_on_the_way(target, "link target")
             elif member.islnk():
-                # A hard link target is relative to the archive root.
+                # A hard link target is relative to the archive root. A hard
+                # link to a symlink would repeat that symlink's relative
+                # target from another directory, so it is refused too.
                 check(member.linkname)
+                check_no_link_on_the_way(member.linkname, "link target")
+                if posixpath.normpath(member.linkname) in links:
+                    die(f"hard link to another link in archive: {member.name}")
             if member.isdev():
                 die(f"device file in archive: {member.name}")
         if hasattr(tarfile, "data_filter"):
