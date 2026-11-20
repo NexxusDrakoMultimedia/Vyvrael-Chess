@@ -354,36 +354,44 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | --- | --- | --- |
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
 | 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with an AVX2/BMI2 build and with binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
 
 ### Release artifacts
 
-Decided by the maintainer (the last two points on 2026-11-21):
+Decided by the maintainer (all but the first point on 2026-11-21):
 
 - A release ships binaries for Windows and Linux on x86-64, each with a
   SHA-256 checksum file beside it. 0.1.0-alpha.1 did.
 - Each system gets two builds: a generic one, a plain release build for any
   x86-64 processor, and one for processors with AVX2 and BMI2. Neither is
   ever built with `target-cpu=native`, and there is no AVX-512 build.
-  0.1.0-alpha.1 shipped the generic builds only.
 - The binaries are built by a workflow, not by hand. The maintainer owns
   that workflow, because `.github/workflows` is a protected path that agents
   do not edit: an agent may propose its contents in a document for the
   maintainer to put in place.
+- **The release of milestone 7 (0.2.0) is the first with an AVX2/BMI2 build
+  and with workflow-built binaries.** Until then a release ships generic
+  builds made by hand, as 0.1.0-alpha.1 did.
+- **File names:** `vyvrael-<version>-<build>.exe` for Windows and
+  `vyvrael-<version>-<build>` for Linux, where `<build>` names the build.
+  The files of 0.1.0-alpha.1 were named before this was decided and keep
+  their names (`...-windows-x86_64.exe`, `...-linux-x86_64`).
 - Agents prepare a release; the maintainer tags and publishes it.
 - Binaries are attached to the release and never committed.
 
-Open, for the maintainer:
+Open, for the maintainer, to be decided after milestone 7:
 
-- Which release is the first with an AVX2/BMI2 build and with workflow-built
-  binaries.
-- The exact processor level the AVX2/BMI2 build names (`x86-64-v3` or
-  `haswell`), to be settled with the measurements of queued task 2, which
-  also documents how to make that build.
-- How the files are named from one release to the next.
+- The processor level the AVX2/BMI2 build names: `x86-64-v3` or `haswell`.
+  Both give AVX2 and BMI2 without AVX-512. `x86-64-v3` is a vendor-neutral
+  level with no tuning for one processor; `haswell` is one Intel processor,
+  which adds a few instructions the engine does not use and tunes the code
+  for that model. The benchmark of queued task 2 is the place to measure
+  the difference.
+- The exact words used for `<build>` (one for the generic build, one for
+  the AVX2/BMI2 build), which follow from that choice.
 
 ## Testing tooling (before milestone 6)
 

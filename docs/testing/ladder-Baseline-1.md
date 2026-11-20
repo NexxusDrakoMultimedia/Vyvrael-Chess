@@ -12,7 +12,7 @@ First opponent-ladder measurement for Vyvræl testing. Vyvræl itself was **not*
 
 - **Date / host:** 2026-11-20, the Windows workstation (Windows 11, Ryzen 7 5700X), Cute Chess GUI, 13:44-14:30 AEST (about 46 min)
 - **Raw games:** `Baseline1.pgn` (600 games, 1.1 MB, **not committed**; kept locally in `matches/`)
-- **SHA-256 of the PGN:** `a9cb2fbb3cab148125f1c92db7bc500863931248aa8ecc0c41953a186b409c14` (of the maintainer's local copy of `Baseline1.pgn`, which is not committed; `*.pgn` is git-ignored)
+- **SHA-256 of the PGN:** `00740af795b70607302a3ada90d8a2b1751971e9160bffb221fd117a2a750237` (of the maintainer's local copy of `Baseline1.pgn`, 600 games and 1,111,143 bytes, which is not committed; `*.pgn` is git-ignored). This is the file after the maintainer removed the trailing space from the name "Stockfish 19-2400 " on 2026-11-21 (see "A name to correct" below); the games are otherwise those of the run. As first recorded, with the space, its SHA-256 was `a9cb2fbb3cab148125f1c92db7bc500863931248aa8ecc0c41953a186b409c14`.
 - **Ordo output:** [`ladder-Baseline-1-ratings.txt`](ladder-Baseline-1-ratings.txt), [`ladder-Baseline-1-ratings.csv`](ladder-Baseline-1-ratings.csv)
 
 ## Setup
@@ -69,8 +69,9 @@ Command: `ordo -a 0 -A "Stockfish 19" -W -s 500 -p Baseline1.pgn -o ladder-Basel
 White advantage reported by Ordo: 4.67 ± 15.72.
 
 **A name to correct.** In this run one engine was configured as
-"Stockfish 19-2400 " with a space at the end, and the ratings files carry
-that spelling. Ordo treats it as a different player from "Stockfish
+"Stockfish 19-2400 " with a space at the end, and the ratings files, which
+are Ordo's output from that run, carry that spelling. The PGN no longer
+does: the maintainer removed the space from it on 2026-11-21. Ordo treats it as a different player from "Stockfish
 19-2400". From 2026-11-21 the name is written without the space (the
 maintainer's decision), in the Windows engine list and in the list the
 installer generates, and this baseline is due to be run again.
