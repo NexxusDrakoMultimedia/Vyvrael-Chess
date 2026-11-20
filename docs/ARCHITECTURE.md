@@ -577,9 +577,14 @@ transposition table, pruning) come in milestone 7, one at a time.
 A weakened engine should make plausible mistakes, not random moves.
 `weakened_move` therefore:
 
-1. searches **every** root move, each with its own full-window search, to a
+1. scores **every** root move, each with its own full-window search, to a
    shallow depth (a weaker player sees less far), which gives every move an
-   exact score, not only the best one;
+   exact score, not only the best one. This is done in passes, like
+   iterative deepening: all moves one ply deep, then all moves two plies
+   deep, up to the depth of the setting. The first pass always completes;
+   the clock, a node limit or `stop` can only cut a later pass short, and a
+   pass cut short is thrown away. So the choice is always made from scores
+   that all look equally far ahead, however little time there is;
 2. adds to each score a random error between minus and plus `noise`
    centipawns, the sum of two uniform draws, so small errors are common and
    large ones rare;
@@ -588,9 +593,7 @@ A weakened engine should make plausible mistakes, not random moves.
 The error is bounded, so a blunder larger than twice the noise cannot
 happen: the engine may prefer the second-best quiet move, but it does not
 leave a queen hanging unless the noise is that large. Forced mates are
-judged exactly, for and against. Positions that are drawn by rule right
-after a root move (repetition, fifty moves, bare material) are scored as
-draws here, because a search never scores its own root as a draw.
+judged exactly, for and against.
 
 `Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (400) to `ELO_MAX`
 (1800) to a depth (2 below the middle of the range, 3 above) and a noise
@@ -599,11 +602,16 @@ numbers are provisional.** They only order the settings. What rating each
 setting really plays at is measured in milestone 6 and the mapping is
 refitted then; until that is done the rating is a label.
 
-The generator is handed in by the caller and advanced identically for
-every root move, whatever its score, so the choice is a function of the
-position, the weakening and the seed. With a deadline the number of root
-moves finished depends on the machine; for a reproducible weakened game use
-`DeterministicRNG` with a depth or node limit, or generous time.
+The generator is handed in by the caller and advanced once per root move
+before any searching, so the errors are a function of the position and the
+seed alone. Which pass they are applied to depends on the limits: with a
+node limit, or time that is never used up, a weakened game is reproducible
+under `DeterministicRNG`; with a clock that cuts passes short it is not.
+
+Scoring the position after a root move uses `Search::reply_value`, which
+treats that position as a node inside a search and not as a root: a
+position drawn by rule is worth a draw, and a mate is counted from the
+position before it.
 
 ## UCI
 

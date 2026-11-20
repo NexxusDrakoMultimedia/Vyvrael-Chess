@@ -10,6 +10,12 @@ once it has a first release.
 
 ### Fixed
 
+- Limited-strength play under a clock looked only at the first root moves
+  in generation order, and with very little time played the first move
+  unsearched with a made-up score of 0. It now scores every move in passes
+  of increasing depth and chooses from the last pass that finished. Found in
+  the milestone 5 review, before any release.
+
 - A stalemate at the search horizon was scored as the static evaluation, so
   a one-ply search could play a stalemating move and report a won position.
   Quiescence search now scores stalemate as a draw. Found in the milestone 4

@@ -294,7 +294,7 @@ impl Engine {
                     send(
                         &out,
                         &info_line(&Report {
-                            depth: weakening.depth,
+                            depth: weak.depth,
                             score: weak.outcome.score,
                             nodes: weak.nodes,
                             elapsed: started.elapsed(),

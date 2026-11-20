@@ -127,12 +127,15 @@ a bounded random amount, and plays the move that then looks best (see
 "Playing below full strength" in [ARCHITECTURE.md](ARCHITECTURE.md)). What
 this means for a GUI:
 
-- There is one `info` line, sent when the move is chosen. Its `depth` is the
-  shallow depth used, its `score` the true score of the move played, and its
-  `pv` that one move.
+- There is one `info` line, sent when the move is chosen. Its `depth` is how
+  far the scores the choice was made from look ahead, its `score` the true
+  score of the move played, and its `pv` that one move.
 - `go depth` is ignored: the depth belongs to the strength setting. `nodes`,
-  `movetime`, the clocks and `stop` end the work early as usual; a move that
-  was not fully looked at is then not considered.
+  `movetime`, the clocks and `stop` end the work early as usual. The moves
+  are scored in passes of increasing depth and the choice is made from the
+  last pass that finished, so short of time the engine looks less far, but
+  it has always looked at every move. The first pass (one ply) always
+  completes, as the first depth of the ordinary search does.
 - The moves are random, so two games differ unless `DeterministicRNG` is on.
   With it on, `ucinewgame` starts the random sequence again, so each game
   can be replayed by itself, given the same commands and limits that do not
