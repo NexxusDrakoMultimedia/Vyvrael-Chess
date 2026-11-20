@@ -380,7 +380,7 @@ Part A, the installer:
 - [x] Install the Linux engines: download or build, `--only`, idempotent
 - [x] Write the `engines.json` fragment with the baseline's exact names and
   options
-- [ ] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
+- [x] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
   timeouts
 - [ ] Install Cute Chess and Ordo on Windows from the official releases
 - [ ] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the

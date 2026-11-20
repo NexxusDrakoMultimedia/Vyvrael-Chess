@@ -39,7 +39,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   an engine whose download or build failed. It then writes
   `<prefix>/engines/engines.json`, the list of what is installed under the
   ladder's names, the limited entries (such as "Stockfish 19-1500")
-  included, with Hash 64, one thread and the strength settings.
+  included, with Hash 64, one thread and the strength settings. Last, it
+  starts every installed engine under each of its names, sends `uci`, its
+  options, `isready` and `go depth 6`, and prints PASS or FAIL; every wait
+  has a time limit. `--verify` runs that check alone.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 

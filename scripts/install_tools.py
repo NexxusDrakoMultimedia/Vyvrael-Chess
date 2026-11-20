@@ -789,6 +789,13 @@ def build_parser() -> argparse.ArgumentParser:
         help='install only this ladder engine, by its name in the ladder, for example'
         ' --only "Vice 1.1" (repeatable; implies --engines)',
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="only check the installed ladder engines (uci, isready, go depth 6) and"
+        " report PASS or FAIL for each; nothing is installed. --engines also runs"
+        " this check after installing",
+    )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")
     parser.add_argument("--dry-run", action="store_true", help="show what would be done")
@@ -814,6 +821,15 @@ def main(argv: list[str] | None = None) -> None:
     if not sys.platform.startswith("linux") and not args.dry_run:
         die("this installer supports Linux only; see docs/TESTING.md for other systems")
 
+    if args.verify and not args.engines:
+        # Check what is there and change nothing.
+        import ladder_verify
+
+        broken = ladder_verify.verify_engines(ctx, args.only)
+        if broken:
+            die(f"the check failed for: {', '.join(broken)}")
+        return
+
     # --engines (or --only) installs engines; tools then only if asked for.
     engines_wanted = args.engines or bool(args.only)
     wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
@@ -837,12 +853,17 @@ def main(argv: list[str] | None = None) -> None:
         else:
             ctx.forget(tool)
             failed.append(tool)
-    engines_failed = []
+    engines_failed, engines_broken = [], []
     if engines_wanted:
         import ladder_install
 
         _, engines_failed = ladder_install.install_engines(ctx, args.only, args.force)
         ladder_install.write_engines_json(ctx)
+        if not args.dry_run:
+            import ladder_verify
+
+            say("checking the installed engines (uci, isready, go depth 6):")
+            engines_broken = ladder_verify.verify_engines(ctx, args.only)
     if not args.dry_run and wanted:
         path_hint(ctx)
         if "lichess-bot" in wanted:
@@ -856,6 +877,11 @@ def main(argv: list[str] | None = None) -> None:
         die(
             f"not installed: {', '.join(engines_failed)} (see above). Nothing of them was"
             " left in place; the other engines are unaffected."
+        )
+    if engines_broken:
+        die(
+            f"installed but failing the check: {', '.join(engines_broken)} (see above)."
+            " They are still listed in engines.json; do not use them until they pass."
         )
 
 
