@@ -95,3 +95,4 @@ once it has a first release.
 - Draw detection in search: insufficient material, repetition (with game
   history through `Search::with_history`) and the fifty-move rule.
 - The principal variation (`Outcome::pv`).
+- Search limits (`Limits`: depth, nodes, deadline) and an external stop flag.

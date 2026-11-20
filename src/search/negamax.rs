@@ -11,8 +11,12 @@
 //! scores at least `beta` the opponent would never allow this position, so
 //! the remaining moves need not be looked at.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
+
 use super::{
-    DRAW, INFINITY, MAX_PLY, fifty_moves_reached, insufficient_material, is_repetition, mated_in,
+    DRAW, INFINITY, Limits, MAX_PLY, fifty_moves_reached, insufficient_material, is_repetition,
+    mated_in,
 };
 use crate::board::{Move, Position};
 use crate::eval::{Evaluator, Score};
@@ -45,7 +49,17 @@ pub struct Search<'a> {
     /// the line starting at ply `p`. A node that finds a new best move writes
     /// that move followed by its child's line.
     pv: Vec<Vec<Move>>,
+    limits: Limits,
+    /// Set from outside (another thread) to end the search early.
+    stop_flag: Option<&'a AtomicBool>,
+    /// Latched once any limit is hit: from then on every node returns at
+    /// once and the search unwinds.
+    stopped: bool,
 }
+
+/// The stop flag and the clock are looked at once per this many nodes:
+/// reading them at every node would cost more than the search itself.
+const CHECK_INTERVAL: u64 = 1024;
 
 impl<'a> Search<'a> {
     /// Creates a search that scores positions with `evaluator`.
@@ -57,6 +71,9 @@ impl<'a> Search<'a> {
             keys: Vec::new(),
             // One line per ply, plus one for the child of the deepest node.
             pv: vec![Vec::new(); MAX_PLY + 2],
+            limits: Limits::NONE,
+            stop_flag: None,
+            stopped: false,
         }
     }
 
@@ -68,6 +85,45 @@ impl<'a> Search<'a> {
     pub fn with_history(mut self, earlier: &[u64]) -> Search<'a> {
         self.keys = earlier.to_vec();
         self
+    }
+
+    /// Sets when the search should stop by itself.
+    #[must_use]
+    pub fn with_limits(mut self, limits: Limits) -> Search<'a> {
+        self.limits = limits;
+        self
+    }
+
+    /// Gives the search a flag that another thread can set to stop it. This
+    /// is how `stop` reaches a search that is already running.
+    #[must_use]
+    pub fn with_stop_flag(mut self, flag: &'a AtomicBool) -> Search<'a> {
+        self.stop_flag = Some(flag);
+        self
+    }
+
+    /// Whether the search was cut short by a limit or the stop flag. If so,
+    /// the outcome of the search that was running is incomplete.
+    #[must_use]
+    pub const fn was_stopped(&self) -> bool {
+        self.stopped
+    }
+
+    /// Whether the search must stop now. Once true it stays true.
+    fn should_stop(&mut self) -> bool {
+        if self.stopped {
+            return true;
+        }
+        if self.limits.nodes.is_some_and(|limit| self.nodes >= limit) {
+            self.stopped = true;
+        } else if self.nodes.is_multiple_of(CHECK_INTERVAL) {
+            let flagged = self
+                .stop_flag
+                .is_some_and(|flag| flag.load(Ordering::Relaxed));
+            let out_of_time = self.limits.deadline.is_some_and(|at| Instant::now() >= at);
+            self.stopped = flagged || out_of_time;
+        }
+        self.stopped
     }
 
     /// Whether `pos` is drawn by rule, so that searching it is pointless:
@@ -99,6 +155,11 @@ impl<'a> Search<'a> {
     /// Searches `pos` exactly `depth` plies deep and returns the score and
     /// the best move. `pos` is used as a scratch board and restored.
     ///
+    /// The node limit, deadline and stop flag apply (the depth limit does
+    /// not: the depth is the argument). If one of them cuts the search short,
+    /// [`Search::was_stopped`] is true and the outcome covers only the root
+    /// moves that were searched completely, which may be none.
+    ///
     /// # Panics
     ///
     /// Panics if `depth` is 0 or more than [`MAX_PLY`].
@@ -107,10 +168,18 @@ impl<'a> Search<'a> {
             depth >= 1 && depth as usize <= MAX_PLY,
             "search depth must be between 1 and MAX_PLY"
         );
-        self.nodes += 1;
         self.pv[0].clear();
         let mut alpha = -INFINITY;
         let mut best_move = None;
+        let mut any_legal = false;
+        if self.should_stop() {
+            return Outcome {
+                score: DRAW,
+                best_move: None,
+                pv: Vec::new(),
+            };
+        }
+        self.nodes += 1;
         for &mv in &pseudo_legal_moves(pos) {
             self.keys.push(pos.hash());
             let undo = pos.make_move(mv);
@@ -119,9 +188,15 @@ impl<'a> Search<'a> {
                 self.keys.pop();
                 continue;
             }
+            any_legal = true;
             let score = -self.negamax(pos, depth - 1, 1, -INFINITY, -alpha);
             pos.unmake_move(mv, undo);
             self.keys.pop();
+            if self.stopped {
+                // This move was not searched to the end; its score means
+                // nothing.
+                break;
+            }
             // The first legal move is always taken, so a best move exists
             // whenever any legal move does.
             if best_move.is_none() || score > alpha {
@@ -135,6 +210,12 @@ impl<'a> Search<'a> {
                 score: alpha,
                 best_move,
                 pv: self.pv[0].clone(),
+            },
+            // Stopped before any move was searched completely.
+            None if any_legal => Outcome {
+                score: DRAW,
+                best_move: None,
+                pv: Vec::new(),
             },
             None => Outcome {
                 score: no_moves_score(pos, 0),
@@ -158,8 +239,12 @@ impl<'a> Search<'a> {
         mut alpha: Score,
         beta: Score,
     ) -> Score {
-        self.nodes += 1;
         self.pv[ply].clear();
+        if self.should_stop() {
+            // The value is ignored: every caller checks `stopped` first.
+            return DRAW;
+        }
+        self.nodes += 1;
         // The root is never scored as a draw here: a move must still be
         // chosen there. Everywhere else a drawn position ends the line.
         if self.is_draw(pos) {
@@ -183,6 +268,9 @@ impl<'a> Search<'a> {
             let score = -self.negamax(pos, depth - 1, ply + 1, -beta, -alpha);
             pos.unmake_move(mv, undo);
             self.keys.pop();
+            if self.stopped {
+                return DRAW;
+            }
 
             if score > best {
                 best = score;
@@ -497,6 +585,65 @@ mod tests {
         assert_eq!(outcome.score, DRAW);
         // King and knight against king: every line is drawn at once.
         assert_eq!(search("4k3/8/8/8/8/8/8/3NK3 w - - 0 1", 3).score, DRAW);
+    }
+
+    const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+
+    #[test]
+    fn a_node_limit_stops_the_search_and_restores_everything() {
+        let original = fen(KIWIPETE);
+        let mut pos = original.clone();
+        let mut searcher = Search::new(&HandCrafted)
+            .with_history(&[1, 2, 3])
+            .with_limits(Limits::nodes(500));
+        let outcome = searcher.fixed_depth(&mut pos, 4);
+        assert!(searcher.was_stopped());
+        assert_eq!(searcher.nodes(), 500, "stops exactly at the limit");
+        // Unwinding took every move back.
+        assert_eq!(pos, original);
+        assert_eq!(searcher.keys, [1, 2, 3]);
+        // Whatever move it names was searched completely and is legal.
+        if let Some(mv) = outcome.best_move {
+            assert!(legal_moves(&original).contains(&mv));
+        }
+    }
+
+    #[test]
+    fn a_generous_node_limit_changes_nothing() {
+        let unlimited = search(KIWIPETE, 3);
+        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(u64::MAX));
+        let limited = searcher.fixed_depth(&mut fen(KIWIPETE), 3);
+        assert!(!searcher.was_stopped());
+        assert_eq!(limited, unlimited);
+    }
+
+    #[test]
+    fn a_raised_stop_flag_ends_the_search_at_the_next_check() {
+        let flag = AtomicBool::new(true);
+        let mut pos = fen(KIWIPETE);
+        let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
+        let outcome = searcher.fixed_depth(&mut pos, 5);
+        assert!(searcher.was_stopped());
+        // Seen before the first node, since zero is a multiple of the interval.
+        assert_eq!(searcher.nodes(), 0);
+        assert_eq!(outcome.best_move, None);
+        assert_eq!(pos, fen(KIWIPETE));
+
+        // A flag that is never raised does not disturb the search.
+        let calm = AtomicBool::new(false);
+        let mut searcher = Search::new(&HandCrafted).with_stop_flag(&calm);
+        assert_eq!(searcher.fixed_depth(&mut pos, 3), search(KIWIPETE, 3));
+        assert!(!searcher.was_stopped());
+    }
+
+    #[test]
+    fn a_passed_deadline_ends_the_search() {
+        let mut pos = fen(KIWIPETE);
+        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
+        searcher.fixed_depth(&mut pos, 6);
+        assert!(searcher.was_stopped());
+        assert!(searcher.nodes() <= CHECK_INTERVAL);
+        assert_eq!(pos, fen(KIWIPETE));
     }
 
     #[test]

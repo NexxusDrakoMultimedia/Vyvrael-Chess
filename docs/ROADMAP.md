@@ -195,7 +195,7 @@ behaviour is noticed.
 - [x] `search`: negamax with alpha-beta at fixed depth
 - [x] `search`: draw detection (fifty-move rule, repetition, bare material)
 - [x] `search`: principal variation
-- [ ] `search`: limits and stopping (depth, nodes, time, stop flag)
+- [x] `search`: limits and stopping (depth, nodes, time, stop flag)
 - [ ] `search`: iterative deepening with progress reports
 - [ ] `search`: quiescence search
 - [ ] `cli`: `search` subcommand

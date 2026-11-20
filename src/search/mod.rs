@@ -6,10 +6,12 @@
 //! See `docs/ARCHITECTURE.md` ("Search") for the design.
 
 mod draw;
+mod limits;
 mod negamax;
 mod score;
 
 pub use draw::{fifty_moves_reached, insufficient_material, is_repetition};
+pub use limits::Limits;
 pub use negamax::{Outcome, Search};
 pub use score::{
     DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,

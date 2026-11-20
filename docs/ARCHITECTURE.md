@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -477,6 +477,23 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   ends in a mate or a draw. It is what UCI reports as `pv`, and it is also a
   check on the search: playing it out must reach a position whose evaluation
   is the reported score.
+
+- **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
+  depth, node count and deadline; the search stops at whichever comes first.
+  A stop flag (an `AtomicBool` given with `with_stop_flag`) lets another
+  thread end a running search, which is how UCI `stop` will work.
+  - The node limit is exact: the search stops at the first node beyond it.
+    The flag and the clock are read once every 1,024 nodes, because reading
+    them at every node would cost more than the search.
+  - Once any limit trips, a latch makes every node return immediately. The
+    recursion unwinds through the normal unmake path, so the position and the
+    repetition history are restored exactly; values returned on the way out
+    are ignored.
+  - A stopped search is incomplete. `fixed_depth` then reports only the root
+    moves it finished. Iterative deepening (next) discards an unfinished
+    iteration entirely and keeps the last complete one.
+  - Use depth or node limits for anything that must be reproducible. Time
+    limits depend on the machine.
 
 ## How search, evaluation and UCI fit together (planned)
 
