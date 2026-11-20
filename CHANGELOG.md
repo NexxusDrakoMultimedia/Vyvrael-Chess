@@ -103,3 +103,5 @@ once it has a first release.
 - Pinned fixed-depth search results (`tests/search_pins.rs`).
 - The search plays moves on copies of the position (copy-make) after
   measuring it 3 to 5% faster than make/unmake in the search loop.
+- Brand assets in `branding/`: the engine's avatar and the NXD fractal
+  background, all rights reserved and outside the code's GPL.

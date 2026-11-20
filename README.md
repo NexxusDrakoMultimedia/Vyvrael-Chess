@@ -85,3 +85,6 @@ Copyright (C) 2026 Nexxus Drako Multimedia.
 Vyvræl is free software, licensed under the GNU General Public License,
 version 3 or (at your option) any later version (GPL-3.0-or-later). See
 [LICENSE.md](LICENSE.md). It comes with no warranty.
+
+The brand assets in [`branding/`](branding/README.md) are the exception: they
+are all rights reserved and are not covered by the GPL.

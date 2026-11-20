@@ -433,13 +433,18 @@ Nexxus Drako Multimedia's own work, not third-party material:
   shapes an avatar needs.
 
 **Licence (decided by the maintainer, 2026-11-20): all rights reserved.** The
-brand assets are not covered by the code's GPL-3.0-or-later. When they are
-added they live in their own directory with a notice saying so, and the
-README and `LICENSE.md` pointers make clear that the GPL covers the code
-only.
+brand assets are not covered by the code's GPL-3.0-or-later. They live in
+their own directory, `branding/`, with a notice saying so, and the README's
+licence section makes clear that the GPL covers the code only.
 
-None of these is in the repository yet. Before any is added, the maintainer
-settles which image serves which use (bot avatar, README, release page).
+**Avatar (decided by the maintainer, 2026-11-20): the square render of Nexxus
+Drako already set on the fractal background.** It is the image for the bot
+profile and wherever else one picture stands for the engine.
+
+In the repository: the avatar (`branding/vyvrael-avatar.png`, the
+maintainer's 1920 by 1920 original) and the fractal background
+(`branding/nxd-fractal.svg`). The other renders are not, and are added only
+if a use for them is decided.
 
 Artwork and other brand assets follow the project's rules for third-party
 material: nothing is used without a clear licence, and its source and licence
