@@ -363,7 +363,7 @@ Part B, the match and rating scripts:
 
 - [x] Local settings: a git-ignored file read by all four scripts, with a
   committed example
-- [ ] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
+- [x] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
   for the modes `sprt`, `gauntlet` and `h2h`
 - [ ] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
   versions, times) and the progress log

@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Nexxus Drako Multimedia
+#
+# Runs a cutechess-cli match for Vyvræl: an SPRT between two builds, a
+# gauntlet against opponents from the ladder, or a head-to-head between two
+# builds. scripts/windows/match.ps1 does the same with the same options.
+# See docs/TESTING.md.
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  match.sh sprt     --test PATH --test-name NAME --base PATH --base-name NAME
+                    --elo0 N --elo1 N --alpha N --beta N --rounds N [options]
+  match.sh h2h      --test PATH --test-name NAME --base PATH --base-name NAME
+                    --rounds N [options]
+  match.sh gauntlet --test PATH --test-name NAME --opponent NAME
+                    [--opponent NAME ...] --rounds N [options]
+
+Modes:
+  sprt      a sequential probability ratio test of the test build against
+            the base build. The bounds, alpha and beta have no defaults.
+  h2h       a fixed number of rounds between two builds.
+  gauntlet  the test build against each opponent, named as in the engine
+            list (--engines-json).
+
+A round is two games: each opening is played twice with colours swapped.
+
+Options:
+  --rounds N           rounds to play; in sprt the cap after which the test
+                       stops undecided (required)
+  --tc TC              time control (default 10+0.1)
+  --hash MB            hash size for every engine (default 64)
+  --concurrency N      games at once (default: physical cores minus two)
+  --openings FILE      opening file in EPD format (required, or OPENINGS)
+  --engines-json FILE  engine list for gauntlet opponents (or ENGINES_JSON)
+  --cutechess PATH     cutechess-cli to use (default: from PATH)
+  --out-dir DIR        where the PGN, log and notes go (default: matches)
+  --label TEXT         added to the output file names
+  --seed N             seed for the opening order (default: random)
+  --deterministic      set DeterministicRNG=true on the Vyvræl builds
+  --low-priority       run at low priority (nice)
+  --no-low-priority    do not, whatever the local settings say
+  --dry-run            print the cutechess-cli command and stop
+  --help               show this text
+
+Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
+"Vyvrael dev-1a2b3c4". Settings can also come from the environment
+(VYVRAEL_CONCURRENCY, ...) or scripts/local.env; see
+scripts/local.env.example.
+EOF
+}
+
+die() {
+    printf 'match.sh: %s\n' "$*" >&2
+    exit 2
+}
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+local_file=${VYVRAEL_LOCAL_ENV:-$script_dir/../local.env}
+
+# The value of KEY: environment VYVRAEL_KEY first, then the local file.
+# Prints nothing if neither has it.
+setting() {
+    local key=$1 var="VYVRAEL_$1" line
+    if [[ -n ${!var-} ]]; then
+        printf '%s' "${!var}"
+        return
+    fi
+    [[ -f $local_file ]] || return 0
+    while IFS= read -r line || [[ -n $line ]]; do
+        line=${line%$'\r'}
+        if [[ $line == "$key="* ]]; then
+            printf '%s' "${line#*=}"
+            return
+        fi
+    done <"$local_file"
+}
+
+is_whole() { [[ $1 =~ ^[0-9]+$ ]]; }
+is_number() { [[ $1 =~ ^-?[0-9]+([.][0-9]+)?$ ]]; }
+
+# Physical cores, not hardware threads; 0 if it cannot be told.
+physical_cores() {
+    if command -v lscpu >/dev/null 2>&1; then
+        lscpu -p=core,socket 2>/dev/null | grep -v '^#' | sort -u | wc -l
+    else
+        echo 0
+    fi
+}
+
+mode=${1-}
+case $mode in
+    sprt | h2h | gauntlet) shift ;;
+    --help | -h | help)
+        usage
+        exit 0
+        ;;
+    '') usage >&2; exit 2 ;;
+    *) die "unknown mode '$mode' (expected sprt, h2h or gauntlet); see --help" ;;
+esac
+
+test_path='' test_name='' base_path='' base_name=''
+elo0='' elo1='' alpha='' beta='' rounds='' label='' seed=''
+tc='10+0.1' hash=64 dry_run=false deterministic=false
+concurrency=$(setting CONCURRENCY)
+openings=$(setting OPENINGS)
+engines_json=$(setting ENGINES_JSON)
+cutechess=$(setting CUTECHESS_CLI)
+out_dir=$(setting MATCH_DIR)
+low_priority=$(setting LOW_PRIORITY)
+opponents=()
+
+need() { [[ $# -ge 2 ]] || die "$1 needs a value"; }
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --test) need "$@"; test_path=$2; shift 2 ;;
+        --test-name) need "$@"; test_name=$2; shift 2 ;;
+        --base) need "$@"; base_path=$2; shift 2 ;;
+        --base-name) need "$@"; base_name=$2; shift 2 ;;
+        --opponent) need "$@"; opponents+=("$2"); shift 2 ;;
+        --elo0) need "$@"; elo0=$2; shift 2 ;;
+        --elo1) need "$@"; elo1=$2; shift 2 ;;
+        --alpha) need "$@"; alpha=$2; shift 2 ;;
+        --beta) need "$@"; beta=$2; shift 2 ;;
+        --rounds) need "$@"; rounds=$2; shift 2 ;;
+        --tc) need "$@"; tc=$2; shift 2 ;;
+        --hash) need "$@"; hash=$2; shift 2 ;;
+        --concurrency) need "$@"; concurrency=$2; shift 2 ;;
+        --openings) need "$@"; openings=$2; shift 2 ;;
+        --engines-json) need "$@"; engines_json=$2; shift 2 ;;
+        --cutechess) need "$@"; cutechess=$2; shift 2 ;;
+        --out-dir) need "$@"; out_dir=$2; shift 2 ;;
+        --label) need "$@"; label=$2; shift 2 ;;
+        --seed) need "$@"; seed=$2; shift 2 ;;
+        --deterministic) deterministic=true; shift ;;
+        --low-priority) low_priority=true; shift ;;
+        --no-low-priority) low_priority=false; shift ;;
+        --dry-run) dry_run=true; shift ;;
+        --help | -h) usage; exit 0 ;;
+        *) die "unknown option '$1'; see --help" ;;
+    esac
+done
+
+# --- what every mode needs -------------------------------------------------
+
+[[ -n $test_path ]] || die "--test is required: the build under test"
+[[ -n $test_name ]] || die "--test-name is required"
+[[ -n $rounds ]] || die "--rounds is required: a match must have an end"
+is_whole "$rounds" && ((rounds > 0)) || die "--rounds must be a whole number above zero, got '$rounds'"
+is_whole "$hash" && ((hash > 0)) || die "--hash must be a whole number above zero, got '$hash'"
+[[ $tc =~ ^[0-9./:+]+$ ]] || die "--tc '$tc' does not look like a time control (for example 10+0.1)"
+[[ -z $seed ]] || is_whole "$seed" || die "--seed must be a whole number, got '$seed'"
+[[ -z $label || $label =~ ^[A-Za-z0-9._-]+$ ]] || die "--label may only hold letters, digits, '.', '_' and '-'"
+out_dir=${out_dir:-matches}
+low_priority=${low_priority:-false}
+[[ $low_priority == true || $low_priority == false ]] || die "LOW_PRIORITY must be true or false, got '$low_priority'"
+
+check_name() {
+    local what=$1 name=$2
+    [[ $name =~ ^[\ -~]+$ ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
+    [[ $name != *'"'* && $name != *"'"* && $name != *'='* ]] || die "$what '$name' may not contain quotes or '='"
+    [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$name' may not start or end with a space"
+}
+check_engine_file() {
+    local what=$1 path=$2
+    [[ -f $path ]] || die "$what not found: $path"
+    [[ -x $path ]] || die "$what is not executable: $path"
+}
+check_name "--test-name" "$test_name"
+check_engine_file "the test build (--test)" "$test_path"
+
+# --- what each mode needs --------------------------------------------------
+
+case $mode in
+    sprt | h2h)
+        [[ -n $base_path ]] || die "--base is required in $mode mode: the build to compare with"
+        [[ -n $base_name ]] || die "--base-name is required in $mode mode"
+        check_name "--base-name" "$base_name"
+        check_engine_file "the base build (--base)" "$base_path"
+        [[ $test_name != "$base_name" ]] || die "the two builds have the same name '$test_name'; the results could not be told apart"
+        ((${#opponents[@]} == 0)) || die "--opponent is for gauntlet mode"
+        ;;
+    gauntlet)
+        ((${#opponents[@]} > 0)) || die "gauntlet mode needs at least one --opponent"
+        [[ -z $base_path && -z $base_name ]] || die "--base and --base-name are for sprt and h2h modes"
+        [[ -n $engines_json ]] || die "gauntlet mode needs the engine list: --engines-json, or ENGINES_JSON in scripts/local.env"
+        [[ -f $engines_json ]] || die "engine list not found: $engines_json"
+        ;;
+esac
+
+if [[ $mode == sprt ]]; then
+    for pair in "elo0:$elo0" "elo1:$elo1" "alpha:$alpha" "beta:$beta"; do
+        [[ -n ${pair#*:} ]] || die "--${pair%%:*} is required in sprt mode; there are no default bounds (docs/TESTING.md has examples)"
+        is_number "${pair#*:}" || die "--${pair%%:*} must be a number, got '${pair#*:}'"
+    done
+else
+    [[ -z $elo0$elo1$alpha$beta ]] || die "--elo0, --elo1, --alpha and --beta are for sprt mode"
+fi
+
+# --- opponents from the engine list ----------------------------------------
+
+opponent_args=()
+if [[ $mode == gauntlet ]]; then
+    seen=$'\n'
+    for name in "${opponents[@]}"; do
+        [[ $name != "$test_name" ]] || die "the build under test has the same name as the opponent '$name'"
+        [[ $seen != *$'\n'"$name"$'\n'* ]] || die "opponent '$name' is listed twice"
+        seen+="$name"$'\n'
+    done
+    python=${VYVRAEL_PYTHON:-python3}
+    command -v "$python" >/dev/null 2>&1 || die "gauntlet mode needs $python to read the engine list"
+    # One line per opponent: the -engine arguments, tab-separated.
+    lookup='
+import json, os, sys
+path, names = sys.argv[1], sys.argv[2:]
+try:
+    with open(path, encoding="utf-8") as handle:
+        engines = json.load(handle)
+except (OSError, ValueError) as error:
+    sys.exit(f"cannot read the engine list {path}: {error}")
+by_name = {entry.get("name"): entry for entry in engines if isinstance(entry, dict)}
+for name in names:
+    entry = by_name.get(name)
+    if entry is None:
+        known = ", ".join(sorted(n for n in by_name if n)) or "none"
+        sys.exit(f"no engine named \"{name}\" in {path} (known: {known})")
+    command = entry.get("command", "")
+    directory = entry.get("workingDirectory", "")
+    if directory and not os.path.isabs(command) and os.sep not in command and "/" not in command:
+        command = os.path.join(directory, command)
+    parts = ["name=" + name, "cmd=" + command, "proto=" + entry.get("protocol", "uci")]
+    if directory:
+        parts.append("dir=" + directory)
+    for option in entry.get("options", []):
+        value = option.get("value")
+        if value is None or option.get("name") in (None, "Hash"):
+            continue
+        if isinstance(value, bool):
+            value = "true" if value else "false"
+        parts.append("option.%s=%s" % (option["name"], value))
+    if any("\t" in part or "\n" in part for part in parts):
+        sys.exit(f"engine \"{name}\" in {path} has a tab or line break in a field")
+    print("\t".join(parts))
+'
+    listing=$("$python" -c "$lookup" "$engines_json" "${opponents[@]}") || die "could not look up the opponents (see the message above)"
+    while IFS= read -r line; do
+        line=${line%$'\r'}
+        IFS=$'\t' read -r -a parts <<<"$line"
+        command=''
+        for part in "${parts[@]}"; do
+            [[ $part == cmd=* ]] && command=${part#cmd=}
+        done
+        [[ -f $command ]] || die "opponent engine not found: $command (from $engines_json)"
+        opponent_args+=(-engine "${parts[@]}")
+    done <<<"$listing"
+fi
+
+# --- the tools and the files -----------------------------------------------
+
+[[ -n $openings ]] || die "no opening file: give --openings, or set OPENINGS in scripts/local.env"
+[[ -f $openings ]] || die "opening file not found: $openings"
+
+cores=$(physical_cores)
+if [[ -z $concurrency ]]; then
+    concurrency=$((cores > 3 ? cores - 2 : 1))
+fi
+is_whole "$concurrency" && ((concurrency > 0)) || die "--concurrency must be a whole number above zero, got '$concurrency'"
+if ((cores > 0 && concurrency > cores)); then
+    die "--concurrency $concurrency is more than the $cores physical cores of this machine; games would steal time from each other"
+fi
+
+cutechess=${cutechess:-cutechess-cli}
+needed_flags=(-engine -each -openings -games -rounds -repeat -recover -concurrency
+    -pgnout -ratinginterval -resign -draw)
+[[ $mode == sprt ]] && needed_flags+=(-sprt)
+[[ $mode == gauntlet ]] && needed_flags+=(-tournament -seeds)
+[[ -n $seed ]] && needed_flags+=(-srand)
+if command -v "$cutechess" >/dev/null 2>&1; then
+    help_text=$("$cutechess" -help 2>&1) || true
+    for flag in "${needed_flags[@]}"; do
+        grep -q -- "^ *$flag\b" <<<"$help_text" || die "this cutechess-cli ($cutechess) does not list the option $flag in its -help; the script needs it"
+    done
+elif [[ $dry_run == true ]]; then
+    printf 'match.sh: warning: cutechess-cli not found (%s); its options were not checked\n' "$cutechess" >&2
+else
+    die "cutechess-cli not found ($cutechess). Install it (docs/TESTING.md), or give --cutechess or CUTECHESS_CLI in scripts/local.env"
+fi
+
+# --- the command -----------------------------------------------------------
+
+slug=$(printf '%s' "$test_name" | tr -c 'A-Za-z0-9._-' '-')
+stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode-$slug${label:+-$label}"
+pgn="$stem.pgn"
+
+build_options=(proto=uci option.Threads=1)
+[[ $deterministic == true ]] && build_options+=(option.DeterministicRNG=true)
+
+cmd=("$cutechess")
+[[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)
+cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}")
+if [[ $mode == gauntlet ]]; then
+    cmd+=("${opponent_args[@]}")
+else
+    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}")
+fi
+cmd+=(-each "tc=$tc" "option.Hash=$hash"
+    -openings "file=$openings" format=epd order=random
+    -games 2 -repeat -rounds "$rounds"
+    -resign movecount=3 score=700 twosided=true
+    -draw movenumber=34 movecount=10 score=20
+    -recover -concurrency "$concurrency" -ratinginterval 10)
+[[ $mode == sprt ]] && cmd+=(-sprt "elo0=$elo0" "elo1=$elo1" "alpha=$alpha" "beta=$beta")
+[[ -n $seed ]] && cmd+=(-srand "$seed")
+cmd+=(-pgnout "$pgn")
+[[ $low_priority == true ]] && cmd=(nice -n 10 "${cmd[@]}")
+
+if [[ $dry_run == true ]]; then
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    exit 0
+fi
+
+mkdir -p "$out_dir" || die "cannot create the output folder $out_dir"
+[[ ! -e $pgn ]] || die "$pgn already exists; games would be mixed. Move it away or give another --label"
+
+exec "${cmd[@]}"

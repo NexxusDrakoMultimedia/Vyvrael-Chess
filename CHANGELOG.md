@@ -13,6 +13,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 - `scripts/local.env.example`: the settings the match and rating scripts
   read from a git-ignored `scripts/local.env` (tool locations, the opening
   file, the engine list, concurrency, priority).
+- `scripts/linux/match.sh`: runs a `cutechess-cli` match in one of three
+  modes, `sprt`, `gauntlet` or `h2h`, with the ladder's fixed settings.
+  SPRT bounds and a round cap are required; `--dry-run` prints the command.
+  Run notes and the result summary are still to come.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 
