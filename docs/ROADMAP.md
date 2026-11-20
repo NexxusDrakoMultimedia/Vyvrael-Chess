@@ -356,6 +356,36 @@ and the older milestone 6 text below disagree, this section holds.
   both tools on both systems. This replaces the earlier choice of a
   Linux-only installer. Vyvræl itself is not part of the installer.
 
+Chunk checklist (branch `tooling/testing-scripts`, started 2026-11-21). One
+commit per item unless noted; tests and docs travel with each.
+
+Part B, the match and rating scripts:
+
+- [ ] Local settings: a git-ignored file read by all four scripts, with a
+  committed example
+- [ ] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
+  for the modes `sprt`, `gauntlet` and `h2h`
+- [ ] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
+  versions, times) and the progress log
+- [ ] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
+- [ ] `scripts/windows/match.ps1`: the same behaviour and flags
+- [ ] `scripts/windows/rate.ps1`: the same behaviour and flags
+- [ ] `docs/TESTING.md`: running the scripts, the fixed defaults, example
+  SPRT bounds, pitfalls
+
+Part A, the installer:
+
+- [ ] The ladder's opponent engines as pins: name, version, official source,
+  method, SHA-256, licence
+- [ ] Install the Linux engines: download or build, `--only`, idempotent
+- [ ] Write the `engines.json` fragment with the baseline's exact names and
+  options
+- [ ] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
+  timeouts
+- [ ] Install Cute Chess and Ordo on Windows from the official releases
+- [ ] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
+  Linux and Windows instructions
+
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
 Scope as amended by the maintainer on 2026-11-20. It replaces the original
