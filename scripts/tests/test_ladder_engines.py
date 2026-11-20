@@ -38,7 +38,7 @@ class LadderEnginesTest(unittest.TestCase):
         # Every name of the baseline is either provided or listed as left
         # out with a reason, and nothing else is: no invented engines.
         self.assertEqual(sorted(provided + left_out), sorted(baseline))
-        self.assertEqual(left_out, ["Orion 1.1"])
+        self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75"])
         for reason in ladder_engines.NOT_INSTALLABLE.values():
             self.assertGreater(len(reason), 40)
         # No generated name carries a stray space.
@@ -47,7 +47,7 @@ class LadderEnginesTest(unittest.TestCase):
 
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.ENGINES]
-        self.assertEqual(len(binaries), 14)
+        self.assertEqual(len(binaries), 13)
         for name in binaries:
             self.assertIsNone(re.search(r"-\d{4}$", name), name)
         variants = {

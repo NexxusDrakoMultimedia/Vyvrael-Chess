@@ -87,7 +87,7 @@ class LadderVerifyTest(unittest.TestCase):
     def test_each_way_of_failing_is_named_and_none_hangs(self):
         for behaviour, expected in (
             ("silent", "no `uciok` within 3 s"),
-            ("dies", "the engine exited before `uciok`"),
+            ("dies", "the engine exited (exit status 3) before `uciok`"),
             ("never ready", "no `readyok` within 1 s"),
             ("thinks for ever", "no `bestmove` within 1 s"),
             ("no move", "answered `bestmove (none)`, which names no move"),
@@ -138,7 +138,7 @@ class LadderVerifyTest(unittest.TestCase):
         self.assertEqual(out.getvalue().splitlines(), [
             "PASS  Good 1: bestmove e2e4",
             "PASS  Good 1-1500: bestmove e2e4",
-            "FAIL  Broken 2: the engine exited before `uciok`",
+            "FAIL  Broken 2: the engine exited (exit status 3) before `uciok`",
             "SKIP  Absent 3: not installed",
         ])
         # The limited name was checked with its own options.

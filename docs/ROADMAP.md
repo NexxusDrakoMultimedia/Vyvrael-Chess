@@ -37,6 +37,12 @@ work is actually done is this:
 5. **Queued task 2:** benchmark and speed up.
 6. **Milestone 8 onwards**, in numerical order.
 
+**Where things run** (the maintainer, 2026-11-21): strength is measured on
+the Windows workstation, where Ladder Baseline 1 and the results of
+0.1.0-alpha.1 were played, so that later measurements can be compared with
+them. lichess-bot runs on the Linux machine only. The scripts and the
+installer still work on both systems.
+
 Where the releases fall: **0.1.0-alpha.1** came before step 1, after
 milestone 5; **0.1.0** follows step 3; **0.2.0** follows step 4. The
 casual-only Lichess bot starts once the maintainer has tagged
@@ -473,8 +479,16 @@ Part A, the installer:
 - [x] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
   Linux and Windows instructions
 
-Nothing on this branch has been run against a real ladder engine, a real
-match or the real Ordo; that first run needs the Linux machine.
+When this was merged, no agent had run it against a real ladder engine, a
+real match or the real Ordo. **The maintainer has since run the tooling on
+the Windows workstation with 0.1.0-a1 and confirmed that it works**
+(2026-11-21). Which scripts and modes that covered is not recorded. On the
+Linux machine the engine installer has been run once (2026-11-21): 12 of
+the then 14 engines installed and 21 names passed the check; see "The
+ladder's opponent engines" in `docs/TESTING.md` for the three that did
+not. One of them, Ethereal 12.75, has since been taken out of the
+installer. The bash
+match and rating scripts have still not made a real run.
 
 ## Recording results
 
@@ -660,13 +674,13 @@ measured against.
 2. **The transposition-table move first**, when the table has one for the
    position. This needs the transposition table, which is also milestone 7.
 3. **Static exchange evaluation (SEE)**, compared with the baseline by SPRT
-   on the Linux machine. It is kept only if the SPRT shows a gain.
+   on the Windows workstation. It is kept only if the SPRT shows a gain.
 4. **Delta pruning last**, tested separately by its own SPRT, so that its
    effect is not mixed up with SEE's.
 
 Steps 3 and 4 change which moves the search looks at, so unlike plain
 ordering they can change its results. That is why each gets its own SPRT.
-The matches run on the Linux machine with the match scripts;
+The matches run on the Windows workstation with the match scripts;
 results from different machines are not compared with each other.
 
 The other milestone 7 heuristics (killer moves, history, null-move pruning,

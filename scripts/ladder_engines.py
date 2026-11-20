@@ -161,29 +161,6 @@ ENGINES = [
         "may report itself as version 0.0.0-dev: the version comes from git upstream.",
     },
     {
-        "name": "Ethereal 12.75",
-        "version": "v12.75",
-        "source": "https://github.com/AndyGrant/Ethereal",
-        "licence": "GPL-3.0",
-        "method": "build",
-        "url": "https://github.com/AndyGrant/Ethereal/archive/refs/tags/v12.75.tar.gz",
-        "sha256": "f6fd8aa5d830c0f35cd724dc8f100ecc9b81a2d71fd0ca5e9d8c5b1a05aa02fc",
-        "archive": "tar.gz",
-        "binary": "src/Ethereal",
-        "build": {
-            "dir": "src",
-            "command": ["make", "pext", "CC=gcc",
-                        "CFLAGS=-O3 -std=gnu11 -Wall -Wextra -Wshadow -DNDEBUG -flto "
-                        "-march=haswell"],
-            "tools": ["gcc", "make"],
-        },
-        "hash": True,
-        "threads": True,
-        "limit": None,
-        "notes": "No official Linux binary. The makefile's own flags end in -march=native; "
-        "they are given again with -march=haswell in its place.",
-    },
-    {
         "name": "Weiss 2.0",
         "version": "v2.0",
         "source": "https://github.com/TerjeKir/weiss",
@@ -196,7 +173,7 @@ ENGINES = [
         "build": {
             "dir": "src",
             "command": ["make", "basic", "CC=gcc",
-                        "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -Werror -O3 -flto "
+                        "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -O3 -flto "
                         "-march=haswell -DUSE_PEXT"],
             "tools": ["gcc", "make"],
         },
@@ -204,8 +181,9 @@ ENGINES = [
         "threads": True,
         "limit": None,
         "notes": "No official Linux binary. The makefile's flags are given again with "
-        "-march=haswell for -march=native. They include -Werror, so a newer gcc that "
-        "warns about this 2021 source would stop the build.",
+        "-march=haswell for -march=native, and without its -Werror: a current gcc "
+        "warns about sign comparisons in this 2021 source, and with -Werror those "
+        "warnings stopped the build on the maintainer's Linux machine (2026-11-21).",
     },
     {
         "name": "Rodent IV",
@@ -346,6 +324,11 @@ ENGINES = [
 NOT_INSTALLABLE = {
     "Orion 1.1": "The official site (orionchess.com) offers Windows programs only and the "
     "source is not published, so there is nothing to download or build for Linux.",
+    "Ethereal 12.75": "There is no official Linux binary, and the source of v12.75 does "
+    "not run when built with a current compiler: it gives its per-thread data 64-byte "
+    "alignment and allocates it with calloc, which does not provide that, so the engine "
+    "crashes at the first `go` (seen with gcc 15.2 on 2026-11-21 at every optimisation "
+    "level). Building it would mean patching the engine, which the installer does not do.",
 }
 
 # What every engine of the ladder is given, as in the baseline.

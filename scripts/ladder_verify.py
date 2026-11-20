@@ -65,9 +65,20 @@ class Conversation:
             except queue.Empty:
                 raise RuntimeError(f"no `{word}` within {seconds:g} s") from None
             if line is None:
-                raise RuntimeError(f"the engine exited before `{word}`")
+                raise RuntimeError(f"the engine exited{self._status()} before `{word}`")
             if line.split(" ", 1)[0] == word:
                 return line
+
+    def _status(self) -> str:
+        """How the engine ended, for the message: its exit status, or the
+        signal that killed it (a crash shows as a signal on Linux)."""
+        try:
+            code = self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            return ""
+        if code < 0:
+            return f" (killed by signal {-code})"
+        return f" (exit status {code})"
 
     def close(self) -> None:
         self.send("quit")
