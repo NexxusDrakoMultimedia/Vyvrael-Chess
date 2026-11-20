@@ -482,9 +482,11 @@ Part A, the installer:
 When this was merged, no agent had run it against a real ladder engine, a
 real match or the real Ordo. **The maintainer has since run the tooling on
 the Windows workstation with 0.1.0-a1 and confirmed that it works**
-(2026-11-21). Which scripts and modes that covered is not recorded. The
-Linux side (the engine installer and the bash scripts) has still not been
-run for real.
+(2026-11-21). Which scripts and modes that covered is not recorded. On the
+Linux machine the engine installer has been run once (2026-11-21): 12 of
+the 14 engines installed and 21 names passed the check; see "The ladder's
+opponent engines" in `docs/TESTING.md` for the three that did not. The bash
+match and rating scripts have still not made a real run.
 
 ## Recording results
 

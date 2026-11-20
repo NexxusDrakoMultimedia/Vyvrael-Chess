@@ -399,11 +399,21 @@ python3 scripts/install_tools.py --list                # pins and what is instal
   killed, so a stuck engine cannot hold the script up. `--verify` runs the
   check alone.
 
-Status: covered by offline tests with made-up engines. **No ladder engine
-has yet been downloaded, built or checked by the script.** The build
-commands are read from each project's makefile and are unproven until that
-first run, and an old source may not compile cleanly with a current
-compiler (Weiss builds with `-Werror`).
+Status: covered by offline tests with made-up engines, and **run for real
+once, by the maintainer on the Linux machine on 2026-11-21**:
+
+| Result | Engines |
+| --- | --- |
+| Installed and passing the check (21 names) | Stockfish 19 and its six limited entries, Arasan 26.1 and its two, Viridithas 20, Reckless 0.9.0, Stash 37.0, Rodent IV and its two, Vice 1.1, Fruit 2.1, Rustic Alpha 1.5, 2.4 and 3.0.6 |
+| Built, but failing the check | Ethereal 12.75: it exits before answering `go depth 6`. The cause is not known yet; the check now reports how an engine exited. |
+| Build failed | Weiss 2.0: a current gcc warns about sign comparisons, and the makefile's `-Werror` made that fatal. The pin now builds without `-Werror`; not yet run again. |
+| Skipped | Princhess 0.22.0: `clang` was not installed. |
+
+Every download matched its SHA-256, the shared Rustic Alpha archive was
+fetched once, a failing engine did not stop the others, and the engine list
+was written with the 22 names installed. What that run did not cover: the
+tool install (`cutechess-cli`, Ordo) and a real match or rating run with the
+bash scripts.
 
 ### Cute Chess and Ordo on Windows
 
