@@ -327,8 +327,7 @@ whether there are further alphas, is the maintainer's call.
 
 Decided by the maintainer on 2026-11-20. The match and rating scripts and
 the installer work are built on a branch of their own,
-`tooling/testing-scripts`, before milestone 6 uses them. Where this section
-and the older milestone 6 text below disagree, this section holds.
+`tooling/testing-scripts`, before milestone 6 uses them.
 
 - **Scripts, one set per system, same behaviour and flags:**
   `scripts/windows/match.ps1` and `scripts/windows/rate.ps1` (PowerShell),
@@ -478,12 +477,12 @@ it will really be, not one that is slow mainly for lack of them.
 
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
-Scope as amended by the maintainer on 2026-11-20. It replaces the original
-"fastchess or Cutechess" wording. The chunk checklist is written when the
-milestone starts. **The script details in this section are superseded by
-"Testing tooling" above** (paths, Hash 64, required SPRT bounds,
-concurrency); milestone 6 itself is the measuring: gauntlets against the
-ladder, the `UCI_Elo` calibration and KI-8.
+Scope as amended by the maintainer on 2026-11-20 and 2026-11-21. The chunk
+checklist is written when the milestone starts. Milestone 6 is the
+measuring: gauntlets against the ladder, the calibration of `UCI_Elo`, and
+known issue KI-8 (the evaluation's strength). The scripts and the installer
+it uses are built beforehand and described under "Testing tooling (before
+milestone 6)" above.
 
 **Opponent ladder reference:** Ladder Baseline 1,
 [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), a round
@@ -492,61 +491,31 @@ orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
 are measured by gauntlets against its lower rungs, in separate results
 files, with the same time control, hash, threads and openings.
 
-Use `cutechess-cli` (from Cute Chess) to run engine-against-engine matches,
-and Ordo to compute ratings from the resulting PGN. Neither tool is vendored
-into the repository or linked into the engine: they run as separate programs
-and are installed by the user. `docs/TESTING.md` documents them: install
-steps for Windows and Ubuntu, minimum versions, and how to confirm they work.
+Matches are run with `cutechess-cli` (from Cute Chess) and ratings computed
+with Ordo. Neither tool is vendored into the repository or linked into the
+engine: they run as separate programs and are installed by the user.
 
-- **Match scripts:** `scripts/match.sh` (bash) and `scripts/match.ps1`
-  (PowerShell) run a match between two engine binaries with SPRT. The two
-  take the same parameters and behave the same on both systems.
-  - Parameters, all with sensible defaults: engine paths, engine names, time
-    control, hash, rounds, concurrency, opening file, output directory.
-  - `cutechess-cli` settings: `-each tc=10+0.1 option.Hash=16
-    option.Threads=1`; an EPD or PGN opening file with `order=random`;
-    `-repeat` so each opening is played from both sides; resign and draw
-    adjudication; `-ratinginterval`; `-recover`; `-pgnout`; and
-    `-sprt elo0=0 elo1=5 alpha=0.05 beta=0.05`.
-  - Pass `option.DeterministicRNG=true` where reproducibility matters, and
-    say so in the script's output.
-- **Rating scripts:** `scripts/rate.sh` and `scripts/rate.ps1` run Ordo over
-  one or more PGN files with a named anchor engine (Ordo's `-A`) and write
-  `ratings.txt` and `ratings.csv`. Same parameters on both systems.
-- **Check the real flags.** Before writing either script, read
-  `cutechess-cli --help` and `ordo --help` from the installed versions and
-  use the flags they actually document. Do not assume a flag from memory or
-  from this document; if a flag named here does not exist in the installed
-  version, use the equivalent and say so in `docs/TESTING.md`.
-- **Portability:** no hard-coded paths. Detect the tools on `PATH`, fail with
-  a clear message if one is missing, and keep the scripts working on both
-  Windows 11 and Ubuntu.
-- **Concurrency:** default `-concurrency` to a conservative value (physical
-  cores minus two) with one thread per engine, and document how to change it.
 - **`docs/TESTING.md` sections:** how to read an SPRT result; how to read
   Ordo output; what a sound Elo comparison needs (same machine, same
   settings, enough games); the limits of results from different machines.
 - **Acceptance rule:** only accept search and evaluation changes that SPRT
   shows to be a gain, and record the result in the commit message or in
   `docs/TESTING.md`.
-- **Chunks:** the match script, then the rate script, then the docs. Each
-  script is smoke-tested with a few games against a trivial engine (or at
-  least a dry run) before it is committed.
-
-Also due in this milestone: calibration of `UCI_Elo` (see "Planned
-features") and known issue KI-8 (the evaluation's strength).
 
 Notes for whoever starts it:
 
-- `scripts/install_tools.py` already installs pinned versions of both tools
-  (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
-  been run end to end. On Windows it installs Cute Chess and Ordo (not
-  lichess-bot, which runs on the Linux machine only).
-
+- `scripts/install_tools.py` installs pinned versions of both tools (and
+  lichess-bot) on Linux, and Cute Chess and Ordo on Windows; see
+  TESTING.md. It has unit tests but has not been run end to end.
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
-- The match settings rely on the UCI options `Hash`, `Threads` and
-  `DeterministicRNG`, which milestone 5 provides.
+- The match settings rely on the UCI options `Hash` and `Threads`.
+  Repeatable limited-strength runs also need a fixed seed: the options
+  `DeterministicRNG` and `RngSeed` today, the single option `Seed` once
+  queued task 1 is done.
+- Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
+  the engine list: the match scripts give a build under test no options of
+  its own.
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
   already covers match output and `*.pgn`.
 
