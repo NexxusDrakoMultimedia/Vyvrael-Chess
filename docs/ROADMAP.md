@@ -313,6 +313,13 @@ Scope as amended by the maintainer on 2026-11-20. It replaces the original
 "fastchess or Cutechess" wording. The chunk checklist is written when the
 milestone starts.
 
+**Opponent ladder reference:** Ladder Baseline 1,
+[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), a round
+robin of 25 other engines run by the maintainer. Vyvræl is not in it. It
+orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
+are measured by gauntlets against its lower rungs, in separate results
+files, with the same time control, hash, threads and openings.
+
 Use `cutechess-cli` (from Cute Chess) to run engine-against-engine matches,
 and Ordo to compute ratings from the resulting PGN. Neither tool is vendored
 into the repository or linked into the engine: they run as separate programs

@@ -193,3 +193,4 @@ once it has a first release.
   ordered, but what rating each really plays at is measured in milestone 6.
 - Integration tests that drive the engine binary over pipes
   (`tests/uci.rs`).
+- Added Ladder Baseline 1 reference results (docs/testing/)

@@ -340,6 +340,38 @@ lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 On Windows, and for the match and rating scripts themselves, see milestone 6
 in [ROADMAP.md](ROADMAP.md): manual install steps are still to be written.
 
+## Opponent ladder (Ladder Baseline 1)
+
+[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md) records
+a round robin between 25 engines of very different strength, with Ordo's
+ratings in
+[`ladder-Baseline-1-ratings.txt`](testing/ladder-Baseline-1-ratings.txt) and
+[`ladder-Baseline-1-ratings.csv`](testing/ladder-Baseline-1-ratings.csv). It
+is the reference list of opponents for measuring Vyvræl.
+
+**Vyvræl is not in it and has no rating in it.** The ladder is of 25 other
+engines and was run by the maintainer before Vyvræl had a UCI interface. The
+Ordo ratings are relative to the anchor engine (Stockfish 19 = 0) and
+describe only those 25 engines. Vyvræl's own strength will be measured later
+(milestone 6, known issue KI-8) by gauntlets against the lower rungs, with a
+separate results file; it must not be inserted into the baseline file or
+inferred from it.
+
+- **Fixed settings of the run:** round robin, one round, two games per
+  pairing with sides swapped (600 games); time control 10+0.1, pondering
+  off; openings from `UHO_Lichess_4852_v1.epd` in random order; Hash 64 MB
+  and one thread per engine; draw adjudication from move 34 (10 moves within
+  20 centipawns) and resign adjudication (3 moves, 700 centipawns,
+  two-sided); no book and no tablebases. Keep these the same in any run that
+  is to be compared with it.
+- **Read the order, not the spread.** With 48 games per engine the error
+  bars are 250 to 500 points and many neighbours are tied, and lopsided
+  pairings stretch Ordo's scale to about 3,000 points. The order of the
+  rungs is the useful result; the Elo distances between them are not.
+- The games themselves (`Baseline1.pgn`) are not in the repository: `*.pgn`
+  is git-ignored. The SHA-256 in the baseline file is of the maintainer's
+  local copy.
+
 ## Strength matches and SPRT (planned, milestone 6)
 
 Search, evaluation and network changes are accepted only when a sequential
