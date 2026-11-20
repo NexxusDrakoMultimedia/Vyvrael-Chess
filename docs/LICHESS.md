@@ -36,6 +36,9 @@ agent stops and says so.
   documentation, because Lichess may change them.
 - **Strength is unmeasured.** Nothing in the bot's profile or anywhere else
   says how strong it is until milestone 6 has measured it.
+- **lichess-bot only ever runs on the maintainer's Linux machine**, the one
+  that is always on. It is not installed or started on the Windows
+  workstation, which is for development and for watching games.
 - lichess-bot is a separate program, installed and run by the maintainer. It
   is not vendored, not linked and not a Cargo dependency. Its pinned version
   and licence are in [DEPENDENCIES.md](DEPENDENCIES.md).
@@ -101,10 +104,11 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
    of the version you install). This cannot be undone.
 5. **Verify** that `title` reads `BOT` in the "Get my profile" response, or
    that the profile page shows the BOT title.
-6. **Install lichess-bot separately**, outside this repository. On Linux,
-   `scripts/install_tools.py --tool lichess-bot` installs the pinned version
-   (see [TESTING.md](TESTING.md)); it does not upgrade the account and does
-   not start anything.
+6. **Install lichess-bot separately**, outside this repository, **on the
+   Linux machine only**. `scripts/install_tools.py --tool lichess-bot`
+   installs the pinned version there (see [TESTING.md](TESTING.md)); it does
+   not upgrade the account and does not start anything. The engine binary
+   it runs is a Linux build of the release.
 7. **Copy `config.yml.default` to a local `config.yml`.** It is git-ignored
    here (`/config.yml`, `/lichess-bot/`) and must stay out of every
    repository. The installer already does this copy, with an empty token.

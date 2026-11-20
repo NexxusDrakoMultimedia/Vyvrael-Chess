@@ -581,7 +581,7 @@ plan of a private test first and a public bot only after milestone 7:
 
 - **After the maintainer tags 0.1.0-alpha.1: a casual-only bot.** The
   maintainer upgrades the account `Vyvrael-Chess` to BOT and runs
-  lichess-bot accepting casual challenges only. Casual games cost nobody
+  lichess-bot, on the Linux machine only, accepting casual challenges only. Casual games cost nobody
   rating points, and they show whether the engine plays complete games over
   the real protocol without losing on time, crashing or making illegal
   moves.
