@@ -442,7 +442,9 @@ Ordo ratings are relative to the anchor engine (Stockfish 19 = 0) and
 describe only those 25 engines. Vyvræl's own strength will be measured later
 (milestone 6, known issue KI-8) by gauntlets against the lower rungs, with a
 separate results file; it must not be inserted into the baseline file or
-inferred from it.
+inferred from it. A first snapshot of 0.1.0-alpha.1, from before milestone
+6, is in
+[`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md).
 
 - **Fixed settings of the run:** round robin, one round, two games per
   pairing with sides swapped (600 games); time control 10+0.1, pondering

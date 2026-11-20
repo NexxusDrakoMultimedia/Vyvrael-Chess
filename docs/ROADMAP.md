@@ -460,6 +460,12 @@ build (for example `results-0.1.0-alpha.1.md`), with:
 Ordo's text and CSV output may sit beside it. PGN files, logs and run notes
 stay out of git.
 
+Results recorded so far:
+
+- [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md): the first
+  alpha against the lower rungs of the ladder, a snapshot from before
+  milestone 6.
+
 ## Queued work (requested 2026-11-21)
 
 Two tasks asked for by the maintainer. Each gets a branch of its own from
