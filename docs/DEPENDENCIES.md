@@ -39,7 +39,9 @@ These are programs the project's scripts call. They are not Cargo
 dependencies, are not linked into any binary and are not copied into the
 repository. `scripts/install_tools.py` installs exactly these versions on
 Linux; updating one means changing its pin there and its row here in the same
-commit.
+commit. On Windows the same script installs the same versions of Cute Chess
+and Ordo from their official zip archives, pinned in
+`scripts/windows_tools.py`: change both pins together.
 
 | Program | Pinned version | Licence | Used for |
 | --- | --- | --- | --- |
@@ -82,7 +84,7 @@ Sources and licences were read on each project's own page or repository on
 | Viridithas 20 | v20.0.0 | MIT | official binary | <https://github.com/cosmobobak/viridithas> | `eb53de2fde546f3b...` |
 | Reckless 0.9.0 | v0.9.0 | AGPL-3.0 | official binary | <https://github.com/codedeliveryservice/Reckless> | `09ba1634faaffec5...` |
 | Stash 37.0 | v37.0 | GPL-3.0 | official binary | <https://gitlab.com/mhouppin/stash-bot> | `70f8935f8e45cefe...` |
-| Princhess 0.22.0 | 0.22.0 | GPL-3.0 | built from official source | <https://github.com/princesslana/princhess> | none published; commit pinned |
+| Princhess 0.22.0 | 0.22.0 | GPL-3.0 | built from official source | <https://github.com/princesslana/princhess> | `a21d53cefdcad7b4...` |
 | Ethereal 12.75 | v12.75 | GPL-3.0 | built from official source | <https://github.com/AndyGrant/Ethereal> | `f6fd8aa5d830c0f3...` |
 | Weiss 2.0 | v2.0 | GPL-3.0 | built from official source | <https://github.com/TerjeKir/weiss> | `ddcd263e493987bd...` |
 | Rodent IV (also limited to 1600, 2000) | 0.33 (commit e8d84c8) | GPL-3.0 | built from official source | <https://github.com/nescitus/rodent-iv> | `db372b48a8ccf22d...` |
@@ -108,6 +110,7 @@ its own opening book, as it was in the baseline run.
 
 Targets: x86-64 with AVX2 and BMI2. No AVX-512 build is used and nothing is
 compiled with `-march=native`; a compiled engine names `haswell` or
-`x86-64-v3`. Stockfish 19 ships one Linux binary that chooses its code path
+`x86-64-v3`, except Vice 1.1, whose makefile names no architecture (plain
+x86-64). Stockfish 19 ships one Linux binary that chooses its code path
 at run time, and the Rustic Alpha binaries do not state their processor
 level (they contain no AVX-512).

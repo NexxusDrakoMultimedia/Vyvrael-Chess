@@ -540,8 +540,8 @@ Notes for whoever starts it:
 
 - `scripts/install_tools.py` already installs pinned versions of both tools
   (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
-  been run end to end. It is Linux-only today; Windows support is planned
-  (see "Testing tooling" above).
+  been run end to end. On Windows it installs Cute Chess and Ordo (not
+  lichess-bot, which runs on the Linux machine only).
 
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
