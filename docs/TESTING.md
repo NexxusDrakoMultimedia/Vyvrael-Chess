@@ -85,6 +85,7 @@ Integration tests live in `tests/` and use only the public API.
 
 | File | What is checked |
 | --- | --- |
+| `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS; archive extraction refuses paths and symlinks that escape; a failed reinstall leaves the old install alone; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
@@ -167,6 +168,52 @@ The expected counts are the published reference values from the Chess
 Programming Wiki ("Perft Results",
 <https://www.chessprogramming.org/Perft_Results>), which engines agree on.
 They were not produced by this engine.
+
+## Installing the external tools (Linux)
+
+Strength testing uses Cute Chess and Ordo, and playing on Lichess uses
+lichess-bot. They are separate programs that are never part of this
+repository. On Linux, `scripts/install_tools.py` installs pinned versions of
+them for the current user, outside the repository. It needs only Python 3.9
+or newer (lichess-bot itself needs 3.11); building Ordo needs `gcc` and
+`make` (`sudo apt install build-essential`).
+
+```sh
+python3 scripts/install_tools.py --list       # pinned and installed versions
+python3 scripts/install_tools.py --dry-run    # show what would be done
+python3 scripts/install_tools.py              # Cute Chess and Ordo
+python3 scripts/install_tools.py --tool lichess-bot --engine target/release/vyvrael
+```
+
+What to know before running it:
+
+- **It downloads and runs third-party code:** the Cute Chess AppImage, Ordo's
+  source (built with `make`), and lichess-bot with its Python packages.
+- **Versions are pinned** in the `PINS` table at the top of the script and
+  listed in [DEPENDENCIES.md](DEPENDENCIES.md). Cute Chess is checked against
+  its published SHA-256. Ordo and lichess-bot are fetched at one exact commit;
+  no digest is published for those archives, so the script prints the digest
+  it saw. Record it in `PINS` and it is enforced from then on.
+- **Where things go:** programs under `~/.local/share/vyvrael-tools`, launchers
+  in `~/.local/bin`. With `--prefix DIR` everything, launchers included, stays
+  under `DIR`. Re-running is safe; `--force` reinstalls.
+- **Your Lichess token is never written by the script.** `config.yml` is
+  created with an empty token and readable only by you. The script does not
+  upgrade the account to a bot account (that is irreversible) and does not
+  start anything. With `--systemd` it also writes a user service and an empty
+  token file under `~/.config`, without enabling them.
+- After installing, it runs `cutechess-cli --version` and `ordo -h` once and
+  prints the first line, which is the check that the tools work.
+
+Status: the script's helper functions are covered by offline unit tests
+(`python3 -m unittest discover -s scripts/tests`, also run in CI), which
+download and install nothing. **The installer itself has not yet been run
+end to end.** Two details can only be confirmed by a real run: that this
+Cute Chess AppImage runs `cutechess-cli` when given a leading `cli` argument,
+and that lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
+
+On Windows, and for the match and rating scripts themselves, see milestone 6
+in [ROADMAP.md](ROADMAP.md): manual install steps are still to be written.
 
 ## Strength matches and SPRT (planned, milestone 6)
 

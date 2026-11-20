@@ -284,8 +284,13 @@ features") and known issue KI-8 (the evaluation's strength).
 
 Notes for whoever starts it:
 
-- Before first use, confirm each tool's licence on its official source and
-  record it, with the version used, in [DEPENDENCIES.md](DEPENDENCIES.md).
+- `scripts/install_tools.py` already installs pinned versions of both tools
+  (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
+  been run end to end. Windows install steps are still to be documented by
+  hand, since the installer is Linux-only by the maintainer's choice.
+
+- The tools' licences and pinned versions are recorded in
+  [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
 - The match settings rely on the UCI options `Hash`, `Threads` and
   `DeterministicRNG`, which milestone 5 provides.
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
