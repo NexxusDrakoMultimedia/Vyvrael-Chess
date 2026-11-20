@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import shutil
 import sys
 import tarfile
@@ -309,6 +310,72 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual((present, failed), ([], []))
         self.assertIn(f"would download {url}", printed)
         self.assertEqual(self.downloads, [])
+        self.assertFalse(ctx.prefix.exists())
+
+    # --- the engine list ----------------------------------------------------
+
+    def test_the_engine_list_names_what_is_installed(self):
+        url, digest = self.serve("bare", b"ELF")
+        limited = self.engine("Limited 1", url=url, sha256=digest, limit=(1000, 3000),
+                              variants=[1500, 1800])
+        plain = self.engine("Plain 2", url=url, sha256=digest, threads=False)
+        bare = self.engine("Bare 3", url=url, sha256=digest, hash=False, threads=False)
+        absent = self.engine("Absent 4", url="https://example.invalid/none", sha256=digest)
+        ctx, _, _, _ = self.install([limited, plain, bare])
+        out = io.StringIO()
+        with mock.patch.object(ladder_engines, "ENGINES", [limited, plain, bare, absent]), \
+                redirect_stdout(out):
+            path = ladder_install.write_engines_json(ctx)
+        self.assertEqual(path, ctx.prefix / "engines" / "engines.json")
+        self.assertIn("ENGINES_JSON=", out.getvalue())
+        entries = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            [entry["name"] for entry in entries],
+            ["Limited 1", "Limited 1-1500", "Limited 1-1800", "Plain 2", "Bare 3"],
+        )
+        by_name = {entry["name"]: entry for entry in entries}
+        program = ctx.prefix / "engines" / "limited-1" / "test-bin"
+        for name in ("Limited 1", "Limited 1-1500", "Limited 1-1800"):
+            # One program, three names.
+            self.assertEqual(by_name[name]["command"], str(program))
+            self.assertEqual(by_name[name]["workingDirectory"], str(program.parent))
+            self.assertEqual(by_name[name]["protocol"], "uci")
+        self.assertEqual(by_name["Limited 1"]["options"], [
+            {"name": "Hash", "value": 64}, {"name": "Threads", "value": 1},
+            {"name": "UCI_LimitStrength", "value": False},
+        ])
+        self.assertEqual(by_name["Limited 1-1500"]["options"], [
+            {"name": "Hash", "value": 64}, {"name": "Threads", "value": 1},
+            {"name": "UCI_LimitStrength", "value": True}, {"name": "UCI_Elo", "value": 1500},
+        ])
+        # An engine without an option is not sent it.
+        self.assertEqual(by_name["Plain 2"]["options"], [{"name": "Hash", "value": 64}])
+        self.assertEqual(by_name["Bare 3"]["options"], [])
+
+    def test_the_real_ladder_gives_the_baselines_names_and_values(self):
+        ctx = self.ctx()
+        entries = []
+        for engine in ladder_engines.ENGINES:
+            entries.extend(ladder_install.engine_entries(ctx, engine))
+        self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
+        self.assertEqual(len(entries), 24)
+        by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
+                   for entry in entries}
+        self.assertEqual(by_name["Stockfish 19-1320"],
+                         {"Hash": 64, "Threads": 1, "UCI_LimitStrength": True, "UCI_Elo": 1320})
+        self.assertEqual(by_name["Arasan 26.1-1800"]["UCI_Elo"], 1800)
+        self.assertEqual(by_name["Rodent IV-1600"]["UCI_Elo"], 1600)
+        # Rodent IV limits itself unless told not to.
+        self.assertIs(by_name["Rodent IV"]["UCI_LimitStrength"], False)
+        self.assertNotIn("UCI_Elo", by_name["Rodent IV"])
+        self.assertEqual(by_name["Rustic Alpha 1.5"], {})
+        self.assertEqual(by_name["Vice 1.1"], {"Hash": 64})
+        self.assertEqual(by_name["Viridithas 20"], {"Hash": 64, "Threads": 1})
+
+    def test_a_dry_run_writes_no_engine_list(self):
+        ctx = self.ctx(dry_run=True)
+        with redirect_stdout(io.StringIO()):
+            self.assertIsNone(ladder_install.write_engines_json(ctx))
         self.assertFalse(ctx.prefix.exists())
 
     def test_directory_names(self):

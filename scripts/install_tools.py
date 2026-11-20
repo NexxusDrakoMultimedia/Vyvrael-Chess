@@ -842,6 +842,7 @@ def main(argv: list[str] | None = None) -> None:
         import ladder_install
 
         _, engines_failed = ladder_install.install_engines(ctx, args.only, args.force)
+        ladder_install.write_engines_json(ctx)
     if not args.dry_run and wanted:
         path_hint(ctx)
         if "lichess-bot" in wanted:

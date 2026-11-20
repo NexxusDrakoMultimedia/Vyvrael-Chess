@@ -378,7 +378,7 @@ Part A, the installer:
 - [x] The ladder's opponent engines as pins: name, version, official source,
   method, SHA-256, licence
 - [x] Install the Linux engines: download or build, `--only`, idempotent
-- [ ] Write the `engines.json` fragment with the baseline's exact names and
+- [x] Write the `engines.json` fragment with the baseline's exact names and
   options
 - [ ] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
   timeouts

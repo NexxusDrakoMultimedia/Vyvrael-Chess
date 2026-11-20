@@ -36,7 +36,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   binary where there is one, otherwise a build from the official source.
   `--only "<name>"` installs one. It never uses sudo, names a missing build
   tool and carries on with the other engines, and leaves nothing behind of
-  an engine whose download or build failed.
+  an engine whose download or build failed. It then writes
+  `<prefix>/engines/engines.json`, the list of what is installed under the
+  ladder's names, the limited entries (such as "Stockfish 19-1500")
+  included, with Hash 64, one thread and the strength settings.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 

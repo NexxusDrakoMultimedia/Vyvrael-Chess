@@ -14,6 +14,7 @@ name and the engine is skipped.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -257,3 +258,66 @@ def install_engines(ctx, only: list[str] | None, force: bool) -> tuple[list[dict
     finally:
         shutil.rmtree(fetched["dir"], ignore_errors=True)
     return present, failed
+
+
+# ---------------------------------------------------------------- engine list
+def engine_entries(ctx, engine: dict) -> list[dict]:
+    """The engine-list entries of one engine: itself at full strength, then
+    one per limited variant, named as in the ladder.
+
+    Every entry gets the baseline's settings where the engine has the
+    option: Hash 64 and one thread. An engine that can be limited is told
+    so explicitly in every entry, because at least one (Rodent IV) limits
+    its strength unless told not to. Pondering is not an engine option
+    here: the match scripts never switch it on.
+    """
+    program = installed_binary(ctx, engine)
+
+    def entry(name: str, elo: int | None) -> dict:
+        options = []
+        if engine["hash"]:
+            options.append({"name": "Hash", "value": ladder_engines.HASH_MB})
+        if engine["threads"]:
+            options.append({"name": "Threads", "value": 1})
+        if engine["limit"] is not None:
+            options.append({"name": "UCI_LimitStrength", "value": elo is not None})
+            if elo is not None:
+                options.append({"name": "UCI_Elo", "value": elo})
+        return {
+            "name": name,
+            "command": str(program),
+            "workingDirectory": str(program.parent),
+            "protocol": "uci",
+            "options": options,
+        }
+
+    entries = [entry(engine["name"], None)]
+    entries += [entry(f"{engine['name']}-{elo}", elo) for elo in engine.get("variants", [])]
+    return entries
+
+
+def engines_json_path(ctx) -> Path:
+    return ctx.prefix / "engines" / "engines.json"
+
+
+def write_engines_json(ctx) -> Path | None:
+    """Writes the engine list of every ladder engine installed under this
+    prefix, in the format of Cute Chess's engines.json, and returns its path
+    (None in a dry run). scripts/linux/match.sh reads it for gauntlets.
+
+    It is written afresh each time from what is installed, so it never names
+    an engine that is not there.
+    """
+    path = engines_json_path(ctx)
+    entries = []
+    for engine in ladder_engines.ENGINES:
+        if is_installed(ctx, engine):
+            entries.extend(engine_entries(ctx, engine))
+    if ctx.dry:
+        tools.say(f"would write the engine list {path}")
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    tools.say(f"engine list: {path} ({len(entries)} entries)")
+    tools.say(f"  for the match scripts, set ENGINES_JSON={path} in scripts/local.env")
+    return path
