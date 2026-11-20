@@ -432,11 +432,14 @@ Nexxus Drako Multimedia's own work, not third-party material:
   background and a round one with a gold ring on dark red, which are the
   shapes an avatar needs.
 
+**Licence (decided by the maintainer, 2026-11-20): all rights reserved.** The
+brand assets are not covered by the code's GPL-3.0-or-later. When they are
+added they live in their own directory with a notice saying so, and the
+README and `LICENSE.md` pointers make clear that the GPL covers the code
+only.
+
 None of these is in the repository yet. Before any is added, the maintainer
-settles two things: which image serves which use (bot avatar, README, release
-page), and the licence the assets are published under. They are brand assets,
-so they need not carry the code's GPL; whatever is chosen is stated next to
-the files.
+settles which image serves which use (bot avatar, README, release page).
 
 Artwork and other brand assets follow the project's rules for third-party
 material: nothing is used without a clear licence, and its source and licence
