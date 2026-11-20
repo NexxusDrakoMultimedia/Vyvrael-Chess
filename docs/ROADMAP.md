@@ -361,7 +361,7 @@ commit per item unless noted; tests and docs travel with each.
 
 Part B, the match and rating scripts:
 
-- [ ] Local settings: a git-ignored file read by all four scripts, with a
+- [x] Local settings: a git-ignored file read by all four scripts, with a
   committed example
 - [ ] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
   for the modes `sprt`, `gauntlet` and `h2h`

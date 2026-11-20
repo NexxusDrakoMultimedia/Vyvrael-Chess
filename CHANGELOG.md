@@ -8,6 +8,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/local.env.example`: the settings the match and rating scripts
+  read from a git-ignored `scripts/local.env` (tool locations, the opening
+  file, the engine list, concurrency, priority).
+
 ## [0.1.0-alpha.1] - 2026-11-21
 
 The first release: a complete UCI chess engine, in alpha. Release notes:
