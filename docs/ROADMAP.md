@@ -757,6 +757,12 @@ plan of a private test first and a public bot only after milestone 7:
   once they are calibrated; on a rated account that would have to be said
   in the profile.
 
+**KI-10 applies to the casual bot**, because the bot starts before milestone
+7, which fixes it. The first search depth cannot be interrupted, so in a
+position with very many captures the engine can overrun its time for the
+move. The mitigation until then is `Move Overhead` and watching the bot's
+games for losses on time (see [LICHESS.md](LICHESS.md)).
+
 Still open for the maintainer, before rated play: the rest of the branding
 (see above), which time controls and variants to accept, and whether to
 accept challenges from humans, other bots or both.

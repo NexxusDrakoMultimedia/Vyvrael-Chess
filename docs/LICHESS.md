@@ -181,6 +181,11 @@ before it looks at the clock (known issue KI-10 in
 usual. If the bot still loses on time, raise the values; lower them only
 after many games without a time loss.
 
+That known issue applies to the casual bot for as long as it runs a build
+from before milestone 7, which is where it is fixed: in a position with very
+many captures the engine can overrun its time for the move. Until then
+`Move Overhead` and watching for losses on time are the whole mitigation.
+
 ## Anti-abuse
 
 These follow the Terms of Service points above.
