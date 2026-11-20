@@ -105,7 +105,7 @@ search.
 | Option | Type | Default | Status | Behaviour |
 | --- | --- | --- | --- | --- |
 | `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
-| `Threads` | spin | `1` | planned (milestone 5) | Number of search threads. |
+| `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
 | `DeterministicRNG` | check | `false` | planned (milestone 5) | When `false`, strength-affecting randomness is seeded from system entropy at startup and the chosen seed is logged with `info string`. When `true`, it is seeded from `RngSeed`. |
 | `RngSeed` | spin | `822286742` (`0x31031996`) | planned (milestone 5) | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |

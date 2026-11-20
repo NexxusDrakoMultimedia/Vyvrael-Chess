@@ -218,7 +218,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `uci`: the engine session and protocol loop, with the search on its
   own thread; the binary runs it when started without arguments
 - [x] `uci`: option `Hash`
-- [ ] `uci`: option `Threads`
+- [x] `uci`: option `Threads`
 - [ ] `rng`: a seed from system entropy and the stream for
   strength-affecting randomness
 - [ ] `uci`: options `DeterministicRNG` and `RngSeed`

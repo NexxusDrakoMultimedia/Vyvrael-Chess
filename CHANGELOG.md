@@ -172,3 +172,5 @@ once it has a first release.
 - UCI option `Hash` (spin, default 16, 1 to 65536 MiB). It is accepted and
   stored but has no effect until there is a transposition table
   (milestone 7).
+- UCI option `Threads` (spin, default 1, minimum 1, maximum 1): the search
+  is single-threaded, so 1 is the only value accepted.

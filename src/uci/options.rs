@@ -12,18 +12,27 @@ pub const HASH_DEFAULT: u32 = 16;
 /// Largest transposition table that can be asked for, in mebibytes.
 pub const HASH_MAX: u32 = 65_536;
 
+/// Most search threads that can be asked for. The search is single-threaded,
+/// so the option is offered with one possible value; a match tool that sets
+/// `Threads=1` is accepted and one that asks for more is told why not.
+pub const THREADS_MAX: u32 = 1;
+
 /// The current value of every option.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Options {
     /// `Hash`: transposition table size in mebibytes. Stored but not used
     /// yet: there is no transposition table before milestone 7.
     pub hash_mb: u32,
+    /// `Threads`: number of search threads. Only 1 is possible until there
+    /// is a parallel search.
+    pub threads: u32,
 }
 
 impl Default for Options {
     fn default() -> Options {
         Options {
             hash_mb: HASH_DEFAULT,
+            threads: 1,
         }
     }
 }
@@ -33,7 +42,10 @@ impl Options {
     /// order a GUI should show them.
     #[must_use]
     pub fn declarations() -> Vec<String> {
-        vec![spin("Hash", HASH_DEFAULT, 1, HASH_MAX)]
+        vec![
+            spin("Hash", HASH_DEFAULT, 1, HASH_MAX),
+            spin("Threads", 1, 1, THREADS_MAX),
+        ]
     }
 
     /// Sets the option called `name` (letter case does not matter, as the
@@ -47,6 +59,7 @@ impl Options {
     pub fn set(&mut self, name: &str, value: Option<&str>) -> Result<(), String> {
         match name.to_ascii_lowercase().as_str() {
             "hash" => self.hash_mb = parse_spin("Hash", value, 1, HASH_MAX)?,
+            "threads" => self.threads = parse_spin("Threads", value, 1, THREADS_MAX)?,
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -156,5 +169,26 @@ mod tests {
             Err("Hash: expected a whole number from 1 to 65536, got no value".to_string())
         );
         assert_eq!(options.hash_mb, 65_536);
+    }
+
+    #[test]
+    fn threads() {
+        assert_eq!(
+            Options::declarations()[1],
+            "option name Threads type spin default 1 min 1 max 1"
+        );
+        let mut options = Options::default();
+        assert_eq!(options.threads, 1);
+        assert_eq!(options.set("Threads", Some("1")), Ok(()));
+        assert_eq!(options.threads, 1);
+        for bad in ["0", "2", "8", "many"] {
+            assert_eq!(
+                options.set("threads", Some(bad)),
+                Err(format!(
+                    "Threads: expected a whole number from 1 to 1, got `{bad}`"
+                ))
+            );
+        }
+        assert_eq!(options, Options::default());
     }
 }
