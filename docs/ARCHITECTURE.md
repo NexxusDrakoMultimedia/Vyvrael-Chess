@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -452,6 +452,23 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on eight positions at depths 1 to 3 the two must return the
     same score, and the move alpha-beta names must lead to that score.
+
+- **Draws** (`search/draw.rs`): inside the tree a position is scored `DRAW`
+  at once when it is drawn by rule, which both saves work and stops the
+  search walking in circles.
+  - *Insufficient material:* bare kings, or one knight or bishop in total.
+    Deliberately conservative: wrongly claiming a draw is far worse than
+    missing one.
+  - *Repetition:* the position's hash already occurred. `Search` keeps the
+    hashes of the game so far (given with `with_history`) followed by the
+    path from the root. One earlier occurrence counts, although the rules
+    need three in all: a position that can be repeated once can be repeated
+    again. Only positions with the same side to move and within reach of the
+    halfmove clock are compared.
+  - *Fifty-move rule:* a halfmove clock of 100, unless the side to move is
+    checkmated, because a mate delivered on the hundredth ply still wins.
+  - The root is never scored as drawn, since a move must still be returned
+    there.
 
 ## How search, evaluation and UCI fit together (planned)
 

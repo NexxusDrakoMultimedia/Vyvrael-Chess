@@ -193,7 +193,7 @@ behaviour is noticed.
 - [x] `eval`: `Send + Sync` bounds on `Evaluator`
 - [x] `search`: score constants and mate-score arithmetic
 - [x] `search`: negamax with alpha-beta at fixed depth
-- [ ] `search`: draw detection (fifty-move rule, repetition, bare material)
+- [x] `search`: draw detection (fifty-move rule, repetition, bare material)
 - [ ] `search`: principal variation
 - [ ] `search`: limits and stopping (depth, nodes, time, stop flag)
 - [ ] `search`: iterative deepening with progress reports

@@ -11,9 +11,12 @@
 //! scores at least `beta` the opponent would never allow this position, so
 //! the remaining moves need not be looked at.
 
-use super::{DRAW, INFINITY, MAX_PLY, mated_in};
+use super::{
+    DRAW, INFINITY, MAX_PLY, fifty_moves_reached, insufficient_material, is_repetition, mated_in,
+};
 use crate::board::{Move, Position};
 use crate::eval::{Evaluator, Score};
+use crate::movegen::legal_moves;
 use crate::movegen::pseudo_legal_moves;
 
 /// What a search found.
@@ -30,6 +33,10 @@ pub struct Outcome {
 pub struct Search<'a> {
     evaluator: &'a dyn Evaluator,
     nodes: u64,
+    /// Hashes of the positions before the one being searched, oldest first:
+    /// the game so far, then the path from the root. Used to see
+    /// repetitions.
+    keys: Vec<u64>,
 }
 
 impl<'a> Search<'a> {
@@ -39,7 +46,28 @@ impl<'a> Search<'a> {
         Search {
             evaluator,
             nodes: 0,
+            keys: Vec::new(),
         }
+    }
+
+    /// Tells the search which positions the game has already been through,
+    /// as their hashes, oldest first and **not** including the position that
+    /// will be searched. Without this the search can only see repetitions
+    /// inside its own lines.
+    #[must_use]
+    pub fn with_history(mut self, earlier: &[u64]) -> Search<'a> {
+        self.keys = earlier.to_vec();
+        self
+    }
+
+    /// Whether `pos` is drawn by rule, so that searching it is pointless:
+    /// too little material, a repeated position, or the fifty-move rule.
+    fn is_draw(&self, pos: &Position) -> bool {
+        if insufficient_material(pos) || is_repetition(pos, &self.keys) {
+            return true;
+        }
+        // A mate delivered by the hundredth ply still counts as a mate.
+        fifty_moves_reached(pos) && !(pos.in_check() && legal_moves(pos).is_empty())
     }
 
     /// How many positions have been visited so far.
@@ -63,13 +91,16 @@ impl<'a> Search<'a> {
         let mut alpha = -INFINITY;
         let mut best_move = None;
         for &mv in &pseudo_legal_moves(pos) {
+            self.keys.push(pos.hash());
             let undo = pos.make_move(mv);
             if pos.can_capture_king() {
                 pos.unmake_move(mv, undo);
+                self.keys.pop();
                 continue;
             }
             let score = -self.negamax(pos, depth - 1, 1, -INFINITY, -alpha);
             pos.unmake_move(mv, undo);
+            self.keys.pop();
             // The first legal move is always taken, so a best move exists
             // whenever any legal move does.
             if best_move.is_none() || score > alpha {
@@ -104,6 +135,11 @@ impl<'a> Search<'a> {
         beta: Score,
     ) -> Score {
         self.nodes += 1;
+        // The root is never scored as a draw here: a move must still be
+        // chosen there. Everywhere else a drawn position ends the line.
+        if self.is_draw(pos) {
+            return DRAW;
+        }
         if depth == 0 {
             return self.evaluator.evaluate(pos);
         }
@@ -111,14 +147,17 @@ impl<'a> Search<'a> {
         let mut best = -INFINITY;
         let mut any_legal = false;
         for &mv in &pseudo_legal_moves(pos) {
+            self.keys.push(pos.hash());
             let undo = pos.make_move(mv);
             if pos.can_capture_king() {
                 pos.unmake_move(mv, undo);
+                self.keys.pop();
                 continue;
             }
             any_legal = true;
             let score = -self.negamax(pos, depth - 1, ply + 1, -beta, -alpha);
             pos.unmake_move(mv, undo);
+            self.keys.pop();
 
             if score > best {
                 best = score;
@@ -152,7 +191,6 @@ mod tests {
     use super::super::mate_in;
     use super::*;
     use crate::eval::HandCrafted;
-    use crate::movegen::legal_moves;
 
     fn fen(text: &str) -> Position {
         Position::from_fen(text).unwrap()
@@ -173,6 +211,11 @@ mod tests {
     /// must agree with. Returns the score and the number of nodes visited.
     fn minimax(pos: &mut Position, depth: u32, ply: usize, nodes: &mut u64) -> Score {
         *nodes += 1;
+        // The same draw rules as the real search, apart from repetition,
+        // which cannot arise within three plies of these positions.
+        if ply > 0 && Search::new(&HandCrafted).is_draw(pos) {
+            return DRAW;
+        }
         if depth == 0 {
             return HandCrafted.evaluate(pos);
         }
@@ -307,6 +350,74 @@ mod tests {
         let chosen = best(text, 2);
         assert!(chosen != "e6f7" && chosen != "e6g6", "{chosen}");
         assert!(outcome.score > 500, "{outcome:?}");
+    }
+
+    /// Plays `moves` from `pos` and returns the hashes of the positions
+    /// passed through, for use as game history.
+    fn play(pos: &mut Position, moves: &[&str]) -> Vec<u64> {
+        let mut keys = Vec::new();
+        for text in moves {
+            keys.push(pos.hash());
+            let mv = pos.parse_move(text).unwrap();
+            let _undo = pos.make_move(mv);
+        }
+        keys
+    }
+
+    /// A queen down, Black can still draw by returning to a position the
+    /// game has already been through. The search sees that only when it is
+    /// told the game's history.
+    #[test]
+    fn the_losing_side_takes_a_repetition_from_the_game_history() {
+        let mut pos = fen("7k/8/8/8/8/2K5/8/1Q6 w - - 10 30");
+        let history = play(&mut pos, &["b1c1", "h8g8", "c1b1"]);
+        assert_eq!(pos.to_fen(), "6k1/8/8/8/8/2K5/8/1Q6 b - - 13 31");
+
+        let blind = Search::new(&HandCrafted).fixed_depth(&mut pos.clone(), 2);
+        assert!(blind.score < -500, "without history Black is just lost");
+
+        let informed = Search::new(&HandCrafted)
+            .with_history(&history)
+            .fixed_depth(&mut pos, 2);
+        assert_eq!(informed.score, DRAW);
+        assert_eq!(informed.best_move.unwrap().to_string(), "g8h8");
+    }
+
+    /// The winning side must not walk into a repetition inside its own
+    /// search line, with no game history at all.
+    #[test]
+    fn the_winning_side_avoids_repeating_within_the_search() {
+        let text = "7k/8/8/8/8/2K5/8/1Q6 w - - 10 30";
+        // b1c1, h8g8, c1b1, g8h8 returns to the root position.
+        let outcome = search(text, 5);
+        assert!(outcome.score > 500, "{outcome:?}");
+    }
+
+    #[test]
+    fn the_fifty_move_rule_ends_the_line() {
+        // Mate in two is on the board, but every move brings the clock to
+        // 100 and nothing can reset it.
+        assert_eq!(search("7k/8/8/8/8/8/R7/1R4K1 w - - 99 80", 4).score, DRAW);
+        // With one ply less on the clock the mate is still too late.
+        assert_eq!(search("7k/8/8/8/8/8/R7/1R4K1 w - - 98 80", 4).score, DRAW);
+        // Delivered on exactly the hundredth ply, the mate counts.
+        assert_eq!(
+            search("7k/8/8/8/8/8/R7/1R4K1 w - - 97 80", 4).score,
+            mate_in(3)
+        );
+        assert_eq!(
+            search("7k/8/8/8/8/8/R7/1R4K1 w - - 0 80", 4).score,
+            mate_in(3)
+        );
+    }
+
+    #[test]
+    fn bare_material_is_a_draw_inside_the_tree() {
+        // Black can take the last white piece that could ever mate.
+        let outcome = search("4k3/8/8/8/8/8/3r4/3RK3 b - - 0 1", 2);
+        assert_eq!(outcome.score, DRAW);
+        // King and knight against king: every line is drawn at once.
+        assert_eq!(search("4k3/8/8/8/8/8/8/3NK3 w - - 0 1", 3).score, DRAW);
     }
 
     #[test]
