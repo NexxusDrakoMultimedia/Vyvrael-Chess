@@ -6,23 +6,34 @@ protocol surface.
 
 ## Current status
 
-**The protocol loop works; the options are being added.** Started without
-arguments, the binary speaks UCI on standard input and output:
+**Implemented.** Started without arguments, the binary speaks UCI on
+standard input and output. A session looks like this (the seed, speeds and
+times differ from run to run):
 
 ```text
 $ vyvrael
 uci
 id name Vyvræl 0.1.0
 id author Nexxus Drako Multimedia
+option name Hash type spin default 16 min 1 max 65536
+option name Threads type spin default 1 min 1 max 1
+option name DeterministicRNG type check default false
+option name RngSeed type spin default 822286742 min 0 max 4294967295
+option name UCI_LimitStrength type check default false
+option name UCI_Elo type spin default 1200 min 400 max 1800
+info string rng seed 2463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
-go movetime 300
-...
-info depth 4 score cp 3 nodes 113628 nps 3384001 time 33 pv d2d4 b8c6 g1f3 g8f6
-...
+go depth 3
+info depth 1 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
+info depth 2 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
+info depth 3 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
+
+It has been tested by driving the binary over pipes. It has not yet been
+tried in a GUI or with lichess-bot.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
@@ -48,7 +59,7 @@ package name needs one.
 | `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
 | `position [startpos \| fen <fen>] [moves ...]` | implemented | Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
-| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. |
+| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is always finished first (see "The first depth" below). |
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
@@ -68,6 +79,19 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. |
 
 Several limits may be combined; the search stops at whichever comes first.
+
+### The first depth
+
+**The first depth is always completed**, whatever the clock, the node limit
+or `stop` say, so that there is always a move to play. Normally that takes
+well under a millisecond. In a position with very many captures available
+it can take much longer, because quiescence search there is not yet pruned:
+tens of milliseconds in a middlegame with two queens a side, and seconds in
+artificial positions with many queens. Until it is done `stop` and `quit`
+are not obeyed and, because the engine waits for the search to end before
+it reads on, nothing else is answered either. This is known issue KI-10 in
+[ROADMAP.md](ROADMAP.md); it goes away with the search heuristics of
+milestone 7.
 
 ### Output
 

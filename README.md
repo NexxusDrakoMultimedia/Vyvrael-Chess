@@ -22,9 +22,10 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged.** The engine generates legal moves, passes perft, scores a position and
-searches for the best move, but cannot play a game yet: it does not speak
-UCI (milestone 5). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged.** The engine plays chess: it speaks UCI, so it works in a GUI
+and in match tools. It is still weak and slow, because the search has no
+move ordering or transposition table yet (milestone 7), and its strength has
+not been measured (milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
@@ -56,17 +57,19 @@ optional FEN. See
 
 ## Using it in a GUI or lichess-bot
 
-Not possible yet: this needs the UCI interface (milestone 5). Once that
-lands:
+Vyvræl speaks UCI when started without arguments. Every command and option
+is in [docs/UCI.md](docs/UCI.md).
 
 - **GUI** (Cute Chess, Arena, En Croissant, Banksia, ...): add
   `target/release/vyvrael` as a UCI engine.
 - **lichess-bot:** set `engine.name` to the binary name and
   `engine.protocol` to `uci` in `config.yml`.
 
-This section will be replaced with tested instructions when UCI works.
-Running Vyvræl as a Lichess bot is a planned feature; see
-[docs/ROADMAP.md](docs/ROADMAP.md).
+The protocol is tested by driving the binary over pipes
+(`tests/uci.rs`). It has **not yet been tried in a GUI or with lichess-bot**;
+that is the private smoke test planned next, and these instructions will be
+confirmed or corrected then. Running Vyvræl as a public Lichess bot is a
+planned feature with conditions; see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
 

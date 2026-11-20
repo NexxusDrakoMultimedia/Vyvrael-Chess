@@ -175,8 +175,7 @@ once it has a first release.
   move only if it is legal. This is the entry point for input that is not
   trusted; `Position::parse_move` stays for trusted input such as recorded
   games.
-- `uci`: parsing of UCI command lines into commands (`uci::parse`). Nothing
-  acts on them yet.
+- `uci`: parsing of UCI command lines into commands (`uci::parse`).
 - `uci`: formatting of `info` and `bestmove` lines and of scores
   (`cp` and `mate`).
 - `uci`: time management. A move gets an equal share of the remaining time
@@ -184,7 +183,7 @@ once it has a first release.
   more than is on the clock less a 30 ms overhead.
 - **The engine speaks UCI.** Started without arguments, the binary reads
   UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`,
-  `quit`) and searches on its own thread. No options yet.
+  `quit`) and searches on its own thread.
 - UCI option `Hash` (spin, default 16, 1 to 65536 MiB). It is accepted and
   stored but has no effect until there is a transposition table
   (milestone 7).
@@ -192,18 +191,19 @@ once it has a first release.
   is single-threaded, so 1 is the only value accepted.
 - `rng::entropy_seed`, the one permitted reader of system entropy, and
   `rng::stream::STRENGTH`, the stream for randomness that affects playing
-  strength. Nothing uses them yet.
+  strength, used by the UCI layer.
 - UCI options `DeterministicRNG` (check, default `false`) and `RngSeed`
   (spin, default 822286742, which is `0x31031996`). The seed of
   strength-affecting randomness comes from system entropy unless
   `DeterministicRNG` is on, and is logged with `info string` in reply to
-  `uci` and whenever it changes. No randomness is drawn yet.
+  `uci`, at every `ucinewgame` without a chosen seed, and whenever an
+  option changes it.
 - `search::weakened_move`: chooses a move at reduced strength by searching
   every root move to a shallow depth and misjudging each score by a bounded
-  random amount. Not reachable from UCI yet.
+  random amount. Used when `UCI_LimitStrength` is on.
 - UCI option `UCI_LimitStrength` (check, default `false`). When on, `go`
-  plays a weakened move, at a fixed provisional level until `UCI_Elo`
-  exists. When off, play is exactly as before.
+  plays a weakened move at the level set by `UCI_Elo`. When off, play is
+  exactly as before.
 - UCI option `UCI_Elo` (spin, default 1200, 400 to 1800): the rating to play
   at when `UCI_LimitStrength` is on. **Not calibrated**: the settings are
   ordered, but what rating each really plays at is measured in milestone 6.

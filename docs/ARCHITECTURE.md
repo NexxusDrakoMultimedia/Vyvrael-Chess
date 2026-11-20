@@ -37,7 +37,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
 | `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
-| `uci` | in progress (milestone 5) | The UCI protocol. Implemented so far: command parsing, output formatting, time management, and the engine session with the search on its own thread. |
+| `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
 
@@ -205,8 +205,8 @@ from `board`.
   letter, and a diagonal pawn move to an empty square that is not the en
   passant square. **It does not check piece geometry or legality** (a rook
   moving like a knight parses as a quiet move); where legality matters,
-  match the result against `movegen::legal_moves`. Doing that for UCI input is
-  due in milestone 5 (known issue KI-3).
+  use `movegen::find_legal_move` instead, which returns a move only if it is
+  legal. The UCI layer does.
 
 ## Attacks and move generation
 
@@ -338,8 +338,8 @@ on this square attack?".
 - **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
   binary's commands against any pair of writers, so tests run it on in-memory
   buffers and `main.rs` is only a few lines. With no arguments the binary
-  identifies itself on stderr, leaving stdout empty for the future UCI
-  protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
+  does not call it at all: `main.rs` starts the UCI loop instead (see
+  "UCI" below). `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
   parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
   prints one line per depth and the best move, with timing on stderr so that
@@ -615,7 +615,7 @@ position before it.
 
 ## UCI
 
-In progress (milestone 5). `src/uci/` is the protocol layer; every command
+Implemented in `src/uci/`, the protocol layer; every command
 and option is listed in [UCI.md](UCI.md).
 
 - **Parsing** (`uci/command.rs`): `parse(line)` turns a line into a
@@ -759,11 +759,8 @@ subsystems never share or shift each other's numbers:
 | 1 | `stream::MAGICS` | Magic-number search |
 | 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI options select (system entropy, or `RngSeed`), not necessarily the default seed. |
 
-Planned uses (each gets a real row when it lands): datagen opening randomisation (milestone 9, not
-strength-affecting; per-game derived seeds), strength limiting through
-`UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
-non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the
-opt-in).
+Planned uses (each gets a real row when it lands): datagen opening
+randomisation (milestone 9, not strength-affecting; per-game derived seeds).
 
 ## Design decisions
 
