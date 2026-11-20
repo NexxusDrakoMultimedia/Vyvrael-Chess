@@ -487,8 +487,9 @@ Linux machine the engine installer has been run once (2026-11-21): 12 of
 the then 14 engines installed and 21 names passed the check; see "The
 ladder's opponent engines" in `docs/TESTING.md` for the three that did
 not. One of them, Ethereal 12.75, has since been taken out of the
-installer. The bash
-match and rating scripts have still not made a real run.
+installer; the other two, Weiss and Princhess, now install and work. The
+bash match and rating scripts have made a real run there too: a gauntlet
+with `match.sh` and a rating with `rate.sh` (2026-11-21).
 
 ## Recording results
 
