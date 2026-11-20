@@ -699,19 +699,62 @@ class Rerun(unittest.TestCase):
     the installers are replaced by mocks, so nothing can be fetched.
     """
 
-    def run_installed(self, tmp: str, argv: list[str], tools=install_tools.TOOLS):
+    def run_installed(self, tmp: str, argv: list[str], tools=install_tools.TOOLS, check=True):
         """Runs `main` with prefix <tmp>/prefix and configuration home
-        <tmp>/config, after recording `tools` there as installed."""
+        <tmp>/config, after recording `tools` there as installed. A mocked
+        installer returns MOCK_RECORD and the check answers `check`."""
         for tool in tools:
             record_as_installed(self.prefix(tmp), tool)
-        installers = {tool: mock.Mock() for tool in install_tools.TOOLS}
+        installers = {
+            tool: mock.Mock(return_value=dict(self.MOCK_RECORD)) for tool in install_tools.TOOLS
+        }
         with mock.patch.object(sys, "platform", "linux"), mock.patch.dict(
             install_tools.INSTALLERS, installers
         ), mock.patch.dict(
             os.environ, {"XDG_CONFIG_HOME": str(Path(tmp) / "config")}
-        ), mock.patch.object(install_tools, "verify"):
+        ), mock.patch.object(install_tools, "verify", return_value=check):
             out = run_main(["--prefix", self.prefix(tmp), *argv])
         return out, installers
+
+    MOCK_RECORD = {"version": "from the mocked installer"}
+
+    def manifest(self, tmp: str) -> dict:
+        ctx = install_tools.Ctx(args(prefix=self.prefix(tmp)))
+        return {tool: ctx.installed_entry(tool) for tool in install_tools.TOOLS}
+
+    def test_a_tool_is_recorded_once_its_check_passed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_installed(tmp, ["--tool", "ordo"], tools=[])
+            self.assertEqual(self.manifest(tmp)["ordo"], self.MOCK_RECORD)
+
+    def test_a_failed_check_is_an_error_and_records_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp, redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit) as stopped:
+                self.run_installed(tmp, ["--tool", "ordo"], tools=[], check=False)
+            self.assertEqual(stopped.exception.code, 1)
+            self.assertIn("the check failed for ordo", err.getvalue())
+            self.assertEqual(self.manifest(tmp)["ordo"], {})
+
+    def test_a_failed_check_after_a_reinstall_drops_the_old_record(self):
+        # Otherwise the next run would call the broken tool "already installed".
+        with tempfile.TemporaryDirectory() as tmp, redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                self.run_installed(tmp, ["--force", "--tool", "ordo"], check=False)
+            manifest = self.manifest(tmp)
+            self.assertEqual(manifest["ordo"], {})
+            self.assertFalse(
+                install_tools.is_installed(install_tools.Ctx(args(prefix=self.prefix(tmp))), "ordo")
+            )
+            # The other tools' records are untouched.
+            self.assertEqual(
+                manifest["cutechess"]["version"], install_tools.PINS["cutechess"]["version"]
+            )
+
+    def test_one_failed_check_does_not_stop_the_other_tools(self):
+        with tempfile.TemporaryDirectory() as tmp, redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit):
+                self.run_installed(tmp, [], tools=[], check=False)
+            self.assertIn("the check failed for cutechess, ordo", err.getvalue())
 
     def prefix(self, tmp: str) -> str:
         return str(Path(tmp).resolve() / "prefix")
@@ -781,6 +824,91 @@ class Rerun(unittest.TestCase):
             self.assertIn("and the user service", out)
             self.assertFalse((Path(self.prefix(tmp)) / "bin").exists())
             self.assertFalse((Path(tmp) / "config").exists())
+
+
+class Checks(unittest.TestCase):
+    """The check run after an install. The program itself is mocked."""
+
+    def verify(self, tool: str, **run) -> tuple[bool, str, mock.Mock]:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            install_tools.subprocess, "run", **run
+        ) as runner, redirect_stdout(io.StringIO()) as out:
+            passed = install_tools.verify(install_tools.Ctx(args(prefix=tmp)), tool)
+        return passed, out.getvalue(), runner
+
+    def finished(self, status: int, stdout: str = "", stderr: str = ""):
+        return install_tools.subprocess.CompletedProcess([], status, stdout, stderr)
+
+    def test_passes_when_the_program_runs_and_exits_with_zero(self):
+        result = self.finished(0, "cutechess-cli 1.5.1\nmore\n")
+        passed, out, runner = self.verify("cutechess", return_value=result)
+        self.assertIs(passed, True)
+        self.assertEqual(out, "  check: cutechess-cli 1.5.1\n")
+        command = runner.call_args.args[0]
+        self.assertEqual((Path(command[0]).name, command[1:]), ("cutechess-cli", ["--version"]))
+
+    def test_fails_on_a_non_zero_exit_status(self):
+        result = self.finished(126, stderr="cannot execute binary file: Exec format error\n")
+        passed, out, _ = self.verify("ordo", return_value=result)
+        self.assertIs(passed, False)
+        self.assertIn("check FAILED", out)
+        self.assertIn("status 126", out)
+        self.assertIn("Exec format error", out)
+
+    def test_fails_when_the_program_cannot_be_started_or_hangs(self):
+        timeout = install_tools.subprocess.TimeoutExpired("ordo", 120)
+        for problem in (OSError("no such file"), timeout):
+            passed, out, _ = self.verify("ordo", side_effect=problem)
+            self.assertIs(passed, False, problem)
+            self.assertIn("check FAILED", out)
+
+    def test_a_tool_without_a_check_passes_without_running_anything(self):
+        passed, out, runner = self.verify("lichess-bot")
+        self.assertIs(passed, True)
+        self.assertEqual(out, "")
+        runner.assert_not_called()
+
+    def test_forget_removes_only_that_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = install_tools.Ctx(args(prefix=tmp))
+            ctx.forget("ordo")  # nothing recorded, nothing written
+            self.assertFalse(ctx.manifest.exists())
+            ctx.record("ordo", {"version": "v1.2.6"})
+            ctx.record("cutechess", {"version": "v1.5.1"})
+            ctx.forget("ordo")
+            self.assertIsNone(ctx.installed_version("ordo"))
+            self.assertEqual(ctx.installed_version("cutechess"), "v1.5.1")
+
+
+class Machine(unittest.TestCase):
+    """The pinned Cute Chess file is an x86_64 AppImage."""
+
+    def install(self, machine: str, dry_run: bool) -> str:
+        forbidden = AssertionError("the test tried to leave the sandbox")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            install_tools.platform, "machine", return_value=machine
+        ), mock.patch.object(install_tools, "download", side_effect=forbidden), redirect_stdout(
+            io.StringIO()
+        ) as out:
+            ctx = install_tools.Ctx(args(prefix=tmp, dry_run=dry_run))
+            self.assertIsNone(install_tools.install_cutechess(ctx))
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+        return out.getvalue()
+
+    def test_a_real_run_stops_before_downloading_on_another_machine(self):
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()) as err:
+            self.install("aarch64", dry_run=False)
+        self.assertIn("x86_64 only; this machine is aarch64", err.getvalue())
+
+    def test_a_dry_run_says_a_real_run_would_stop(self):
+        out = self.install("aarch64", dry_run=True)
+        self.assertIn("this machine is aarch64, not x86_64", out)
+
+    def test_x86_64_is_accepted_under_both_of_its_names(self):
+        for machine in ("x86_64", "AMD64"):
+            out = self.install(machine, dry_run=True)
+            self.assertIn("[dry-run] would install", out)
+            self.assertNotIn("not x86_64", out)
 
 
 class CommandLine(unittest.TestCase):

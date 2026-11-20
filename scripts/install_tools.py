@@ -29,6 +29,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import posixpath
 import re
 import shlex
@@ -299,6 +300,12 @@ class Ctx:
         self.manifest.parent.mkdir(parents=True, exist_ok=True)
         self.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
 
+    def forget(self, tool: str) -> None:
+        """Removes `tool` from the manifest, if it is recorded there."""
+        manifest = self._read_manifest()
+        if manifest.pop(tool, None) is not None:
+            self.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+
     def shim(
         self, name: str, target: Path, args: list[str] = (), env: dict = None, cwd: Path = None
     ) -> Path:
@@ -404,13 +411,25 @@ def refresh_installed(ctx: Ctx, tool: str) -> None:
 
 
 # ---------------------------------------------------------------- installers
-def install_cutechess(ctx: Ctx) -> None:
+# Each installer returns what to record in the manifest, or None on a dry
+# run. `main` records it only once the tool has passed its check.
+def install_cutechess(ctx: Ctx) -> dict | None:
     pin = PINS["cutechess"]
     dest = ctx.prefix / "cutechess"
     name = pin["url"].rsplit("/", 1)[-1]
     say(f"cutechess {pin['version']}")
+    # The pinned release file is an x86_64 AppImage. "AMD64" is how other
+    # systems name the same machine, for dry runs made there.
+    machine = platform.machine()
+    wrong_machine = machine not in ("x86_64", "AMD64")
     if ctx.dry:
-        return say(f"  [dry-run] would install {pin['url']} -> {dest}")
+        say(f"  [dry-run] would install {pin['url']} -> {dest}")
+        if wrong_machine:
+            say(f"  [dry-run] note: this machine is {machine}, not x86_64;")
+            say("            a real run would stop here")
+        return None
+    if wrong_machine:
+        die(f"the pinned Cute Chess AppImage runs on x86_64 only; this machine is {machine}")
     with tempfile.TemporaryDirectory() as tmp:
         staged = Path(tmp) / "cutechess"
         staged.mkdir()
@@ -419,10 +438,10 @@ def install_cutechess(ctx: Ctx) -> None:
         make_exec(app)
         replace_dir(staged, dest)
     write_launchers(ctx, "cutechess")
-    ctx.record("cutechess", {"version": pin["version"], "sha256": pin["sha256"], "path": str(dest)})
+    return {"version": pin["version"], "sha256": pin["sha256"], "path": str(dest)}
 
 
-def install_ordo(ctx: Ctx) -> None:
+def install_ordo(ctx: Ctx) -> dict | None:
     pin = PINS["ordo"]
     dest = ctx.prefix / "ordo"
     url = source_url("ordo")
@@ -432,7 +451,7 @@ def install_ordo(ctx: Ctx) -> None:
         say(f"  [dry-run] would build {url} -> {dest}")
         if missing:
             say(f"  [dry-run] note: {', '.join(missing)} not found; a real run would stop here")
-        return
+        return None
     if missing:
         die(f"{', '.join(missing)} not found; run: sudo apt install build-essential")
     with tempfile.TemporaryDirectory() as tmp:
@@ -450,10 +469,7 @@ def install_ordo(ctx: Ctx) -> None:
         make_exec(staged / "ordo")
         replace_dir(staged, dest)
     write_launchers(ctx, "ordo")
-    ctx.record(
-        "ordo",
-        {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)},
-    )
+    return {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)}
 
 
 def engine_location(args, prefix: Path) -> tuple[str, str]:
@@ -561,7 +577,7 @@ def write_private(path: Path, text: str) -> None:
     path.chmod(0o600)
 
 
-def install_lichess_bot(ctx: Ctx) -> None:
+def install_lichess_bot(ctx: Ctx) -> dict | None:
     pin = PINS["lichess-bot"]
     dest = ctx.prefix / "lichess-bot"
     url = source_url("lichess-bot")
@@ -569,7 +585,8 @@ def install_lichess_bot(ctx: Ctx) -> None:
     if sys.version_info < (3, 11):
         die("lichess-bot needs Python 3.11 or newer; this is " + sys.version.split()[0])
     if ctx.dry:
-        return say(f"  [dry-run] would install {url} -> {dest}")
+        say(f"  [dry-run] would install {url} -> {dest}")
+        return None
 
     # Before looking for the user's configuration: an interrupted earlier run
     # may have left the whole install, config.yml included, under `.old`.
@@ -616,10 +633,7 @@ def install_lichess_bot(ctx: Ctx) -> None:
         say("  edits to its files, and files added inside its directories, are gone")
 
     write_launchers(ctx, "lichess-bot")
-    ctx.record(
-        "lichess-bot",
-        {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)},
-    )
+    return {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)}
 
 
 # The assignment is commented out on purpose. lichess-bot replaces the token
@@ -667,20 +681,31 @@ INSTALLERS = {
 
 
 # ---------------------------------------------------------------- checks
-def verify(ctx: Ctx, tool: str) -> None:
-    """Runs the installed tool once and shows its first line of output."""
+def verify(ctx: Ctx, tool: str) -> bool:
+    """Runs the installed tool once, shows its first line of output and
+    returns whether it worked: it started and exited with status 0.
+
+    A tool without a check (lichess-bot, which needs an account) passes.
+    """
     commands = {"cutechess": ["cutechess-cli", "--version"], "ordo": ["ordo", "-h"]}
     if tool not in commands:
-        return
+        return True
     name, *rest = commands[tool]
     try:
         result = subprocess.run(
             [str(ctx.bin / name), *rest], capture_output=True, text=True, timeout=120, check=False
         )
-        lines = (result.stdout or result.stderr).strip().splitlines()
-        say(f"  check: {lines[0] if lines else '(no output)'}")
     except (OSError, subprocess.SubprocessError) as problem:
-        say(f"  check failed: {problem}")
+        say(f"  check FAILED: {problem}")
+        return False
+    lines = (result.stdout or result.stderr or "").strip().splitlines()
+    first = lines[0] if lines else "(no output)"
+    if result.returncode != 0:
+        command = " ".join([name, *rest])
+        say(f"  check FAILED: `{command}` exited with status {result.returncode}: {first}")
+        return False
+    say(f"  check: {first}")
+    return True
 
 
 def path_hint(ctx: Ctx) -> None:
@@ -750,6 +775,7 @@ def main(argv: list[str] | None = None) -> None:
     wanted = args.tool or DEFAULT_TOOLS
     if "all" in wanted:
         wanted = TOOLS
+    failed = []
     for tool in wanted:
         # No dry-run exception here: a dry run reports what a real run would
         # do, and a real run skips a tool that is already installed.
@@ -757,13 +783,25 @@ def main(argv: list[str] | None = None) -> None:
             say(f"{tool}: {PINS[tool]['version']} already installed (use --force to reinstall)")
             refresh_installed(ctx, tool)
             continue
-        INSTALLERS[tool](ctx)
-        if not args.dry_run:
-            verify(ctx, tool)
+        info = INSTALLERS[tool](ctx)
+        if args.dry_run:
+            continue
+        # Recorded only once it has run: a tool that does not work must not
+        # be reported as "already installed" by the next run.
+        if verify(ctx, tool):
+            ctx.record(tool, info)
+        else:
+            ctx.forget(tool)
+            failed.append(tool)
     if not args.dry_run:
         path_hint(ctx)
         if "lichess-bot" in wanted:
             say(LICHESS_NEXT_STEPS)
+    if failed:
+        die(
+            f"the check failed for {', '.join(failed)} (see above). The files are in place under"
+            f" {ctx.prefix} but not recorded as installed, so the next run installs again."
+        )
 
 
 if __name__ == "__main__":
