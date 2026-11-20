@@ -393,9 +393,10 @@ match or the real Ordo; that needs the Linux machine.
 
 ## Queued work (requested 2026-11-21)
 
-Two tasks asked for by the maintainer, in this order, after the tooling
-branch is merged. Each gets a branch of its own from `main`, small commits,
-and no version bump, tag or release.
+Two tasks asked for by the maintainer. Each gets a branch of its own from
+`main`, small commits, and no version bump, tag or release. The first
+follows the tooling branch; the second waits until milestone 7 is done (the
+maintainer's decision of 2026-11-21).
 
 ### 1. Optional determinism: `Seed`, `Variety`, `bench`
 
@@ -441,11 +442,15 @@ Decided by the maintainer:
 - [ ] Report: what made the engine deterministic, the bench node count
   before and after, the options added.
 
-### 2. Benchmark and speed up
+### 2. Benchmark and speed up (after milestone 7)
 
 Why: in a 10+0.1 gauntlet 0.1.0-a1 reached only depth 3 to 6 (median 4) at
 about 0.28 s a move. Measure before changing anything; do not assume the
-cause. It starts after task 1, which provides `bench`.
+cause. **It starts after milestone 7**, so the order is: tooling, task 1,
+milestone 6, milestone 7, then this. Task 1 provides `bench`. By then move
+ordering, the transposition table and the other search heuristics exist and
+have each passed an SPRT, so this task measures and speeds up the search as
+it will really be, not one that is slow mainly for lack of them.
 
 - [ ] **Baseline, reported before any change:** perft speed on the
   reference positions; `bench` over 30 to 50 positions (opening,
@@ -464,10 +469,9 @@ cause. It starts after task 1, which provides `bench`.
   identical; if the count changes it is a search change: stop and explain.
 - [ ] **Search changes** (move ordering, pruning, reductions, evaluation)
   go in separate, clearly labelled commits and are not called stronger.
-  This overlaps milestone 7: the project rule is one feature per commit,
-  each accepted only by an SPRT, which needs the match scripts and
-  milestone 6's measurement. Settle with the maintainer, before starting
-  them, whether they are done here or as milestone 7.
+  The heuristics of milestone 7 are done by then; anything further found
+  here follows the same rule, one feature per commit, each accepted only by
+  an SPRT.
 - [ ] `docs/testing/bench-history.md`: a row per commit (commit, change,
   nodes, speed, perft speed). Bench and perft stay fast enough for CI.
 - [ ] Report: speed before and after, the hotspots and what changed for
