@@ -422,6 +422,21 @@ Part A, the installer:
 Nothing on this branch has been run against a real ladder engine, a real
 match or the real Ordo; that first run needs the Linux machine.
 
+## Recording results
+
+Every measured build gets one file under `docs/testing/`, named after the
+build (for example `results-0.1.0-alpha.1.md`), with:
+
+- the build's name as it appears in the games, and its commit;
+- the opponents, the number of games and the scores;
+- the Ordo rating and its error, with the anchor it is relative to;
+- the settings, where they differ from the fixed ones;
+- the baseline's caveats: small samples, and a scale stretched by lopsided
+  results.
+
+Ordo's text and CSV output may sit beside it. PGN files, logs and run notes
+stay out of git.
+
 ## Queued work (requested 2026-11-21)
 
 Two tasks asked for by the maintainer. Each gets a branch of its own from
@@ -461,6 +476,9 @@ Decided by the maintainer:
 - [ ] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
   `Seed` fixed and `Variety` 0, printing `<nodes> nodes <nps> nps`. The
   node count must be the same on every run.
+- [ ] Once `bench` exists, record the first bench node count and speed and
+  the perft speed in `docs/testing/bench-history.md`, so that queued task 2
+  has a baseline from before milestone 7.
 - [ ] Tests: bench twice gives one node count; a fixed-depth search with a
   fixed `Seed` and `Variety` 0 is reproducible; with `Variety` 0 the root
   move is always the best one; the seed line is printed (no test may depend
