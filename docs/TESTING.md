@@ -341,10 +341,9 @@ that is known the check accepts any status except 126 and 127, so it cannot
 yet tell a program that starts and then fails from one that works), and that
 lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
-The installer does not yet cover Windows, the ladder's opponent engines or
-the match and rating scripts. They are planned on the branch
-`tooling/testing-scripts`; see "Testing tooling" in
-[ROADMAP.md](ROADMAP.md).
+The installer does not yet cover Windows or the ladder's opponent engines;
+see "Testing tooling" in [ROADMAP.md](ROADMAP.md). The match and rating
+scripts are described under "Strength matches, SPRT and ratings" below.
 
 ## Opponent ladder (Ladder Baseline 1)
 
@@ -432,20 +431,167 @@ games were not kept in the repository.
 Forty games against five opponents say nothing reliable about a rating;
 that is milestone 6 (known issue KI-8).
 
-## Strength matches and SPRT (planned, before milestone 6)
+## Strength matches, SPRT and ratings
 
 Search, evaluation and network changes are accepted only when a sequential
-probability ratio test (SPRT) against the previous version shows a gain. A
-match script using Cute Chess (`cutechess-cli`), with Ordo for rating
-lists, will be added before milestone 6 (see "Testing tooling" in
-[ROADMAP.md](ROADMAP.md)) and documented here, including how to read LLR, Elo estimates and error bars.
-Because of that, search is split (see "Decisions for milestones 4 to 6" in
-[ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
-correctness tests and fixed-depth node counts, and the search heuristics wait
-for milestone 7, after the match script exists, so each has an SPRT result.
+probability ratio test (SPRT) against the previous version shows a gain.
+The result (bounds, games, LLR, outcome) is recorded in the commit message
+of the change or in a table in this file. That is why search is split (see
+"Decisions for milestones 4 to 6" in [ROADMAP.md](ROADMAP.md)): the search
+core is checked by correctness tests and fixed-depth node counts, and each
+search heuristic of milestone 7 gets its own SPRT.
 
-SPRT results are recorded in the commit message of the change or in a table
-in this file.
+Four scripts do the work. The two for each system behave alike; only the
+spelling of the options differs (`--rounds` in bash, `-Rounds` in
+PowerShell).
+
+| Task | Linux | Windows |
+| --- | --- | --- |
+| Run a match | `scripts/linux/match.sh` | `scripts/windows/match.ps1` |
+| Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
+
+They need `cutechess-cli` and Ordo, which are separate programs (see
+"Installing the external tools"). Each script reads the tool's own help
+before using it and stops with a clear message if the tool, or an option it
+needs, is missing. `--help` (`-Help`) prints every option. **Start every
+run with `--dry-run` (`-DryRun`)**: it prints the exact command and runs
+nothing.
+
+**Status:** the scripts are covered by offline tests with stand-in tools,
+and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
+No real match or rating run has been made through them yet.
+
+### Settings that differ between machines
+
+Paths and machine sizes are not in the repository. Copy
+`scripts/local.env.example` to `scripts/local.env` (git-ignored) and set
+what applies: where `cutechess-cli` and Ordo are if not on `PATH`, the
+opening file, the engine list, the output folder, the number of games at
+once and whether to run at low priority. Each setting can also be an
+environment variable with the prefix `VYVRAEL_`, and most an argument. The
+order is argument, environment, local file, built-in default.
+
+Games at once (`CONCURRENCY`) defaults to the physical cores minus two and
+may never exceed the physical cores: engines sharing a core steal each
+other's time and lose games on the clock. On the maintainer's machines it is
+6 on the Windows workstation and 3, at low priority, on the Linux machine.
+
+### The three kinds of match
+
+Build names are plain ASCII, for example `Vyvrael 0.1.0-a1` or
+`Vyvrael dev-1a2b3c4`. A round is two games: one opening, each side once.
+
+**SPRT**, to decide whether a change is a gain:
+
+```sh
+scripts/linux/match.sh sprt \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --base ../builds/vyvrael-0.1.0-a1 --base-name "Vyvrael 0.1.0-a1" \
+  --elo0 0 --elo1 5 --alpha 0.05 --beta 0.05 --rounds 5000 --dry-run
+```
+
+The bounds, `alpha`, `beta` and the round cap are required; the scripts
+have no default for them, so a test's terms are always written down. Bounds
+to start from:
+
+| Purpose | `elo0` | `elo1` | Use it when |
+| --- | --- | --- | --- |
+| A gain | 0 | 5 | A new heuristic or evaluation term: accept only if it is better. |
+| No loss | -5 | 0 | A simplification or refactoring that should play the same. |
+| A large gain, quickly | 0 | 10 | Early on, when changes are worth tens of Elo and games are scarce. |
+
+`alpha` and `beta` of 0.05 each allow a 5% chance of accepting a change
+that is not a gain and a 5% chance of rejecting one that is. The script
+ends by naming the outcome: **H1 accepted** (keep the change), **H0
+accepted** (reject it), or **undecided** when the round cap came first,
+which is not an acceptance. The LLR runs from the lower to the upper bound
+(about -2.94 to 2.94 with those values); the test stops when it crosses
+one.
+
+**Gauntlet**, to measure a build against the ladder:
+
+```sh
+scripts/linux/match.sh gauntlet \
+  --test target/release/vyvrael --test-name "Vyvrael 0.1.0-a1" \
+  --opponent "Stockfish 19-1320" --opponent "Vice 1.1" \
+  --opponent "Rustic Alpha 1.5" --rounds 20 --dry-run
+```
+
+Opponents are named exactly as in the engine list (`ENGINES_JSON`, in Cute
+Chess's `engines.json` format), which carries each one's file and options,
+`UCI_LimitStrength` and `UCI_Elo` for the limited entries included. In
+PowerShell: `-Opponent "Stockfish 19-1320","Vice 1.1"`.
+
+**Head-to-head**, a fixed number of rounds between two builds: as `sprt`
+without the four SPRT options, with the mode `h2h`.
+
+### What every match uses, and why
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Time control | 10+0.1 | As Ladder Baseline 1; short enough for thousands of games. |
+| Hash, threads | 64 MB, 1 | As the baseline; one thread keeps results reproducible in kind. |
+| Pondering | off | Engines must not use each other's time. |
+| Openings | `UHO_Lichess_4852_v1.epd`, random order | Unbalanced human openings reduce draws between unequal engines. |
+| Games per opening | 2, colours swapped | Neither side gets the better half of an opening. |
+| Resign | 3 moves at 700 centipawns, both engines agreeing | Ends decided games early. |
+| Draw | from move 34, 10 moves within 20 centipawns | Ends dead games early. |
+| `-recover` | on | One crashed engine does not end a long run. |
+
+`--tc` and `--hash` can change the first two; the rest is fixed in the
+scripts. **Keep everything the same between two runs you mean to compare**,
+on the same machine with the same number of games at once: results from
+different machines or settings are not comparable.
+
+Each run leaves three files in the output folder (`matches/`, git-ignored),
+named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
+`.notes.txt` with the exact command, each engine's name, file and SHA-256,
+the `cutechess-cli` version, the start and end times and the outcome. Keep
+the notes with any result you record. A script refuses to add games to a
+PGN that already exists; use `--label` for a second run on one day.
+
+### Rating lists with Ordo
+
+```sh
+scripts/linux/rate.sh matches/2026-11-21-gauntlet-Vyvrael-0.1.0-a1.pgn
+```
+
+writes `...-ratings.txt` and `...-ratings.csv` beside the PGN, with the
+baseline's settings: the anchor "Stockfish 19" fixed at 0, the white
+advantage estimated from the games, and 500 simulations for the error
+bars. Several PGN files may be given. The anchor must have played in the
+games; for a gauntlet without Stockfish 19 give another, for example
+`--anchor "Vice 1.1" --anchor-rating -1876.4` to place it where the
+baseline has it.
+
+How to read the table:
+
+- **The order is the result.** The script prints it again on its own.
+- **The distances are not.** When one engine wins nearly every game the
+  scale stretches: the baseline spans about 3,000 points between engines
+  that are not that far apart.
+- **The error column matters.** Two engines whose ranges overlap are not
+  separated. With 40 or 50 games each, the ranges are hundreds of points.
+- **Ratings are relative to the anchor**, on this machine, at this time
+  control. They are not CCRL or FIDE ratings.
+- A nominal `UCI_Elo` in an engine's name is a label, not its strength.
+
+### Pitfalls
+
+- **XBoard-only engines cannot start from FEN openings.** TSCP and
+  Micro-Max were dropped from the baseline for this reason: every game
+  began from an EPD position they could not set up, so the run was invalid.
+  Only UCI engines belong in a match that uses the opening file.
+- **An undecided SPRT is not a pass.** Raise the round cap and run again,
+  or treat the change as unproven.
+- **Do not compare across machines.** A build measured on the workstation
+  and one measured on the Linux machine have not been compared.
+- **Watch the log for time losses and crashes.** `-recover` keeps the match
+  going, so a build that crashes still produces a result; the PGN's last
+  comment of each game says how it ended.
+- **`DeterministicRNG`.** Full-strength play draws no random numbers, so it
+  needs nothing. For runs with `UCI_LimitStrength` that should be
+  repeatable, add `--deterministic`.
 
 ## Tactical test suites (planned, milestone 8)
 
