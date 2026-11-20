@@ -72,6 +72,7 @@ setting() {
     [[ -f $local_file ]] || return 0
     while IFS= read -r line || [[ -n $line ]]; do
         line=${line%$'\r'}
+        line=${line#$'\xef\xbb\xbf'} # a byte-order mark some editors put first
         if [[ $line == "$key="* ]]; then
             printf '%s' "${line#*=}"
             return
@@ -84,11 +85,12 @@ is_number() { [[ $1 =~ ^-?[0-9]+([.][0-9]+)?$ ]]; }
 
 # Physical cores, not hardware threads; 0 if it cannot be told.
 physical_cores() {
+    local count=0
     if command -v lscpu >/dev/null 2>&1; then
-        lscpu -p=core,socket 2>/dev/null | grep -v '^#' | sort -u | wc -l
-    else
-        echo 0
+        # An lscpu that fails or prints nothing usable counts as "cannot tell".
+        count=$(lscpu -p=core,socket 2>/dev/null | grep -v '^#' | sort -u | wc -l) || count=0
     fi
+    echo "${count:-0}"
 }
 
 mode=${1-}
@@ -149,8 +151,11 @@ done
 [[ -n $test_path ]] || die "--test is required: the build under test"
 [[ -n $test_name ]] || die "--test-name is required"
 [[ -n $rounds ]] || die "--rounds is required: a match must have an end"
-is_whole "$rounds" && ((rounds > 0)) || die "--rounds must be a whole number above zero, got '$rounds'"
-is_whole "$hash" && ((hash > 0)) || die "--hash must be a whole number above zero, got '$hash'"
+# 10# reads "08" as 8 and not as a bad octal number; it is passed on as 8.
+is_whole "$rounds" && ((10#$rounds > 0)) || die "--rounds must be a whole number above zero, got '$rounds'"
+is_whole "$hash" && ((10#$hash > 0)) || die "--hash must be a whole number above zero, got '$hash'"
+rounds=$((10#$rounds))
+hash=$((10#$hash))
 [[ $tc =~ ^[0-9./:+]+$ ]] || die "--tc '$tc' does not look like a time control (for example 10+0.1)"
 [[ -z $seed ]] || is_whole "$seed" || die "--seed must be a whole number, got '$seed'"
 [[ -z $label || $label =~ ^[A-Za-z0-9._-]+$ ]] || die "--label may only hold letters, digits, '.', '_' and '-'"
@@ -269,10 +274,12 @@ fi
 cores=$(setting PHYSICAL_CORES)
 cores=${cores:-$(physical_cores)}
 is_whole "$cores" || die "PHYSICAL_CORES must be a whole number, got '$cores'"
+cores=$((10#$cores))
 if [[ -z $concurrency ]]; then
     concurrency=$((cores > 3 ? cores - 2 : 1))
 fi
-is_whole "$concurrency" && ((concurrency > 0)) || die "--concurrency must be a whole number above zero, got '$concurrency'"
+is_whole "$concurrency" && ((10#$concurrency > 0)) || die "--concurrency must be a whole number above zero, got '$concurrency'"
+concurrency=$((10#$concurrency))
 if ((cores > 0 && concurrency > cores)); then
     die "--concurrency $concurrency is more than the $cores physical cores of this machine; games would steal time from each other"
 fi

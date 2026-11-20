@@ -334,6 +334,37 @@ class MatchShTest(Fixture, unittest.TestCase):
         self.assertIn("-concurrency 6", " ".join(self.command(self.sprt(env=env))))
         self.refused(self.sprt("--concurrency", "9", env=env), "more than the 8 physical cores")
 
+    def test_an_lscpu_that_fails_means_the_cores_are_unknown(self):
+        script_file(self.bin_dir / "lscpu", "exit 1\n")
+        words = self.command(self.sprt())
+        # Unknown cores: one game at a time by default, and no limit to check.
+        self.assertIn("-concurrency 1", " ".join(words))
+        self.assertIn("-concurrency 9", " ".join(self.command(self.sprt("--concurrency", "9"))))
+
+    def test_a_byte_order_mark_in_the_local_file_is_ignored(self):
+        local = self.tmp / "local.env"
+        local.write_bytes(b"\xef\xbb\xbfCONCURRENCY=3\r\nMATCH_DIR=from file\r\n")
+        words = self.command(self.sprt(env={"VYVRAEL_LOCAL_ENV": local.as_posix()}))
+        self.assertIn("-concurrency 3", " ".join(words))
+        self.assertTrue(words[-1].startswith("from file/"))
+
+    def test_numbers_with_a_leading_zero_are_decimal(self):
+        result = self.run_script(
+            "h2h", *self.builds(), "--rounds", "08", "--hash", "064", "--concurrency", "02",
+            *self.common(),
+        )
+        self.assertEqual(result.stderr, "")
+        joined = " ".join(self.command(result))
+        self.assertIn("-rounds 8 ", joined)
+        self.assertIn("option.Hash=64", joined)
+        self.assertIn("-concurrency 2", joined)
+
+    def test_a_bad_low_priority_setting_is_refused_unless_an_argument_replaces_it(self):
+        env = {"VYVRAEL_LOW_PRIORITY": "yes"}
+        self.refused(self.sprt(env=env), "LOW_PRIORITY must be true or false, got 'yes'")
+        self.assertEqual(self.command(self.sprt("--low-priority", env=env))[0], "nice")
+        self.assertNotIn("nice", self.command(self.sprt("--no-low-priority", env=env)))
+
     def test_openings_are_required(self):
         result = self.run_script(
             "h2h", *self.builds(), "--rounds", "5", "--cutechess", self.cutechess.as_posix(),

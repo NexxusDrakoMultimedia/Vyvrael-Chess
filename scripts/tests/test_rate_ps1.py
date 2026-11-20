@@ -191,6 +191,17 @@ class RatePs1Test(unittest.TestCase):
             self.run_script("-Ordo", str(broken), str(self.first)), "ordo failed with status 4"
         )
 
+    def test_a_table_from_an_earlier_run_does_not_pass_for_this_one(self):
+        Path(self.stem() + ".txt").write_text("   1 Old Engine : 0.0\n", encoding="utf-8")
+        listing = "\n".join(f" {flag}\tsomething" for flag in HELP)
+        idle = self.tmp / "idle-ordo.ps1"
+        idle.write_text(
+            "if ($args[0] -ceq '-h') {\n@'\n" + listing + "\n'@\n}\nexit 0\n", encoding="utf-8"
+        )
+        result = self.run_script("-Ordo", str(idle), str(self.first))
+        self.refused(result, "ordo wrote no table")
+        self.assertFalse(Path(self.stem() + ".txt").exists())
+
     def test_ordo_comes_from_the_local_file(self):
         local = self.tmp / "local.env"
         local.write_text(f"ORDO={self.ordo}\n", encoding="utf-8")

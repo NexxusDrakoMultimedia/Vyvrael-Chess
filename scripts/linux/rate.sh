@@ -50,6 +50,7 @@ setting() {
     [[ -f $local_file ]] || return 0
     while IFS= read -r line || [[ -n $line ]]; do
         line=${line%$'\r'}
+        line=${line#$'\xef\xbb\xbf'} # a byte-order mark some editors put first
         if [[ $line == "$key="* ]]; then
             printf '%s' "${line#*=}"
             return
@@ -152,11 +153,14 @@ if [[ -n $helper ]]; then
     fi
 fi
 
+# Tables left by an earlier run must not pass for this run's.
+rm -f "$text" "$csv"
 status=0
 "${cmd[@]}" || status=$?
 [[ -z $helper ]] || rm -f "$helper"
 ((status == 0)) || die "ordo failed with status $status"
 [[ -s $text ]] || die "ordo wrote no table to $text"
+[[ -f $csv ]] || die "ordo wrote no CSV file to $csv"
 
 cat "$text"
 echo

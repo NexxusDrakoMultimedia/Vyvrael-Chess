@@ -101,6 +101,15 @@ function Get-Setting([string] $Key) {
     return ''
 }
 
+# Runs a program and returns its output lines, stdout and stderr together.
+# Windows PowerShell 5.1 turns what a program writes to stderr into error
+# records, which under 'Stop' would end the script at the first warning the
+# program prints. Inside this function such lines are just text.
+function Invoke-Tool([string] $Exe, [string[]] $Arguments) {
+    $ErrorActionPreference = 'Continue'
+    & $Exe @Arguments 2>&1 | ForEach-Object { "$_" }
+}
+
 function Test-Whole([string] $Text) { return $Text -match '^[0-9]+$' }
 function Test-Number([string] $Text) { return $Text -match '^-?[0-9]+([.][0-9]+)?$' }
 
@@ -140,11 +149,12 @@ if (-not $EnginesJson) { $EnginesJson = Get-Setting 'ENGINES_JSON' }
 if (-not $Cutechess) { $Cutechess = Get-Setting 'CUTECHESS_CLI' }
 if (-not $OutDir) { $OutDir = Get-Setting 'MATCH_DIR' }
 if (-not $OutDir) { $OutDir = 'matches' }
+# An argument replaces the setting before it is checked, as in match.sh.
 $low = Get-Setting 'LOW_PRIORITY'
 if (-not $low) { $low = 'false' }
-if ($low -cnotin @('true', 'false')) { Die "LOW_PRIORITY must be true or false, got '$low'" }
 if ($LowPriority) { $low = 'true' }
 if ($NoLowPriority) { $low = 'false' }
+if ($low -cnotin @('true', 'false')) { Die "LOW_PRIORITY must be true or false, got '$low'" }
 $opponents = @($Opponent | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 
 # --- what every mode needs -------------------------------------------------
@@ -158,6 +168,9 @@ if (-not (Test-Whole $Rounds) -or [long] $Rounds -le 0) {
 if (-not (Test-Whole $Hash) -or [long] $Hash -le 0) {
     Die "-Hash must be a whole number above zero, got '$Hash'"
 }
+# "08" is 8, and is passed on as 8.
+$Rounds = [string] [long] $Rounds
+$Hash = [string] [long] $Hash
 if ($Tc -notmatch '^[0-9./:+]+$') {
     Die "-Tc '$Tc' does not look like a time control (for example 10+0.1)"
 }
@@ -268,6 +281,7 @@ if (-not $Concurrency) {
 if (-not (Test-Whole $Concurrency) -or [long] $Concurrency -le 0) {
     Die "-Concurrency must be a whole number above zero, got '$Concurrency'"
 }
+$Concurrency = [string] [long] $Concurrency
 if ($cores -gt 0 -and [long] $Concurrency -gt $cores) {
     Die "-Concurrency $Concurrency is more than the $cores physical cores of this machine; games would steal time from each other"
 }
@@ -280,7 +294,7 @@ if ($Mode -eq 'gauntlet') { $needed += @('-tournament', '-seeds') }
 if ($Seed) { $needed += '-srand' }
 $tool = Get-Command -Name $Cutechess -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($tool) {
-    $helpText = (& $Cutechess -help 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    $helpText = (Invoke-Tool $Cutechess @('-help')) -join "`n"
     foreach ($flag in $needed) {
         if ($helpText -notmatch "(?m)^\s*$([regex]::Escape($flag))\b") {
             Die "this cutechess-cli ($Cutechess) does not list the option $flag in its -help; the script needs it"
@@ -360,7 +374,7 @@ function Get-Digest([string] $Path) {
 }
 function Get-Now { return [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
-$version = (& $Cutechess -version 2>&1 | Select-Object -First 1)
+$version = (Invoke-Tool $Cutechess @('-version') | Select-Object -First 1)
 $lines = @(
     'Vyvrael match run notes',
     "mode:       $Mode",
@@ -394,6 +408,8 @@ if ($low -eq 'true') {
 $writer = New-Object System.IO.StreamWriter($log, $false, $utf8)
 $status = 0
 try {
+    # See Invoke-Tool: cutechess-cli's warnings on stderr must not end the run.
+    $ErrorActionPreference = 'Continue'
     & $Cutechess @arguments 2>&1 | ForEach-Object {
         $line = "$_"
         [Console]::Out.WriteLine($line)
@@ -402,6 +418,7 @@ try {
     }
     if ($null -ne $LASTEXITCODE) { $status = $LASTEXITCODE }
 } finally {
+    $ErrorActionPreference = 'Stop'
     $writer.Dispose()
     $process.PriorityClass = $oldPriority
 }

@@ -210,6 +210,18 @@ class RateShTest(unittest.TestCase):
             "ordo failed with status 4",
         )
 
+    def test_a_table_from_an_earlier_run_does_not_pass_for_this_one(self):
+        stem = self.first.as_posix()[: -len(".pgn")] + "-ratings"
+        Path(stem + ".txt").write_text("   1 Old Engine : 0.0\n", encoding="utf-8")
+        lines = "".join(f" {flag}\\tsomething\\n" for flag in HELP)
+        idle = script_file(
+            self.tmp / "idle-ordo",
+            f"if [ \"$1\" = -h ]; then printf '{lines}'; fi\nexit 0\n",
+        )
+        result = self.run_script("--ordo", idle.as_posix(), self.first.as_posix())
+        self.refused(result, "ordo wrote no table")
+        self.assertFalse(Path(stem + ".txt").exists())
+
     def test_ordo_comes_from_the_local_file(self):
         local = self.tmp / "local.env"
         local.write_text(f"ORDO={self.ordo.as_posix()}\n", encoding="utf-8")

@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -324,6 +325,24 @@ class MatchPs1Test(Fixture, unittest.TestCase):
         self.refused(self.sprt("-Concurrency", "5"), "more than the 4 physical cores")
         self.refused(self.sprt("-Concurrency", "0"), "-Concurrency must be a whole number")
 
+    def test_numbers_with_a_leading_zero_are_decimal(self):
+        result = self.run_script(
+            "h2h", *self.builds(), "-Rounds", "08", "-Hash", "064", "-Concurrency", "02",
+            *self.common(),
+        )
+        joined = " ".join(self.command(result))
+        self.assertIn("-rounds 8 ", joined)
+        self.assertIn("option.Hash=64", joined)
+        self.assertIn("-concurrency 2", joined)
+
+    def test_a_bad_low_priority_setting_is_refused_unless_an_argument_replaces_it(self):
+        env = {"VYVRAEL_LOW_PRIORITY": "yes"}
+        self.refused(self.sprt(env=env), "LOW_PRIORITY must be true or false, got 'yes'")
+        self.assertIn("BelowNormal", self.sprt("-LowPriority", env=env).stdout)
+        result = self.sprt("-NoLowPriority", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("BelowNormal", result.stdout)
+
     def test_openings_are_required(self):
         result = self.run_script(
             "h2h", *self.builds(), "-Rounds", "5", "-Cutechess", str(self.cutechess), "-DryRun"
@@ -458,6 +477,52 @@ class MatchPs1RunTest(Fixture, unittest.TestCase):
         for expected in ("Stockfish 19-1500", "Vice 1.1", str(self.opponent),
                          hashlib.sha256(b"weak").hexdigest(), "outcome:    finished"):
             self.assertIn(expected, notes)
+
+
+WINDOWS_POWERSHELL = shutil.which("powershell") if sys.platform == "win32" else None
+
+
+@unittest.skipUnless(WINDOWS_POWERSHELL, "needs Windows PowerShell 5.1")
+class MatchPs1StderrTest(Fixture, unittest.TestCase):
+    """A real program that writes to stderr, under Windows PowerShell 5.1,
+    which turns such lines into error records. cutechess-cli prints warnings
+    there during ordinary matches; they must not end the run."""
+
+    def test_warnings_on_stderr_do_not_end_the_match(self):
+        (self.tmp / "help.txt").write_text(
+            "".join(f"  {flag}\tsomething\n" for flag in HELP_FLAGS), encoding="ascii"
+        )
+        stub = self.tmp / "noisy-cli.cmd"
+        stub.write_text(
+            "@echo off\r\n"
+            'if "%~1"=="-help" ( echo warning while helping 1>&2 & type "%~dp0help.txt" & exit /b 0 )\r\n'
+            'if "%~1"=="-version" ( echo cutechess-cli 9.9.9 & exit /b 0 )\r\n'
+            "echo Warning: Illegal PV move e2e4 from A 1>&2\r\n"
+            "echo SPRT: llr 2.95 (100.3%%), lbound -2.94, ubound 2.94 - H1 was accepted\r\n"
+            "exit /b 0\r\n",
+            encoding="ascii",
+        )
+        environment = {
+            key: value for key, value in os.environ.items() if not key.startswith("VYVRAEL_")
+        }
+        environment.update(
+            VYVRAEL_LOCAL_ENV=str(self.tmp / "no-local.env"), VYVRAEL_MATCH_DATE="2026-01-02",
+            VYVRAEL_PHYSICAL_CORES="4",
+        )
+        result = subprocess.run(
+            [WINDOWS_POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-File", str(SCRIPT), "sprt", *self.builds(), *self.BOUNDS, "-Rounds", "5",
+             "-Openings", str(self.openings), "-Cutechess", str(stub)],
+            capture_output=True, text=True, env=environment, cwd=self.tmp, timeout=180,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Warning: Illegal PV move e2e4 from A", result.stdout)
+        self.assertIn("SPRT outcome: H1 accepted", result.stdout)
+        stem = self.tmp / "matches" / "2026-01-02-sprt-Vyvrael-dev-abc1234"
+        self.assertIn("Illegal PV move", Path(str(stem) + ".log").read_text(encoding="utf-8"))
+        notes = Path(str(stem) + ".notes.txt").read_text(encoding="utf-8")
+        self.assertIn("status:     0", notes)
+        self.assertIn("outcome:    H1 accepted", notes)
 
 
 if __name__ == "__main__":

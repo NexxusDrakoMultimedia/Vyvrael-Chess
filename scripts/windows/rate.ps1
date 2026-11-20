@@ -44,6 +44,15 @@ The anchor must have played in the games. Ratings are relative to it: they
 are not CCRL or FIDE ratings.
 '@
 
+# Runs a program and returns its output lines, stdout and stderr together.
+# Windows PowerShell 5.1 turns what a program writes to stderr into error
+# records, which under 'Stop' would end the script at the first warning the
+# program prints. Inside this function such lines are just text.
+function Invoke-Tool([string] $Exe, [string[]] $Arguments) {
+    $ErrorActionPreference = 'Continue'
+    & $Exe @Arguments 2>&1 | ForEach-Object { "$_" }
+}
+
 function Die([string] $Message) {
     [Console]::Error.WriteLine("rate.ps1: $Message")
     exit 2
@@ -119,7 +128,7 @@ if ([long] $Simulations -gt 0) { $needed += '-s' }
 $manyByList = $true
 $tool = Get-Command -Name $Ordo -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($tool) {
-    $helpText = (& $Ordo -h 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    $helpText = (Invoke-Tool $Ordo @('-h')) -join "`n"
     foreach ($flag in $needed) {
         if ($helpText -cnotmatch "(?m)^\s*$([regex]::Escape($flag))\b") {
             Die "this ordo ($Ordo) does not list the option $flag in its help; the script needs it"
@@ -176,6 +185,8 @@ if ($helper) {
     }
 }
 
+# Tables left by an earlier run must not pass for this run's.
+Remove-Item -LiteralPath $text, $csv -Force -ErrorAction SilentlyContinue
 $status = 0
 try {
     & $Ordo @arguments
@@ -187,6 +198,7 @@ if ($status -ne 0) { Die "ordo failed with status $status" }
 if (-not (Test-Path -LiteralPath $text -PathType Leaf) -or (Get-Item -LiteralPath $text).Length -eq 0) {
     Die "ordo wrote no table to $text"
 }
+if (-not (Test-Path -LiteralPath $csv -PathType Leaf)) { Die "ordo wrote no CSV file to $csv" }
 
 $table = [IO.File]::ReadAllLines((Get-FullPath $text))
 $table | ForEach-Object { Write-Output $_ }
