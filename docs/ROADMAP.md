@@ -326,6 +326,14 @@ Constraints that already apply:
   [ARCHITECTURE.md](ARCHITECTURE.md). Weak play should still look like
   chess: plausible mistakes rather than random moves.
 
+**What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
+of Ladder Baseline 1 and its Ordo anchor (Stockfish 19 = 0), not to
+Lichess, CCRL or FIDE ratings. That scale is stretched at the low end: the
+limited-strength engines of the baseline rate far below the numbers in their
+names. So documentation and the bot's profile must say which scale a number
+refers to, and must not state a Lichess rating that the measurements do not
+support.
+
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
 
@@ -522,6 +530,12 @@ engine: they run as separate programs and are installed by the user.
 - **Acceptance rule:** only accept search and evaluation changes that SPRT
   shows to be a gain, and record the result in the commit message or in
   `docs/TESTING.md`.
+
+To go into the chunk checklist when it is written:
+
+- Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
+  on (Ladder Baseline 1 and its Ordo anchor, not Lichess, CCRL or FIDE)
+  and that the scale is stretched at the low end.
 
 Notes for whoever starts it:
 
