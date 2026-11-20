@@ -357,6 +357,26 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
 
+### Release artifacts
+
+Decided:
+
+- A release ships binaries for Windows and Linux on x86-64, each with a
+  SHA-256 checksum file beside it. 0.1.0-alpha.1 did.
+- Those binaries are generic builds: plain release builds for any x86-64
+  processor, never `target-cpu=native`.
+- The maintainer owns the release workflow, because `.github/workflows` is
+  a protected path that agents do not edit. Agents prepare a release; the
+  maintainer tags and publishes it.
+- Binaries are attached to the release and never committed.
+
+Open, for the maintainer:
+
+- Whether an AVX2/BMI2 build is shipped beside the generic one. Queued task
+  2 is to document how to make such a build; shipping one is not decided.
+- Whether the binaries are built by a workflow or by hand, as those of
+  0.1.0-alpha.1 were, and how they are named from one release to the next.
+
 ## Testing tooling (before milestone 6)
 
 Decided by the maintainer on 2026-11-20. The match and rating scripts and
@@ -781,3 +801,10 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
 - Larger or bucketed NNUE architectures; training-data selection favouring
   attacking play.
 - Opening book support for match play.
+- Ladder Baseline 2: the round robin run again with Vyvræl builds in it.
+- Submitting Vyvræl to rating lists. Blocked on the branding, like rated
+  play.
+- Non-regression SPRT bounds for pure refactorings and speed work, beside
+  the bounds for a gain, written up in `docs/TESTING.md`. (It already gives
+  example bounds for "no loss"; what is missing is the rule for when they
+  apply.)
