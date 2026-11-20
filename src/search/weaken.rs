@@ -244,6 +244,11 @@ mod tests {
             // 98, and just in time at 97.
             ("7k/8/8/8/8/8/R7/1R4K1 w - - 98 80", 4),
             ("7k/8/8/8/8/8/R7/1R4K1 w - - 97 80", 4),
+            // Every move here reaches the hundredth ply; Black's pawn could
+            // reset the clock afterwards, but the game is already drawn.
+            ("7k/7p/8/8/8/8/8/K7 w - - 99 80", 2),
+            // Mate on the hundredth ply still counts.
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 99 80", 2),
             ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 3),
             ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 2),
         ] {
@@ -490,21 +495,24 @@ mod tests {
     fn an_interrupted_pass_is_discarded() {
         let noisy = |depth| Weakening { depth, noise: 60 };
         for seed in 0..10 {
-            let two = limited(KIWIPETE, noisy(2), Limits::NONE, false, seed);
-            assert_eq!(two.depth, 2);
-            // Enough nodes for the first two passes and part of the third.
-            let cut = limited(
-                KIWIPETE,
-                noisy(3),
-                Limits::nodes(two.nodes + 5_000),
-                false,
-                seed,
-            );
+            let two = limited(ROOK_ENDGAME, noisy(2), Limits::NONE, false, seed);
+            let three = limited(ROOK_ENDGAME, noisy(3), Limits::NONE, false, seed);
+            assert_eq!((two.depth, three.depth), (2, 3));
+            // A limit that falls in the middle of the third pass, after
+            // several of its moves have been scored and before the rest.
+            let halfway = two.nodes + (three.nodes - two.nodes) / 2;
+            let cut = limited(ROOK_ENDGAME, noisy(3), Limits::nodes(halfway), false, seed);
             assert_eq!(cut.depth, 2, "seed {seed}");
             assert_eq!(cut.outcome, two.outcome, "seed {seed}");
-            assert!(cut.nodes <= two.nodes + 5_000);
-            assert!(cut.nodes > two.nodes, "the third pass was begun");
+            assert_eq!(cut.nodes, halfway, "the third pass ran up to the limit");
         }
+        // The two depths do not always agree, or the test would show
+        // nothing: for some seed the full third pass chooses differently.
+        assert!((0..10).any(|seed| {
+            let two = limited(ROOK_ENDGAME, noisy(2), Limits::NONE, false, seed);
+            let three = limited(ROOK_ENDGAME, noisy(3), Limits::NONE, false, seed);
+            two.outcome != three.outcome
+        }));
         // A node limit smaller than the first pass does not stop the first
         // pass, and nothing after it is begun.
         let one = limited(KIWIPETE, noisy(1), Limits::NONE, false, 3);

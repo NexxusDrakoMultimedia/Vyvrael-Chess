@@ -481,7 +481,10 @@ mod tests {
         assert_eq!(engine.rng_seed(), crate::rng::DEFAULT_SEED);
         assert_eq!(
             captured.lines().last().unwrap(),
-            "info string rng seed 822286742 (RngSeed)"
+            &format!(
+                "info string rng seed {} (RngSeed)",
+                crate::rng::DEFAULT_SEED
+            )
         );
         engine.handle("setoption name RngSeed value 5");
         assert_eq!(engine.rng_seed(), 5);
@@ -533,16 +536,194 @@ mod tests {
             "setoption name UCI_LimitStrength value true".to_string(),
         ];
         lines.extend(commands.iter().map(ToString::to_string));
+        let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
+        played(&lines)
+    }
+
+    /// Feeds `lines` to a new engine as a GUI does, waiting for the move
+    /// after every `go` before sending anything else (the next command
+    /// would otherwise end the search early), and returns the output
+    /// without speeds and times.
+    fn played(lines: &[&str]) -> Vec<String> {
         let (mut engine, captured) = engine();
-        for line in &lines {
+        for line in lines {
             assert!(engine.handle(line), "{line}");
-            // As a GUI does, wait for the move before sending anything
-            // else: the next command would otherwise end the search early.
             if line.starts_with("go") {
                 engine.wait();
             }
         }
         stable(&captured.lines())
+    }
+
+    /// Waits until the engine has written something, for up to ten
+    /// seconds. A fixed pause is not enough on a busy machine.
+    fn wait_for_output(captured: &Captured) {
+        let started = Instant::now();
+        while captured.lines().is_empty() {
+            assert!(started.elapsed() < Duration::from_secs(10), "no output");
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    const QUEEN_ENDING_AFTER_MOVES: &str =
+        "position fen 7k/8/8/8/8/2K5/8/1Q6 w - - 10 30 moves b1c1 h8g8 c1b1";
+    /// Perft position 6, a quiet middlegame, with either side to move.
+    const MIDDLEGAME: &str = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1";
+
+    /// Limited strength is still given the game's history and the limits
+    /// of `go`.
+    #[test]
+    fn limited_strength_gets_the_history_and_the_limits() {
+        // The repetition is found only with the history: a draw, where the
+        // same position as a bare FEN is lost.
+        let with_history = weakened(
+            2,
+            &[
+                "setoption name UCI_Elo value 1800",
+                QUEEN_ENDING_AFTER_MOVES,
+                GO,
+            ],
+        );
+        assert!(
+            with_history[with_history.len() - 2].contains(" score cp 0 "),
+            "{with_history:?}"
+        );
+        assert_eq!(with_history.last().unwrap(), "bestmove g8h8");
+        let bare = weakened(
+            2,
+            &[
+                "setoption name UCI_Elo value 1800",
+                "position fen 6k1/8/8/8/8/2K5/8/1Q6 b - - 13 31",
+                GO,
+            ],
+        );
+        assert!(!bare[bare.len() - 2].contains(" score cp 0 "), "{bare:?}");
+
+        // A node limit cuts the passes short: one ply, where the same
+        // setting unhurried looks three.
+        let kiwipete = format!("position fen {KIWIPETE}");
+        let hurried = weakened(2, &[&kiwipete, "go nodes 1"]);
+        assert!(
+            hurried[hurried.len() - 2].starts_with("info depth 1 "),
+            "{hurried:?}"
+        );
+        let calm = weakened(2, &["setoption name UCI_Elo value 400", &kiwipete, GO]);
+        assert!(
+            calm[calm.len() - 2].starts_with("info depth 2 "),
+            "{calm:?}"
+        );
+    }
+
+    /// The side to move thinks on its own clock. Each `go` here gives the
+    /// mover ten minutes and the opponent nothing, with a depth that takes
+    /// far longer than a millisecond: reading the wrong clock would cut the
+    /// search off after the first depth.
+    #[test]
+    fn go_uses_the_clock_of_the_side_to_move() {
+        for (side, go) in [
+            ("w", "go wtime 600000 btime 0 depth 2"),
+            ("b", "go wtime 0 btime 600000 depth 2"),
+        ] {
+            let lines = played(&[&format!("position fen {MIDDLEGAME} {side} - - 0 10"), go]);
+            assert_eq!(lines.len(), 3, "{side}: {lines:?}");
+            assert!(lines[1].starts_with("info depth 2 "));
+        }
+        // And the other way round: with nothing on its own clock the mover
+        // answers at once, however much the opponent has.
+        for (side, go) in [
+            ("w", "go wtime 0 btime 600000"),
+            ("b", "go wtime 600000 btime 0"),
+        ] {
+            let started = Instant::now();
+            let lines = played(&[&format!("position fen {MIDDLEGAME} {side} - - 0 10"), go]);
+            assert!(started.elapsed() < Duration::from_secs(5), "{side}");
+            assert!(lines.last().unwrap().starts_with("bestmove "));
+        }
+    }
+
+    /// Full strength draws no random numbers: a full-strength move played
+    /// first leaves the weakened move that follows exactly as it would
+    /// have been.
+    #[test]
+    fn full_strength_does_not_draw_random_numbers() {
+        for seed in 0..6 {
+            let seed_option = format!("setoption name RngSeed value {seed}");
+            let after_full_strength = played(&[
+                "setoption name DeterministicRNG value true",
+                &seed_option,
+                "go depth 2",
+                "setoption name UCI_LimitStrength value true",
+                GO,
+            ]);
+            let alone = weakened(seed, &[GO]);
+            assert_eq!(after_full_strength.last(), alone.last(), "seed {seed}");
+        }
+    }
+
+    /// Which stream the engine draws from, and how each search's generator
+    /// is taken from it, is part of what makes a logged seed replayable:
+    /// the engine's move is the one the library gives for the first number
+    /// of the strength stream of that seed.
+    #[test]
+    fn weakened_play_draws_from_the_strength_stream() {
+        for seed in 0..6 {
+            let mut base = Rng::stream(seed, stream::STRENGTH);
+            let mut rng = Rng::from_state(base.next_u64());
+            let stop = AtomicBool::new(false);
+            let expected = weakened_move(
+                &Position::startpos(),
+                &[],
+                &HandCrafted,
+                Weakening::for_elo(crate::search::ELO_DEFAULT),
+                Limits::NONE,
+                &stop,
+                &mut rng,
+            );
+            let lines = weakened(seed, &[GO]);
+            assert_eq!(
+                lines.last().unwrap(),
+                &bestmove_line(expected.outcome.best_move),
+                "seed {seed}"
+            );
+        }
+    }
+
+    #[test]
+    fn position_and_ucinewgame_end_a_running_search() {
+        let (mut engine, captured) = engine();
+        engine.handle(&format!("position fen {KIWIPETE}"));
+        engine.handle("go infinite");
+        engine.handle("position startpos");
+        assert_eq!(
+            best_moves(&captured),
+            1,
+            "ended before the position changed"
+        );
+        engine.handle("go infinite");
+        engine.handle("ucinewgame");
+        assert_eq!(best_moves(&captured), 2);
+        // The second search was of the start position, not of Kiwipete.
+        let last = captured.lines();
+        let last = last
+            .iter()
+            .rev()
+            .find(|line| line.starts_with("bestmove "))
+            .unwrap();
+        let best = last.strip_prefix("bestmove ").unwrap();
+        assert!(find_legal_move(&Position::startpos(), best).is_some());
+    }
+
+    #[test]
+    fn infinite_with_a_depth_still_waits_for_stop() {
+        let (mut engine, captured) = engine();
+        engine.handle("go infinite depth 1");
+        wait_for_output(&captured);
+        thread::sleep(Duration::from_millis(50));
+        assert_eq!(best_moves(&captured), 0, "{:?}", captured.lines());
+        // The depth limit was honoured: one depth and no more.
+        assert_eq!(captured.lines().len(), 1);
+        engine.handle("stop");
+        assert_eq!(best_moves(&captured), 1);
     }
 
     /// A `go` whose limit is never reached, so the result does not depend
@@ -912,9 +1093,11 @@ mod tests {
         let (mut engine, captured) = engine();
         engine.handle("position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1");
         engine.handle("go infinite");
-        thread::sleep(Duration::from_millis(100));
-        assert_eq!(best_moves(&captured), 0, "{:?}", captured.lines());
+        wait_for_output(&captured);
         assert!(captured.lines()[0].starts_with("info depth 1 score mate 1 "));
+        // The search is over (a mate is proven), yet no move is announced.
+        thread::sleep(Duration::from_millis(50));
+        assert_eq!(best_moves(&captured), 0, "{:?}", captured.lines());
         // It still answers other commands meanwhile.
         engine.handle("isready");
         assert_eq!(captured.lines().last().unwrap(), "readyok");
@@ -928,7 +1111,8 @@ mod tests {
         let (mut engine, captured) = engine();
         engine.handle("position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1");
         engine.handle("go");
-        thread::sleep(Duration::from_millis(100));
+        wait_for_output(&captured);
+        thread::sleep(Duration::from_millis(50));
         assert_eq!(best_moves(&captured), 0);
         engine.handle("stop");
         assert_eq!(captured.lines().last().unwrap(), "bestmove a1a8");

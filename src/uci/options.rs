@@ -173,6 +173,53 @@ mod tests {
             assert_eq!(options.set(name, Some("32")), Ok(()), "{name}");
         }
         assert_eq!(options.hash_mb, 32);
+        // Every option, in three spellings, accepts its declared default.
+        for (name, _) in declared() {
+            let default = declared_default(&name);
+            let alternating: String = name
+                .chars()
+                .enumerate()
+                .map(|(index, letter)| {
+                    if index % 2 == 0 {
+                        letter.to_ascii_uppercase()
+                    } else {
+                        letter.to_ascii_lowercase()
+                    }
+                })
+                .collect();
+            for spelling in [name.to_uppercase(), name.to_lowercase(), alternating] {
+                let mut options = Options::default();
+                assert_eq!(options.set(&spelling, Some(&default)), Ok(()), "{spelling}");
+            }
+        }
+    }
+
+    /// Names must match in full, and values are not as forgiving as names:
+    /// `true` and `false` are lower case, as GUIs send them.
+    #[test]
+    fn near_misses_are_refused() {
+        let mut options = Options::default();
+        for name in [
+            "elo",
+            "limitstrength",
+            "seed",
+            "Hash ",
+            " Hash",
+            "Hash1",
+            "UCI_",
+        ] {
+            assert_eq!(
+                options.set(name, Some("1")),
+                Err(format!("unknown option: {name}")),
+                "{name:?}"
+            );
+        }
+        for name in ["DeterministicRNG", "UCI_LimitStrength"] {
+            for value in ["TRUE", "FALSE", "False", "True", "1", "0", " true"] {
+                assert!(options.set(name, Some(value)).is_err(), "{name} {value:?}");
+            }
+        }
+        assert_eq!(options, Options::default());
     }
 
     #[test]
@@ -247,7 +294,7 @@ mod tests {
         // is 0x31031996.
         assert_eq!(
             declared[3],
-            "option name RngSeed type spin default 822286742 min 0 max 4294967295"
+            format!("option name RngSeed type spin default {DEFAULT_SEED} min 0 max 4294967295")
         );
         let mut options = Options::default();
         assert!(!options.deterministic_rng);

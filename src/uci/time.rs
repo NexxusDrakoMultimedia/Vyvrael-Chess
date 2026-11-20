@@ -126,6 +126,25 @@ mod tests {
         assert_eq!(time_for_move(&both, Color::White), Some(ms(470)));
     }
 
+    /// Sudden death: clocks and no increments at all, which is how many
+    /// GUIs send a game without increment.
+    #[test]
+    fn a_clock_without_increments() {
+        let go = GoParams {
+            wtime: Some(60_000),
+            btime: Some(30_000),
+            ..GoParams::default()
+        };
+        assert_eq!(time_for_move(&go, Color::White), Some(ms(2_000)));
+        assert_eq!(time_for_move(&go, Color::Black), Some(ms(1_000)));
+        // The increment of the other side is not borrowed.
+        let lopsided = GoParams {
+            winc: Some(9_000),
+            ..go
+        };
+        assert_eq!(time_for_move(&lopsided, Color::Black), Some(ms(1_000)));
+    }
+
     #[test]
     fn each_side_uses_its_own_clock() {
         let go = clock(300_000, 60_000, 2_000, 1_000);

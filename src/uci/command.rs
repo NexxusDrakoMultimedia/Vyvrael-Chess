@@ -316,8 +316,23 @@ mod tests {
                 ..GoParams::default()
             }
         );
-        // A fallen flag is sent as a negative time.
+        // A fallen flag is sent as a negative time. Any negative number
+        // counts as zero, and what follows it is still read.
         assert_eq!(go("go wtime -150 btime 1000").wtime, Some(0));
+        assert_eq!(
+            go("go wtime 1000 btime -150 winc -5 binc -7 movestogo -1 depth 4"),
+            GoParams {
+                wtime: Some(1_000),
+                btime: Some(0),
+                winc: Some(0),
+                binc: Some(0),
+                movestogo: Some(0),
+                depth: Some(4),
+                ..GoParams::default()
+            }
+        );
+        assert_eq!(go("go movetime -20 nodes -3").movetime, Some(0));
+        assert_eq!(go("go movetime -20 nodes -3").nodes, Some(0));
     }
 
     #[test]
