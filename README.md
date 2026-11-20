@@ -89,6 +89,13 @@ are in [docs/LICHESS.md](docs/LICHESS.md).
 - [docs/NNUE.md](docs/NNUE.md): neural evaluation
 - [AGENTS.md](AGENTS.md): instructions for AI coding agents
 
+## Links
+
+- Lichess bot account (planned, casual games only): [Vyvrael-Chess](https://lichess.org/@/Vyvrael-Chess)
+- Nexxus Drako Multimedia: <https://nexxusdrako.au>
+- The maintainer's chess accounts: [Chess.com](https://www.chess.com/member/nexxus_drako), [Lichess](https://lichess.org/@/TheNexxusDrako), [Lidraughts](https://lidraughts.org/@/NexxusDrako) and [Lishogi](https://lishogi.org/@/NexxusDrako)
+- Gaming tournaments: [Nexxus community on Challonge](https://challonge.com/communities/nexxus)
+
 ## Licence
 
 Copyright (C) 2026 Nexxus Drako Multimedia.
