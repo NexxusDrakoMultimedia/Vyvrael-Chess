@@ -112,7 +112,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Resolved in milestone 6 for the build measured, and re-measured after milestone 7. Tuning the terms by SPRT follows from milestone 7 on. |
 
 ## Milestone 2: move generation
 
@@ -326,6 +326,11 @@ Constraints that already apply:
   [ARCHITECTURE.md](ARCHITECTURE.md). Weak play should still look like
   chess: plausible mistakes rather than random moves.
 
+**The calibration is re-measured.** `UCI_Elo` and the engine's Ordo rating
+are measured again after milestone 7 and after queued task 2, because both
+change the engine's strength. The calibration of 0.1.0 is provisional until
+then, and the release notes of 0.2.0 say so.
+
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
 of Ladder Baseline 1 and its Ordo anchor (Stockfish 19 = 0), not to
 Lichess, CCRL or FIDE ratings. That scale is stretched at the low end: the
@@ -346,8 +351,8 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | Version | When | What it needs |
 | --- | --- | --- |
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
-| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. |
+| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
