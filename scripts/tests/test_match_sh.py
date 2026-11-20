@@ -11,6 +11,7 @@ They are skipped where there is no bash.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -56,8 +57,10 @@ def script_file(path: Path, text: str) -> Path:
     return path
 
 
-@unittest.skipUnless(BASH, "bash is not available")
-class MatchShTest(unittest.TestCase):
+class Fixture:
+    """Stand-in builds, openings, engine list and cutechess-cli in a temporary
+    directory, and the helpers to run the script against them."""
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -92,9 +95,16 @@ class MatchShTest(unittest.TestCase):
             {"name": "Gone 1.0", "command": (self.tmp / "missing").as_posix()},
         ]), encoding="utf-8")
 
-    def fake_cutechess(self, flags: list[str], name: str = "cutechess-cli") -> Path:
+    def fake_cutechess(
+        self, flags: list[str], name: str = "cutechess-cli", play: str = "exit 0\n"
+    ) -> Path:
+        """A stand-in that answers -help and -version; anything else runs `play`."""
         lines = "".join(f"  {flag}\\tsomething\\n" for flag in flags)
-        return script_file(self.tmp / name, f"printf '{lines}'\n")
+        return script_file(
+            self.tmp / name,
+            f"case \"$1\" in\n-help) printf '{lines}'; exit 0;;\n"
+            f"-version) echo 'cutechess-cli 9.9.9'; echo 'more'; exit 0;;\nesac\n{play}",
+        )
 
     def run_script(self, *args: str, env: dict | None = None):
         environment = {
@@ -137,6 +147,13 @@ class MatchShTest(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         for fragment in fragments:
             self.assertIn(fragment, result.stderr)
+
+
+
+@unittest.skipUnless(BASH, "bash is not available")
+class MatchShTest(Fixture, unittest.TestCase):
+    """The command the script would run, read from --dry-run, and what it
+    refuses."""
 
     # --- the command each mode builds ---------------------------------------
 
@@ -369,6 +386,88 @@ class MatchShTest(unittest.TestCase):
             "--cutechess", self.cutechess.as_posix(),
         )
         self.refused(result, "already exists")
+
+
+@unittest.skipUnless(BASH, "bash is not available")
+class MatchShRunTest(Fixture, unittest.TestCase):
+    """What a real run leaves behind, with a stand-in that plays no game."""
+
+    def play(self, script: str, *mode_args: str):
+        fake = self.fake_cutechess(HELP_FLAGS, "playing-cli", script)
+        return self.run_script(
+            *mode_args, "--rounds", "5", "--openings", self.openings.as_posix(),
+            "--cutechess", fake.as_posix(),
+        )
+
+    def sprt_run(self, script: str):
+        bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]
+        return self.play(script, "sprt", *self.builds(), *bounds)
+
+    def read(self, suffix: str) -> str:
+        stem = "2026-01-02-sprt-Vyvrael-dev-abc1234"
+        return (self.tmp / "matches" / (stem + suffix)).read_text(encoding="utf-8")
+
+    def test_notes_log_and_an_accepted_sprt(self):
+        result = self.sprt_run(
+            "echo 'Score of A vs B: 10 - 2 - 3'\n"
+            "echo 'SPRT: llr 1.20 (40.8%), lbound -2.94, ubound 2.94'\n"
+            "echo 'SPRT: llr 2.97 (100.8%), lbound -2.94, ubound 2.94 - H1 was accepted'\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # The progress is shown as it comes and kept in the log.
+        self.assertIn("Score of A vs B: 10 - 2 - 3", result.stdout)
+        self.assertIn("Score of A vs B: 10 - 2 - 3", self.read(".log"))
+        # The last SPRT line decides, and the outcome is said in words.
+        self.assertIn("SPRT final: SPRT: llr 2.97 (100.8%)", result.stdout)
+        self.assertIn("SPRT outcome: H1 accepted", result.stdout)
+        self.assertIn("LLR 2.97", result.stdout)
+        notes = self.read(".notes.txt")
+        for expected in (
+            "mode:       sprt", "cutechess:  cutechess-cli 9.9.9", "Vyvrael dev-abc1234",
+            "Vyvrael 0.1.0-a1", self.test_build.as_posix(), "-sprt elo0=0 elo1=5",
+            "started:    20", "ended:      20", "status:     0", "outcome:    H1 accepted",
+            f"openings:   {self.openings.as_posix()}",
+        ):
+            self.assertIn(expected, notes)
+        self.assertIn(hashlib.sha256(self.test_build.read_bytes()).hexdigest(), notes)
+
+    def test_a_rejected_sprt(self):
+        result = self.sprt_run(
+            "echo 'SPRT: llr -2.95 (-100.3%), lbound -2.94, ubound 2.94 - H0 was accepted'\n"
+        )
+        self.assertIn("SPRT outcome: H0 accepted", result.stdout)
+        self.assertIn("outcome:    H0 accepted", self.read(".notes.txt"))
+
+    def test_an_undecided_sprt(self):
+        result = self.sprt_run("echo 'SPRT: llr 0.51 (17.3%), lbound -2.94, ubound 2.94'\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("SPRT outcome: undecided: the round cap was reached first (LLR 0.51)",
+                      result.stdout)
+
+    def test_a_run_without_an_sprt_line_concludes_nothing(self):
+        result = self.sprt_run("echo 'nothing useful'\n")
+        self.assertIn("SPRT outcome: no SPRT line in the log", result.stdout)
+
+    def test_a_failing_cutechess_fails_the_script_and_is_recorded(self):
+        result = self.sprt_run("echo 'engine crashed'\nexit 3\n")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        notes = self.read(".notes.txt")
+        self.assertIn("status:     3", notes)
+        self.assertIn("cutechess-cli failed with status 3", notes)
+
+    def test_gauntlet_notes_list_every_opponent(self):
+        result = self.play(
+            "echo done\n", "gauntlet", "--test", self.test_build.as_posix(),
+            "--test-name", "Vyvrael 0.1.0-a1", "--engines-json", self.engines_json.as_posix(),
+            "--opponent", "Stockfish 19-1500", "--opponent", "Vice 1.1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("SPRT", result.stdout)
+        notes = (self.tmp / "matches" / "2026-01-02-gauntlet-Vyvrael-0.1.0-a1.notes.txt"
+                 ).read_text(encoding="utf-8")
+        for expected in ("Stockfish 19-1500", "Vice 1.1", self.opponent.as_posix(),
+                         "outcome:    finished"):
+            self.assertIn(expected, notes)
 
 
 if __name__ == "__main__":

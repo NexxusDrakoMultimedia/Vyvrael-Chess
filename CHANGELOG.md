@@ -16,7 +16,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 - `scripts/linux/match.sh`: runs a `cutechess-cli` match in one of three
   modes, `sprt`, `gauntlet` or `h2h`, with the ladder's fixed settings.
   SPRT bounds and a round cap are required; `--dry-run` prints the command.
-  Run notes and the result summary are still to come.
+  Beside the PGN it writes a log of the progress and run notes (the exact
+  command, engine names with the SHA-256 of each binary, the tool's
+  version, start and end times), and it ends an SPRT by saying which
+  hypothesis was accepted and at what LLR.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 

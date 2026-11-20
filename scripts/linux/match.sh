@@ -203,6 +203,7 @@ fi
 # --- opponents from the engine list ----------------------------------------
 
 opponent_args=()
+opponent_files=()
 if [[ $mode == gauntlet ]]; then
     seen=$'\n'
     for name in "${opponents[@]}"; do
@@ -255,6 +256,7 @@ for name in names:
         done
         [[ -f $command ]] || die "opponent engine not found: $command (from $engines_json)"
         opponent_args+=(-engine "${parts[@]}")
+        opponent_files+=("${parts[0]#name=}"$'\t'"$command")
     done <<<"$listing"
 fi
 
@@ -326,4 +328,69 @@ fi
 mkdir -p "$out_dir" || die "cannot create the output folder $out_dir"
 [[ ! -e $pgn ]] || die "$pgn already exists; games would be mixed. Move it away or give another --label"
 
-exec "${cmd[@]}"
+# --- run notes, the log and the result --------------------------------------
+
+log="$stem.log"
+notes="$stem.notes.txt"
+
+digest() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | cut -d' ' -f1
+    else
+        echo "unknown (no sha256sum)"
+    fi
+}
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+engine_note() { printf '  %s\n    %s\n    %s\n' "$1" "$2" "$(digest "$2")"; }
+
+{
+    echo "Vyvrael match run notes"
+    echo "mode:       $mode"
+    echo "started:    $(now)"
+    echo "host cores: $cores physical, $concurrency games at once"
+    echo "cutechess:  $("$cutechess" -version 2>&1 | head -n 1)"
+    echo "openings:   $openings"
+    echo "pgn:        $pgn"
+    echo
+    echo "engines (name, file, SHA-256):"
+    engine_note "$test_name" "$test_path"
+    if [[ $mode == gauntlet ]]; then
+        for entry in "${opponent_files[@]}"; do
+            engine_note "${entry%%$'\t'*}" "${entry#*$'\t'}"
+        done
+    else
+        engine_note "$base_name" "$base_path"
+    fi
+    echo
+    echo "command:"
+    printf '  '
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+} >"$notes"
+
+echo "match.sh: log $log, notes $notes"
+status=0
+"${cmd[@]}" 2>&1 | tee "$log" || status=${PIPESTATUS[0]}
+
+outcome="finished"
+if [[ $mode == sprt ]]; then
+    last=$(grep '^SPRT:' "$log" | tail -n 1 || true)
+    llr=$(sed -n 's/^SPRT: llr \([^ ]*\).*/\1/p' <<<"$last")
+    case $last in
+        *'H1 was accepted'*) outcome="H1 accepted: the test build gains at least elo0 (LLR ${llr:-?})" ;;
+        *'H0 was accepted'*) outcome="H0 accepted: no gain shown; the change is rejected (LLR ${llr:-?})" ;;
+        '') outcome="no SPRT line in the log; nothing can be concluded" ;;
+        *) outcome="undecided: the round cap was reached first (LLR ${llr:-?})" ;;
+    esac
+    echo
+    echo "SPRT final: ${last:-none}"
+    echo "SPRT outcome: $outcome"
+fi
+((status == 0)) || outcome="cutechess-cli failed with status $status; $outcome"
+{
+    echo
+    echo "ended:      $(now)"
+    echo "status:     $status"
+    echo "outcome:    $outcome"
+} >>"$notes"
+exit "$status"

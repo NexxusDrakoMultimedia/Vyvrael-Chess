@@ -365,7 +365,7 @@ Part B, the match and rating scripts:
   committed example
 - [x] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
   for the modes `sprt`, `gauntlet` and `h2h`
-- [ ] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
+- [x] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
   versions, times) and the progress log
 - [ ] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
 - [ ] `scripts/windows/match.ps1`: the same behaviour and flags
