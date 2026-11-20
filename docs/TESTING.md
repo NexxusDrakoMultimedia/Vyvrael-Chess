@@ -273,12 +273,14 @@ Programming Wiki ("Perft Results",
 <https://www.chessprogramming.org/Perft_Results>), which engines agree on.
 They were not produced by this engine.
 
-## Installing the external tools (Linux)
+## Installing the external tools
 
 Strength testing uses Cute Chess and Ordo, and playing on Lichess uses
 lichess-bot. They are separate programs that are never part of this
-repository. On Linux, `scripts/install_tools.py` installs pinned versions of
-them for the current user, outside the repository. It needs only Python 3.9
+repository. `scripts/install_tools.py` installs pinned versions of them for
+the current user, outside the repository: all three on Linux, described
+first, and Cute Chess and Ordo on Windows, described at the end of this
+section. It needs only Python 3.9
 or newer (lichess-bot itself needs 3.11); building Ordo needs `gcc` and
 `make` (`sudo apt install build-essential`).
 
@@ -345,9 +347,83 @@ that is known the check accepts any status except 126 and 127, so it cannot
 yet tell a program that starts and then fails from one that works), and that
 lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
-The installer does not yet cover Windows or the ladder's opponent engines;
-see "Testing tooling" in [ROADMAP.md](ROADMAP.md). The match and rating
-scripts are described under "Strength matches, SPRT and ratings" below.
+The match and rating scripts that use these tools are described under
+"Strength matches, SPRT and ratings" below.
+
+### The ladder's opponent engines (Linux)
+
+```sh
+python3 scripts/install_tools.py --engines --dry-run   # show what would be done
+python3 scripts/install_tools.py --engines             # all of them
+python3 scripts/install_tools.py --only "Vice 1.1"     # one, by its ladder name
+python3 scripts/install_tools.py --verify              # check what is installed
+python3 scripts/install_tools.py --list                # pins and what is installed
+```
+
+`--engines` installs the opponents of Ladder Baseline 1 under
+`<prefix>/engines`, each in a directory of its own, outside the repository.
+**Vyvræl itself is not part of the installer**: build it with
+`cargo build --release` and keep released builds somewhere of your own.
+
+- **What is installed** is fixed by `scripts/ladder_engines.py`; the table
+  of engines, versions, sources, licences and methods is in
+  [DEPENDENCIES.md](DEPENDENCIES.md). There are 14 programs for 24 of the
+  ladder's 25 names: an entry such as "Stockfish 19-1500" is Stockfish 19
+  with `UCI_LimitStrength` on. Orion 1.1 is left out, because it exists for
+  Windows only.
+- **Supported machines:** x86-64 Linux with AVX2 and BMI2 (any Intel
+  processor from Haswell, 2013, or AMD from Excavator or Zen). No AVX-512
+  build is used and nothing is compiled for "this machine"
+  (`-march=native`); a compiled engine names `haswell` or `x86-64-v3`.
+- **Downloads and builds.** Eight engines are official binaries, checked
+  by SHA-256. Six are built from source (Princhess, Ethereal, Weiss, Rodent
+  IV, Vice, Fruit) with the project's own build command and need `gcc`,
+  `g++` and `make` (`sudo apt install build-essential`); Princhess also
+  needs `cargo` and `clang`. **The script never runs sudo.** A tool that is
+  missing is named and that engine is skipped; the others are still
+  installed, and the run ends with an error listing what failed.
+- **Safe to run again.** An engine already installed is skipped; `--force`
+  reinstalls. An engine is put in place only when its download or build is
+  complete, so a failure leaves nothing half-installed.
+- **The engine list.** Afterwards the script writes
+  `<prefix>/engines/engines.json` with every installed engine under its
+  ladder name, Hash 64 and one thread where the engine has the option, and
+  the strength settings of the limited entries. Put its path in
+  `scripts/local.env` as `ENGINES_JSON` for `match.sh gauntlet`.
+- **The check.** Last, each engine is started under each of its names and
+  sent `uci`, its options, `isready` and `go depth 6`. The script prints
+  `PASS` or `FAIL` for each name with what happened. Every wait has a time
+  limit (20, 30 and 60 seconds), and an engine that will not quit is
+  killed, so a stuck engine cannot hold the script up. `--verify` runs the
+  check alone.
+
+Status: covered by offline tests with made-up engines. **No ladder engine
+has yet been downloaded, built or checked by the script.** The build
+commands are read from each project's makefile and are unproven until that
+first run, and an old source may not compile cleanly with a current
+compiler (Weiss builds with `-Werror`).
+
+### Cute Chess and Ordo on Windows
+
+```powershell
+python scripts/install_tools.py --dry-run
+python scripts/install_tools.py
+```
+
+On Windows the same script installs the same versions of Cute Chess and
+Ordo from their official zip archives, checked by SHA-256, under the
+install prefix. It needs no administrator rights and does not touch `PATH`:
+it prints the `CUTECHESS_CLI` and `ORDO` lines to put in
+`scripts/local.env`. `cutechess-cli.exe` needs the Microsoft Visual C++
+runtime; if it is missing the script says so and names the installer that
+ships in the archive, which asks for administrator rights and is never run
+by the script. A Cute Chess that is already installed works just as well:
+point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
+
+lichess-bot is not installed on Windows (it runs on the Linux machine
+only), and neither are the ladder's engines: take each from its project's
+own Windows release. Status: tested offline; the real archives have not
+been fetched by the script.
 
 ## Opponent ladder (Ladder Baseline 1)
 

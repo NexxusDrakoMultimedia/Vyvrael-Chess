@@ -383,13 +383,11 @@ Part A, the installer:
 - [x] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
   timeouts
 - [x] Install Cute Chess and Ordo on Windows from the official releases
-- [ ] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
+- [x] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
   Linux and Windows instructions
 
-Still open on this branch when work paused on 2026-11-21: the installer
-section of `docs/TESTING.md` (the last item above), an independent review,
-and the merge. Nothing on it has been run against a real engine, a real
-match or the real Ordo; that needs the Linux machine.
+Nothing on this branch has been run against a real ladder engine, a real
+match or the real Ordo; that first run needs the Linux machine.
 
 ## Queued work (requested 2026-11-21)
 
