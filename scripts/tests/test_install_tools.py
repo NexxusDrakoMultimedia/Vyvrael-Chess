@@ -20,7 +20,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path, PurePosixPath
 from unittest import mock
 
@@ -79,6 +79,62 @@ class Download(unittest.TestCase):
     def test_refuses_plain_http(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
             install_tools.download("http://example.invalid/x", Path(tmp) / "x", None)
+
+    def redirect(self, newurl: str):
+        request = install_tools.urllib.request.Request("https://example.invalid/x")
+        handler = install_tools.HttpsOnlyRedirects()
+        return handler.redirect_request(request, None, 302, "Found", {}, newurl)
+
+    def test_refuses_a_redirect_that_leaves_https(self):
+        for newurl in ("http://example.invalid/x", "ftp://example.invalid/x", "file:///etc/passwd"):
+            with self.assertRaises(SystemExit, msg=newurl), redirect_stderr(io.StringIO()):
+                self.redirect(newurl)
+
+    def test_follows_a_redirect_that_stays_on_https(self):
+        followed = self.redirect("https://other.invalid/y")
+        self.assertEqual(followed.full_url, "https://other.invalid/y")
+
+    def test_the_opener_uses_the_https_only_handler(self):
+        handlers = install_tools.https_opener().handlers
+        redirectors = [
+            h for h in handlers if isinstance(h, install_tools.urllib.request.HTTPRedirectHandler)
+        ]
+        self.assertEqual([type(h) for h in redirectors], [install_tools.HttpsOnlyRedirects])
+
+    def test_refuses_a_response_that_did_not_come_over_https(self):
+        # No network: the opener is replaced by one that answers from memory.
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.geturl.return_value = "http://example.invalid/x"
+        response.read.return_value = b""
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            install_tools, "https_opener", return_value=opener
+        ), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                install_tools.download("https://example.invalid/x", Path(tmp) / "x", None)
+            self.assertFalse((Path(tmp) / "x").exists())
+            response.read.assert_not_called()
+
+    def test_downloads_through_the_opener_and_checks_the_digest(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.geturl.return_value = "https://other.invalid/y"
+        response.read.side_effect = [b"hello", b""]
+        opener = mock.Mock()
+        opener.open.return_value = response
+        digest = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            install_tools, "https_opener", return_value=opener
+        ), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            seen = install_tools.download("https://example.invalid/x", Path(tmp) / "x", digest)
+            self.assertEqual(seen, digest)
+            self.assertEqual((Path(tmp) / "x").read_bytes(), b"hello")
+            with self.assertRaises(SystemExit):
+                response.read.side_effect = [b"other", b""]
+                install_tools.download("https://example.invalid/x", Path(tmp) / "y", digest)
+            self.assertFalse((Path(tmp) / "y").exists())
 
 
 class Extract(unittest.TestCase):

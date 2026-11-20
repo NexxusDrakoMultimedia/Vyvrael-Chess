@@ -34,6 +34,9 @@ once it has a first release.
   longer sets an empty `LICHESS_BOT_TOKEN`, which lichess-bot would have used
   in place of a token kept in `config.yml`. The line is commented out.
 
+- `scripts/install_tools.py`: a download that is redirected away from HTTPS
+  is now refused; only the first address was checked before.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

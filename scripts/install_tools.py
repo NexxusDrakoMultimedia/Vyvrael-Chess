@@ -94,21 +94,43 @@ def source_url(tool: str) -> str:
 
 
 # ---------------------------------------------------------------- network
+class HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follows a redirect only when it leads to another HTTPS address.
+
+    The standard handler also follows redirects to http:// and ftp://.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith("https://"):
+            die(f"refusing a redirect away from HTTPS: {req.full_url} -> {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def https_opener() -> urllib.request.OpenerDirector:
+    """An opener that never leaves HTTPS, whatever the server answers."""
+    return urllib.request.build_opener(HttpsOnlyRedirects)
+
+
 def download(url: str, dest: Path, sha256: str | None) -> str:
     """Downloads `url` to `dest` and returns its SHA-256.
 
-    With `sha256` given, a mismatch deletes the file and aborts. Without it
-    the digest is printed so it can be pinned.
+    Only HTTPS is used, for the address given and for every redirect. With
+    `sha256` given, a mismatch deletes the file and aborts. Without it the
+    digest is printed so it can be pinned.
     """
     if not url.startswith("https://"):
         die(f"refusing to download over anything but HTTPS: {url}")
     say(f"  downloading {url}")
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": "install-tools"})
-    with urllib.request.urlopen(request, timeout=60) as response, open(dest, "wb") as out:
-        for chunk in iter(lambda: response.read(1 << 20), b""):
-            digest.update(chunk)
-            out.write(chunk)
+    with https_opener().open(request, timeout=60) as response:
+        # Belt and braces: the address the bytes really come from.
+        if not response.geturl().lower().startswith("https://"):
+            die(f"refusing to download over anything but HTTPS: {response.geturl()}")
+        with open(dest, "wb") as out:
+            for chunk in iter(lambda: response.read(1 << 20), b""):
+                digest.update(chunk)
+                out.write(chunk)
     seen = digest.hexdigest()
     if sha256 is None:
         say(f"  WARNING: no pinned digest for this file. sha256 seen: {seen}")
