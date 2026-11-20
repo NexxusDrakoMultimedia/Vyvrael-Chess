@@ -85,7 +85,6 @@ Sources and licences were read on each project's own page or repository on
 | Reckless 0.9.0 | v0.9.0 | AGPL-3.0 | official binary | <https://github.com/codedeliveryservice/Reckless> | `09ba1634faaffec5...` |
 | Stash 37.0 | v37.0 | GPL-3.0 | official binary | <https://gitlab.com/mhouppin/stash-bot> | `70f8935f8e45cefe...` |
 | Princhess 0.22.0 | 0.22.0 | GPL-3.0 | built from official source | <https://github.com/princesslana/princhess> | `a21d53cefdcad7b4...` |
-| Ethereal 12.75 | v12.75 | GPL-3.0 | built from official source | <https://github.com/AndyGrant/Ethereal> | `f6fd8aa5d830c0f3...` |
 | Weiss 2.0 | v2.0 | GPL-3.0 | built from official source | <https://github.com/TerjeKir/weiss> | `ddcd263e493987bd...` |
 | Rodent IV (also limited to 1600, 2000) | 0.33 (commit e8d84c8) | GPL-3.0 | built from official source | <https://github.com/nescitus/rodent-iv> | `db372b48a8ccf22d...` |
 | Vice 1.1 | 1.1 (commit 7d4fe19) | MIT | built from official source | <https://github.com/bluefeversoft/vice> | `4bcd7995ab932bd7...` |
@@ -102,6 +101,7 @@ from source for private testing.
 Left out, with the reason:
 
 - **Orion 1.1:** The official site (orionchess.com) offers Windows programs only and the source is not published, so there is nothing to download or build for Linux.
+- **Ethereal 12.75:** No official Linux binary exists, and its source does not run when built with a current compiler: the engine crashes at the first `go` (gcc 15.2, 2026-11-21), because it allocates data that it declares 64-byte aligned with `calloc`. Building it would mean patching the engine.
 
 Fruit 2.1 is the one engine not taken from its project's own page: the
 author's site is gone, so the source is the original tarball as Debian keeps

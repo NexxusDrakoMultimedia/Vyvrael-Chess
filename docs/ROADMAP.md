@@ -484,8 +484,10 @@ real match or the real Ordo. **The maintainer has since run the tooling on
 the Windows workstation with 0.1.0-a1 and confirmed that it works**
 (2026-11-21). Which scripts and modes that covered is not recorded. On the
 Linux machine the engine installer has been run once (2026-11-21): 12 of
-the 14 engines installed and 21 names passed the check; see "The ladder's
-opponent engines" in `docs/TESTING.md` for the three that did not. The bash
+the then 14 engines installed and 21 names passed the check; see "The
+ladder's opponent engines" in `docs/TESTING.md` for the three that did
+not. One of them, Ethereal 12.75, has since been taken out of the
+installer. The bash
 match and rating scripts have still not made a real run.
 
 ## Recording results

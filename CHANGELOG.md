@@ -35,8 +35,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   installs it. lichess-bot and the ladder's engines are not installed on
   Windows.
 - `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
-  engines, pinned (14 binaries for 24 of the ladder's 25 names; Orion 1.1
-  is left out, because it exists for Windows only).
+  engines, pinned (13 binaries for 23 of the ladder's 25 names). Orion 1.1
+  is left out because it exists for Windows only, and Ethereal 12.75
+  because its source crashes when built with a current compiler.
 - `scripts/install_tools.py --engines` installs those engines on Linux
   under `<prefix>/engines`, each in a directory of its own: an official
   binary where there is one, otherwise a build from the official source.

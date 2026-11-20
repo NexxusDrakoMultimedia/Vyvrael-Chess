@@ -419,7 +419,7 @@ class LadderInstallTest(unittest.TestCase):
         for engine in ladder_engines.ENGINES:
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
-        self.assertEqual(len(entries), 24)
+        self.assertEqual(len(entries), 23)
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
