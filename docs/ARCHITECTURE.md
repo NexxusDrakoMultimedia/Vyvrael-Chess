@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -431,6 +431,27 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   (`MATE - MAX_PLY`) is a mate score; evaluations stay far below it.
   `moves_to_mate` converts a mate score to the signed move count UCI reports.
   `MAX_PLY` is 128.
+
+- **Negamax with alpha-beta** (`search/negamax.rs`): `Search::fixed_depth`
+  searches a position to an exact depth and returns an `Outcome` (score and
+  best move). Negamax is minimax written once for both sides: a position is
+  worth the best, over its moves, of the negated value of what each move leads
+  to. Alpha-beta skips moves that cannot matter: `alpha` is what the side to
+  move is already sure of and `beta` what the opponent can already hold it to,
+  so once a move reaches `beta` the rest are not examined.
+  - The search is **fail-soft**: a result outside the window is a bound on the
+    true value. The root searches with the full window, so its score is exact.
+  - Moves are taken straight from `pseudo_legal_moves`, made, and skipped if
+    they leave the king capturable, exactly as perft does.
+  - A node with no legal move scores `mated_in(ply)` if in check and `DRAW`
+    otherwise, so stalemate is never mistaken for a win.
+  - At depth 0 the evaluator is called. Until quiescence search lands, that
+    means positions are judged in the middle of exchanges.
+  - Moves are searched in generation order. Ordering them well is what makes
+    alpha-beta efficient; it is deliberately left to milestone 7.
+  - **Correctness is tested against plain minimax**, which has no pruning to
+    get wrong: on eight positions at depths 1 to 3 the two must return the
+    same score, and the move alpha-beta names must lead to that score.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -5,8 +5,10 @@
 //!
 //! See `docs/ARCHITECTURE.md` ("Search") for the design.
 
+mod negamax;
 mod score;
 
+pub use negamax::{Outcome, Search};
 pub use score::{
     DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,
 };

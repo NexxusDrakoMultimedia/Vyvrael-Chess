@@ -91,3 +91,4 @@ once it has a first release.
 - `Evaluator` now requires `Send + Sync`, so it can be used from the search
   thread.
 - `search` module: score constants and mate-score arithmetic.
+- Fixed-depth negamax search with alpha-beta pruning (`search::Search`).
