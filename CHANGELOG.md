@@ -159,3 +159,5 @@ once it has a first release.
   move only if it is legal. This is the entry point for input that is not
   trusted; `Position::parse_move` stays for trusted input such as recorded
   games.
+- `uci`: parsing of UCI command lines into commands (`uci::parse`). Nothing
+  acts on them yet.

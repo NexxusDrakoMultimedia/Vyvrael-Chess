@@ -210,7 +210,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `attacks`: embed the magic numbers as constants, with the search kept
   as a test (fixes KI-7)
 - [x] `movegen`: find a move given as text among the legal moves (fixes KI-3)
-- [ ] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
+- [x] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
   `go`, `stop`, `setoption`, `quit`)
 - [ ] `uci`: output formatting (`info`, scores, `bestmove`)
 - [ ] `uci`: time management (from `wtime`, `btime`, increments,
