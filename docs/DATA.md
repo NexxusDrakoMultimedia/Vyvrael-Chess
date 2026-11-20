@@ -15,7 +15,20 @@ where it lives locally.
 
 ## Artefacts in use
 
-None yet.
+### UHO_Lichess_4852_v1 (opening positions)
+
+| Field | Value |
+| --- | --- |
+| Kind | opening book (EPD positions, no moves) |
+| Source URL | <https://github.com/official-stockfish/books>, file `UHO_Lichess_4852_v1.epd.zip` (download: <https://github.com/official-stockfish/books/raw/refs/heads/master/UHO_Lichess_4852_v1.epd.zip>, given by the maintainer) |
+| Licence | CC0-1.0, as stated by the repository's `LICENSE` file |
+| Licence checked on | 2026-11-21 |
+| Date fetched | By the maintainer, for Ladder Baseline 1 (2026-11-20 or earlier; the day was not recorded) |
+| File(s) and size | `UHO_Lichess_4852_v1.epd.zip`, 42,877,788 bytes; it unpacks to `UHO_Lichess_4852_v1.epd`, which the repository's README lists with 2,632,036 positions |
+| Checksum | Not computed by the project: no agent has downloaded the file. Git's own identifier of the zip in that repository is `e439636101786177ece850d3607356891c1cc2cd` (a blob id, not a SHA-256) |
+| Local path | Outside the repository; its location is the setting `OPENINGS` in `scripts/local.env`. It is never committed |
+| Processing | None. The match scripts pass it to `cutechess-cli` as `-openings file=... format=epd order=random` |
+| Used for | The openings of every match: Ladder Baseline 1, the results of 0.1.0-alpha.1, and the match scripts' fixed settings (see [TESTING.md](TESTING.md)) |
 
 ## Entry template
 
