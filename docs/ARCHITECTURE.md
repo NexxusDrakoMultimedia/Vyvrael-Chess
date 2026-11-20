@@ -37,7 +37,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
 | `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
-| UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
+| `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
 
@@ -205,8 +205,8 @@ from `board`.
   letter, and a diagonal pawn move to an empty square that is not the en
   passant square. **It does not check piece geometry or legality** (a rook
   moving like a knight parses as a quiet move); where legality matters,
-  match the result against `movegen::legal_moves`. Doing that for UCI input is
-  due in milestone 5 (known issue KI-3).
+  use `movegen::find_legal_move` instead, which returns a move only if it is
+  legal. The UCI layer does.
 
 ## Attacks and move generation
 
@@ -255,9 +255,16 @@ on this square attack?".
     h8 and then the rook squares. A candidate is kept when filling the slice
     from the scanned reference attacks produces no conflicting slot. Because
     the stream is fixed, every run finds the same numbers; a test pins them.
-  - *When.* The tables are built on first use behind a `LazyLock`, not at
-    compile time: the search is too heavy for `const` evaluation. It takes
-    about 0.1 s in a release build (known issue KI-7).
+  - *Embedded, not searched for at start-up.* The 128 numbers the search
+    finds are constants in `attacks/magics.rs`. The search itself is test
+    code: a test runs it and requires exactly the embedded numbers and
+    exactly the table the engine builds, so the numbers remain reproducible
+    from the seed and cannot be edited by hand unnoticed.
+  - *When.* The tables are built on first use behind a `LazyLock`, by
+    filling each square's slice from its embedded number, which takes a few
+    milliseconds. While filling, each number is checked to be a magic number
+    for its mask; a wrong one stops the engine at once instead of giving
+    wrong attacks.
   - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
     the lookups move generation uses.
 
@@ -331,8 +338,8 @@ on this square attack?".
 - **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
   binary's commands against any pair of writers, so tests run it on in-memory
   buffers and `main.rs` is only a few lines. With no arguments the binary
-  identifies itself on stderr, leaving stdout empty for the future UCI
-  protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
+  does not call it at all: `main.rs` starts the UCI loop instead (see
+  "UCI" below). `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
   parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
   prints one line per depth and the best move, with timing on stderr so that
@@ -563,14 +570,116 @@ transposition table, pruning) come in milestone 7, one at a time.
     captures that cannot help (delta pruning, static exchange evaluation) is
     left to milestone 7.
 
-## How search, evaluation and UCI fit together (planned)
+### Playing below full strength
 
-The UCI front end owns the current position and the option values. On `go`
-it hands a copy of the position and the search limits to a search thread, so
-the main thread keeps reading stdin and can act on `stop`. Search calls the
-evaluation through a trait, so the hand-crafted evaluation and the NNUE
+`search/weaken.rs`, for the UCI option `UCI_LimitStrength`.
+
+A weakened engine should make plausible mistakes, not random moves.
+`weakened_move` therefore:
+
+1. scores **every** root move, each with its own full-window search, to a
+   shallow depth (a weaker player sees less far), which gives every move an
+   exact score, not only the best one. This is done in passes, like
+   iterative deepening: all moves one ply deep, then all moves two plies
+   deep, up to the depth of the setting. The first pass always completes;
+   the clock, a node limit or `stop` can only cut a later pass short, and a
+   pass cut short is thrown away. So the choice is always made from scores
+   that all look equally far ahead, however little time there is;
+2. adds to each score a random error between minus and plus `noise`
+   centipawns, the sum of two uniform draws, so small errors are common and
+   large ones rare;
+3. plays the move with the best misjudged score, and reports its true score.
+
+The error is bounded, so a blunder larger than twice the noise cannot
+happen: the engine may prefer the second-best quiet move, but it does not
+leave a queen hanging unless the noise is that large. Forced mates are
+judged exactly, for and against.
+
+`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (400) to `ELO_MAX`
+(1800) to a depth (2 below the middle of the range, 3 above) and a noise
+(300 centipawns at the bottom, falling evenly to 20 at the top). **These
+numbers are provisional.** They only order the settings. What rating each
+setting really plays at is measured in milestone 6 and the mapping is
+refitted then; until that is done the rating is a label.
+
+The generator is handed in by the caller and advanced once per root move
+before any searching, so the errors are a function of the position and the
+seed alone. Which pass they are applied to depends on the limits: with a
+node limit, or time that is never used up, a weakened game is reproducible
+under `DeterministicRNG`; with a clock that cuts passes short it is not.
+
+Scoring the position after a root move uses `Search::reply_value`, which
+treats that position as a node inside a search and not as a root: a
+position drawn by rule is worth a draw, and a mate is counted from the
+position before it.
+
+## UCI
+
+Implemented in `src/uci/`, the protocol layer; every command
+and option is listed in [UCI.md](UCI.md).
+
+- **Parsing** (`uci/command.rs`): `parse(line)` turns a line into a
+  `Command`. It knows the grammar and nothing about chess, so it is tested
+  without an engine. It is forgiving where the protocol asks for it: words
+  before the first known command are skipped and unknown `go` words ignored.
+- **Output** (`uci/output.rs`): `info_line`, `bestmove_line` and
+  `score_text` build the lines the engine sends.
+- **Time management** (`uci/time.rs`): `time_for_move` gives a move an equal
+  share of the remaining time (over `movestogo`, or 30 moves) plus three
+  quarters of the increment, capped at what is on the clock less a 30 ms
+  overhead. `limits_for` combines it with `depth`, `nodes` and `infinite`
+  into the search's `Limits`. The scheme is deliberately plain: schemes that
+  react to the search change playing strength and wait for milestone 7.
+- **Options** (`uci/options.rs`): `Options` holds the value of every UCI
+  option. `Options::declarations()` gives the `option` lines for `uci` and
+  `Options::set(name, value)` checks and stores a value; an option exists
+  only in those two places, so what the GUI is shown and what the engine
+  accepts cannot drift apart. A test sets every declared option to its
+  declared default and requires that nothing changes.
+- **The engine** (`uci/engine.rs`): `Engine` owns the current position, the
+  hashes of the positions the game went through, and the running search.
+  `Engine::handle(line)` acts on one line; `run(input, out)` is the loop the
+  binary uses.
+  - **Two threads.** The thread that calls `handle` reads commands. `go`
+    copies the position and history and starts the search on a second
+    thread, so `stop`, `isready` and `quit` are answered while the engine
+    thinks. They share two things: the output, behind a mutex, written one
+    whole line at a time and flushed; and an `AtomicBool` that the search
+    reads every 1,024 nodes.
+  - **One search at a time.** `stop`, `quit`, `ucinewgame`, `position` and a
+    second `go` all end the running search and wait for its `bestmove`
+    before doing anything else, so there are never two.
+  - **Untrusted input.** A move in a `position` command is looked up with
+    `movegen::find_legal_move`; an illegal one, or a bad FEN, refuses the
+    whole command and leaves the position as it was. Nothing illegal reaches
+    `make_move`.
+  - **`go infinite`** (and a `go` with no limit at all) answers only after
+    `stop`, as the protocol requires, even when the search itself ended at
+    once.
+  - **Limited strength.** With `UCI_LimitStrength` on, `go` runs
+    `search::weakened_move` instead of the ordinary search. The engine keeps
+    one generator, `Rng::stream(seed, stream::STRENGTH)`, on the command
+    thread. Each weakened search gets a generator of its own, seeded by one
+    draw from it, so the random sequence of a game depends on the commands
+    and not on how far each search got. Full-strength play never draws from
+    it. `ucinewgame` restarts the generator: from the chosen seed under
+    `DeterministicRNG`, otherwise from a new entropy seed that is logged
+    there. Either way one logged number replays one game, including the
+    later games of a session, which is how match tools play.
+  - **Bytes, not text.** `run` reads lines as bytes and replaces what is
+    not valid UTF-8, so a stray byte spoils one line and not the session.
+  - **End of input** without `quit` lets a running search finish and report,
+    so a script that pipes commands in gets its answer.
+
+## How search, evaluation and UCI fit together
+
+The UCI layer owns the current position and the option values. On `go` it
+hands a copy of the position and the search limits to a search thread, so
+the command thread keeps reading stdin and can act on `stop`. Search calls
+the evaluation through a trait, so the hand-crafted evaluation and the NNUE
 evaluation are interchangeable and can be compared by SPRT. Only the UCI
-layer writes to stdout.
+layer writes to stdout; the other commands of the binary (`perft`, `eval`,
+`search`) are separate and never run in the same process as the loop.
 
 ## RNG design
 
@@ -619,7 +728,11 @@ which defaults to `DEFAULT_SEED`.
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
   strength-affecting randomness when the UCI option `DeterministicRNG` is
-  `false`. That path arrives with the UCI milestone and logs the seed it chose with `info string`.
+  `false`. `rng::entropy_seed()` is that path and the only code that reads
+  system entropy; it takes its randomness from the standard library's
+  `RandomState`, so the engine stays free of dependencies. Its caller logs
+  the seed with `info string`, so even such a run can be replayed by giving
+  the logged value as `RngSeed`.
 
 ### Table of randomness uses
 
@@ -631,8 +744,10 @@ plays; such uses are non-deterministic by default with `DeterministicRNG` /
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
-| Magic-number search (`attacks::sliders`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, on first use | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
+| Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
+| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` when the engine starts and again at every `ucinewgame`, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` each time | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Weakened move choice (`search::weakened_move`, used when `UCI_LimitStrength` is on) | implemented | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
 Stream indices of the default seed are registered in `rng::stream` so that
@@ -642,12 +757,10 @@ subsystems never share or shift each other's numbers:
 | --- | --- | --- |
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 | 1 | `stream::MAGICS` | Magic-number search |
+| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI options select (system entropy, or `RngSeed`), not necessarily the default seed. |
 
-Planned uses (each gets a real row when it lands): datagen opening randomisation (milestone 9, not
-strength-affecting; per-game derived seeds), strength limiting through
-`UCI_LimitStrength` / `UCI_Elo` (milestone 5, **strength-affecting**:
-non-deterministic by default, with `DeterministicRNG` / `RngSeed` as the
-opt-in).
+Planned uses (each gets a real row when it lands): datagen opening
+randomisation (milestone 9, not strength-affecting; per-game derived seeds).
 
 ## Design decisions
 

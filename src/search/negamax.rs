@@ -269,6 +269,24 @@ impl<'a> Search<'a> {
         self.search_root(pos, depth)
     }
 
+    /// The value of `pos` for its side to move, searched `depth` plies deep
+    /// (0 means quiescence search only), when `pos` is **one move away from
+    /// the position a move is being chosen for**. The history given with
+    /// [`Search::with_history`] must then end with that position's hash.
+    ///
+    /// Unlike [`Search::fixed_depth`], this treats `pos` as a node inside a
+    /// search and not as its root: a position drawn by rule is worth
+    /// [`DRAW`], and a mate is counted from the position before it. It is
+    /// what scoring the root moves one at a time needs.
+    ///
+    /// Each call is a new search. If a limit cuts it short,
+    /// [`Search::was_stopped`] is true and the value means nothing.
+    pub fn reply_value(&mut self, pos: &Position, depth: u32) -> Score {
+        self.begin();
+        let depth = depth.min(MAX_PLY as u32 - 1);
+        self.negamax(pos, depth, 1, -INFINITY, INFINITY)
+    }
+
     /// One fixed-depth search from the root, as part of the search already
     /// begun: [`Search::iterate`] calls this once per depth and the node
     /// count carries on from one depth to the next.

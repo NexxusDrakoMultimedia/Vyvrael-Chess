@@ -11,6 +11,6 @@ mod list;
 mod pawns;
 mod pseudo;
 
-pub use legal::legal_moves;
+pub use legal::{find_legal_move, legal_moves};
 pub use list::MoveList;
 pub use pseudo::pseudo_legal_moves;

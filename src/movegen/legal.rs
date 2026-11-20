@@ -5,7 +5,7 @@
 //! mover's own king attacked removed.
 
 use super::{MoveList, pseudo_legal_moves};
-use crate::board::Position;
+use crate::board::{Move, Position};
 
 /// Generates the legal moves of the side to move.
 ///
@@ -32,10 +32,113 @@ pub fn legal_moves(pos: &Position) -> MoveList {
     legal
 }
 
+/// The legal move of `pos` written `text` in UCI notation (`e2e4`, `e7e8q`,
+/// castling as the king's move `e1g1`), or `None` if there is no such legal
+/// move.
+///
+/// This is the way to turn outside input into a move. Unlike
+/// [`Position::parse_move`], it cannot return a move that is illegal or that
+/// the piece cannot make, because it only ever returns a member of
+/// [`legal_moves`]. Anything else, from a pinned piece's move to text that
+/// is not a move at all, gives `None`.
+#[must_use]
+pub fn find_legal_move(pos: &Position, text: &str) -> Option<Move> {
+    legal_moves(pos)
+        .iter()
+        .copied()
+        .find(|mv| mv.to_string() == text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::board::{MoveKind, START_FEN};
+
+    #[test]
+    fn find_legal_move_finds_every_legal_move_by_its_text() {
+        for text in [
+            START_FEN,
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2",
+        ] {
+            let pos = Position::from_fen(text).unwrap();
+            let moves = legal_moves(&pos);
+            for &mv in &moves {
+                assert_eq!(find_legal_move(&pos, &mv.to_string()), Some(mv), "{mv}");
+                // For legal moves it agrees with the trusting parser.
+                assert_eq!(pos.parse_move(&mv.to_string()), Ok(mv), "{mv}");
+            }
+            // The texts are distinct, so each names one move.
+            let mut texts: Vec<String> = moves.iter().map(ToString::to_string).collect();
+            texts.sort();
+            texts.dedup();
+            assert_eq!(texts.len(), moves.len());
+        }
+    }
+
+    #[test]
+    fn find_legal_move_refuses_everything_else() {
+        let start = Position::startpos();
+        // Moves the trusting parser accepts but no piece can make.
+        for text in ["a1b3", "a1a5", "e1e3", "d1h5", "b1b3"] {
+            assert!(start.parse_move(text).is_ok(), "{text}");
+            assert_eq!(find_legal_move(&start, text), None, "{text}");
+        }
+        // The other side's move, an empty square, and things that are not
+        // moves at all.
+        for text in [
+            "e7e5",
+            "e4e5",
+            "",
+            "e2",
+            "e2e4q",
+            "e2e9",
+            "E2E4",
+            "e2e4 ",
+            " e2e4",
+            "0000",
+            "e2-e4",
+            "castle",
+            "e2e4e5",
+            "\u{e9}2e4",
+        ] {
+            assert_eq!(find_legal_move(&start, text), None, "{text:?}");
+        }
+
+        // A pinned knight may not move, and a king may not stay in check.
+        let pinned = Position::from_fen("4r1k1/8/8/8/8/8/4N3/4K3 w - - 0 1").unwrap();
+        assert!(pinned.parse_move("e2c3").is_ok());
+        assert_eq!(find_legal_move(&pinned, "e2c3"), None);
+        assert!(find_legal_move(&pinned, "e1d1").is_some());
+        let checked = Position::from_fen("4r1k1/8/8/8/8/8/3N4/4K3 w - - 0 1").unwrap();
+        assert_eq!(find_legal_move(&checked, "d2b3"), None);
+        assert!(
+            find_legal_move(&checked, "d2e4").is_some(),
+            "blocks the check"
+        );
+
+        // A promotion needs its letter, in lower case, and only on the
+        // last rank.
+        let promo = Position::from_fen("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        assert_eq!(find_legal_move(&promo, "e7e8"), None);
+        assert_eq!(find_legal_move(&promo, "e7e8Q"), None);
+        assert_eq!(find_legal_move(&promo, "e7e8k"), None);
+        let queen = find_legal_move(&promo, "e7e8q").unwrap();
+        assert_eq!(queen.promotion(), Some(crate::board::PieceKind::Queen));
+        assert!(find_legal_move(&promo, "e7e8n").is_some());
+
+        // Castling is written as the king's move, and only when legal.
+        let castle = Position::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(
+            find_legal_move(&castle, "e1g1").map(Move::kind),
+            Some(MoveKind::KingCastle)
+        );
+        let attacked = Position::from_fen("r3k2r/8/8/8/8/5r2/8/R3K2R w KQkq - 0 1").unwrap();
+        assert_eq!(find_legal_move(&attacked, "e1g1"), None, "f1 is attacked");
+        assert!(find_legal_move(&attacked, "e1c1").is_some());
+    }
 
     fn legal(fen: &str) -> Vec<String> {
         let pos = Position::from_fen(fen).unwrap();

@@ -12,13 +12,14 @@ use std::time::Instant;
 use crate::board::Position;
 use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search, moves_to_mate};
+use crate::search::{Limits, MAX_PLY, Report, Search};
+use crate::uci::score_text;
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
 pub const USAGE: &str = "\
 Usage:
-  vyvrael                                  identify the engine (UCI arrives later)
+  vyvrael                                  speak UCI on standard input and output
   vyvrael perft <depth> [--divide | --copy-make] [FEN]
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
@@ -53,13 +54,12 @@ pub const EXIT_USAGE: u8 = 2;
 /// Returns an error only if writing to `out` or `err` fails.
 pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
     match args.first().map(String::as_str) {
+        // The binary starts the UCI loop itself when it has no arguments
+        // (see `main.rs`), so this is reached only by calling `run` directly.
         None => {
             writeln!(err, "{ENGINE_NAME} {ENGINE_VERSION} by {ENGINE_AUTHOR}")?;
-            writeln!(
-                err,
-                "The UCI interface is not implemented yet; try `vyvrael help`."
-            )?;
-            Ok(EXIT_OK)
+            write!(err, "{USAGE}")?;
+            Ok(EXIT_USAGE)
         }
         Some("help" | "--help" | "-h") => {
             write!(out, "{USAGE}")?;
@@ -123,13 +123,11 @@ fn run_eval(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Re
 /// One line of search progress, in the vocabulary of UCI `info` lines
 /// (without the time, so that the output is the same on every run).
 fn progress_line(report: &Report) -> String {
-    let score = match moves_to_mate(report.score) {
-        Some(moves) => format!("mate {moves}"),
-        None => format!("cp {}", report.score),
-    };
     let mut line = format!(
-        "depth {} score {score} nodes {}",
-        report.depth, report.nodes
+        "depth {} score {} nodes {}",
+        report.depth,
+        score_text(report.score),
+        report.nodes
     );
     if !report.pv.is_empty() {
         line.push_str(" pv");
@@ -254,12 +252,15 @@ mod tests {
     }
 
     #[test]
-    fn no_arguments_identifies_the_engine_on_stderr_only() {
+    fn no_arguments_is_not_a_command() {
+        // Without arguments the binary speaks UCI and never calls `run`.
+        // Called directly, `run` has no command to carry out.
         let (status, out, err) = run_args(&[]);
-        assert_eq!(status, EXIT_OK);
+        assert_eq!(status, EXIT_USAGE);
         assert!(out.is_empty(), "stdout is reserved for protocol output");
         assert!(err.contains(ENGINE_NAME));
         assert!(err.contains(ENGINE_VERSION));
+        assert!(err.contains(USAGE));
     }
 
     #[test]

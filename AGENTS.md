@@ -25,7 +25,8 @@ Layout:
   - `src/eval/`: static evaluation.
   - `src/search/`: search.
   - `src/perft.rs`: perft node counting.
-  - `src/cli.rs`: the binary's command line (`main.rs` only calls it).
+  - `src/uci/`: the UCI protocol (parsing, options, time, engine loop).
+  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`).
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.
@@ -48,6 +49,7 @@ Layout:
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
+| Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
 | Match script | not implemented yet (milestone 6: `scripts/match.sh`, `scripts/match.ps1`, `scripts/rate.sh`, `scripts/rate.ps1`) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
@@ -157,8 +159,7 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 3. **Evaluation (hand-crafted):** material, tapered PSTs, behind an interface.
 4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
    Heuristics wait for milestone 7 so each can be accepted by SPRT.
-5. **UCI:** full protocol loop with `Hash`, `Threads`, `DeterministicRNG`,
-   `RngSeed`, `UCI_LimitStrength`, `UCI_Elo`.
+5. **UCI:** the protocol loop and its six options (see `docs/UCI.md`).
 6. **Strength testing:** SPRT match script with Cute Chess, ratings with
    Ordo; calibrate `UCI_Elo`.
 7. **Search heuristics:** move ordering, transposition table, null move,

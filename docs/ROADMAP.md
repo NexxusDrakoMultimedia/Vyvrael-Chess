@@ -14,7 +14,7 @@ them.
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
-| 5 | UCI | `milestone/5-uci` | not started |
+| 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
@@ -89,10 +89,9 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
-| KI-3 | **`Position::parse_move` does not check piece geometry or legality.** It infers the move kind from the board but accepts, for example, a rook moving like a knight as a quiet move. | Safe for trusted input such as the test games. Unsafe for untrusted input: a nonsensical move can corrupt the game state or make `make_move` panic. | Milestone 5: UCI move input is matched against the legal move list, so only legal moves reach `make_move`. |
+| KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
-| KI-7 | **The magic-number search runs at start-up.** The slider tables are built on first use by searching for magic numbers, which takes about 0.1 s in a release build and about 1.5 s in a debug build. | A short delay before the first slider lookup. No effect on play. | Milestone 5, before the UCI loop: embed the 128 numbers the search finds as constants and keep the search as a test proving the constants are what the seed produces. |
 
 ## Milestone 2: move generation
 
@@ -205,6 +204,51 @@ behaviour is noticed.
 - [x] `search`: measure make/unmake against copy-make and choose
 - [x] End-of-milestone review and doc drift pass
 
+## Milestone 5: UCI
+
+Chunk checklist. One commit per item unless noted.
+
+- [x] `attacks`: embed the magic numbers as constants, with the search kept
+  as a test (fixes KI-7)
+- [x] `movegen`: find a move given as text among the legal moves (fixes KI-3)
+- [x] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
+  `go`, `stop`, `setoption`, `quit`)
+- [x] `uci`: output formatting (`info`, scores, `bestmove`)
+- [x] `uci`: time management (from `wtime`, `btime`, increments,
+  `movestogo`, `movetime` to a deadline)
+- [x] `uci`: the engine session and protocol loop, with the search on its
+  own thread; the binary runs it when started without arguments
+- [x] `uci`: option `Hash`
+- [x] `uci`: option `Threads`
+- [x] `rng`: a seed from system entropy and the stream for
+  strength-affecting randomness
+- [x] `uci`: options `DeterministicRNG` and `RngSeed`
+- [x] `search`: weakened move choice for limited strength
+- [x] `uci`: option `UCI_LimitStrength`
+- [x] `uci`: option `UCI_Elo` (uncalibrated until milestone 6)
+- [x] Integration test: drive the binary over stdin and stdout
+- [x] End-of-milestone review and doc drift pass
+
+Design decisions taken at the start of the milestone:
+
+- **Illegal input never reaches `make_move`.** A move in a `position`
+  command is looked up among the legal moves. If one is not found the whole
+  command is refused with an `info string` and the previous position stays.
+- **One search thread.** The loop reads commands on the main thread and the
+  search runs on a second one, so `stop`, `isready` and `quit` are answered
+  while it thinks. `Threads` is offered with a minimum and maximum of 1 until
+  a parallel search exists.
+- **`Hash` is accepted and stored but has no effect yet.** There is no
+  transposition table before milestone 7. The option exists now because
+  match tools set it.
+- **No pondering, `searchmoves` or `go mate`.** They are not offered;
+  unknown `go` words are ignored, as the protocol asks.
+- **Weakening (for `UCI_LimitStrength`)**: search every root move to a
+  shallow depth that grows with `UCI_Elo`, add random noise that shrinks with
+  it to each move's score, and play the best noisy score. Mistakes are then
+  moves that looked nearly as good, not random ones. The numbers are
+  provisional until calibration in milestone 6.
+
 ## Milestones 5 to 10
 
 Scope summaries live in the "Build order" section of
@@ -215,10 +259,9 @@ that milestone starts, and must include the known issues due in it:
 - After milestone 5: private `lichess-bot` smoke test. Public only later,
   after milestone 7 and the branding (see "Playing on Lichess with
   lichess-bot").
-- Milestone 5: KI-3, KI-7, plus the `UCI_LimitStrength` and `UCI_Elo` options
-  (see "Planned features").
+- Milestone 5: none left (KI-3 and KI-7 were fixed in it).
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
-- Milestone 7: KI-9.
+- Milestone 7: KI-9, KI-10.
 - Not yet scheduled: KI-2.
 
 ## Planned features
@@ -238,8 +281,8 @@ the two options defined by the UCI protocol:
 
 Plan:
 
-- **Milestone 5 (UCI):** expose both options and wire them to the weakening
-  mechanism. One option per chunk, as for the other options.
+- **Milestone 5 (UCI), done:** both options exist and are wired to the
+  weakening mechanism (`search::weakened_move`), uncalibrated.
 - **Milestone 6 (strength testing):** calibrate. Play the limited engine at
   several `UCI_Elo` settings against opponents of known rating with the match
   script, fit the mapping from setting to measured Elo, and record the method,
@@ -256,10 +299,11 @@ Constraints that already apply:
 - With `UCI_LimitStrength = false` (the default) play must be unchanged: no
   node, time or Elo difference. This is checked with a fixed-depth node-count
   comparison.
-- The weakening mechanism (for example limiting nodes or depth, or choosing
-  among near-best moves with some probability) is chosen in milestone 5 and
-  recorded as a design decision. Weak play should still look like chess:
-  plausible mistakes rather than random moves.
+- The weakening mechanism was chosen in milestone 5: search every root move
+  to a shallow depth, misjudge each score by a bounded random amount, play
+  the best. It is described under "Playing below full strength" in
+  [ARCHITECTURE.md](ARCHITECTURE.md). Weak play should still look like
+  chess: plausible mistakes rather than random moves.
 
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
@@ -269,6 +313,13 @@ limited only through the two standard options above.
 Scope as amended by the maintainer on 2026-11-20. It replaces the original
 "fastchess or Cutechess" wording. The chunk checklist is written when the
 milestone starts.
+
+**Opponent ladder reference:** Ladder Baseline 1,
+[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), a round
+robin of 25 other engines run by the maintainer. Vyvræl is not in it. It
+orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
+are measured by gauntlets against its lower rungs, in separate results
+files, with the same time control, hash, threads and openings.
 
 Use `cutechess-cli` (from Cute Chess) to run engine-against-engine matches,
 and Ordo to compute ratings from the resulting PGN. Neither tool is vendored
@@ -390,8 +441,8 @@ NNUE is 9 and tablebases are 10.
   search uses copy-make). Milestone 4 started with make/unmake, measured both
   styles in the real search loop and kept the faster. Copy-make was 3 to 5%
   faster with identical node counts; the numbers are in TESTING.md.
-- **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
-  `isready` without a start-up delay.
+- **KI-7 was fixed in milestone 5**, before the UCI loop, so the engine
+  answers `isready` without a start-up delay.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
   2026-11-20). The full scope is under "Milestone 6: strength testing"
   above.

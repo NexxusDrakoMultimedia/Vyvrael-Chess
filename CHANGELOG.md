@@ -10,6 +10,22 @@ once it has a first release.
 
 ### Fixed
 
+- A line of input that was not valid UTF-8 ended the engine silently, with
+  no `bestmove` for a running search. Such a line is now handled like any
+  other line that is not understood. Found in the milestone 5 review, before
+  any release.
+
+- A limited-strength game played with an entropy seed could not be replayed
+  from the logged seed after the first game of a session. Every
+  `ucinewgame` now takes and logs a seed of its own when no seed was chosen.
+  Found in the milestone 5 review, before any release.
+
+- Limited-strength play under a clock looked only at the first root moves
+  in generation order, and with very little time played the first move
+  unsearched with a made-up score of 0. It now scores every move in passes
+  of increasing depth and chooses from the last pass that finished. Found in
+  the milestone 5 review, before any release.
+
 - A stalemate at the search horizon was scored as the static evaluation, so
   a one-ply search could play a stalemating move and report a won position.
   Quiescence search now scores stalemate as a draw. Found in the milestone 4
@@ -152,3 +168,45 @@ once it has a first release.
   measuring it 3 to 5% faster than make/unmake in the search loop.
 - Brand assets in `branding/`: the engine's avatar and the NXD fractal
   background, all rights reserved and outside the code's GPL.
+- The 128 magic numbers are embedded as constants (`attacks/magics.rs`), so
+  the engine no longer searches for them at start-up. A test proves they are
+  exactly what the seeded search finds.
+- `movegen::find_legal_move`: turns a move written in UCI notation into a
+  move only if it is legal. This is the entry point for input that is not
+  trusted; `Position::parse_move` stays for trusted input such as recorded
+  games.
+- `uci`: parsing of UCI command lines into commands (`uci::parse`).
+- `uci`: formatting of `info` and `bestmove` lines and of scores
+  (`cp` and `mate`).
+- `uci`: time management. A move gets an equal share of the remaining time
+  (over `movestogo` or 30 moves) plus three quarters of the increment, never
+  more than is on the clock less a 30 ms overhead.
+- **The engine speaks UCI.** Started without arguments, the binary reads
+  UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`,
+  `quit`) and searches on its own thread.
+- UCI option `Hash` (spin, default 16, 1 to 65536 MiB). It is accepted and
+  stored but has no effect until there is a transposition table
+  (milestone 7).
+- UCI option `Threads` (spin, default 1, minimum 1, maximum 1): the search
+  is single-threaded, so 1 is the only value accepted.
+- `rng::entropy_seed`, the one permitted reader of system entropy, and
+  `rng::stream::STRENGTH`, the stream for randomness that affects playing
+  strength, used by the UCI layer.
+- UCI options `DeterministicRNG` (check, default `false`) and `RngSeed`
+  (spin, default 822286742, which is `0x31031996`). The seed of
+  strength-affecting randomness comes from system entropy unless
+  `DeterministicRNG` is on, and is logged with `info string` in reply to
+  `uci`, at every `ucinewgame` without a chosen seed, and whenever an
+  option changes it.
+- `search::weakened_move`: chooses a move at reduced strength by searching
+  every root move to a shallow depth and misjudging each score by a bounded
+  random amount. Used when `UCI_LimitStrength` is on.
+- UCI option `UCI_LimitStrength` (check, default `false`). When on, `go`
+  plays a weakened move at the level set by `UCI_Elo`. When off, play is
+  exactly as before.
+- UCI option `UCI_Elo` (spin, default 1200, 400 to 1800): the rating to play
+  at when `UCI_LimitStrength` is on. **Not calibrated**: the settings are
+  ordered, but what rating each really plays at is measured in milestone 6.
+- Integration tests that drive the engine binary over pipes
+  (`tests/uci.rs`).
+- Added Ladder Baseline 1 reference results (docs/testing/)
