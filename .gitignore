@@ -13,6 +13,7 @@
 # Large third-party artefacts: never committed (see docs/DATA.md)
 /data/
 /nets/
+/books/
 /tablebases/
 
 # lichess-bot configuration holds an API token: never commit it

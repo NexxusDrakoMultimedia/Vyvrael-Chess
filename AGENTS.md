@@ -7,8 +7,13 @@ lines.
 ## Project overview
 
 Vyvræl is a UCI-compatible chess engine written in Rust by Nexxus Drako
-Multimedia. It has a dragon theme and an aggressive playing style. It is
-licensed GPL-3.0-or-later.
+Multimedia. It is licensed GPL-3.0-or-later.
+
+The official tagline is "A dragon-flavoured UCI chess engine in Rust, built
+with AI and playing for the attack." Use it word for word wherever the
+project is described in one line. "Playing for the attack" is a style goal,
+not a strength claim: never call Vyvræl strong or give it a rating that has
+not been measured (milestone 6).
 
 The project is labelled **X** on the [0rwx scale](https://0rwx.com/): the
 maintainer curates agent output rather than reading every line. Tests,
@@ -34,7 +39,8 @@ Layout:
 - `tools/vyvrael-train`: NNUE training (milestone 9).
 - `scripts/`: helper scripts and their tests (the external-tool installer).
 - `branding/`: brand assets, all rights reserved, not under the GPL.
-- `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.
+- `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE,
+  Lichess.
 
 ## Commands
 
@@ -50,7 +56,7 @@ Layout:
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
-| Match script | not implemented yet (milestone 6: `scripts/match.sh`, `scripts/match.ps1`, `scripts/rate.sh`, `scripts/rate.ps1`) |
+| Match and rating scripts | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/match.ps1`, `scripts/windows/rate.ps1`, `scripts/linux/match.sh`, `scripts/linux/rate.sh`) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
@@ -95,6 +101,8 @@ Update this table in the same commit that adds or changes a command.
   opening books). Record source URL, licence and date fetched in
   `docs/DATA.md`, confirmed on the official source page.
 - Endgame tablebases (milestone 10) are optional: ask the maintainer first.
+- Never touch Lichess: no API token, no API call, no account upgrade, no
+  launching lichess-bot, not in CI either. See `docs/LICHESS.md`.
 
 ## Randomness
 
@@ -145,8 +153,12 @@ shared in the tool crates).
   checklist into `docs/ROADMAP.md` and commit it, then tick items off in the
   commits that complete them.
 - Branching: one branch per milestone (`milestone/1-board`,
-  `milestone/2-movegen`, ...), each started from the previous milestone's
-  branch. The agent reviews and merges it into `main` (see "Rules").
+  `milestone/2-movegen`, ...), each started from `main` once the previous
+  milestone is merged. The agent reviews and merges it into `main` (see
+  "Rules").
+  Release preparation (`release/<version>`) and tooling
+  (`tooling/<name>`) get branches of their own; the maintainer reviews a
+  release branch and does the tagging.
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 
@@ -159,9 +171,9 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 3. **Evaluation (hand-crafted):** material, tapered PSTs, behind an interface.
 4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
    Heuristics wait for milestone 7 so each can be accepted by SPRT.
-5. **UCI:** the protocol loop and its six options (see `docs/UCI.md`).
-6. **Strength testing:** SPRT match script with Cute Chess, ratings with
-   Ordo; calibrate `UCI_Elo`.
+5. **UCI:** the protocol loop and its options (see `docs/UCI.md`).
+6. **Strength testing:** measure Vyvræl against the opponent ladder with
+   the match and rating scripts (Cute Chess, Ordo); calibrate `UCI_Elo`.
 7. **Search heuristics:** move ordering, transposition table, null move,
    LMR. One feature per commit, each with an SPRT result.
 8. **Open data tooling:** Lichess PGN/puzzle/eval readers, opening EPDs.
@@ -197,5 +209,5 @@ For that re-read, or any full documentation pass, use the default prompt in
 ## Releases
 
 Prepare a release only when the maintainer asks. Use the default prompt in
-`docs/prompts/release.md` (`/release-prep` in Claude Code). Never tag, push or
-publish.
+`docs/prompts/release.md` (`/release-prep` in Claude Code). Release notes go
+in `docs/releases/<version>.md`. Never tag, push or publish.

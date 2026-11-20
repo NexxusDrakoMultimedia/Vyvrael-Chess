@@ -13,7 +13,7 @@ times differ from run to run):
 ```text
 $ vyvrael
 uci
-id name Vyvræl 0.1.0
+id name Vyvræl 0.1.0-alpha.1
 id author Nexxus Drako Multimedia
 option name Hash type spin default 16 min 1 max 65536
 option name Threads type spin default 1 min 1 max 1
@@ -21,6 +21,7 @@ option name DeterministicRNG type check default false
 option name RngSeed type spin default 822286742 min 0 max 4294967295
 option name UCI_LimitStrength type check default false
 option name UCI_Elo type spin default 1200 min 400 max 1800
+option name Move Overhead type spin default 30 min 0 max 5000
 info string rng seed 2463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
@@ -32,8 +33,10 @@ bestmove d2d4
 quit
 ```
 
-It has been tested by driving the binary over pipes. It has not yet been
-tried in a GUI or with lichess-bot.
+It has been tested by driving the binary over pipes (`tests/uci.rs`) and by
+playing complete games under `cutechess-cli`; see "Complete games in
+cutechess-cli" in [TESTING.md](TESTING.md). It has not yet been tried in a
+GUI or with lichess-bot.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
@@ -70,9 +73,9 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 
 | Parameter | Status | Behaviour |
 | --- | --- | --- |
-| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less a 30 ms overhead. A negative clock counts as zero. |
+| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less the `Move Overhead` (30 ms by default). A negative clock counts as zero. |
 | `movestogo` | implemented | Moves to the next time control. |
-| `movetime` | implemented | Think this long, less the 30 ms overhead. Takes precedence over the clocks. |
+| `movetime` | implemented | Think this long, less the `Move Overhead`. Takes precedence over the clocks. |
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
 | `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
@@ -139,12 +142,34 @@ search.
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
 | `UCI_Elo` | spin | `1200` (400 to 1800) | implemented, **uncalibrated** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A higher number looks further ahead (2 plies below 1100, 3 from there) and misjudges moves less (by up to 300 centipawns at 400, falling evenly to 20 at 1800). The range, the default and this mapping are provisional: they are replaced by measured values in milestone 6. |
+| `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
 `DeterministicRNG` and `RngSeed`: non-deterministic by default, reproducible
 when `DeterministicRNG` is `true`. See "Planned features" in
 [ROADMAP.md](ROADMAP.md).
+
+### Move Overhead
+
+The engine only knows how long it thinks. It does not see the time a move
+spends on its way: the GUI or match tool handling it, the operating system
+scheduling the process, and for an online game the network. `Move Overhead`
+is the number of milliseconds kept back for that.
+
+- `movetime` is used less the overhead.
+- With a clock, the overhead caps what one move may take: never more than
+  what is on the clock less the overhead. An ordinary share of the time is
+  far below that cap and is not shortened, so the option matters when the
+  clock is nearly empty and on the last move before a time control.
+- There is always at least one millisecond to move in.
+- It does not change which move is chosen at a fixed depth or node count,
+  only how long a search on the clock may run.
+
+The default of 30 ms suits a GUI or match tool on the same machine. Raise it
+when moves travel over a network: see [LICHESS.md](LICHESS.md) for a starting
+value with lichess-bot. The name is two words with one space, as other
+engines and tools spell it: `setoption name Move Overhead value 100`.
 
 ### Limited strength
 

@@ -15,7 +15,7 @@ them.
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
-| 6 | Strength testing | `milestone/6-strength` | not started |
+| 6 | Strength testing | `milestone/6-strength-testing` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -91,7 +91,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: SPRT the evaluation's terms and tune them, once search (milestone 4) and the match script exist. |
+| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Tuning the terms by SPRT follows from milestone 7 on. |
 
 ## Milestone 2: move generation
 
@@ -150,7 +150,7 @@ interface that a neural network can implement later. The hand-crafted
 evaluation stays as fallback and baseline.
 
 Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
-the match script (milestone 6). Until then it is checked for correctness
+the match script (built before milestone 6). Until then it is checked for correctness
 only (symmetry, known material balances, phase arithmetic), and its strength
 is recorded as unmeasured in known issue KI-8.
 
@@ -249,16 +249,16 @@ Design decisions taken at the start of the milestone:
   moves that looked nearly as good, not random ones. The numbers are
   provisional until calibration in milestone 6.
 
-## Milestones 5 to 10
+## Milestones 6 to 10
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
-- After milestone 5: private `lichess-bot` smoke test. Public only later,
-  after milestone 7 and the branding (see "Playing on Lichess with
-  lichess-bot").
+- After the first release (0.1.0-alpha.1): a casual-only Lichess bot, run
+  by the maintainer. Rated play only later, after milestone 7 and the
+  branding (see "Playing on Lichess with lichess-bot").
 - Milestone 5: none left (KI-3 and KI-7 were fixed in it).
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
 - Milestone 7: KI-9, KI-10.
@@ -308,11 +308,62 @@ Constraints that already apply:
 Decided: there will be no non-standard `Skill Level` option. Strength is
 limited only through the two standard options above.
 
+## Releases
+
+Decided by the maintainer on 2026-11-20. Versions follow Semantic
+Versioning; before 1.0.0 a minor version may change anything. Tags are
+annotated, `vX.Y.Z`, and made by the maintainer only.
+
+| Version | When | What it needs |
+| --- | --- | --- |
+| 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
+| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. |
+
+Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
+whether there are further alphas, is the maintainer's call.
+
+## Testing tooling (before milestone 6)
+
+Decided by the maintainer on 2026-11-20. The match and rating scripts and
+the installer work are built on a branch of their own,
+`tooling/testing-scripts`, before milestone 6 uses them. Where this section
+and the older milestone 6 text below disagree, this section holds.
+
+- **Scripts, one set per system, same behaviour and flags:**
+  `scripts/windows/match.ps1` and `scripts/windows/rate.ps1` (PowerShell),
+  `scripts/linux/match.sh` and `scripts/linux/rate.sh` (bash).
+- **Match modes:** `sprt` (a test build against a base build), `gauntlet`
+  (the build under test against opponents from the ladder) and `h2h` (two
+  Vyvræl builds, a fixed number of rounds).
+- **Fixed defaults, those of Ladder Baseline 1:** 10+0.1, Hash 64, one
+  thread, pondering off, openings from `UHO_Lichess_4852_v1.epd` in random
+  order with each played twice, colours swapped; resign after 3 moves at 700
+  centipawns, two-sided; draw from move 34 after 10 moves within 20
+  centipawns; `-recover`.
+- **SPRT bounds, alpha, beta and a round cap are required arguments.** There
+  are no silent defaults; `TESTING.md` gives example bounds.
+- **No named machine profiles** (the maintainer, 2026-11-21): no machine
+  name appears in a script or a flag. Defaults for concurrency, priority and
+  tool locations come from a git-ignored local file, of which the
+  repository carries an example, and every one can be overridden by an
+  argument. Concurrency, confirmed by the maintainer: 6 on the Windows
+  workstation, 3 at low priority on the Linux machine, never more than the
+  physical cores.
+- **No personal paths** in scripts or docs: tools come from `PATH`,
+  arguments, environment variables or a git-ignored local file.
+- **Installer:** it also installs Linux builds of the ladder opponents and
+  both tools on both systems. This replaces the earlier choice of a
+  Linux-only installer. Vyvræl itself is not part of the installer.
+
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
 Scope as amended by the maintainer on 2026-11-20. It replaces the original
 "fastchess or Cutechess" wording. The chunk checklist is written when the
-milestone starts.
+milestone starts. **The script details in this section are superseded by
+"Testing tooling" above** (paths, Hash 64, required SPRT bounds,
+concurrency); milestone 6 itself is the measuring: gauntlets against the
+ladder, the `UCI_Elo` calibration and KI-8.
 
 **Opponent ladder reference:** Ladder Baseline 1,
 [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), a round
@@ -369,8 +420,8 @@ Notes for whoever starts it:
 
 - `scripts/install_tools.py` already installs pinned versions of both tools
   (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
-  been run end to end. Windows install steps are still to be documented by
-  hand, since the installer is Linux-only by the maintainer's choice.
+  been run end to end. It is Linux-only today; Windows support is planned
+  (see "Testing tooling" above).
 
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
@@ -399,7 +450,7 @@ measured against.
 
 Steps 3 and 4 change which moves the search looks at, so unlike plain
 ordering they can change its results. That is why each gets its own SPRT.
-The matches run on the Linux machine with the scripts from milestone 6;
+The matches run on the Linux machine with the match scripts;
 results from different machines are not compared with each other.
 
 The other milestone 7 heuristics (killer moves, history, null-move pruning,
@@ -425,7 +476,8 @@ NNUE is 9 and tablebases are 10.
   ordering in the main search still waits for milestone 7.
 - **Search is split in two so that heuristics can be proven.** The project
   rule is that a search change is accepted only if SPRT shows a gain, but
-  SPRT needs the match script (milestone 6), which needs UCI (milestone 5).
+  SPRT needs the match script (before milestone 6), which needs UCI
+  (milestone 5).
   So milestone 4 builds only the core that everything else depends on:
   negamax with alpha-beta, iterative deepening and quiescence search. UCI and
   the match script follow. Milestone 7 then adds move ordering (hash move,
@@ -447,12 +499,13 @@ NNUE is 9 and tablebases are 10.
   2026-11-20). The full scope is under "Milestone 6: strength testing"
   above.
 
-### Branding, required before going public
+### Branding, required before rated play
 
-Required by the maintainer (2026-11-20): Vyvræl gets its branding before it
-is published anywhere the public meets it, whether that is a Lichess bot
-account, a rating list, a release or an announcement. Private testing does
-not need it. **Going public is blocked until this is done.**
+Required by the maintainer (2026-11-20, amended the same day): Vyvræl gets
+its branding before it plays rated games on Lichess or is entered in a
+rating list. **Rated play is blocked until this is done.** The first alpha
+release and the casual-only bot do not wait for it: they use what is already
+decided (the name, the tagline and the avatar below).
 
 Vyvræl is an **Australian** engine and is to be presented as one wherever a
 country is asked for or shown: the Lichess bot profile's flag, rating lists
@@ -467,7 +520,9 @@ is a starting point, not a commitment:
 - A logo or avatar (the dragon theme), in the sizes the places it appears
   need, with its licence stated.
 - A one-line description and a short paragraph, used consistently in the
-  README, the bot profile and any listing.
+  README, the bot profile and any listing. The one line is decided
+  (2026-11-20): "A dragon-flavoured UCI chess engine in Rust, built with AI
+  and playing for the attack." It states a style goal, not a strength.
 - The bot profile itself: name, flag, bio, links.
 - What the engine says about itself over UCI (`id name`, `id author`).
 - Credit and the 0rwx level X disclosure, which belongs wherever the engine
@@ -515,36 +570,43 @@ What it needs:
   cannot start before milestone 5.
 - **`lichess-bot` itself**, installed and run by the maintainer as a separate
   program. Like Cute Chess and Ordo it is not vendored, not linked and not a
-  Cargo dependency. Its licence is to be confirmed on its official source and
-  recorded in [DEPENDENCIES.md](DEPENDENCIES.md) before first use.
+  Cargo dependency. Its pinned version and licence (AGPL-3.0) are recorded
+  in [DEPENDENCIES.md](DEPENDENCIES.md).
 - **A Lichess bot account and API token**, created and held by the
   maintainer. The token is a secret: it is never committed, never written
-  into a tracked file and never handled by an AI agent. The repository will
-  carry only an example configuration with a placeholder where the token
-  goes, and the real configuration file will be git-ignored.
-- **Documentation:** tested setup steps in the README (replacing the current
-  placeholder) and in `docs/UCI.md`, including which engine options to set.
+  into a tracked file and never handled by an AI agent. The repository
+  carries no lichess-bot configuration and no token placeholder: the
+  maintainer's `config.yml` is copied from lichess-bot's own
+  `config.yml.default`, lives outside this repository, and is git-ignored
+  here in case it ever lands in it.
+- **Documentation:** [LICHESS.md](LICHESS.md) holds the policy, the
+  maintainer's checklist and the anti-abuse rules.
 
-Plan, in this order (milestone 5 comes two milestones before milestone 7, so
-the private test comes well before the bot is public):
+Plan, as amended by the maintainer on 2026-11-20. It replaces the earlier
+plan of a private test first and a public bot only after milestone 7:
 
-- **First, after milestone 5**, a private smoke test that the engine
-  plays complete games over the real protocol without losing on time,
-  crashing or making illegal moves.
-- **Later, going public: not before milestone 7**, which follows milestone
-  6, **and not before the branding above is done**, so the bot that other people
-  play has been through SPRT-tested search. Playing rated games with an
-  untested engine would say little and could annoy opponents.
-- Time management has to be sound first: `go wtime/btime/winc/binc` handling
-  is part of milestone 5, and a bot that flags is worse than no bot.
-- `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play once
-  they are calibrated.
+- **After the maintainer tags 0.1.0-alpha.1: a casual-only bot.** The
+  maintainer upgrades the account `Vyvrael-Chess` to BOT and runs
+  lichess-bot, on the Linux machine only, accepting casual challenges only. Casual games cost nobody
+  rating points, and they show whether the engine plays complete games over
+  the real protocol without losing on time, crashing or making illegal
+  moves.
+- **Rated play: not before 0.2.0 (milestone 7)**, which follows milestone
+  6, **and not before the branding above is done**, so a bot that plays for
+  rating has a measured strength and SPRT-accepted search. The maintainer
+  decides when, and re-reads the Lichess Terms of Service and Bot API
+  documentation first.
+- Until the upgrade nobody plays a game on the account: one game makes the
+  upgrade impossible.
+- A bot that loses on time is worse than no bot: the option `Move Overhead`
+  exists for this, and LICHESS.md gives a starting value.
+- `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play
+  once they are calibrated; on a rated account that would have to be said
+  in the profile.
 
-Open questions for the maintainer, to settle before going public: the
-branding (see above), the bot's
-account name, which time controls and variants to accept, whether to accept
-rated games and challenges from humans, other bots or both, and where the bot
-will run (it needs a machine that stays on).
+Still open for the maintainer, before rated play: the rest of the branding
+(see above), which time controls and variants to accept, and whether to
+accept challenges from humans, other bots or both.
 
 ## Ideas for later
 

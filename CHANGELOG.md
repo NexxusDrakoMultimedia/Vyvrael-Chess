@@ -3,10 +3,43 @@
 All notable changes to Vyvræl are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and the project intends to follow [Semantic Versioning](https://semver.org/)
-once it has a first release.
+and the project follows [Semantic Versioning](https://semver.org/). Before
+1.0.0 a minor version may change anything.
 
 ## [Unreleased]
+
+## [0.1.0-alpha.1] - 2026-11-21
+
+The first release: a complete UCI chess engine, in alpha. Release notes:
+[docs/releases/0.1.0-alpha.1.md](docs/releases/0.1.0-alpha.1.md).
+
+- **Strength is unmeasured** (known issue KI-8). No rating is claimed.
+- **`UCI_Elo` is not calibrated**: its settings are ordered, not measured.
+- **A casual-only Lichess bot is planned**; rated play waits for 0.2.0.
+- **Built under the 0rwx X scale**: written by AI coding agents and curated
+  by the maintainer, with trust resting on tests, documentation and small
+  commits.
+
+Entries marked "found before any release" describe defects that never
+shipped; they are kept as a record of what the reviews caught.
+
+### Changed
+
+- The project's tagline is now "A dragon-flavoured UCI chess engine in Rust,
+  built with AI and playing for the attack." It replaces "Dragon-flavoured,
+  aggressive, vibecoded UCI-compatible chess engine written in Rust." in the
+  README, the package description and the crate documentation. "Playing for
+  the attack" is a style goal; the engine's strength is not measured yet.
+- The time kept back on every move is no longer a fixed 30 ms: it is the
+  new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone;
+  `uci::MOVE_OVERHEAD_DEFAULT` and `uci::MOVE_OVERHEAD_MAX` give the
+  option's default and limit in milliseconds, and `uci::time_for_move` and
+  `uci::limits_for` take the overhead as an argument. With the default,
+  play is as before.
+- The Lichess plan: a casual-only bot account (`Vyvrael-Chess`) after the
+  first alpha release, and rated play only after 0.2.0. It replaces the
+  earlier plan of a private test first. The branding requirement now gates
+  rated play, not the first release.
 
 ### Fixed
 
@@ -42,6 +75,17 @@ once it has a first release.
 
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
+
+- `scripts/install_tools.py`: the lichess-bot service it writes restarted
+  the bot for ever, every ten seconds, whatever went wrong. It now restarts
+  only after a failure, 30 seconds apart, and gives up after three failed
+  starts in ten minutes, so a broken bot cannot abort game after game.
+
+- `scripts/install_tools.py`: the next steps printed after installing
+  lichess-bot no longer tell the user to enable the service at once. They
+  now say to set `config.yml` up as `docs/LICHESS.md` describes before the
+  first start, and to enable the service only after clean games from a
+  terminal.
 
 - `scripts/install_tools.py`: a `$` in the install path is now escaped in the
   systemd unit's `ExecStart`, where systemd would have expanded it.
@@ -210,3 +254,11 @@ once it has a first release.
 - Integration tests that drive the engine binary over pipes
   (`tests/uci.rs`).
 - Added Ladder Baseline 1 reference results (docs/testing/)
+- `docs/LICHESS.md`: the Lichess bot policy, the facts and rules it rests
+  on, a checklist for the maintainer, and the anti-abuse rules.
+- UCI option `Move Overhead` (spin, default 30, 0 to 5000 ms): time kept
+  back from every time limit for delays the engine cannot measure, such as
+  the network between a Lichess game and the engine.
+
+[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/tag/v0.1.0-alpha.1

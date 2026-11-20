@@ -256,7 +256,12 @@ impl Engine {
     fn go(&mut self, params: &GoParams) {
         self.end_search();
         self.stop.store(false, Ordering::Relaxed);
-        let limits = limits_for(params, self.position.side_to_move(), Instant::now());
+        let limits = limits_for(
+            params,
+            self.position.side_to_move(),
+            Instant::now(),
+            self.options.move_overhead(),
+        );
         // With nothing to end it, a search is `infinite` in all but name.
         let until_stopped = params.infinite || limits == Limits::NONE;
 
@@ -639,6 +644,32 @@ mod tests {
             assert!(started.elapsed() < Duration::from_secs(5), "{side}");
             assert!(lines.last().unwrap().starts_with("bestmove "));
         }
+    }
+
+    /// `Move Overhead` reaches the clock. With five seconds kept back from a
+    /// five-second move time there is a millisecond left, so the answer
+    /// comes at once; with the default 30 ms the same `go` would think for
+    /// almost five seconds.
+    #[test]
+    fn move_overhead_is_kept_back_from_the_clock() {
+        let (mut engine, captured) = engine();
+        engine.handle("setoption name Move Overhead value 5000");
+        assert_eq!(engine.options().move_overhead_ms, 5_000);
+        assert!(captured.lines().is_empty());
+        let started = Instant::now();
+        engine.handle(&format!("position fen {MIDDLEGAME} w - - 0 10"));
+        engine.handle("go movetime 5000");
+        engine.wait();
+        assert!(started.elapsed() < Duration::from_secs(3));
+        assert!(captured.lines().last().unwrap().starts_with("bestmove "));
+        // And the other way: with nothing kept back, a move time is used,
+        // so the search gets past the first depth.
+        let lines = played(&[
+            "setoption name Move Overhead value 0",
+            &format!("position fen {MIDDLEGAME} w - - 0 10"),
+            "go movetime 3000 depth 2",
+        ]);
+        assert!(lines.iter().any(|line| line.starts_with("info depth 2 ")));
     }
 
     /// Full strength draws no random numbers: a full-strength move played

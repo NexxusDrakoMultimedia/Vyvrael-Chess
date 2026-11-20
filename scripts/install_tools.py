@@ -549,20 +549,28 @@ def systemd_quote(value: str) -> str:
 
 
 def systemd_unit(python: Path, script: Path, workdir: Path, env_file: Path) -> str:
-    """The text of the user service that runs lichess-bot."""
+    """The text of the user service that runs lichess-bot.
+
+    The service is restarted only after a failure, and systemd gives up after
+    three failed starts in ten minutes. A bot that cannot run must stay down
+    until someone looks: one that reconnects for ever accepts and aborts game
+    after game, which Lichess forbids (see docs/LICHESS.md).
+    """
     start = f"{systemd_quote(str(python))} {systemd_quote(str(script))}"
     return (
         "[Unit]\n"
         "Description=Vyvrael on Lichess (lichess-bot)\n"
         "After=network-online.target\n"
-        "Wants=network-online.target\n\n"
+        "Wants=network-online.target\n"
+        "StartLimitIntervalSec=600\n"
+        "StartLimitBurst=3\n\n"
         "[Service]\n"
         "Environment=PYTHONUNBUFFERED=1\n"
         f"EnvironmentFile={str(env_file).replace('%', '%%')}\n"
         f"WorkingDirectory={str(workdir).replace('%', '%%')}\n"
         f"ExecStart={start}\n"
-        "Restart=always\n"
-        "RestartSec=10\n\n"
+        "Restart=on-failure\n"
+        "RestartSec=30\n\n"
         "[Install]\n"
         "WantedBy=default.target\n"
     )
@@ -736,11 +744,17 @@ lichess-bot next steps (manual by design):
      to nothing, it replaces any token in config.yml.
   3. Build Vyvræl. Without --engine, a new config.yml expects the binary at
      engines/vyvrael under the install prefix: outside lichess-bot's own
-     directory, which a reinstall replaces. Then run once:
+     directory, which a reinstall replaces.
+  4. Edit config.yml as the checklist in docs/LICHESS.md says BEFORE the
+     first start: casual games only, conservative time controls, ponder
+     off, and only UCI options Vyvræl has.
+  5. Then run once, from a terminal:
        vyvrael-lichess-bot -u
-     That upgrades the account to BOT. It is IRREVERSIBLE.
-  4. Afterwards: vyvrael-lichess-bot
-     (with --systemd: systemctl --user enable --now vyvrael-lichess-bot)
+     That upgrades the account to BOT. It is IRREVERSIBLE, and the bot may
+     start playing straight away. Watch the first games.
+  6. Afterwards: vyvrael-lichess-bot
+     Only once it has played cleanly from a terminal, with --systemd:
+       systemctl --user enable --now vyvrael-lichess-bot
   The launcher works from any directory: it changes into lichess-bot's own
   directory first, so config.yml there is the one used and a relative path
   given on its command line is read from there too."""

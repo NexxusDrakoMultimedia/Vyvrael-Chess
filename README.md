@@ -1,5 +1,5 @@
 # Vyvrael-Chess
-Dragon-flavoured, aggressive, vibecoded UCI-compatible chess engine written in Rust.
+A dragon-flavoured UCI chess engine in Rust, built with AI and playing for the attack.
 
 ## What it is
 
@@ -22,8 +22,8 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Pre-alpha: milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged.** The engine plays chess: it speaks UCI, so it works in a GUI
-and in match tools. It is still weak and slow, because the search has no
+**Alpha (0.1.0-alpha.1): milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged.** The engine plays chess: it speaks UCI, so it can be used in a
+GUI and in match tools. It is still weak and slow, because the search has no
 move ordering or transposition table yet (milestone 7), and its strength has
 not been measured (milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
@@ -65,11 +65,16 @@ is in [docs/UCI.md](docs/UCI.md).
 - **lichess-bot:** set `engine.name` to the binary name and
   `engine.protocol` to `uci` in `config.yml`.
 
-The protocol is tested by driving the binary over pipes
-(`tests/uci.rs`). It has **not yet been tried in a GUI or with lichess-bot**;
-that is the private smoke test planned next, and these instructions will be
-confirmed or corrected then. Running Vyvræl as a public Lichess bot is a
-planned feature with conditions; see [docs/ROADMAP.md](docs/ROADMAP.md).
+The protocol is tested by driving the binary over pipes (`tests/uci.rs`)
+and by complete games under `cutechess-cli` (see
+[docs/TESTING.md](docs/TESTING.md)). It has **not yet been tried in a GUI
+or with lichess-bot**, so these instructions are unconfirmed.
+
+The plan for Lichess is a bot account, `Vyvrael-Chess`, that plays **casual
+games only** once the first alpha is released. Rated games wait until the
+engine's strength has been measured and its search heuristics tested (after
+0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
+are in [docs/LICHESS.md](docs/LICHESS.md).
 
 ## Documentation
 
@@ -77,6 +82,8 @@ planned feature with conditions; see [docs/ROADMAP.md](docs/ROADMAP.md).
 - [docs/UCI.md](docs/UCI.md): supported commands and options
 - [docs/TESTING.md](docs/TESTING.md): tests, perft, strength testing
 - [docs/ROADMAP.md](docs/ROADMAP.md): milestones, status and known issues
+- [docs/LICHESS.md](docs/LICHESS.md): the Lichess bot, its policy and rules
+- [docs/releases/](docs/releases/): release notes
 - [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md): dependencies and licences
 - [docs/DATA.md](docs/DATA.md): datasets, books, tablebases, networks
 - [docs/NNUE.md](docs/NNUE.md): neural evaluation

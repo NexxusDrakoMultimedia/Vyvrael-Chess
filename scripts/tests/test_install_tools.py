@@ -550,6 +550,26 @@ class Systemd(unittest.TestCase):
         self.assertIn("EnvironmentFile=/home/me/.config/vyvrael/lichess-token.env\n", unit)
         self.assertEqual(len(re.findall(r"(?m)^\[(Unit|Service|Install)\]$", unit)), 3)
 
+    def test_unit_gives_up_on_a_bot_that_keeps_failing(self):
+        unit = install_tools.systemd_unit(
+            PurePosixPath("/opt/venv/bin/python"),
+            PurePosixPath("/opt/lichess-bot.py"),
+            PurePosixPath("/opt"),
+            PurePosixPath("/home/me/.config/vyvrael/lichess-token.env"),
+        )
+        sections = dict(
+            (name, body)
+            for name, body in re.findall(r"(?ms)^\[(\w+)\]\n(.*?)(?=^\[|\Z)", unit)
+        )
+        # Restarted after a crash, but never after a clean stop, and not for ever.
+        self.assertIn("Restart=on-failure\n", sections["Service"])
+        self.assertNotIn("Restart=always", unit)
+        self.assertIn("RestartSec=30\n", sections["Service"])
+        # The start limit belongs to [Unit]; in [Service] systemd ignores it.
+        self.assertIn("StartLimitIntervalSec=600\n", sections["Unit"])
+        self.assertIn("StartLimitBurst=3\n", sections["Unit"])
+        self.assertNotIn("StartLimit", sections["Service"])
+
 
 class TokenFile(unittest.TestCase):
     """The service's token file, written under a temporary XDG_CONFIG_HOME."""
