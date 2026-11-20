@@ -367,7 +367,7 @@ Part B, the match and rating scripts:
   for the modes `sprt`, `gauntlet` and `h2h`
 - [x] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
   versions, times) and the progress log
-- [ ] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
+- [x] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
 - [ ] `scripts/windows/match.ps1`: the same behaviour and flags
 - [ ] `scripts/windows/rate.ps1`: the same behaviour and flags
 - [ ] `docs/TESTING.md`: running the scripts, the fixed defaults, example

@@ -20,6 +20,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   command, engine names with the SHA-256 of each binary, the tool's
   version, start and end times), and it ends an SPRT by saying which
   hypothesis was accepted and at what LLR.
+- `scripts/linux/rate.sh`: runs Ordo over one or more PGN files with an
+  anchor engine (by default "Stockfish 19" at 0, as in Ladder Baseline 1),
+  writes a text table and a CSV, and prints the order with a reminder of
+  what the numbers do not say.
 
 ## [0.1.0-alpha.1] - 2026-11-21
 
