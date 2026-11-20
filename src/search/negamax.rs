@@ -175,8 +175,12 @@ impl<'a> Search<'a> {
     /// interrupts is thrown away. The search also ends early once it has
     /// found a forced mate that fits inside the depth just searched, because
     /// searching deeper cannot find a shorter one.
+    ///
+    /// Each call is a new search: the node count and the stopped state start
+    /// afresh, so one `Search` can be used for move after move.
     pub fn iterate(&mut self, pos: &Position, report: &mut dyn FnMut(&Report)) -> Outcome {
         let start = Instant::now();
+        self.begin();
         let deepest = self
             .limits
             .depth
@@ -184,7 +188,7 @@ impl<'a> Search<'a> {
         let mut best: Option<Outcome> = None;
         for depth in 1..=deepest {
             self.limits_apply = depth > 1;
-            let outcome = self.fixed_depth(pos, depth);
+            let outcome = self.search_root(pos, depth);
             if self.stopped {
                 break;
             }
@@ -228,7 +232,14 @@ impl<'a> Search<'a> {
         line.extend_from_slice(&lower[0]);
     }
 
-    /// How many positions have been visited so far.
+    /// Starts a new search: forgets the node count and the stopped state of
+    /// the one before. The game history and the limits are kept.
+    const fn begin(&mut self) {
+        self.nodes = 0;
+        self.stopped = false;
+    }
+
+    /// How many positions the current or most recent search has visited.
     #[must_use]
     pub const fn nodes(&self) -> u64 {
         self.nodes
@@ -244,6 +255,8 @@ impl<'a> Search<'a> {
     /// [`Search::was_stopped`] is true and the outcome covers only the root
     /// moves that were searched completely, which may be none.
     ///
+    /// Each call is a new search, as with [`Search::iterate`].
+    ///
     /// # Panics
     ///
     /// Panics if `depth` is 0 or more than [`MAX_PLY`].
@@ -252,6 +265,14 @@ impl<'a> Search<'a> {
             depth >= 1 && depth as usize <= MAX_PLY,
             "search depth must be between 1 and MAX_PLY"
         );
+        self.begin();
+        self.search_root(pos, depth)
+    }
+
+    /// One fixed-depth search from the root, as part of the search already
+    /// begun: [`Search::iterate`] calls this once per depth and the node
+    /// count carries on from one depth to the next.
+    fn search_root(&mut self, pos: &Position, depth: u32) -> Outcome {
         self.pv[0].clear();
         let mut alpha = -INFINITY;
         let mut best_move = None;
@@ -954,6 +975,29 @@ mod tests {
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
         let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| {});
         assert_eq!(outcome, search(KIWIPETE, 1));
+    }
+
+    /// A `Search` is not used up by a search that was cut short: the next
+    /// call starts afresh, and its first iteration completes as promised.
+    #[test]
+    fn a_stopped_search_can_be_used_again() {
+        let pos = fen(ROOK_ENDGAME);
+        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(500));
+        let first = searcher.iterate(&pos, &mut |_| {});
+        assert!(searcher.was_stopped());
+        let first_nodes = searcher.nodes();
+
+        let second = searcher.iterate(&pos, &mut |_| {});
+        assert_eq!(second, first, "the same search gives the same answer");
+        assert_eq!(searcher.nodes(), first_nodes, "the count starts afresh");
+
+        // The same for fixed-depth searches: a stopped one, then a full one.
+        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(500));
+        searcher.fixed_depth(&pos, 6);
+        assert!(searcher.was_stopped());
+        searcher.limits = Limits::NONE;
+        assert_eq!(searcher.fixed_depth(&pos, 2), search(ROOK_ENDGAME, 2));
+        assert!(!searcher.was_stopped());
     }
 
     #[test]
