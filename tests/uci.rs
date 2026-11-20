@@ -44,8 +44,14 @@ impl Engine {
     }
 
     fn send(&mut self, line: &str) {
+        self.send_bytes(line.as_bytes());
+    }
+
+    /// Sends a line that need not be text.
+    fn send_bytes(&mut self, line: &[u8]) {
         let stdin = self.stdin.as_mut().expect("input is still open");
-        writeln!(stdin, "{line}").unwrap();
+        stdin.write_all(line).unwrap();
+        stdin.write_all(b"\n").unwrap();
         stdin.flush().unwrap();
     }
 
@@ -210,11 +216,15 @@ fn bad_input_is_survived() {
         "setoption name Hash value -5",
         "setoption name NoSuchOption value 1",
         "setoption",
-        "go depth banana wtime x",
-        "stop",
     ] {
         engine.send(line);
     }
+    // Not even text: bytes that are not UTF-8, as a line of their own and
+    // inside a command.
+    engine.send_bytes(b"\xff\xfe\x00 noise");
+    engine.send_bytes(b"setoption name Hash value caf\xe9");
+    engine.send("go depth banana wtime x");
+    engine.send("stop");
     // `go depth banana wtime x` has no usable limit, so it is an infinite
     // search, and `stop` ended it. Everything before it was refused.
     let lines = engine.lines_until("bestmove");
@@ -222,7 +232,7 @@ fn bad_input_is_survived() {
         .iter()
         .filter(|line| line.starts_with("info string "))
         .count();
-    assert_eq!(refusals, 8, "{lines:?}");
+    assert_eq!(refusals, 10, "{lines:?}");
     // The refused `position` commands left the start position in place.
     let best = lines.last().unwrap().strip_prefix("bestmove ").unwrap();
     assert!(find_legal_move(&Position::startpos(), best).is_some());

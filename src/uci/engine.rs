@@ -336,14 +336,31 @@ impl Engine {
 /// Runs the protocol loop: reads commands from `input` until `quit` or the
 /// end of the input, writing protocol output to `out`.
 ///
+/// Lines are read as bytes. One that is not valid UTF-8 (a file path in an
+/// old code page, line noise) is not an error: the bad bytes are replaced
+/// and the line is handled like any other, which usually means it is
+/// reported as not understood.
+///
 /// # Errors
 ///
-/// Returns an error if reading `input` fails.
-pub fn run(input: impl BufRead, out: Box<dyn Write + Send>) -> io::Result<()> {
+/// Returns an error if reading `input` fails. A search that was running is
+/// allowed to finish and report first.
+pub fn run(mut input: impl BufRead, out: Box<dyn Write + Send>) -> io::Result<()> {
     let mut engine = Engine::new(out);
-    for line in input.lines() {
-        if !engine.handle(&line?) {
-            return Ok(());
+    let mut bytes = Vec::new();
+    loop {
+        bytes.clear();
+        match input.read_until(b'\n', &mut bytes) {
+            Ok(0) => break,
+            Ok(_) => {
+                if !engine.handle(&String::from_utf8_lossy(&bytes)) {
+                    return Ok(());
+                }
+            }
+            Err(problem) => {
+                engine.wait();
+                return Err(problem);
+            }
         }
     }
     engine.wait();
@@ -1014,6 +1031,58 @@ mod tests {
         // `quit` is read.
         assert_eq!(lines.iter().filter(|line| *line == "readyok").count(), 1);
         assert!(lines.last().unwrap().starts_with("bestmove "));
+    }
+
+    /// Bytes that are not UTF-8 spoil one line, not the session: the line
+    /// is reported like anything else that is not understood, the commands
+    /// after it are read, and a search that was running still reports.
+    #[test]
+    fn input_that_is_not_utf8_is_survived() {
+        let captured = Captured::default();
+        let mut input = b"go depth 2\n".to_vec();
+        input.extend_from_slice(b"\xff\xfe junk\n");
+        input.extend_from_slice(b"setoption name Hash value caf\xe9\n");
+        input.extend_from_slice(b"isready\n");
+        run(input.as_slice(), Box::new(captured.clone())).unwrap();
+        let lines = captured.lines();
+        assert_eq!(best_moves(&captured), 1, "{lines:?}");
+        assert!(lines.contains(&"readyok".to_string()));
+        assert!(
+            lines.contains(&"info string unknown command: \u{fffd}\u{fffd} junk".to_string()),
+            "{lines:?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("info string Hash: expected")),
+            "{lines:?}"
+        );
+    }
+
+    /// A reader that fails after its first line.
+    struct Failing(bool);
+
+    impl io::Read for Failing {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            if self.0 {
+                return Err(io::Error::other("the pipe broke"));
+            }
+            self.0 = true;
+            let line = b"go depth 2\n";
+            buffer[..line.len()].copy_from_slice(line);
+            Ok(line.len())
+        }
+    }
+
+    #[test]
+    fn a_read_error_ends_the_loop_after_the_search_has_reported() {
+        let captured = Captured::default();
+        let result = run(
+            io::BufReader::new(Failing(false)),
+            Box::new(captured.clone()),
+        );
+        assert_eq!(result.unwrap_err().to_string(), "the pipe broke");
+        assert_eq!(best_moves(&captured), 1, "{:?}", captured.lines());
     }
 
     #[test]

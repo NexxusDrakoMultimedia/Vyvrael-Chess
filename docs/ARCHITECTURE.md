@@ -666,6 +666,8 @@ and option is listed in [UCI.md](UCI.md).
     `DeterministicRNG`, otherwise from a new entropy seed that is logged
     there. Either way one logged number replays one game, including the
     later games of a session, which is how match tools play.
+  - **Bytes, not text.** `run` reads lines as bytes and replaces what is
+    not valid UTF-8, so a stray byte spoils one line and not the session.
   - **End of input** without `quit` lets a running search finish and report,
     so a script that pipes commands in gets its answer.
 

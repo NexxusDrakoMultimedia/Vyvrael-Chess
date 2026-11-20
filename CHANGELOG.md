@@ -10,6 +10,11 @@ once it has a first release.
 
 ### Fixed
 
+- A line of input that was not valid UTF-8 ended the engine silently, with
+  no `bestmove` for a running search. Such a line is now handled like any
+  other line that is not understood. Found in the milestone 5 review, before
+  any release.
+
 - A limited-strength game played with an entropy seed could not be replayed
   from the logged seed after the first game of a session. Every
   `ucinewgame` now takes and logs a seed of its own when no seed was chosen.

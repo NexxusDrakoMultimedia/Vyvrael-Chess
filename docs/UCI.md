@@ -88,6 +88,9 @@ Nothing a GUI sends can make the engine play an illegal move or crash.
   one is not legal, or is not a move, the **whole command is refused**: the
   engine says which move with `info string` and keeps the position it had.
 - A FEN that does not describe a legal position is refused in the same way.
+- Input need not even be text. Bytes that are not valid UTF-8 are replaced
+  and the line is handled like any other, which normally means it is
+  reported as not understood. They do not end the engine.
 - A line with no known command, or a known command that cannot be
   understood, is reported with `info string` and otherwise ignored. Words
   before the first known command are skipped, as the protocol asks.
