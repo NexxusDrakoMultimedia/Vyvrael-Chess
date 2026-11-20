@@ -374,6 +374,49 @@ inferred from it.
   is git-ignored. The SHA-256 in the baseline file is of the maintainer's
   local copy.
 
+## Complete games in cutechess-cli (release check)
+
+Before a release the engine must play complete games in `cutechess-cli`
+with no illegal move, crash, stall or loss on time. Until the match scripts
+exist this is a plain command, run from the repository root after
+`cargo build --release`. The settings are those of Ladder Baseline 1. Give
+the opening file's location in `BOOK`; the output folder `matches/` is
+git-ignored.
+
+```sh
+cutechess-cli   -engine name="Vyvrael 0.1.0-a1" cmd=target/release/vyvrael proto=uci           option.Hash=64 option.Threads=1   -engine name="Vyvrael 0.1.0-a1 (2)" cmd=target/release/vyvrael proto=uci           option.Hash=64 option.Threads=1   -each tc=10+0.1   -openings file="$BOOK" format=epd order=random   -games 2 -repeat -rounds 10   -resign movecount=3 score=700 twosided=true   -draw movenumber=34 movecount=10 score=20   -recover -concurrency 6 -srand 822286742 -ratinginterval 10   -pgnout matches/selfplay.pgn
+```
+
+For games against other engines, add `-tournament gauntlet`, keep Vyvræl as
+the first engine, and replace the second with one `-engine conf="<name>"`
+per opponent, where the name is the one in Cute Chess's own `engines.json`
+(the names of Ladder Baseline 1). `-rounds 4` then gives eight games against
+each. Every flag above was checked against `cutechess-cli --help` of
+version 1.5.1.
+
+How to read it: the PGN's last comment of each game says how it ended.
+"mates", a draw by rule, and "wins by adjudication" are complete games.
+"loses on time", "makes an illegal move", "disconnects" or "connection
+stalls" are failures, and so is any game missing from the count.
+
+**Result for 0.1.0-alpha.1**, run on 2026-11-20 on the Windows workstation
+(Ryzen 7 5700X, six games at a time) with cutechess-cli 1.5.1, on the commit
+that added `Move Overhead`:
+
+| Run | Games | Mate | Draw by rule | Adjudicated | Illegal moves, crashes, stalls, time losses |
+| --- | --- | --- | --- | --- | --- |
+| Self-play | 20 | 2 | 2 | 16 | 0 |
+| Gauntlet against Arasan 26.1-1500, Stockfish 19-1320, Rodent IV-1600, Vice 1.1 and Rustic Alpha 1.5 | 40 | 4 | 2 | 34 | 0 |
+
+The longest game ran 238 plies. In the gauntlet log `cutechess-cli` warned
+four times, "EngineProcess: Destroyed while process is still running"; each
+time between games, after one against Arasan, and no game was affected. The
+games were not kept in the repository.
+
+**This is a check that games complete, not a measurement of strength.**
+Forty games against five opponents say nothing reliable about a rating;
+that is milestone 6 (known issue KI-8).
+
 ## Strength matches and SPRT (planned, milestone 6)
 
 Search, evaluation and network changes are accepted only when a sequential
