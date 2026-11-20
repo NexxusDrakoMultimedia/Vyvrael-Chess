@@ -609,7 +609,9 @@ def record_as_installed(prefix: str, tool: str) -> None:
     """Makes `prefix` look as if the pinned version of `tool` were installed."""
     pin = install_tools.PINS[tool]
     ctx = install_tools.Ctx(args(prefix=prefix))
-    (ctx.prefix / tool).mkdir(parents=True, exist_ok=True)
+    for path in install_tools.tool_files(ctx, tool):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
     info = {"version": pin["version"], "sha256": pin["sha256"], "path": str(ctx.prefix / tool)}
     if "commit" in pin:
         info["commit"] = pin["commit"]
@@ -645,6 +647,140 @@ class DryRun(unittest.TestCase):
             self.assertIn("cutechess", out)
             self.assertIn("ordo", out)
             self.assertEqual(list(Path(tmp).iterdir()), [])
+
+
+class Installed(unittest.TestCase):
+    """When a tool counts as installed."""
+
+    def ctx(self, tmp: str):
+        return install_tools.Ctx(args(prefix=tmp))
+
+    def test_recorded_pin_with_its_files_is_installed(self):
+        for tool in install_tools.TOOLS:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.assertFalse(install_tools.is_installed(self.ctx(tmp), tool), tool)
+                record_as_installed(tmp, tool)
+                self.assertTrue(install_tools.is_installed(self.ctx(tmp), tool), tool)
+
+    def test_another_version_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record_as_installed(tmp, "ordo")
+            ctx = self.ctx(tmp)
+            ctx.record("ordo", dict(ctx.installed_entry("ordo"), version="v0"))
+            self.assertFalse(install_tools.is_installed(ctx, "ordo"))
+
+    def test_the_same_version_at_another_commit_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record_as_installed(tmp, "lichess-bot")
+            ctx = self.ctx(tmp)
+            ctx.record("lichess-bot", dict(ctx.installed_entry("lichess-bot"), commit="0" * 40))
+            self.assertFalse(install_tools.is_installed(ctx, "lichess-bot"))
+
+    def test_the_same_version_with_another_pinned_digest_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record_as_installed(tmp, "cutechess")
+            ctx = self.ctx(tmp)
+            ctx.record("cutechess", dict(ctx.installed_entry("cutechess"), sha256="0" * 64))
+            self.assertFalse(install_tools.is_installed(ctx, "cutechess"))
+
+    def test_a_recorded_tool_whose_files_are_gone_is_not(self):
+        for tool in install_tools.TOOLS:
+            for index in range(len(install_tools.tool_files(self.ctx("."), tool))):
+                with tempfile.TemporaryDirectory() as tmp:
+                    record_as_installed(tmp, tool)
+                    install_tools.tool_files(self.ctx(tmp), tool)[index].unlink()
+                    self.assertFalse(install_tools.is_installed(self.ctx(tmp), tool), tool)
+
+
+class Rerun(unittest.TestCase):
+    """A real run over tools that are already installed.
+
+    `main` refuses to run for real off Linux, so the platform is patched;
+    the installers are replaced by mocks, so nothing can be fetched.
+    """
+
+    def run_installed(self, tmp: str, argv: list[str], tools=install_tools.TOOLS):
+        """Runs `main` with prefix <tmp>/prefix and configuration home
+        <tmp>/config, after recording `tools` there as installed."""
+        for tool in tools:
+            record_as_installed(self.prefix(tmp), tool)
+        installers = {tool: mock.Mock() for tool in install_tools.TOOLS}
+        with mock.patch.object(sys, "platform", "linux"), mock.patch.dict(
+            install_tools.INSTALLERS, installers
+        ), mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(Path(tmp) / "config")}
+        ), mock.patch.object(install_tools, "verify"):
+            out = run_main(["--prefix", self.prefix(tmp), *argv])
+        return out, installers
+
+    def prefix(self, tmp: str) -> str:
+        return str(Path(tmp).resolve() / "prefix")
+
+    def test_rewrites_launchers_into_a_new_bin_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = Path(tmp).resolve() / "elsewhere"
+            out, installers = self.run_installed(tmp, ["--bin-dir", str(bin_dir)])
+            self.assertEqual(
+                sorted(p.name for p in bin_dir.iterdir()), ["cutechess", "cutechess-cli", "ordo"]
+            )
+            for installer in installers.values():
+                installer.assert_not_called()
+            self.assertIn("ordo: v1.2.6 already installed", out)
+            # The closing hint names the directory the launchers really are in.
+            self.assertIn(f"launchers are in {bin_dir}", out)
+
+    def test_restores_a_deleted_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_installed(tmp, ["--tool", "ordo"])
+            launcher = Path(self.prefix(tmp)) / "bin/ordo"
+            text = launcher.read_text()
+            self.assertIn("exec ", text)
+            launcher.unlink()
+            self.run_installed(tmp, ["--tool", "ordo"])
+            self.assertEqual(launcher.read_text(), text)
+
+    def test_systemd_is_honoured_without_force(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, installers = self.run_installed(tmp, ["--tool", "lichess-bot", "--systemd"])
+            installers["lichess-bot"].assert_not_called()
+            unit = Path(tmp) / "config/systemd/user/vyvrael-lichess-bot.service"
+            self.assertIn("ExecStart=", unit.read_text())
+            self.assertTrue((Path(tmp) / "config/vyvrael/lichess-token.env").is_file())
+            launcher = (Path(self.prefix(tmp)) / "bin/vyvrael-lichess-bot").read_text()
+            self.assertIn("\ncd ", launcher)
+            self.assertIn("NOT enabled or started", out)
+
+    def test_no_service_without_systemd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_installed(tmp, ["--tool", "lichess-bot"])
+            self.assertTrue((Path(self.prefix(tmp)) / "bin/vyvrael-lichess-bot").is_file())
+            self.assertFalse((Path(tmp) / "config").exists())
+
+    def test_says_that_engine_was_not_applied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["--tool", "lichess-bot", "--engine", str(Path(tmp) / "vyvrael")]
+            out, _ = self.run_installed(tmp, argv)
+            self.assertIn("--engine is only used when config.yml is first written", out)
+            out, _ = self.run_installed(tmp, ["--tool", "lichess-bot"])
+            self.assertNotIn("--engine is only used", out)
+
+    def test_a_stale_record_runs_the_installer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record_as_installed(self.prefix(tmp), "ordo")
+            ctx = install_tools.Ctx(args(prefix=self.prefix(tmp)))
+            ctx.record("ordo", dict(ctx.installed_entry("ordo"), commit="0" * 40))
+            out, installers = self.run_installed(tmp, ["--tool", "ordo"], tools=[])
+            installers["ordo"].assert_called_once()
+            self.assertNotIn("already installed", out)
+
+    def test_a_dry_run_only_says_what_it_would_rewrite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["--dry-run", "--tool", "lichess-bot", "--systemd"]
+            out, _ = self.run_installed(tmp, argv)
+            self.assertIn("[dry-run] would rewrite its launchers in", out)
+            self.assertIn("and the user service", out)
+            self.assertFalse((Path(self.prefix(tmp)) / "bin").exists())
+            self.assertFalse((Path(tmp) / "config").exists())
 
 
 class CommandLine(unittest.TestCase):

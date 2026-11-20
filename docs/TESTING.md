@@ -283,6 +283,11 @@ What to know before running it:
 - **Where things go:** programs under `~/.local/share/vyvrael-tools`, launchers
   in `~/.local/bin`. With `--prefix DIR` everything, launchers included, stays
   under `DIR`. Re-running is safe; `--force` reinstalls.
+- **A re-run skips what is already installed** (recorded at the pinned
+  version, commit and digest, with its files still there) but still rewrites
+  that tool's launchers, so a new `--bin-dir` or an added `--systemd` takes
+  effect without `--force`. `--engine` is only used when `config.yml` is
+  first written; after that, edit `config.yml`.
 - **What a lichess-bot reinstall keeps:** `config.yml`, the virtual
   environment, and any top-level file or directory of yours that the release
   does not ship. Everything the release ships is replaced by the pinned

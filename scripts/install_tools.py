@@ -285,9 +285,13 @@ class Ctx:
             return {}
         return data if isinstance(data, dict) else {}
 
-    def installed_version(self, tool: str) -> str | None:
+    def installed_entry(self, tool: str) -> dict:
+        """What the manifest records about `tool`; empty when nothing usable."""
         entry = self._read_manifest().get(tool)
-        return entry.get("version") if isinstance(entry, dict) else None
+        return entry if isinstance(entry, dict) else {}
+
+    def installed_version(self, tool: str) -> str | None:
+        return self.installed_entry(tool).get("version")
 
     def record(self, tool: str, info: dict) -> None:
         manifest = self._read_manifest()
@@ -318,6 +322,87 @@ def shim_text(target: Path, args: list[str], env: dict, cwd: Path | None = None)
     return f'#!/bin/sh\n{enter}{assignments}exec {shlex.quote(str(target))} {fixed}"$@"\n'
 
 
+# ---------------------------------------------------------------- launchers
+def tool_files(ctx: Ctx, tool: str) -> list[Path]:
+    """The installed files the launchers of `tool` run, program first."""
+    dest = ctx.prefix / tool
+    if tool == "cutechess":
+        return [dest / PINS["cutechess"]["url"].rsplit("/", 1)[-1]]
+    if tool == "ordo":
+        return [dest / "ordo"]
+    return [dest / "lichess-bot.py", dest / "venv/bin/python"]
+
+
+def write_launchers(ctx: Ctx, tool: str) -> None:
+    """Writes the launchers of an installed `tool` and, for lichess-bot with
+    --systemd, its user service.
+
+    Kept apart from the installers so that a re-run of an installed tool can
+    still honour --bin-dir and --systemd without reinstalling anything.
+    """
+    dest = ctx.prefix / tool
+    files = tool_files(ctx, tool)
+    if tool == "cutechess":
+        # EXTRACT_AND_RUN lets the AppImage run without libfuse2, which
+        # recent Ubuntu releases do not install. The AppImage bundles both
+        # programs; the command-line one is selected with a leading "cli"
+        # argument. If the check after installing fails, run the AppImage
+        # with --appimage-help to see how this release exposes cutechess-cli.
+        env = {"APPIMAGE_EXTRACT_AND_RUN": "1"}
+        ctx.shim("cutechess-cli", files[0], ["cli"], env)
+        ctx.shim("cutechess", files[0], [], env)
+    elif tool == "ordo":
+        ctx.shim("ordo", files[0])
+    else:
+        script, python = files
+        # lichess-bot reads ./config.yml and resolves relative paths in it
+        # against the current directory, so the launcher runs it from its
+        # own directory, as the systemd unit does with WorkingDirectory.
+        ctx.shim("vyvrael-lichess-bot", python, [str(script)], cwd=dest)
+        if ctx.args.systemd:
+            write_systemd_unit(dest, python)
+
+
+def is_installed(ctx: Ctx, tool: str) -> bool:
+    """Whether the pinned `tool` is installed: recorded as exactly what PINS
+    names (version, commit, and digest where one is pinned) and still on disk.
+    """
+    pin = PINS[tool]
+    entry = ctx.installed_entry(tool)
+    if entry.get("version") != pin["version"]:
+        return False
+    if "commit" in pin and entry.get("commit") != pin["commit"]:
+        return False
+    if pin["sha256"] is not None and entry.get("sha256") != pin["sha256"]:
+        return False
+    return all(path.exists() for path in tool_files(ctx, tool))
+
+
+def engine_option_note(ctx: Ctx) -> None:
+    """Says that --engine did nothing, when it was given beside a kept config."""
+    if ctx.args.engine:
+        config = ctx.prefix / "lichess-bot/config.yml"
+        say("  note: --engine is only used when config.yml is first written. To change the")
+        say(f"  engine, edit dir and name under engine: in {config}")
+
+
+def refresh_installed(ctx: Ctx, tool: str) -> None:
+    """What a run still does for a tool that is already installed.
+
+    The launchers are rewritten, so --bin-dir takes effect and a deleted
+    launcher comes back, and --systemd writes the service. Nothing is
+    downloaded and the install itself is not touched.
+    """
+    service = " and the user service" if tool == "lichess-bot" and ctx.args.systemd else ""
+    if ctx.dry:
+        say(f"  [dry-run] would rewrite its launchers in {ctx.bin}{service}")
+    else:
+        write_launchers(ctx, tool)
+        say(f"  launchers rewritten in {ctx.bin}")
+    if tool == "lichess-bot":
+        engine_option_note(ctx)
+
+
 # ---------------------------------------------------------------- installers
 def install_cutechess(ctx: Ctx) -> None:
     pin = PINS["cutechess"]
@@ -333,15 +418,7 @@ def install_cutechess(ctx: Ctx) -> None:
         download(pin["url"], app, pin["sha256"])
         make_exec(app)
         replace_dir(staged, dest)
-    app = dest / name
-    # EXTRACT_AND_RUN lets the AppImage run without libfuse2, which recent
-    # Ubuntu releases do not install. The AppImage bundles both programs; the
-    # command-line one is selected with a leading "cli" argument. If the
-    # check below fails, run the AppImage with --appimage-help to see how
-    # this release exposes cutechess-cli.
-    env = {"APPIMAGE_EXTRACT_AND_RUN": "1"}
-    ctx.shim("cutechess-cli", app, ["cli"], env)
-    ctx.shim("cutechess", app, [], env)
+    write_launchers(ctx, "cutechess")
     ctx.record("cutechess", {"version": pin["version"], "sha256": pin["sha256"], "path": str(dest)})
 
 
@@ -372,7 +449,7 @@ def install_ordo(ctx: Ctx) -> None:
         shutil.copy2(built, staged / "ordo")
         make_exec(staged / "ordo")
         replace_dir(staged, dest)
-    ctx.shim("ordo", dest / "ordo")
+    write_launchers(ctx, "ordo")
     ctx.record(
         "ordo",
         {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)},
@@ -521,6 +598,7 @@ def install_lichess_bot(ctx: Ctx) -> None:
 
     if kept_config:
         say("  kept your existing config.yml")
+        engine_option_note(ctx)
     else:
         engine_dir, engine_name = engine_location(ctx.args, ctx.prefix)
         template = (dest / "config.yml.default").read_text()
@@ -537,12 +615,7 @@ def install_lichess_bot(ctx: Ctx) -> None:
         say("  everything else in that directory was replaced by the pinned release:")
         say("  edits to its files, and files added inside its directories, are gone")
 
-    # lichess-bot reads ./config.yml and resolves relative paths in it against
-    # the current directory, so the launcher runs it from its own directory,
-    # as the systemd unit does with WorkingDirectory.
-    ctx.shim("vyvrael-lichess-bot", python, [str(dest / "lichess-bot.py")], cwd=dest)
-    if ctx.args.systemd:
-        write_systemd_unit(dest, python)
+    write_launchers(ctx, "lichess-bot")
     ctx.record(
         "lichess-bot",
         {"version": pin["version"], "commit": pin["commit"], "sha256": seen, "path": str(dest)},
@@ -678,11 +751,11 @@ def main(argv: list[str] | None = None) -> None:
     if "all" in wanted:
         wanted = TOOLS
     for tool in wanted:
-        have = ctx.installed_version(tool)
         # No dry-run exception here: a dry run reports what a real run would
         # do, and a real run skips a tool that is already installed.
-        if have == PINS[tool]["version"] and not args.force:
-            say(f"{tool}: {have} already installed (use --force to reinstall)")
+        if is_installed(ctx, tool) and not args.force:
+            say(f"{tool}: {PINS[tool]['version']} already installed (use --force to reinstall)")
+            refresh_installed(ctx, tool)
             continue
         INSTALLERS[tool](ctx)
         if not args.dry_run:

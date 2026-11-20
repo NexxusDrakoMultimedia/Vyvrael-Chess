@@ -55,6 +55,11 @@ once it has a first release.
 - `scripts/install_tools.py`: `--dry-run` now reports an already installed
   tool as such, as a real run does, instead of saying it would install it.
 
+- `scripts/install_tools.py`: a re-run over an installed tool now rewrites
+  its launchers and honours `--bin-dir` and `--systemd`, says when `--engine`
+  was not applied, and no longer counts a tool as installed when its files
+  are gone or the pinned commit or digest changed.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool
