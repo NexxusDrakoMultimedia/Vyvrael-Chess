@@ -13,7 +13,7 @@ them.
 | 1 | Board | `milestone/1-board` | done, merged into `main` |
 | 2 | Move generation | `milestone/2-movegen` | done, merged into `main` |
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
-| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | not started |
+| 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | in progress |
 | 5 | UCI | `milestone/5-uci` | not started |
 | 6 | Strength testing | `milestone/6-strength` | not started |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
@@ -175,7 +175,35 @@ The end-of-milestone review found no defect in the evaluation code. It
 strengthened the tests (the blended total is now pinned at phases between
 the endpoints) and corrected two comments that overstated what the tables do.
 
-## Milestones 4 to 10
+## Milestone 4: search core
+
+Scope: the part of search that everything else depends on. Negamax with
+alpha-beta pruning, iterative deepening and quiescence search, plus what a
+search needs to be correct in a real game: mate scores, draw detection, a
+principal variation, and a way to stop. Move ordering, the transposition
+table, null-move pruning and late move reductions are milestone 7, where
+each can be accepted by SPRT.
+
+There is no earlier search to compare against, so this milestone is checked
+by correctness, not strength: forced mates are found at the right depth,
+alpha-beta returns exactly the score of a plain minimax search, draws are
+recognised, and fixed-depth node counts are pinned so that any change in
+behaviour is noticed.
+
+- [ ] `eval`: `Send + Sync` bounds on `Evaluator`
+- [ ] `search`: score constants and mate-score arithmetic
+- [ ] `search`: negamax with alpha-beta at fixed depth
+- [ ] `search`: draw detection (fifty-move rule, repetition, bare material)
+- [ ] `search`: principal variation
+- [ ] `search`: limits and stopping (depth, nodes, time, stop flag)
+- [ ] `search`: iterative deepening with progress reports
+- [ ] `search`: quiescence search
+- [ ] `cli`: `search` subcommand
+- [ ] `search`: pinned fixed-depth node counts
+- [ ] `search`: measure make/unmake against copy-make and choose
+- [ ] End-of-milestone review and doc drift pass
+
+## Milestones 5 to 10
 
 Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
