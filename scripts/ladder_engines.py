@@ -66,14 +66,15 @@ ENGINES = [
         "sha256": "33c0c4f8f70c3ed5e4aa086b9cffd542ad7af616ab4adc9662e9b56fcff91ac5",
         "archive": "tar.gz",
         "binary": "26.1/arasanx-64-avx2-bmi2",
-        "beside": ["26.1/arasanv8-20261005.nnue"],
+        "beside": ["26.1/arasanv8-20261005.nnue", "26.1/book.bin"],
         "hash": True,
         "threads": True,
         "limit": (1000, 3450),
         "variants": [1500, 1800],
         "notes": "The archive also holds an AVX-512 binary, which is not used. The network "
-        "file must sit beside the binary. The engine's own book (book.bin) is not "
-        "installed, so it cannot play from it. UCI_Elo moves in steps of about 24.5: "
+        "file must sit beside the binary. The engine's own book (book.bin) is installed "
+        "beside it too, as it was in the baseline run, and the book option is left at "
+        "the engine's default. UCI_Elo moves in steps of about 24.5: "
         "1500 and 1800 play as 1490 and 1784 on the engine's own scale.",
     },
     {
@@ -259,6 +260,31 @@ ENGINES = [
         "(performance.bin) is not placed beside the installed binary.",
     },
     {
+        "name": "Fruit 2.1",
+        "version": "2.1 (Debian's original tarball, 2.1.dfsg)",
+        "source": "https://deb.debian.org/debian/pool/main/f/fruit/",
+        "licence": "GPL-2.0",
+        "method": "build",
+        "url": "https://deb.debian.org/debian/pool/main/f/fruit/fruit_2.1.dfsg.orig.tar.gz",
+        "sha256": "9bf6364a15f697ed8f79757e9f0f4e149987ba33693e3b79f2a210a26b9edcc3",
+        "archive": "tar.gz",
+        "binary": "src/fruit",
+        "beside": ["book_small.bin"],
+        "build": {
+            "dir": "src",
+            "command": ["make", "CXX=g++ -march=haswell"],
+            "tools": ["g++", "make"],
+        },
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "Not from the project's own page: the author's site is gone, and this is "
+        "the original source as Debian keeps it, accepted by the maintainer on "
+        "2026-11-21. The digest is the one in Debian's signed source description. The "
+        "readme says to set -march in the makefile; it is passed through CXX instead. "
+        "The small book the source ships with is installed beside the binary.",
+    },
+    {
         "name": "Rustic Alpha 1.5",
         "version": "1.5.0 (branch release/alpha-1/1.5)",
         "source": "https://codeberg.org/mvanthoor/rustic",
@@ -317,9 +343,6 @@ ENGINES = [
 NOT_INSTALLABLE = {
     "Orion 1.1": "The official site (orionchess.com) offers Windows programs only and the "
     "source is not published, so there is nothing to download or build for Linux.",
-    "Fruit 2.1": "The author's own site is gone. The source survives in Debian's archive "
-    "(fruit_2.1.dfsg.orig.tar.gz), which is not the project's own page; it is left out "
-    "until the maintainer accepts that source.",
 }
 
 # What every engine of the ladder is given, as in the baseline.

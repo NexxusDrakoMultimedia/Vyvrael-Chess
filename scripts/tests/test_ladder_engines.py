@@ -22,7 +22,8 @@ BASELINE = Path(__file__).resolve().parents[2] / "docs/testing/ladder-Baseline-1
 def baseline_names() -> list[str]:
     """The names in the baseline's ratings file. One of them, "Stockfish
     19-2400 ", carries a trailing space there, from the engine list the run
-    was made with; names are compared without it."""
+    was made with. The maintainer decided on 2026-11-21 that the name is
+    written without it from now on, so names are compared without it."""
     with open(BASELINE, encoding="utf-8", newline="") as handle:
         return [row["PLAYER"].strip() for row in csv.DictReader(handle)]
 
@@ -37,12 +38,16 @@ class LadderEnginesTest(unittest.TestCase):
         # Every name of the baseline is either provided or listed as left
         # out with a reason, and nothing else is: no invented engines.
         self.assertEqual(sorted(provided + left_out), sorted(baseline))
+        self.assertEqual(left_out, ["Orion 1.1"])
         for reason in ladder_engines.NOT_INSTALLABLE.values():
             self.assertGreater(len(reason), 40)
+        # No generated name carries a stray space.
+        for name in provided:
+            self.assertEqual(name, name.strip())
 
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.ENGINES]
-        self.assertEqual(len(binaries), 13)
+        self.assertEqual(len(binaries), 14)
         for name in binaries:
             self.assertIsNone(re.search(r"-\d{4}$", name), name)
         variants = {
@@ -70,7 +75,7 @@ class LadderEnginesTest(unittest.TestCase):
             self.assertTrue(engine["source"].startswith("https://"), name)
             self.assertIn(engine["method"], ("download", "build"), name)
             self.assertIn(engine["archive"], ("none", "tar.gz", "zip"), name)
-            self.assertRegex(engine["licence"], r"^(GPL-3\.0|AGPL-3\.0|MIT)$", name)
+            self.assertRegex(engine["licence"], r"^(GPL-[23]\.0|AGPL-3\.0|MIT)$", name)
             self.assertGreater(len(engine["notes"]), 10, name)
             if engine["sha256"] is None:
                 # Allowed only for a source archive of one exact commit.

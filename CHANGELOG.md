@@ -29,8 +29,8 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   what the numbers do not say.
 - `scripts/windows/rate.ps1`: the same rating script for Windows.
 - `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
-  engines, pinned (13 binaries for 23 of the ladder's 25 names; Orion 1.1
-  and Fruit 2.1 are left out, with reasons). The installer does not act on
+  engines, pinned (14 binaries for 24 of the ladder's 25 names; Orion 1.1
+  is left out, because it exists for Windows only). The installer does not act on
   it yet.
 
 ## [0.1.0-alpha.1] - 2026-11-21

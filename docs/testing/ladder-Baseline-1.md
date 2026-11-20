@@ -67,6 +67,13 @@ Command: `ordo -a 0 -A "Stockfish 19" -W -s 500 -p Baseline1.pgn -o ladder-Basel
 
 White advantage reported by Ordo: 4.67 ± 15.72.
 
+**A name to correct.** In this run one engine was configured as
+"Stockfish 19-2400 " with a space at the end, and the ratings files carry
+that spelling. Ordo treats it as a different player from "Stockfish
+19-2400". From 2026-11-21 the name is written without the space (the
+maintainer's decision), in the Windows engine list and in the list the
+installer generates, and this baseline is due to be run again.
+
 ## How to read this
 
 - **Use the order, not the magnitudes.** Many pairings were lopsided, so Ordo's total spread (about 3000 points) is exaggerated.
