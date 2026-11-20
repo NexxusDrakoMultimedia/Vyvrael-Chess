@@ -395,6 +395,36 @@ NNUE is 9 and tablebases are 10.
   2026-11-20). The full scope is under "Milestone 6: strength testing"
   below.
 
+### Branding, required before going public
+
+Required by the maintainer (2026-11-20): Vyvræl gets its branding before it
+is published anywhere the public meets it, whether that is a Lichess bot
+account, a rating list, a release or an announcement. Private testing does
+not need it. **Going public is blocked until this is done.**
+
+Vyvræl is an **Australian** engine and is to be presented as one wherever a
+country is asked for or shown: the Lichess bot profile's flag, rating lists
+and engine directories that record a nationality, and the project's own
+description.
+
+What the branding has to cover is the maintainer's to decide. The list below
+is a starting point, not a commitment:
+
+- Name and spelling rules: `Vyvræl`, with `Vyvrael` only where ASCII is
+  required, and how the name is written in prose and in file names.
+- A logo or avatar (the dragon theme), in the sizes the places it appears
+  need, with its licence stated.
+- A one-line description and a short paragraph, used consistently in the
+  README, the bot profile and any listing.
+- The bot profile itself: name, flag, bio, links.
+- What the engine says about itself over UCI (`id name`, `id author`).
+- Credit and the 0rwx level X disclosure, which belongs wherever the engine
+  is presented, not only in the README.
+
+Artwork and other brand assets follow the project's rules for third-party
+material: nothing is used without a clear licence, and its source and licence
+are recorded.
+
 ### Playing on Lichess with lichess-bot
 
 Wanted by the maintainer (2026-11-20). Run Vyvræl as a Lichess bot account
@@ -424,7 +454,7 @@ the private test comes well before the bot is public):
   plays complete games over the real protocol without losing on time,
   crashing or making illegal moves.
 - **Later, going public: not before milestone 7**, which follows milestone
-  6, so the bot that other people
+  6, **and not before the branding above is done**, so the bot that other people
   play has been through SPRT-tested search. Playing rated games with an
   untested engine would say little and could annoy opponents.
 - Time management has to be sound first: `go wtime/btime/winc/binc` handling
@@ -432,7 +462,8 @@ the private test comes well before the bot is public):
 - `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play once
   they are calibrated.
 
-Open questions for the maintainer, to settle before going public: the bot's
+Open questions for the maintainer, to settle before going public: the
+branding (see above), the bot's
 account name, which time controls and variants to accept, whether to accept
 rated games and challenges from humans, other bots or both, and where the bot
 will run (it needs a machine that stays on).

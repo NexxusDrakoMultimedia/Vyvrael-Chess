@@ -3,7 +3,7 @@ Dragon-flavoured, aggressive, vibecoded UCI-compatible chess engine written in R
 
 ## What it is
 
-Vyvræl is a chess engine by Nexxus Drako Multimedia. It speaks the
+Vyvræl is an Australian chess engine by Nexxus Drako Multimedia. It speaks the
 [UCI protocol](docs/UCI.md), so it plugs into chess GUIs and into
 `lichess-bot`. It aims for an aggressive style: king attacks, initiative and
 piece activity, built on a foundation that is correct first.
