@@ -161,3 +161,5 @@ once it has a first release.
   games.
 - `uci`: parsing of UCI command lines into commands (`uci::parse`). Nothing
   acts on them yet.
+- `uci`: formatting of `info` and `bestmove` lines and of scores
+  (`cp` and `mate`).

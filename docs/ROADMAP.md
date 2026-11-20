@@ -212,7 +212,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `movegen`: find a move given as text among the legal moves (fixes KI-3)
 - [x] `uci`: command parsing (`uci`, `isready`, `ucinewgame`, `position`,
   `go`, `stop`, `setoption`, `quit`)
-- [ ] `uci`: output formatting (`info`, scores, `bestmove`)
+- [x] `uci`: output formatting (`info`, scores, `bestmove`)
 - [ ] `uci`: time management (from `wtime`, `btime`, increments,
   `movestogo`, `movetime` to a deadline)
 - [ ] `uci`: the engine session and protocol loop, with the search on its

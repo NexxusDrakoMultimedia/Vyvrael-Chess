@@ -12,7 +12,8 @@ use std::time::Instant;
 use crate::board::Position;
 use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search, moves_to_mate};
+use crate::search::{Limits, MAX_PLY, Report, Search};
+use crate::uci::score_text;
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -123,13 +124,11 @@ fn run_eval(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Re
 /// One line of search progress, in the vocabulary of UCI `info` lines
 /// (without the time, so that the output is the same on every run).
 fn progress_line(report: &Report) -> String {
-    let score = match moves_to_mate(report.score) {
-        Some(moves) => format!("mate {moves}"),
-        None => format!("cp {}", report.score),
-    };
     let mut line = format!(
-        "depth {} score {score} nodes {}",
-        report.depth, report.nodes
+        "depth {} score {} nodes {}",
+        report.depth,
+        score_text(report.score),
+        report.nodes
     );
     if !report.pv.is_empty() {
         line.push_str(" pv");

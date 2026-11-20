@@ -7,5 +7,7 @@
 //! See `docs/UCI.md` for every command and option.
 
 mod command;
+mod output;
 
 pub use command::{Command, GoParams, parse};
+pub use output::{bestmove_line, info_line, score_text};
