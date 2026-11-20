@@ -14,6 +14,7 @@ pub mod eval;
 pub mod movegen;
 pub mod perft;
 pub mod rng;
+pub mod search;
 
 /// Engine name as reported to UCI front ends (`id name`).
 pub const ENGINE_NAME: &str = "Vyvræl";

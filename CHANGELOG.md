@@ -90,3 +90,4 @@ once it has a first release.
   Chess, Ordo and lichess-bot, with offline tests. Not yet run end to end.
 - `Evaluator` now requires `Send + Sync`, so it can be used from the search
   thread.
+- `search` module: score constants and mate-score arithmetic.

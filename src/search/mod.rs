@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Nexxus Drako Multimedia
+
+//! Search: looking ahead to choose a move.
+//!
+//! See `docs/ARCHITECTURE.md` ("Search") for the design.
+
+mod score;
+
+pub use score::{
+    DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,
+};

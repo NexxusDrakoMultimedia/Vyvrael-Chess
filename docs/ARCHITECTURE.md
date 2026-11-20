@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| search | planned (milestone 4) | Alpha-beta search and its heuristics. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -416,6 +416,21 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
   move. A sign error, a table read from the wrong side or a term applied to
   one colour only all break that, so the tests check it on a spread of
   positions.
+
+## Search
+
+In progress (milestone 4). `src/search/` looks ahead to choose a move.
+
+- **Scores** (`search/score.rs`) are the evaluator's `Score` (centipawns)
+  extended with checkmate. `MATE` is 31,000 and `INFINITY`, the bound no score
+  reaches, is 32,000. A position where the side to move is checkmated `ply`
+  plies from the root scores `mated_in(ply) = -MATE + ply`, and the mirror
+  image is `mate_in(ply)`. Counting the distance into the score makes the
+  search prefer the quickest mate and, when lost, the longest defence, with no
+  extra logic. Anything with absolute value at least `MATE_BOUND`
+  (`MATE - MAX_PLY`) is a mate score; evaluations stay far below it.
+  `moves_to_mate` converts a mate score to the signed move count UCI reports.
+  `MAX_PLY` is 128.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -23,6 +23,7 @@ Layout:
   - `src/attacks/`: attack tables per piece type.
   - `src/movegen/`: move generation.
   - `src/eval/`: static evaluation.
+  - `src/search/`: search.
   - `src/perft.rs`: perft node counting.
   - `src/cli.rs`: the binary's command line (`main.rs` only calls it).
   - `src/board/`: board representation (types, position, FEN, Zobrist

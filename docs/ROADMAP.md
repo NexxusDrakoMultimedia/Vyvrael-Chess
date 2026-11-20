@@ -191,7 +191,7 @@ recognised, and fixed-depth node counts are pinned so that any change in
 behaviour is noticed.
 
 - [x] `eval`: `Send + Sync` bounds on `Evaluator`
-- [ ] `search`: score constants and mate-score arithmetic
+- [x] `search`: score constants and mate-score arithmetic
 - [ ] `search`: negamax with alpha-beta at fixed depth
 - [ ] `search`: draw detection (fifty-move rule, repetition, bare material)
 - [ ] `search`: principal variation
