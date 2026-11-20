@@ -480,10 +480,11 @@ Part A, the installer:
   Linux and Windows instructions
 
 When this was merged, no agent had run it against a real ladder engine, a
-real match or the real Ordo. The maintainer has since reported running the
-tooling with 0.1.0-a1 on the Windows workstation and that it worked; which
-parts, and with what result, is still to be written down here and in
-`docs/TESTING.md`, whose status lines predate that.
+real match or the real Ordo. **The maintainer has since run the tooling on
+the Windows workstation with 0.1.0-a1 and confirmed that it works**
+(2026-11-21). Which scripts and modes that covered is not recorded. The
+Linux side (the engine installer and the bash scripts) has still not been
+run for real.
 
 ## Recording results
 

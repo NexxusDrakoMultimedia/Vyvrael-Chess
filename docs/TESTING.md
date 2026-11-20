@@ -543,7 +543,10 @@ nothing.
 
 **Status:** the scripts are covered by offline tests with stand-in tools,
 and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
-No real match or rating run has been made through them yet.
+The maintainer has run the tooling on the Windows workstation with
+0.1.0-a1 and confirmed that it works (2026-11-21); which scripts and modes
+that covered is not recorded. The bash scripts have not yet made a real
+match or rating run.
 
 ### Settings that differ between machines
 
