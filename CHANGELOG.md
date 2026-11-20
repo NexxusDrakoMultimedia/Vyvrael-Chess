@@ -41,6 +41,10 @@ once it has a first release.
   through a link inside the archive, which closes an escape through chained
   symlinks on Python versions without `tarfile.data_filter`.
 
+- `scripts/install_tools.py`: a reinstall interrupted while swapping
+  directories no longer costs the previous install (and its `config.yml`) on
+  the next run; it is restored from the `.old` directory first.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

@@ -208,24 +208,52 @@ def make_exec(path: Path) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def remove_path(path: Path) -> None:
+    """Removes a file, a link or a whole directory, if it is there."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def recover_interrupted(dest: Path) -> None:
+    """Puts back an install that an interrupted `replace_dir` left aside.
+
+    `replace_dir` renames `dest` to `<dest>.old` and then the new tree to
+    `dest`. A run stopped between the two leaves no `dest`, and `<dest>.old`
+    is the only copy of the previous install (for lichess-bot, of the user's
+    config.yml), so it is moved back instead of being cleared away.
+    """
+    retired = dest.with_name(dest.name + ".old")
+    if retired.is_dir() and not retired.is_symlink() and not os.path.lexists(dest):
+        retired.rename(dest)
+        say(f"  an earlier run was interrupted: restored {dest} from {retired.name}")
+
+
 def replace_dir(new: Path, dest: Path) -> None:
     """Puts the directory `new` in place of `dest`.
 
     The new tree is copied next to `dest` first and only then swapped in, so
-    a failure while copying leaves the existing install untouched.
+    a failure while copying leaves the existing install untouched. The swap
+    is two renames; one interrupted between them is undone by the next call
+    (see `recover_interrupted`).
     """
     staged = dest.with_name(dest.name + ".new")
     retired = dest.with_name(dest.name + ".old")
+    recover_interrupted(dest)
     for leftover in (staged, retired):
-        if leftover.exists():
-            shutil.rmtree(leftover)
+        remove_path(leftover)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(new, staged, symlinks=True)
     if dest.exists():
         dest.rename(retired)
-    staged.rename(dest)
-    if retired.exists():
-        shutil.rmtree(retired)
+    try:
+        staged.rename(dest)
+    except OSError:
+        if retired.exists():
+            retired.rename(dest)
+        raise
+    remove_path(retired)
 
 
 # ---------------------------------------------------------------- paths
@@ -423,6 +451,9 @@ def install_lichess_bot(ctx: Ctx) -> None:
     if ctx.dry:
         return say(f"  [dry-run] would install {url} -> {dest}")
 
+    # Before looking for the user's configuration: an interrupted earlier run
+    # may have left the whole install, config.yml included, under `.old`.
+    recover_interrupted(dest)
     config = dest / "config.yml"
     kept_config = config.read_text() if config.exists() else None
     with tempfile.TemporaryDirectory() as tmp:

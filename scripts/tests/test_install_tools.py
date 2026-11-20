@@ -251,6 +251,85 @@ class ReplaceDir(unittest.TestCase):
                 install_tools.replace_dir(root / "does-not-exist", dest)
             self.assertEqual((dest / "file").read_text(), "old")
 
+    def interrupted(self, root: Path) -> Path:
+        """The state left by a run stopped between the swap's two renames:
+        no install, the previous one under `.old`, the new one under `.new`."""
+        dest = root / "tool"
+        (root / "tool.old").mkdir()
+        (root / "tool.old/config.yml").write_text("mine")
+        (root / "tool.new").mkdir()
+        (root / "tool.new/file").write_text("half done")
+        return dest
+
+    def test_recovers_the_old_install_after_an_interrupted_swap(self):
+        with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()) as out:
+            dest = self.interrupted(Path(tmp))
+            install_tools.recover_interrupted(dest)
+            self.assertEqual((dest / "config.yml").read_text(), "mine")
+            self.assertFalse((Path(tmp) / "tool.old").exists())
+            self.assertIn("interrupted", out.getvalue())
+
+    def test_recovery_leaves_a_present_install_alone(self):
+        with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()) as out:
+            dest = self.interrupted(Path(tmp))
+            dest.mkdir()
+            (dest / "config.yml").write_text("current")
+            install_tools.recover_interrupted(dest)
+            self.assertEqual((dest / "config.yml").read_text(), "current")
+            self.assertTrue((Path(tmp) / "tool.old").is_dir())
+            self.assertEqual(out.getvalue(), "")
+
+    def test_replace_recovers_before_it_clears_leftovers(self):
+        # The copy fails, so what is left shows what happened before it: the
+        # only copy of the old install must be back in place, not deleted.
+        with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()):
+            dest = self.interrupted(Path(tmp))
+            with self.assertRaises(OSError):
+                install_tools.replace_dir(Path(tmp) / "does-not-exist", dest)
+            self.assertEqual((dest / "config.yml").read_text(), "mine")
+
+    def test_replace_after_an_interrupted_swap_ends_clean(self):
+        with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()):
+            root = Path(tmp)
+            dest = self.interrupted(root)
+            (root / "new").mkdir()
+            (root / "new/file").write_text("new")
+            install_tools.replace_dir(root / "new", dest)
+            self.assertEqual((dest / "file").read_text(), "new")
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ["new", "tool"])
+
+    def test_leftovers_that_are_plain_files_do_not_stop_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "new").mkdir()
+            (root / "new/file").write_text("new")
+            dest = root / "tool"
+            dest.mkdir()
+            (root / "tool.new").write_text("stray")
+            (root / "tool.old").write_text("stray")
+            install_tools.replace_dir(root / "new", dest)
+            self.assertEqual((dest / "file").read_text(), "new")
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ["new", "tool"])
+
+    def test_a_failed_swap_puts_the_old_install_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "new").mkdir()
+            dest = root / "tool"
+            dest.mkdir()
+            (dest / "file").write_text("old")
+            rename = Path.rename
+
+            def fail_on_the_new_tree(self, target):
+                if self.name == "tool.new":
+                    raise OSError("simulated")
+                return rename(self, target)
+
+            with mock.patch.object(Path, "rename", fail_on_the_new_tree):
+                with self.assertRaises(OSError):
+                    install_tools.replace_dir(root / "new", dest)
+            self.assertEqual((dest / "file").read_text(), "old")
+
 
 class Paths(unittest.TestCase):
     def test_prefix_keeps_everything_under_it(self):
