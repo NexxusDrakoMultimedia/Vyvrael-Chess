@@ -110,7 +110,7 @@ search.
 | `RngSeed` | spin | `822286742` (`0x31031996`), 0 to 4294967295 | implemented | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. Ignored while it is `false`. |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
-| `UCI_LimitStrength` | check | `false` | planned (milestone 5) | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged. |
+| `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
 | `UCI_Elo` | spin | to be decided by calibration | planned (milestone 5, calibrated in milestone 6) | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`. Minimum, maximum and default come from measured strength. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
@@ -118,6 +118,28 @@ Strength limiting uses randomness to weaken play, so it is governed by
 `DeterministicRNG` and `RngSeed`: non-deterministic by default, reproducible
 when `DeterministicRNG` is `true`. See "Planned features" in
 [ROADMAP.md](ROADMAP.md).
+
+### Limited strength
+
+With `UCI_LimitStrength` on, `go` does not run the ordinary search. It
+searches every legal move to a shallow depth, misjudges each move's score by
+a bounded random amount, and plays the move that then looks best (see
+"Playing below full strength" in [ARCHITECTURE.md](ARCHITECTURE.md)). What
+this means for a GUI:
+
+- There is one `info` line, sent when the move is chosen. Its `depth` is the
+  shallow depth used, its `score` the true score of the move played, and its
+  `pv` that one move.
+- `go depth` is ignored: the depth belongs to the strength setting. `nodes`,
+  `movetime`, the clocks and `stop` end the work early as usual; a move that
+  was not fully looked at is then not considered.
+- The moves are random, so two games differ unless `DeterministicRNG` is on.
+  With it on, `ucinewgame` starts the random sequence again, so each game
+  can be replayed by itself, given the same commands and limits that do not
+  depend on the clock (`nodes`, or time that is never used up).
+- **The rating is not calibrated.** The settings are ordered (a higher
+  rating looks further and errs less) but nothing has been measured yet.
+  Calibration is milestone 6.
 
 The seed in use is always logged, so any run can be replayed:
 

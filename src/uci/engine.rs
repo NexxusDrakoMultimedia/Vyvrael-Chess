@@ -21,8 +21,8 @@ use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
 use crate::eval::default_evaluator;
 use crate::movegen::find_legal_move;
-use crate::rng::entropy_seed;
-use crate::search::{Limits, Search};
+use crate::rng::{Rng, entropy_seed, stream};
+use crate::search::{ELO_DEFAULT, Limits, Report, Search, Weakening, weakened_move};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Where protocol output goes, shared by the command thread and the search
@@ -63,6 +63,10 @@ pub struct Engine {
     /// The seed of strength-affecting randomness: from system entropy, or
     /// `RngSeed` when `DeterministicRNG` is on.
     seed: u32,
+    /// The generator of strength-affecting randomness, started from `seed`.
+    /// It stays on the command thread: each weakened search is given a
+    /// generator of its own, seeded from this one.
+    rng: Rng,
 }
 
 impl Engine {
@@ -70,6 +74,9 @@ impl Engine {
     /// to `out`.
     #[must_use]
     pub fn new(out: Box<dyn Write + Send>) -> Engine {
+        // `DeterministicRNG` is off by default, so the seed comes from
+        // system entropy. This is the one permitted use of it.
+        let seed = entropy_seed();
         Engine {
             out: Arc::new(Mutex::new(out)),
             position: Position::startpos(),
@@ -78,9 +85,8 @@ impl Engine {
             worker: None,
             until_stopped: false,
             options: Options::default(),
-            // `DeterministicRNG` is off by default, so the seed comes from
-            // system entropy. This is the one permitted use of it.
-            seed: entropy_seed(),
+            seed,
+            rng: Rng::stream(seed, stream::STRENGTH),
         }
     }
 
@@ -112,6 +118,7 @@ impl Engine {
         };
         if seed != self.seed || was_deterministic != self.options.deterministic_rng {
             self.seed = seed;
+            self.rng = Rng::stream(seed, stream::STRENGTH);
             self.log_seed();
         }
     }
@@ -145,6 +152,12 @@ impl Engine {
                 self.end_search();
                 self.position = Position::startpos();
                 self.history.clear();
+                // With a chosen seed every game starts the random sequence
+                // again, so a game can be replayed on its own. With an
+                // entropy seed the sequence simply runs on.
+                if self.options.deterministic_rng {
+                    self.rng = Rng::stream(self.seed, stream::STRENGTH);
+                }
             }
             Command::Position { fen, moves } => self.set_position(fen.as_deref(), &moves),
             Command::Go(params) => self.go(&params),
@@ -248,13 +261,49 @@ impl Engine {
         let stop = Arc::clone(&self.stop);
         let position = self.position.clone();
         let history = self.history.clone();
+        // Full strength never touches the generator. A weakened search gets
+        // its own, seeded by one draw here on the command thread, so the
+        // sequence of games does not depend on how far each search got.
+        let weakened = self.options.limit_strength.then(|| {
+            (
+                Weakening::for_elo(ELO_DEFAULT),
+                Rng::from_state(self.rng.next_u64()),
+            )
+        });
         let search = move || {
             let evaluator = default_evaluator();
-            let mut search = Search::new(evaluator.as_ref())
-                .with_history(&history)
-                .with_limits(limits)
-                .with_stop_flag(&stop);
-            let outcome = search.iterate(&position, &mut |report| send(&out, &info_line(report)));
+            let outcome = match weakened {
+                None => {
+                    let mut search = Search::new(evaluator.as_ref())
+                        .with_history(&history)
+                        .with_limits(limits)
+                        .with_stop_flag(&stop);
+                    search.iterate(&position, &mut |report| send(&out, &info_line(report)))
+                }
+                Some((weakening, mut rng)) => {
+                    let started = Instant::now();
+                    let weak = weakened_move(
+                        &position,
+                        &history,
+                        evaluator.as_ref(),
+                        weakening,
+                        limits,
+                        &stop,
+                        &mut rng,
+                    );
+                    send(
+                        &out,
+                        &info_line(&Report {
+                            depth: weakening.depth,
+                            score: weak.outcome.score,
+                            nodes: weak.nodes,
+                            elapsed: started.elapsed(),
+                            pv: weak.outcome.pv.clone(),
+                        }),
+                    );
+                    weak.outcome
+                }
+            };
             // The protocol forbids answering an infinite search before
             // `stop`, even when there is nothing left to search.
             while until_stopped && !stop.load(Ordering::Relaxed) {
@@ -441,6 +490,97 @@ mod tests {
         // But it is the seed used once determinism is switched on.
         engine.handle("setoption name DeterministicRNG value true");
         assert_eq!(engine.rng_seed(), 77);
+    }
+
+    /// The lines of a weakened game from the start position with a chosen
+    /// seed: one `go` per entry of `commands` after the options are set.
+    fn weakened(seed: u32, commands: &[&str]) -> Vec<String> {
+        let mut lines = vec![
+            "setoption name DeterministicRNG value true".to_string(),
+            format!("setoption name RngSeed value {seed}"),
+            "setoption name UCI_LimitStrength value true".to_string(),
+        ];
+        lines.extend(commands.iter().map(ToString::to_string));
+        let (mut engine, captured) = engine();
+        for line in &lines {
+            assert!(engine.handle(line), "{line}");
+            // As a GUI does, wait for the move before sending anything
+            // else: the next command would otherwise end the search early.
+            if line.starts_with("go") {
+                engine.wait();
+            }
+        }
+        stable(&captured.lines())
+    }
+
+    /// A `go` whose limit is never reached, so the result does not depend
+    /// on the machine: only depth and node limits are reproducible.
+    const GO: &str = "go nodes 50000000";
+
+    fn best_of(lines: &[String]) -> Vec<&String> {
+        lines
+            .iter()
+            .filter(|line| line.starts_with("bestmove"))
+            .collect()
+    }
+
+    #[test]
+    fn limited_strength_plays_a_weakened_move() {
+        let lines = weakened(1, &["go depth 9"]);
+        // Two seed lines, then one `info` for the weakened choice (its own
+        // shallow depth, whatever `go` asked for), then the move.
+        assert_eq!(lines.len(), 4, "{lines:?}");
+        assert!(
+            lines[2].starts_with("info depth 3 score cp "),
+            "{}",
+            lines[2]
+        );
+        let best = lines[3].strip_prefix("bestmove ").unwrap();
+        assert!(find_legal_move(&Position::startpos(), best).is_some());
+        assert!(lines[2].ends_with(&format!(" pv {best}")));
+    }
+
+    #[test]
+    fn a_chosen_seed_makes_weakened_play_reproducible() {
+        let game = [GO, "position startpos moves e2e4", GO];
+        assert_eq!(weakened(7, &game), weakened(7, &game));
+        // Other seeds play other moves: of twenty, not all open the same.
+        let openings: Vec<Vec<String>> = (0..20).map(|seed| weakened(seed, &[GO])).collect();
+        let first = best_of(&openings[0])[0].clone();
+        assert!(
+            openings.iter().any(|lines| *best_of(lines)[0] != first),
+            "every seed played {first}"
+        );
+    }
+
+    #[test]
+    fn a_new_game_restarts_the_sequence_of_a_chosen_seed() {
+        for seed in 0..5 {
+            let lines = weakened(seed, &[GO, "ucinewgame", GO]);
+            let best = best_of(&lines);
+            assert_eq!(best[0], best[1], "seed {seed}");
+        }
+        // Without a new game the sequence runs on: the same position is not
+        // always answered with the same move.
+        let differs = (0..20).any(|seed| {
+            let lines = weakened(seed, &[GO, GO]);
+            let best = best_of(&lines);
+            best[0] != best[1]
+        });
+        assert!(differs);
+    }
+
+    #[test]
+    fn full_strength_is_untouched_by_the_option_being_off() {
+        let plain = stable(&session(&["go depth 3"]));
+        let off = stable(&session(&[
+            "setoption name UCI_LimitStrength value true",
+            "setoption name UCI_LimitStrength value false",
+            "go depth 3",
+        ]));
+        assert_eq!(off, plain);
+        // And it is not the weakened search under another name.
+        assert_ne!(weakened(1, &["go depth 3"])[2..], plain[..]);
     }
 
     #[test]

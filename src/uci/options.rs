@@ -33,6 +33,8 @@ pub struct Options {
     pub deterministic_rng: bool,
     /// `RngSeed`: the seed used when `DeterministicRNG` is on.
     pub rng_seed: u32,
+    /// `UCI_LimitStrength`: whether to play below full strength.
+    pub limit_strength: bool,
 }
 
 impl Default for Options {
@@ -42,6 +44,7 @@ impl Default for Options {
             threads: 1,
             deterministic_rng: false,
             rng_seed: DEFAULT_SEED,
+            limit_strength: false,
         }
     }
 }
@@ -56,6 +59,7 @@ impl Options {
             spin("Threads", 1, 1, THREADS_MAX),
             check("DeterministicRNG", false),
             spin("RngSeed", DEFAULT_SEED, 0, u32::MAX),
+            check("UCI_LimitStrength", false),
         ]
     }
 
@@ -75,6 +79,9 @@ impl Options {
                 self.deterministic_rng = parse_check("DeterministicRNG", value)?;
             }
             "rngseed" => self.rng_seed = parse_spin("RngSeed", value, 0, u32::MAX)?,
+            "uci_limitstrength" => {
+                self.limit_strength = parse_check("UCI_LimitStrength", value)?;
+            }
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -264,5 +271,21 @@ mod tests {
             assert!(options.set("RngSeed", Some(bad)).is_err(), "{bad}");
         }
         assert_eq!(options.rng_seed, u32::MAX);
+    }
+
+    #[test]
+    fn limit_strength() {
+        assert_eq!(
+            Options::declarations()[4],
+            "option name UCI_LimitStrength type check default false"
+        );
+        let mut options = Options::default();
+        assert!(!options.limit_strength, "full strength unless asked");
+        assert_eq!(options.set("UCI_LimitStrength", Some("true")), Ok(()));
+        assert!(options.limit_strength);
+        assert_eq!(options.set("uci_limitstrength", Some("false")), Ok(()));
+        assert!(!options.limit_strength);
+        assert!(options.set("UCI_LimitStrength", Some("1")).is_err());
+        assert!(options.set("UCI_LimitStrength", None).is_err());
     }
 }

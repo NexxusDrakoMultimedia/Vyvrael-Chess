@@ -223,7 +223,7 @@ Chunk checklist. One commit per item unless noted.
   strength-affecting randomness
 - [x] `uci`: options `DeterministicRNG` and `RngSeed`
 - [x] `search`: weakened move choice for limited strength
-- [ ] `uci`: option `UCI_LimitStrength`
+- [x] `uci`: option `UCI_LimitStrength`
 - [ ] `uci`: option `UCI_Elo` (uncalibrated until milestone 6)
 - [ ] Integration test: drive the binary over stdin and stdout
 - [ ] End-of-milestone review and doc drift pass

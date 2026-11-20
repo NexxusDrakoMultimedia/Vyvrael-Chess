@@ -185,3 +185,6 @@ once it has a first release.
 - `search::weakened_move`: chooses a move at reduced strength by searching
   every root move to a shallow depth and misjudging each score by a bounded
   random amount. Not reachable from UCI yet.
+- UCI option `UCI_LimitStrength` (check, default `false`). When on, `go`
+  plays a weakened move, at a fixed provisional level until `UCI_Elo`
+  exists. When off, play is exactly as before.
