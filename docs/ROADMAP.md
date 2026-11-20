@@ -21,6 +21,27 @@ them.
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
 | 10 | Endgame tablebases (optional, needs approval) | `milestone/10-tablebases` | not started |
 
+## Order of work
+
+Decided by the maintainer on 2026-11-21. The milestones keep their numbers,
+but two tasks and the tooling are done between them, so the order in which
+work is actually done is this:
+
+1. **The tooling branch** (`tooling/testing-scripts`): the match and rating
+   scripts and the installer. See "Testing tooling (before milestone 6)".
+2. **Queued task 1:** the options `Seed` and `Variety` and the `bench`
+   command. See "Queued work".
+3. **Milestone 6:** strength testing.
+4. **Milestone 7:** search heuristics.
+5. **Queued task 2:** benchmark and speed up.
+6. **Milestone 8 onwards**, in numerical order.
+
+Where the releases fall: **0.1.0-alpha.1** came before step 1, after
+milestone 5; **0.1.0** follows step 3; **0.2.0** follows step 4. The
+casual-only Lichess bot starts once the maintainer has tagged
+0.1.0-alpha.1, so it runs alongside all of the steps above; rated play
+waits for 0.2.0 and the branding.
+
 ## Milestone 0: setup
 
 - [x] Cargo workspace skeleton (engine crate + two tool stubs)
