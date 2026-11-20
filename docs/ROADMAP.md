@@ -566,13 +566,15 @@ What it needs:
   cannot start before milestone 5.
 - **`lichess-bot` itself**, installed and run by the maintainer as a separate
   program. Like Cute Chess and Ordo it is not vendored, not linked and not a
-  Cargo dependency. Its licence is to be confirmed on its official source and
-  recorded in [DEPENDENCIES.md](DEPENDENCIES.md) before first use.
+  Cargo dependency. Its pinned version and licence (AGPL-3.0) are recorded
+  in [DEPENDENCIES.md](DEPENDENCIES.md).
 - **A Lichess bot account and API token**, created and held by the
   maintainer. The token is a secret: it is never committed, never written
-  into a tracked file and never handled by an AI agent. The repository will
-  carry only an example configuration with a placeholder where the token
-  goes, and the real configuration file will be git-ignored.
+  into a tracked file and never handled by an AI agent. The repository
+  carries no lichess-bot configuration and no token placeholder: the
+  maintainer's `config.yml` is copied from lichess-bot's own
+  `config.yml.default`, lives outside this repository, and is git-ignored
+  here in case it ever lands in it.
 - **Documentation:** [LICHESS.md](LICHESS.md) holds the policy, the
   maintainer's checklist and the anti-abuse rules.
 

@@ -61,6 +61,12 @@ once it has a first release.
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 
+- `scripts/install_tools.py`: the next steps printed after installing
+  lichess-bot no longer tell the user to enable the service at once. They
+  now say to set `config.yml` up as `docs/LICHESS.md` describes before the
+  first start, and to enable the service only after clean games from a
+  terminal.
+
 - `scripts/install_tools.py`: a `$` in the install path is now escaped in the
   systemd unit's `ExecStart`, where systemd would have expanded it.
 

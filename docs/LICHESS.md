@@ -99,9 +99,13 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
    `bot:play` scope ("Play games with the bot API"). Keep it only in your
    local configuration or environment. Never paste it into a chat, an issue,
    a commit or an AI agent.
-4. **Upgrade the account** to BOT, either with the request above or by
-   letting lichess-bot do it (its `-u` flag; confirm the flag in the README
-   of the version you install). This cannot be undone.
+4. **Upgrade the account** to BOT with the request above. This cannot be
+   undone. The other way is lichess-bot's `-u` flag (confirm it in the
+   README of the version you install), but not at this point: lichess-bot
+   is not installed or configured yet, and it is expected to start playing
+   straight after upgrading, with whatever `config.yml` says. If you
+   prefer `-u`, do steps 6 to 13 first, then upgrade with it and carry on
+   at step 14.
 5. **Verify** that `title` reads `BOT` in the "Get my profile" response, or
    that the profile page shows the BOT title.
 6. **Install lichess-bot separately**, outside this repository, **on the
