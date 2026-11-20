@@ -108,7 +108,7 @@ fn a_whole_conversation() {
             .iter()
             .filter(|line| line.starts_with("option name "))
             .count(),
-        6
+        7
     );
 
     engine.send("isready");

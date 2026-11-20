@@ -7,6 +7,8 @@
 //! [`Options::set`], and nowhere else, so the list a GUI is shown and the
 //! list the engine accepts cannot drift apart. `docs/UCI.md` documents each.
 
+use std::time::Duration;
+
 use crate::rng::DEFAULT_SEED;
 use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN};
 
@@ -19,6 +21,11 @@ pub const HASH_MAX: u32 = 65_536;
 /// so the option is offered with one possible value; a match tool that sets
 /// `Threads=1` is accepted and one that asks for more is told why not.
 pub const THREADS_MAX: u32 = 1;
+
+/// Default of `Move Overhead`, in milliseconds.
+pub const MOVE_OVERHEAD_DEFAULT: u32 = 30;
+/// Largest `Move Overhead` that can be asked for, in milliseconds.
+pub const MOVE_OVERHEAD_MAX: u32 = 5_000;
 
 /// The current value of every option.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +46,9 @@ pub struct Options {
     /// `UCI_Elo`: the rating to play at when `UCI_LimitStrength` is on.
     /// Not calibrated yet: see `search::Weakening::for_elo`.
     pub elo: u32,
+    /// `Move Overhead`: milliseconds kept back from every time limit for
+    /// delays the engine cannot measure (GUI, network, operating system).
+    pub move_overhead_ms: u32,
 }
 
 impl Default for Options {
@@ -50,6 +60,7 @@ impl Default for Options {
             rng_seed: DEFAULT_SEED,
             limit_strength: false,
             elo: ELO_DEFAULT,
+            move_overhead_ms: MOVE_OVERHEAD_DEFAULT,
         }
     }
 }
@@ -66,7 +77,15 @@ impl Options {
             spin("RngSeed", DEFAULT_SEED, 0, u32::MAX),
             check("UCI_LimitStrength", false),
             spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
+            spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
         ]
+    }
+
+    /// The time kept back from every time limit: `Move Overhead` as a
+    /// duration.
+    #[must_use]
+    pub fn move_overhead(&self) -> Duration {
+        Duration::from_millis(u64::from(self.move_overhead_ms))
     }
 
     /// Sets the option called `name` (letter case does not matter, as the
@@ -89,6 +108,9 @@ impl Options {
                 self.limit_strength = parse_check("UCI_LimitStrength", value)?;
             }
             "uci_elo" => self.elo = parse_spin("UCI_Elo", value, ELO_MIN, ELO_MAX)?,
+            "move overhead" => {
+                self.move_overhead_ms = parse_spin("Move Overhead", value, 0, MOVE_OVERHEAD_MAX)?;
+            }
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -131,14 +153,16 @@ mod tests {
     use super::*;
 
     /// Every declared option, as (name, type) pairs read back from the
-    /// declarations.
+    /// declarations. A name may be several words: it runs up to `type`.
     fn declared() -> Vec<(String, String)> {
         Options::declarations()
             .iter()
             .map(|line| {
                 let words: Vec<&str> = line.split(' ').collect();
-                assert_eq!((words[0], words[1], words[3]), ("option", "name", "type"));
-                (words[2].to_string(), words[4].to_string())
+                assert_eq!((words[0], words[1]), ("option", "name"));
+                let at = words.iter().position(|&word| word == "type").unwrap();
+                assert!(at > 2, "{line}");
+                (words[2..at].join(" "), words[at + 1].to_string())
             })
             .collect()
     }
@@ -380,8 +404,55 @@ mod tests {
                 "DeterministicRNG",
                 "RngSeed",
                 "UCI_LimitStrength",
-                "UCI_Elo"
+                "UCI_Elo",
+                "Move Overhead"
             ]
         );
+    }
+
+    #[test]
+    fn move_overhead() {
+        assert_eq!(
+            Options::declarations()[6],
+            "option name Move Overhead type spin default 30 min 0 max 5000"
+        );
+        let mut options = Options::default();
+        assert_eq!(options.move_overhead_ms, 30);
+        assert_eq!(options.move_overhead(), Duration::from_millis(30));
+        for (text, value) in [("0", 0), ("250", 250), ("5000", 5_000)] {
+            assert_eq!(options.set("Move Overhead", Some(text)), Ok(()));
+            assert_eq!(options.move_overhead_ms, value);
+            assert_eq!(
+                options.move_overhead(),
+                Duration::from_millis(u64::from(value))
+            );
+        }
+        for bad in ["-1", "5001", "30ms", "0.5", "", "lots"] {
+            assert_eq!(
+                options.set("move overhead", Some(bad)),
+                Err(format!(
+                    "Move Overhead: expected a whole number from 0 to 5000, got `{bad}`"
+                )),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            options.set("Move Overhead", None),
+            Err("Move Overhead: expected a whole number from 0 to 5000, got no value".to_string())
+        );
+        assert_eq!(options.move_overhead_ms, 5_000);
+        // The name is two words with one space: nothing else will do.
+        for name in [
+            "MoveOverhead",
+            "Move  Overhead",
+            "Move_Overhead",
+            "Overhead",
+        ] {
+            assert_eq!(
+                options.set(name, Some("100")),
+                Err(format!("unknown option: {name}")),
+                "{name:?}"
+            );
+        }
     }
 }

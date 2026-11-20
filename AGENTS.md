@@ -159,7 +159,7 @@ Milestones, in order, no skipping (details in `docs/ROADMAP.md`):
 3. **Evaluation (hand-crafted):** material, tapered PSTs, behind an interface.
 4. **Search core:** negamax/alpha-beta, iterative deepening, quiescence.
    Heuristics wait for milestone 7 so each can be accepted by SPRT.
-5. **UCI:** the protocol loop and its six options (see `docs/UCI.md`).
+5. **UCI:** the protocol loop and its options (see `docs/UCI.md`).
 6. **Strength testing:** SPRT match script with Cute Chess, ratings with
    Ordo; calibrate `UCI_Elo`.
 7. **Search heuristics:** move ordering, transposition table, null move,

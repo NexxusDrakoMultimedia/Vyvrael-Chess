@@ -8,6 +8,13 @@ once it has a first release.
 
 ## [Unreleased]
 
+### Changed
+
+- The time kept back on every move is no longer a fixed 30 ms: it is the
+  new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone, and
+  `uci::time_for_move` and `uci::limits_for` take the overhead as an
+  argument. With the default, play is as before.
+
 ### Fixed
 
 - A line of input that was not valid UTF-8 ended the engine silently, with
@@ -210,3 +217,6 @@ once it has a first release.
 - Integration tests that drive the engine binary over pipes
   (`tests/uci.rs`).
 - Added Ladder Baseline 1 reference results (docs/testing/)
+- UCI option `Move Overhead` (spin, default 30, 0 to 5000 ms): time kept
+  back from every time limit for delays the engine cannot measure, such as
+  the network between a Lichess game and the engine.

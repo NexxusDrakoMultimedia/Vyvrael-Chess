@@ -16,11 +16,6 @@ use super::GoParams;
 use crate::board::Color;
 use crate::search::Limits;
 
-/// Time kept back on every move for what the engine cannot measure: the
-/// GUI's own delay, the operating system, and the search noticing its
-/// deadline only every thousand positions.
-pub const MOVE_OVERHEAD: Duration = Duration::from_millis(30);
-
 /// When the GUI does not say how many moves remain to the next time
 /// control, the remaining time is spread over this many.
 pub const MOVES_ASSUMED: u64 = 30;
@@ -29,6 +24,11 @@ pub const MOVES_ASSUMED: u64 = 30;
 /// no move time (the search then runs to its depth or node limit, or until
 /// `stop`).
 ///
+/// `overhead` is the time kept back on every move for what the engine
+/// cannot measure: the GUI's own delay, the network, the operating system,
+/// and the search noticing its deadline only every thousand positions. It
+/// is the UCI option `Move Overhead`.
+///
 /// - `movetime` is used as given, less the overhead.
 /// - With a clock, the share is `remaining / moves + 3/4 increment`, where
 ///   `moves` is `movestogo` or [`MOVES_ASSUMED`]. It is capped at what is on
@@ -36,11 +36,11 @@ pub const MOVES_ASSUMED: u64 = 30;
 /// - There is always at least one millisecond: a move must be made even
 ///   with nothing left.
 #[must_use]
-pub fn time_for_move(params: &GoParams, side: Color) -> Option<Duration> {
+pub fn time_for_move(params: &GoParams, side: Color, overhead: Duration) -> Option<Duration> {
     let floor = Duration::from_millis(1);
     if let Some(movetime) = params.movetime {
         let given = Duration::from_millis(movetime);
-        return Some(given.saturating_sub(MOVE_OVERHEAD).max(floor));
+        return Some(given.saturating_sub(overhead).max(floor));
     }
     let (remaining, increment) = match side {
         Color::White => (params.wtime?, params.winc.unwrap_or(0)),
@@ -48,22 +48,23 @@ pub fn time_for_move(params: &GoParams, side: Color) -> Option<Duration> {
     };
     let moves = params.movestogo.map_or(MOVES_ASSUMED, u64::from).max(1);
     let share = (remaining / moves).saturating_add(increment / 4 * 3);
-    let on_the_clock = Duration::from_millis(remaining).saturating_sub(MOVE_OVERHEAD);
+    let on_the_clock = Duration::from_millis(remaining).saturating_sub(overhead);
     Some(Duration::from_millis(share).min(on_the_clock).max(floor))
 }
 
 /// The search limits for a `go` command received at `now` with `side` to
-/// move.
+/// move, keeping `overhead` back from any time limit (see
+/// [`time_for_move`]).
 ///
 /// `depth` and `nodes` are passed on as they are. `infinite` switches the
 /// clock off: only `stop` (or a depth or node limit sent with it) ends the
 /// search.
 #[must_use]
-pub fn limits_for(params: &GoParams, side: Color, now: Instant) -> Limits {
+pub fn limits_for(params: &GoParams, side: Color, now: Instant, overhead: Duration) -> Limits {
     let deadline = if params.infinite {
         None
     } else {
-        time_for_move(params, side).map(|time| now + time)
+        time_for_move(params, side, overhead).map(|time| now + time)
     };
     Limits {
         depth: params.depth,
@@ -78,6 +79,20 @@ mod tests {
 
     const fn ms(value: u64) -> Duration {
         Duration::from_millis(value)
+    }
+
+    /// The overhead the tests below were written for, which is also the
+    /// default of the `Move Overhead` option.
+    const OVERHEAD: Duration = ms(30);
+
+    /// [`super::time_for_move`] with the default overhead.
+    fn time_for_move(params: &GoParams, side: Color) -> Option<Duration> {
+        super::time_for_move(params, side, OVERHEAD)
+    }
+
+    /// [`super::limits_for`] with the default overhead.
+    fn limits_for(params: &GoParams, side: Color, now: Instant) -> Limits {
+        super::limits_for(params, side, now, OVERHEAD)
     }
 
     fn clock(wtime: u64, btime: u64, winc: u64, binc: u64) -> GoParams {
@@ -197,6 +212,58 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The overhead is whatever the caller says, not a fixed 30 ms.
+    #[test]
+    fn the_overhead_is_the_one_given() {
+        let movetime = GoParams {
+            movetime: Some(1_000),
+            ..GoParams::default()
+        };
+        let last_move = GoParams {
+            movestogo: Some(1),
+            ..clock(60_000, 60_000, 0, 0)
+        };
+        for (overhead, of_movetime, of_clock) in [
+            (0, 1_000, 60_000),
+            (30, 970, 59_970),
+            (250, 750, 59_750),
+            (1_000, 1, 59_000),
+            (5_000, 1, 55_000),
+            (60_000, 1, 1),
+        ] {
+            assert_eq!(
+                super::time_for_move(&movetime, Color::White, ms(overhead)),
+                Some(ms(of_movetime)),
+                "{overhead}"
+            );
+            assert_eq!(
+                super::time_for_move(&last_move, Color::Black, ms(overhead)),
+                Some(ms(of_clock)),
+                "{overhead}"
+            );
+        }
+        // An ordinary share is not reduced by the overhead: it is only a
+        // cap on what may be taken from the clock.
+        let go = clock(60_000, 60_000, 0, 0);
+        for overhead in [0, 30, 5_000] {
+            assert_eq!(
+                super::time_for_move(&go, Color::White, ms(overhead)),
+                Some(ms(2_000))
+            );
+        }
+        // The deadline moves with it.
+        let now = Instant::now();
+        assert_eq!(
+            super::limits_for(&movetime, Color::White, now, ms(250)).deadline,
+            Some(now + ms(750))
+        );
+        // Without a clock there is nothing to keep it back from.
+        assert_eq!(
+            super::time_for_move(&GoParams::default(), Color::White, ms(250)),
+            None
+        );
     }
 
     #[test]
