@@ -283,6 +283,9 @@ What to know before running it:
 - **Where things go:** programs under `~/.local/share/vyvrael-tools`, launchers
   in `~/.local/bin`. With `--prefix DIR` everything, launchers included, stays
   under `DIR`. Re-running is safe; `--force` reinstalls.
+- **`vyvrael-lichess-bot` runs from lichess-bot's own directory**, whatever
+  directory you call it from, because lichess-bot reads `./config.yml`. A
+  relative path on its command line is therefore read from that directory.
 - **Your Lichess token is never written by the script.** `config.yml` is
   created with an empty token and readable only by you. The script does not
   upgrade the account to a bot account (that is irreversible) and does not

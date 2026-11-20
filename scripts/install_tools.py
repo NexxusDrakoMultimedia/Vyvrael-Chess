@@ -295,20 +295,27 @@ class Ctx:
         self.manifest.parent.mkdir(parents=True, exist_ok=True)
         self.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
 
-    def shim(self, name: str, target: Path, args: list[str] = (), env: dict = None) -> Path:
+    def shim(
+        self, name: str, target: Path, args: list[str] = (), env: dict = None, cwd: Path = None
+    ) -> Path:
         """Writes a launcher `name` in the bin directory that runs `target`."""
         self.bin.mkdir(parents=True, exist_ok=True)
         path = self.bin / name
-        path.write_text(shim_text(target, list(args), env or {}))
+        path.write_text(shim_text(target, list(args), env or {}, cwd))
         make_exec(path)
         return path
 
 
-def shim_text(target: Path, args: list[str], env: dict) -> str:
-    """The text of a POSIX shell launcher. Every path and argument is quoted."""
+def shim_text(target: Path, args: list[str], env: dict, cwd: Path | None = None) -> str:
+    """The text of a POSIX shell launcher. Every path and argument is quoted.
+
+    With `cwd` the launcher changes into that directory first, and does not
+    start the program if it cannot.
+    """
     assignments = "".join(f"{key}={shlex.quote(value)} " for key, value in env.items())
     fixed = "".join(shlex.quote(arg) + " " for arg in args)
-    return f'#!/bin/sh\n{assignments}exec {shlex.quote(str(target))} {fixed}"$@"\n'
+    enter = f"cd {shlex.quote(str(cwd))} && " if cwd is not None else ""
+    return f'#!/bin/sh\n{enter}{assignments}exec {shlex.quote(str(target))} {fixed}"$@"\n'
 
 
 # ---------------------------------------------------------------- installers
@@ -485,7 +492,10 @@ def install_lichess_bot(ctx: Ctx) -> None:
         write_private(config, patch_config(template, engine_dir, engine_name))
         say(f"  wrote config.yml (engine {Path(engine_dir, engine_name)}, token blank)")
 
-    ctx.shim("vyvrael-lichess-bot", python, [str(dest / "lichess-bot.py")])
+    # lichess-bot reads ./config.yml and resolves relative paths in it against
+    # the current directory, so the launcher runs it from its own directory,
+    # as the systemd unit does with WorkingDirectory.
+    ctx.shim("vyvrael-lichess-bot", python, [str(dest / "lichess-bot.py")], cwd=dest)
     if ctx.args.systemd:
         write_systemd_unit(dest, python)
     ctx.record(
@@ -575,7 +585,10 @@ lichess-bot next steps (manual by design):
   3. Build Vyvræl, then run once: vyvrael-lichess-bot -u
      That upgrades the account to BOT. It is IRREVERSIBLE.
   4. Afterwards: vyvrael-lichess-bot
-     (with --systemd: systemctl --user enable --now vyvrael-lichess-bot)"""
+     (with --systemd: systemctl --user enable --now vyvrael-lichess-bot)
+  The launcher works from any directory: it changes into lichess-bot's own
+  directory first, so config.yml there is the one used and a relative path
+  given on its command line is read from there too."""
 
 
 def build_parser() -> argparse.ArgumentParser:

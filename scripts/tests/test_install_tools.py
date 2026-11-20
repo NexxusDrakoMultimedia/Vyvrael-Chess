@@ -370,6 +370,31 @@ class Shims(unittest.TestCase):
         text = install_tools.shim_text(PurePosixPath("/usr/bin/ordo"), [], {})
         self.assertEqual(text, '#!/bin/sh\nexec /usr/bin/ordo "$@"\n')
 
+    def test_launcher_can_start_in_a_directory(self):
+        # lichess-bot loads ./config.yml, so its launcher must not depend on
+        # where it is called from.
+        text = install_tools.shim_text(
+            PurePosixPath("/opt/my tools/lichess-bot/venv/bin/python"),
+            ["/opt/my tools/lichess-bot/lichess-bot.py"],
+            {},
+            PurePosixPath("/opt/my tools/lichess-bot"),
+        )
+        self.assertEqual(
+            text,
+            "#!/bin/sh\ncd '/opt/my tools/lichess-bot' && "
+            "exec '/opt/my tools/lichess-bot/venv/bin/python' "
+            "'/opt/my tools/lichess-bot/lichess-bot.py' \"$@\"\n",
+        )
+
+    def test_shim_passes_the_directory_through(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = install_tools.Ctx(args(prefix=tmp))
+            home = PurePosixPath("/opt/lichess-bot")
+            path = ctx.shim("bot", PurePosixPath("/opt/python"), ["x.py"], cwd=home)
+            self.assertEqual(
+                path.read_text(), '#!/bin/sh\ncd /opt/lichess-bot && exec /opt/python x.py "$@"\n'
+            )
+
     def test_shim_is_written_executable(self):
         with tempfile.TemporaryDirectory() as tmp:
             ctx = install_tools.Ctx(args(prefix=tmp))

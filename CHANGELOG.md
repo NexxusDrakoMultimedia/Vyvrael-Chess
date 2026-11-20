@@ -45,6 +45,9 @@ once it has a first release.
   directories no longer costs the previous install (and its `config.yml`) on
   the next run; it is restored from the `.old` directory first.
 
+- `scripts/install_tools.py`: the `vyvrael-lichess-bot` launcher now changes
+  into lichess-bot's directory first, so it finds `config.yml` from anywhere.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool
