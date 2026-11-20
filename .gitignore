@@ -19,5 +19,8 @@
 /config.yml
 /lichess-bot/
 
+# Python bytecode from the scripts and their tests
+__pycache__/
+
 # Local tooling state
 /.remember/

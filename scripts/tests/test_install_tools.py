@@ -3,7 +3,9 @@
 """Offline tests for scripts/install_tools.py.
 
 They exercise the pure helpers only: nothing is downloaded, built or
-installed, and every file they touch lives in a temporary directory.
+installed, and every file they touch lives in a temporary directory. The
+installer targets Linux, so tests that check generated text build their paths
+with PurePosixPath and pass on any system.
 
     python3 -m unittest discover -s scripts/tests
 """
@@ -18,7 +20,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import install_tools  # noqa: E402
@@ -165,14 +167,14 @@ class Paths(unittest.TestCase):
 class Shims(unittest.TestCase):
     def test_quotes_paths_arguments_and_environment(self):
         text = install_tools.shim_text(
-            Path("/opt/my tools/app"), ["cli", "two words"], {"KEY": "a b"}
+            PurePosixPath("/opt/my tools/app"), ["cli", "two words"], {"KEY": "a b"}
         )
         self.assertEqual(
             text, "#!/bin/sh\nKEY='a b' exec '/opt/my tools/app' cli 'two words' \"$@\"\n"
         )
 
     def test_plain_launcher(self):
-        text = install_tools.shim_text(Path("/usr/bin/ordo"), [], {})
+        text = install_tools.shim_text(PurePosixPath("/usr/bin/ordo"), [], {})
         self.assertEqual(text, '#!/bin/sh\nexec /usr/bin/ordo "$@"\n')
 
     def test_shim_is_written_executable(self):
@@ -228,10 +230,10 @@ class Systemd(unittest.TestCase):
 
     def test_unit_quotes_exec_start_and_is_not_enabled_by_writing(self):
         unit = install_tools.systemd_unit(
-            Path("/opt/my tools/venv/bin/python"),
-            Path("/opt/my tools/lichess-bot.py"),
-            Path("/opt/my tools"),
-            Path("/home/me/.config/vyvrael/lichess-token.env"),
+            PurePosixPath("/opt/my tools/venv/bin/python"),
+            PurePosixPath("/opt/my tools/lichess-bot.py"),
+            PurePosixPath("/opt/my tools"),
+            PurePosixPath("/home/me/.config/vyvrael/lichess-token.env"),
         )
         self.assertIn(
             'ExecStart="/opt/my tools/venv/bin/python" "/opt/my tools/lichess-bot.py"\n', unit
