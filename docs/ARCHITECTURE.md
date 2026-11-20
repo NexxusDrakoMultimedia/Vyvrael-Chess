@@ -167,9 +167,11 @@ from `board`.
   `#[must_use]`. Both styles are supported: in-place make/unmake, and
   copy-make (clone the position, about 200 bytes, and make the move on the
   clone). Measured with perft in milestone 2, copy-make was about 5% faster
-  (numbers in [TESTING.md](TESTING.md)). That is too small and too
-  perft-specific to settle the question, so the choice for search is left to
-  milestone 4, to be made on search speed.
+  (numbers in [TESTING.md](TESTING.md)). Milestone 4 measured both inside the real
+  search and copy-make was again 3 to 5% faster, with identical node counts,
+  so **the search uses copy-make**. `make_move` and `unmake_move` remain: perft
+  uses them, and they are the right tool wherever a move really must be taken
+  back on the same position.
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.
@@ -443,8 +445,10 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
   so once a move reaches `beta` the rest are not examined.
   - The search is **fail-soft**: a result outside the window is a bound on the
     true value. The root searches with the full window, so its score is exact.
-  - Moves are taken straight from `pseudo_legal_moves`, made, and skipped if
-    they leave the king capturable, exactly as perft does.
+  - Moves are taken straight from `pseudo_legal_moves`, played on a copy of
+    the position, and skipped if they leave the king capturable. The search
+    never modifies the position it is given ("copy-make"); see the
+    make/unmake discussion under "Board representation" for why.
   - A node with no legal move scores `mated_in(ply)` if in check and `DRAW`
     otherwise, so stalemate is never mistaken for a win.
   - At depth 0 the quiescence search takes over (below), so positions are
@@ -488,8 +492,8 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     The flag and the clock are read once every 1,024 nodes, because reading
     them at every node would cost more than the search.
   - Once any limit trips, a latch makes every node return immediately. The
-    recursion unwinds through the normal unmake path, so the position and the
-    repetition history are restored exactly; values returned on the way out
+    recursion unwinds normally, so the repetition history is restored exactly
+    (the position itself is never modified); values returned on the way out
     are ignored.
   - A stopped search is incomplete. `fixed_depth` then reports only the root
     moves it finished. Iterative deepening (next) discards an unfinished

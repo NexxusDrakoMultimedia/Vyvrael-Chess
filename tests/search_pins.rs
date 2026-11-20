@@ -75,9 +75,9 @@ const PINS: [(&str, u32, i32, u64, &str); 7] = [
 #[test]
 fn fixed_depth_searches_give_the_recorded_results() {
     for (fen, depth, score, nodes, pv) in PINS {
-        let mut pos = Position::from_fen(fen).unwrap();
+        let pos = Position::from_fen(fen).unwrap();
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-        let outcome = searcher.iterate(&mut pos, &mut |_| {});
+        let outcome = searcher.iterate(&pos, &mut |_| {});
 
         let line: Vec<String> = outcome.pv.iter().map(ToString::to_string).collect();
         assert_eq!(
@@ -95,9 +95,9 @@ fn fixed_depth_searches_give_the_recorded_results() {
 fn searching_twice_gives_the_same_result() {
     let (fen, depth, ..) = PINS[2];
     let run = || {
-        let mut pos = Position::from_fen(fen).unwrap();
+        let pos = Position::from_fen(fen).unwrap();
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-        let outcome = searcher.iterate(&mut pos, &mut |_| {});
+        let outcome = searcher.iterate(&pos, &mut |_| {});
         (outcome, searcher.nodes())
     };
     assert_eq!(run(), run());

@@ -148,14 +148,14 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
         return Ok(EXIT_USAGE);
     };
     let fields: Vec<&str> = args[1..].iter().map(String::as_str).collect();
-    let Some(mut pos) = position_from(&fields, "search", err)? else {
+    let Some(pos) = position_from(&fields, "search", err)? else {
         return Ok(EXIT_USAGE);
     };
 
     let start = Instant::now();
     let mut lines = Vec::new();
     let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-    let outcome = searcher.iterate(&mut pos, &mut |report| lines.push(progress_line(report)));
+    let outcome = searcher.iterate(&pos, &mut |report| lines.push(progress_line(report)));
     let elapsed = start.elapsed();
     for line in lines {
         writeln!(out, "{line}")?;

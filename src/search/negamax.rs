@@ -175,7 +175,7 @@ impl<'a> Search<'a> {
     /// interrupts is thrown away. The search also ends early once it has
     /// found a forced mate that fits inside the depth just searched, because
     /// searching deeper cannot find a shorter one.
-    pub fn iterate(&mut self, pos: &mut Position, report: &mut dyn FnMut(&Report)) -> Outcome {
+    pub fn iterate(&mut self, pos: &Position, report: &mut dyn FnMut(&Report)) -> Outcome {
         let start = Instant::now();
         let deepest = self
             .limits
@@ -235,7 +235,9 @@ impl<'a> Search<'a> {
     }
 
     /// Searches `pos` exactly `depth` plies deep and returns the score and
-    /// the best move. `pos` is used as a scratch board and restored.
+    /// the best move. The position is not modified: each move is played on
+    /// a copy ("copy-make"), which measured slightly faster here than making
+    /// and unmaking moves in place.
     ///
     /// The node limit, deadline and stop flag apply (the depth limit does
     /// not: the depth is the argument). If one of them cuts the search short,
@@ -245,7 +247,7 @@ impl<'a> Search<'a> {
     /// # Panics
     ///
     /// Panics if `depth` is 0 or more than [`MAX_PLY`].
-    pub fn fixed_depth(&mut self, pos: &mut Position, depth: u32) -> Outcome {
+    pub fn fixed_depth(&mut self, pos: &Position, depth: u32) -> Outcome {
         assert!(
             depth >= 1 && depth as usize <= MAX_PLY,
             "search depth must be between 1 and MAX_PLY"
@@ -264,15 +266,14 @@ impl<'a> Search<'a> {
         self.nodes += 1;
         for &mv in &pseudo_legal_moves(pos) {
             self.keys.push(pos.hash());
-            let undo = pos.make_move(mv);
-            if pos.can_capture_king() {
-                pos.unmake_move(mv, undo);
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            if next.can_capture_king() {
                 self.keys.pop();
                 continue;
             }
             any_legal = true;
-            let score = -self.negamax(pos, depth - 1, 1, -INFINITY, -alpha);
-            pos.unmake_move(mv, undo);
+            let score = -self.negamax(&next, depth - 1, 1, -INFINITY, -alpha);
             self.keys.pop();
             if self.stopped {
                 // This move was not searched to the end; its score means
@@ -315,7 +316,7 @@ impl<'a> Search<'a> {
     /// is a bound on the true value, not the value itself.
     fn negamax(
         &mut self,
-        pos: &mut Position,
+        pos: &Position,
         depth: u32,
         ply: usize,
         mut alpha: Score,
@@ -342,15 +343,14 @@ impl<'a> Search<'a> {
         let mut any_legal = false;
         for &mv in &pseudo_legal_moves(pos) {
             self.keys.push(pos.hash());
-            let undo = pos.make_move(mv);
-            if pos.can_capture_king() {
-                pos.unmake_move(mv, undo);
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            if next.can_capture_king() {
                 self.keys.pop();
                 continue;
             }
             any_legal = true;
-            let score = -self.negamax(pos, depth - 1, ply + 1, -beta, -alpha);
-            pos.unmake_move(mv, undo);
+            let score = -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha);
             self.keys.pop();
             if self.stopped {
                 return DRAW;
@@ -398,7 +398,7 @@ impl Search<'_> {
     /// `ply` 0 means the position is being valued on its own, not as part of
     /// a search from somewhere else; like the root of the main search, it is
     /// then not scored as a dead draw.
-    fn quiesce(&mut self, pos: &mut Position, ply: usize, mut alpha: Score, beta: Score) -> Score {
+    fn quiesce(&mut self, pos: &Position, ply: usize, mut alpha: Score, beta: Score) -> Score {
         if self.should_stop() {
             return DRAW;
         }
@@ -428,14 +428,13 @@ impl Search<'_> {
             if !in_check && !is_tactical(mv) {
                 continue;
             }
-            let undo = pos.make_move(mv);
-            if pos.can_capture_king() {
-                pos.unmake_move(mv, undo);
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            if next.can_capture_king() {
                 continue;
             }
             any_legal = true;
-            let score = -self.quiesce(pos, ply + 1, -beta, -alpha);
-            pos.unmake_move(mv, undo);
+            let score = -self.quiesce(&next, ply + 1, -beta, -alpha);
             if self.stopped {
                 return DRAW;
             }
@@ -481,7 +480,7 @@ mod tests {
     }
 
     fn search(text: &str, depth: u32) -> Outcome {
-        Search::new(&HandCrafted).fixed_depth(&mut fen(text), depth)
+        Search::new(&HandCrafted).fixed_depth(&fen(text), depth)
     }
 
     fn best(text: &str, depth: u32) -> String {
@@ -493,7 +492,7 @@ mod tests {
 
     /// The exact quiescence value of a position: a full window leaves
     /// nothing to prune against.
-    fn quiet_value(pos: &mut Position, ply: usize) -> Score {
+    fn quiet_value(pos: &Position, ply: usize) -> Score {
         Search::new(&HandCrafted).quiesce(pos, ply, -INFINITY, INFINITY)
     }
 
@@ -566,7 +565,7 @@ mod tests {
                 let expected = minimax(&mut pos, depth, 0, &mut minimax_nodes);
 
                 let mut searcher = Search::new(&HandCrafted);
-                let outcome = searcher.fixed_depth(&mut pos, depth);
+                let outcome = searcher.fixed_depth(&pos, depth);
                 assert_eq!(outcome.score, expected, "{text} depth {depth}");
                 assert!(searcher.nodes() <= minimax_nodes, "{text} depth {depth}");
                 assert_eq!(pos, fen(text), "the position must be restored");
@@ -587,7 +586,7 @@ mod tests {
         let mut minimax_nodes = 0;
         minimax(&mut fen(text), 4, 0, &mut minimax_nodes);
         let mut searcher = Search::new(&HandCrafted);
-        searcher.fixed_depth(&mut fen(text), 4);
+        searcher.fixed_depth(&fen(text), 4);
         assert!(searcher.nodes() * 2 < minimax_nodes);
     }
 
@@ -705,7 +704,7 @@ mod tests {
                 // quiescence value, seen from the root side, is the score.
                 assert_eq!(outcome.pv.len(), depth as usize, "{text} depth {depth}");
                 let from_root_side = if depth % 2 == 0 { 1 } else { -1 };
-                let leaf = quiet_value(&mut pos, depth as usize) * from_root_side;
+                let leaf = quiet_value(&pos, depth as usize) * from_root_side;
                 assert_eq!(leaf, outcome.score, "{text} depth {depth}");
             }
         }
@@ -752,12 +751,12 @@ mod tests {
         let history = play(&mut pos, &["b1c1", "h8g8", "c1b1"]);
         assert_eq!(pos.to_fen(), "6k1/8/8/8/8/2K5/8/1Q6 b - - 13 31");
 
-        let blind = Search::new(&HandCrafted).fixed_depth(&mut pos.clone(), 2);
+        let blind = Search::new(&HandCrafted).fixed_depth(&pos.clone(), 2);
         assert!(blind.score < -500, "without history Black is just lost");
 
         let informed = Search::new(&HandCrafted)
             .with_history(&history)
-            .fixed_depth(&mut pos, 2);
+            .fixed_depth(&pos, 2);
         assert_eq!(informed.score, DRAW);
         assert_eq!(informed.best_move.unwrap().to_string(), "g8h8");
     }
@@ -808,11 +807,11 @@ mod tests {
     #[test]
     fn a_node_limit_stops_the_search_and_restores_everything() {
         let original = fen(KIWIPETE);
-        let mut pos = original.clone();
+        let pos = original.clone();
         let mut searcher = Search::new(&HandCrafted)
             .with_history(&[1, 2, 3])
             .with_limits(Limits::nodes(500));
-        let outcome = searcher.fixed_depth(&mut pos, 4);
+        let outcome = searcher.fixed_depth(&pos, 4);
         assert!(searcher.was_stopped());
         assert_eq!(searcher.nodes(), 500, "stops exactly at the limit");
         // Unwinding took every move back.
@@ -828,7 +827,7 @@ mod tests {
     fn a_generous_node_limit_changes_nothing() {
         let unlimited = search(ROOK_ENDGAME, 3);
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::nodes(u64::MAX));
-        let limited = searcher.fixed_depth(&mut fen(ROOK_ENDGAME), 3);
+        let limited = searcher.fixed_depth(&fen(ROOK_ENDGAME), 3);
         assert!(!searcher.was_stopped());
         assert_eq!(limited, unlimited);
     }
@@ -836,9 +835,9 @@ mod tests {
     #[test]
     fn a_raised_stop_flag_ends_the_search_at_the_next_check() {
         let flag = AtomicBool::new(true);
-        let mut pos = fen(KIWIPETE);
+        let pos = fen(KIWIPETE);
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
-        let outcome = searcher.fixed_depth(&mut pos, 5);
+        let outcome = searcher.fixed_depth(&pos, 5);
         assert!(searcher.was_stopped());
         // Seen before the first node, since zero is a multiple of the interval.
         assert_eq!(searcher.nodes(), 0);
@@ -848,15 +847,15 @@ mod tests {
         // A flag that is never raised does not disturb the search.
         let calm = AtomicBool::new(false);
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&calm);
-        assert_eq!(searcher.fixed_depth(&mut pos, 2), search(KIWIPETE, 2));
+        assert_eq!(searcher.fixed_depth(&pos, 2), search(KIWIPETE, 2));
         assert!(!searcher.was_stopped());
     }
 
     #[test]
     fn a_passed_deadline_ends_the_search() {
-        let mut pos = fen(KIWIPETE);
+        let pos = fen(KIWIPETE);
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
-        searcher.fixed_depth(&mut pos, 6);
+        searcher.fixed_depth(&pos, 6);
         assert!(searcher.was_stopped());
         assert!(searcher.nodes() <= CHECK_INTERVAL);
         assert_eq!(pos, fen(KIWIPETE));
@@ -866,7 +865,7 @@ mod tests {
     fn iterate(text: &str, limits: Limits) -> (Outcome, Vec<Report>, bool) {
         let mut reports = Vec::new();
         let mut searcher = Search::new(&HandCrafted).with_limits(limits);
-        let outcome = searcher.iterate(&mut fen(text), &mut |report| reports.push(report.clone()));
+        let outcome = searcher.iterate(&fen(text), &mut |report| reports.push(report.clone()));
         (outcome, reports, searcher.was_stopped())
     }
 
@@ -948,12 +947,12 @@ mod tests {
         let flag = AtomicBool::new(true);
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
         let mut count = 0;
-        let outcome = searcher.iterate(&mut fen(KIWIPETE), &mut |_| count += 1);
+        let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| count += 1);
         assert_eq!(count, 1);
         assert!(legal_moves(&fen(KIWIPETE)).contains(&outcome.best_move.unwrap()));
 
         let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
-        let outcome = searcher.iterate(&mut fen(KIWIPETE), &mut |_| {});
+        let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| {});
         assert_eq!(outcome, search(KIWIPETE, 1));
     }
 
@@ -971,12 +970,8 @@ mod tests {
             "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
             "r4rk1/ppp2ppp/8/8/8/8/PPP2PPP/R4RK1 w - - 0 1",
         ] {
-            let mut pos = fen(text);
-            assert_eq!(
-                quiet_value(&mut pos, 0),
-                HandCrafted.evaluate(&pos),
-                "{text}"
-            );
+            let pos = fen(text);
+            assert_eq!(quiet_value(&pos, 0), HandCrafted.evaluate(&pos), "{text}");
             assert_eq!(pos, fen(text));
         }
     }
@@ -984,9 +979,9 @@ mod tests {
     #[test]
     fn quiescence_plays_out_a_winning_capture() {
         // White is a queen for a rook down on the board, but takes the queen.
-        let mut pos = fen("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
+        let pos = fen("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
         assert!(HandCrafted.evaluate(&pos) < -300);
-        assert!(quiet_value(&mut pos, 0) > 300);
+        assert!(quiet_value(&pos, 0) > 300);
     }
 
     /// The horizon effect: at depth 1 a search that evaluated straight away
@@ -1000,10 +995,7 @@ mod tests {
         assert!(legal_moves(&pos).contains(&grab));
         let _undo = pos.make_move(grab);
         // After dxe5 White has a bare king against a pawn.
-        assert!(
-            -quiet_value(&mut pos, 1) < 0,
-            "the queen is lost after dxe5"
-        );
+        assert!(-quiet_value(&pos, 1) < 0, "the queen is lost after dxe5");
 
         for depth in 1..=3 {
             assert_ne!(best(text, depth), "e2e5", "depth {depth}");
@@ -1014,31 +1006,31 @@ mod tests {
     #[test]
     fn quiescence_does_not_stand_pat_in_check() {
         // Checkmated: no standing pat, no moves.
-        let mut mated = fen("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1");
-        assert_eq!(quiet_value(&mut mated, 0), mated_in(0));
-        assert_eq!(quiet_value(&mut mated, 5), mated_in(5));
+        let mated = fen("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1");
+        assert_eq!(quiet_value(&mated, 0), mated_in(0));
+        assert_eq!(quiet_value(&mated, 5), mated_in(5));
         // In check with two ways out, taking the queen or stepping aside:
         // the value is what the best of them leads to, not the static
         // evaluation of the checked position.
-        let mut checked = fen("4k3/8/8/8/8/8/3q4/4K3 w - - 0 1");
+        let checked = fen("4k3/8/8/8/8/8/3q4/4K3 w - - 0 1");
         assert_eq!(legal_moves(&checked).len(), 2);
         // King takes queen: bare kings, which is level.
-        assert_eq!(quiet_value(&mut checked, 0), 0);
+        assert_eq!(quiet_value(&checked, 0), 0);
         assert!(HandCrafted.evaluate(&checked) < -800);
     }
 
     #[test]
     fn quiescence_considers_queen_promotions() {
-        let mut pos = fen("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1");
+        let pos = fen("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1");
         let before = HandCrafted.evaluate(&pos);
-        assert!(quiet_value(&mut pos, 0) > before + 500);
+        assert!(quiet_value(&pos, 0) > before + 500);
     }
 
     #[test]
     fn quiescence_terminates_on_a_position_full_of_captures() {
         let mut searcher = Search::new(&HandCrafted);
-        let mut pos = fen(KIWIPETE);
-        let value = searcher.quiesce(&mut pos, 0, -INFINITY, INFINITY);
+        let pos = fen(KIWIPETE);
+        let value = searcher.quiesce(&pos, 0, -INFINITY, INFINITY);
         assert!(value.abs() < 2_000, "{value}");
         assert!(searcher.nodes() < 1_000_000, "{}", searcher.nodes());
         assert_eq!(pos, fen(KIWIPETE));
@@ -1064,7 +1056,7 @@ mod tests {
     fn counts_nodes() {
         let mut searcher = Search::new(&HandCrafted);
         assert_eq!(searcher.nodes(), 0);
-        searcher.fixed_depth(&mut Position::startpos(), 1);
+        searcher.fixed_depth(&Position::startpos(), 1);
         // The root plus its 20 children.
         assert_eq!(searcher.nodes(), 21);
     }
@@ -1072,6 +1064,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "between 1 and MAX_PLY")]
     fn depth_zero_is_rejected() {
-        Search::new(&HandCrafted).fixed_depth(&mut Position::startpos(), 0);
+        Search::new(&HandCrafted).fixed_depth(&Position::startpos(), 0);
     }
 }

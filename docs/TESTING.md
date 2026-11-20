@@ -214,10 +214,26 @@ Reading the result: copy-make is slightly faster in perft, by an amount
 (about 5%) that is small and specific to this workload. Perft does nothing
 but generate and make moves; search adds evaluation, hashing and ordering,
 which dilute the difference, and later per-position state (for example NNUE
-accumulators) changes the cost of copying. The engine keeps make/unmake as
-its interface, and `Position` is cheap to clone, so search can use either
-style. The choice for search is to be made in milestone 4 on search speed,
-not on perft.
+accumulators) changes the cost of copying. So the decision was deferred to a measurement
+inside the real search, made in milestone 4.
+
+Measured on 2026-11-20 on the same machine, by building the search both ways
+and running `search` to a fixed depth, three runs each, median shown. The
+node counts are identical, which confirms the two builds perform the same
+search:
+
+| Position | Depth | Nodes | Make/unmake | Copy-make | Difference |
+| --- | --- | --- | --- | --- | --- |
+| Start position | 6 | 3,001,490 | 629 ms | 598 ms | copy-make 4.9% faster |
+| Kiwipete | 3 | 4,513,442 | 1,483 ms | 1,442 ms | copy-make 2.8% faster |
+| Position 3 | 7 | 2,517,193 | 481 ms | 461 ms | copy-make 4.2% faster |
+
+Copy-make was faster in all nine pairs of runs but one, where the two tied.
+The margin is small but consistent, so **the search uses copy-make**. It
+also makes the search simpler: there is no unmake step to get wrong, and the
+search takes the position by shared reference. The make/unmake build used for
+this comparison was the search as committed before the switch; the pinned
+node counts in `tests/search_pins.rs` did not change across it.
 
 ### Reference positions
 

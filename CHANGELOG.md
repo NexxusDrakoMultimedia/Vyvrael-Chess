@@ -101,3 +101,5 @@ once it has a first release.
   position is evaluated, most valuable victim first.
 - `search` subcommand of the binary: fixed-depth search with a line per depth.
 - Pinned fixed-depth search results (`tests/search_pins.rs`).
+- The search plays moves on copies of the position (copy-make) after
+  measuring it 3 to 5% faster than make/unmake in the search loop.

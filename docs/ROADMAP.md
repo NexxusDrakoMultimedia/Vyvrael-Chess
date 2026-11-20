@@ -202,7 +202,7 @@ behaviour is noticed.
   first
 - [x] `cli`: `search` subcommand
 - [x] `search`: pinned fixed-depth node counts
-- [ ] `search`: measure make/unmake against copy-make and choose
+- [x] `search`: measure make/unmake against copy-make and choose
 - [ ] End-of-milestone review and doc drift pass
 
 ## Milestones 5 to 10
@@ -358,10 +358,10 @@ NNUE is 9 and tablebases are 10.
   so the evaluator can be handed to the search thread. A later network
   evaluator must therefore keep any mutable per-search state outside the
   trait object.
-- **Make/unmake or copy-make is chosen by measuring search.** Milestone 4
-  starts with make/unmake, then measures both styles in the real search loop
-  and keeps the faster. Perft showed copy-make about 5% faster (see
-  TESTING.md), which is not decisive on its own.
+- **Make/unmake or copy-make is chosen by measuring search** (done: the
+  search uses copy-make). Milestone 4 started with make/unmake, measured both
+  styles in the real search loop and kept the faster. Copy-make was 3 to 5%
+  faster with identical node counts; the numbers are in TESTING.md.
 - **KI-7 is fixed in milestone 5**, before the UCI loop, so the engine answers
   `isready` without a start-up delay.
 - **Milestone 6 uses Cute Chess and Ordo** (the maintainer's choice, also
