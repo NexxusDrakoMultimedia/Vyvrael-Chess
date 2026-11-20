@@ -86,3 +86,5 @@ once it has a first release.
 - `HandCrafted` evaluator (material plus tapered piece-square tables), its
   `Breakdown`, and `default_evaluator`.
 - `eval` subcommand of the binary, printing the evaluation and its parts.
+- `scripts/install_tools.py`: a Linux installer for pinned versions of Cute
+  Chess, Ordo and lichess-bot, with offline tests. Not yet run end to end.

@@ -30,6 +30,7 @@ Layout:
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
+- `scripts/`: helper scripts and their tests (the external-tool installer).
 - `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.
 
 ## Commands
@@ -39,6 +40,8 @@ Layout:
 | Format check | `cargo fmt --all --check` |
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
+| Script tests | `python3 -m unittest discover -s scripts/tests` |
+| Install external tools (Linux) | `python3 scripts/install_tools.py --dry-run` first; see `docs/TESTING.md` |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
