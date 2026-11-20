@@ -427,8 +427,9 @@ Nexxus Drako Multimedia's own work, not third-party material:
 - **The NXD fractal background** (`NXDFractal.svg`): a 500 by 500 low-poly
   field of triangles running from dark red (`#7f0000`) through orange to gold
   (`#f3c601`). It also gives the branding its palette.
-- **Renders of Nexxus Drako**, the company's dragon character (red hair, red
-  wings). Among them are a square render already set on the fractal
+- **Renders of Nexxus Drako**, the dragon VTuber who owns Nexxus Drako
+  Multimedia (red hair, red wings). The avatar shows the engine's maker as
+  well as the engine. Among them are a square render already set on the fractal
   background and a round one with a gold ring on dark red, which are the
   shapes an avatar needs.
 
