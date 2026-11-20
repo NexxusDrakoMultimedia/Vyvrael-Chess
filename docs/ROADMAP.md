@@ -225,7 +225,7 @@ Chunk checklist. One commit per item unless noted.
 - [x] `search`: weakened move choice for limited strength
 - [x] `uci`: option `UCI_LimitStrength`
 - [x] `uci`: option `UCI_Elo` (uncalibrated until milestone 6)
-- [ ] Integration test: drive the binary over stdin and stdout
+- [x] Integration test: drive the binary over stdin and stdout
 - [ ] End-of-milestone review and doc drift pass
 
 Design decisions taken at the start of the milestone:

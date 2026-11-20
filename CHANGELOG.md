@@ -191,3 +191,5 @@ once it has a first release.
 - UCI option `UCI_Elo` (spin, default 1200, 400 to 1800): the rating to play
   at when `UCI_LimitStrength` is on. **Not calibrated**: the settings are
   ordered, but what rating each really plays at is measured in milestone 6.
+- Integration tests that drive the engine binary over pipes
+  (`tests/uci.rs`).
