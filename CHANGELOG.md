@@ -48,6 +48,10 @@ once it has a first release.
 - `scripts/install_tools.py`: the `vyvrael-lichess-bot` launcher now changes
   into lichess-bot's directory first, so it finds `config.yml` from anywhere.
 
+- `scripts/install_tools.py`: reinstalling lichess-bot no longer deletes the
+  user's own top-level files, and the default engine path is now
+  `<prefix>/engines/vyvrael`, outside the directory a reinstall replaces.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

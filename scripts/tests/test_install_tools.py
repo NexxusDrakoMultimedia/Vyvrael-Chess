@@ -432,12 +432,87 @@ class Config(unittest.TestCase):
             install_tools.patch_config("engine:\n  path: x\n", "d", "n")
 
     def test_engine_location(self):
-        self.assertEqual(install_tools.engine_location(args()), ("./engines/", "vyvrael"))
         with tempfile.TemporaryDirectory() as tmp:
             engine = Path(tmp) / "vyvrael"
             engine.write_text("")
-            where = install_tools.engine_location(args(engine=str(engine)))
+            where = install_tools.engine_location(args(engine=str(engine)), Path(tmp) / "prefix")
             self.assertEqual(where, (str(engine.resolve().parent), "vyvrael"))
+
+    def test_default_engine_location_is_outside_the_replaced_directory(self):
+        # A reinstall replaces <prefix>/lichess-bot, so the engine the default
+        # configuration points at must not live in there, nor depend on the
+        # current directory.
+        prefix = PurePosixPath("/home/me/tools")
+        directory, name = install_tools.engine_location(args(), prefix)
+        self.assertEqual((directory, name), ("/home/me/tools/engines", "vyvrael"))
+        self.assertNotIn(prefix / "lichess-bot", PurePosixPath(directory, name).parents)
+
+
+class CarryOver(unittest.TestCase):
+    """What a lichess-bot reinstall brings across from the old directory."""
+
+    def trees(self, root: Path) -> tuple[Path, Path]:
+        old, new = root / "old", root / "new"
+        for tree in (old, new):
+            (tree / "lib").mkdir(parents=True)
+            (tree / "engines").mkdir()
+        (old / "lichess-bot.py").write_text("old release")
+        (old / "lib/old_module.py").write_text("old release")
+        (old / "config.yml").write_text("token: mine")
+        (old / "venv/bin").mkdir(parents=True)
+        (old / "venv/bin/python").write_text("venv")
+        (old / "game_records").mkdir()
+        (old / "game_records/one.pgn").write_text("1. e4")
+        (old / "book.bin").write_text("book")
+        (old / "__pycache__").mkdir()
+        (old / "engines/in-release-dir").write_text("x")
+        (new / "lichess-bot.py").write_text("new release")
+        return old, new
+
+    def test_keeps_config_venv_and_the_users_own_top_level_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new = self.trees(Path(tmp))
+            carried = install_tools.carry_over(old, new)
+            self.assertEqual(carried, ["book.bin", "config.yml", "game_records", "venv"])
+            self.assertEqual((new / "config.yml").read_text(), "token: mine")
+            self.assertEqual((new / "venv/bin/python").read_text(), "venv")
+            self.assertEqual((new / "game_records/one.pgn").read_text(), "1. e4")
+            self.assertEqual((new / "book.bin").read_text(), "book")
+            if os.name != "nt":
+                self.assertEqual(stat.S_IMODE((new / "config.yml").stat().st_mode), 0o600)
+
+    def test_what_the_release_provides_is_not_merged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new = self.trees(Path(tmp))
+            install_tools.carry_over(old, new)
+            self.assertEqual((new / "lichess-bot.py").read_text(), "new release")
+            self.assertFalse((new / "lib/old_module.py").exists())
+            self.assertFalse((new / "engines/in-release-dir").exists())
+            self.assertFalse((new / "__pycache__").exists())
+
+    def test_config_and_venv_win_over_files_of_the_same_name_in_the_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new = self.trees(Path(tmp))
+            (new / "config.yml").write_text("from the release")
+            (new / "venv").mkdir()
+            (new / "venv/stray").write_text("x")
+            install_tools.carry_over(old, new)
+            self.assertEqual((new / "config.yml").read_text(), "token: mine")
+            self.assertFalse((new / "venv/stray").exists())
+
+    def test_a_first_install_carries_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "new").mkdir()
+            self.assertEqual(install_tools.carry_over(Path(tmp) / "missing", Path(tmp) / "new"), [])
+
+    def test_the_whole_reinstall_keeps_them_through_the_swap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old, new = self.trees(Path(tmp))
+            install_tools.carry_over(old, new)
+            install_tools.replace_dir(new, old)
+            self.assertEqual((old / "lichess-bot.py").read_text(), "new release")
+            self.assertEqual((old / "config.yml").read_text(), "token: mine")
+            self.assertEqual((old / "game_records/one.pgn").read_text(), "1. e4")
 
 
 class Systemd(unittest.TestCase):

@@ -379,14 +379,50 @@ def install_ordo(ctx: Ctx) -> None:
     )
 
 
-def engine_location(args) -> tuple[str, str]:
-    """(directory, file name) of the engine for lichess-bot's configuration."""
+def engine_location(args, prefix: Path) -> tuple[str, str]:
+    """(directory, file name) of the engine for lichess-bot's configuration.
+
+    Without --engine it is `<prefix>/engines/vyvrael`: an absolute path
+    outside lichess-bot's own directory, which a reinstall replaces.
+    """
     if args.engine:
         engine = Path(args.engine).expanduser().resolve()
         if not engine.is_file():
             say(f"  warning: no engine at {engine} yet (build Vyvræl first; config still written)")
         return str(engine.parent), engine.name
-    return "./engines/", "vyvrael"
+    return str(prefix / "engines"), "vyvrael"
+
+
+# What a reinstall of lichess-bot always brings across from the old directory.
+KEPT_ALWAYS = ("config.yml", "venv")
+
+
+def carry_over(old: Path, new: Path) -> list[str]:
+    """Copies what a reinstall must not lose from `old` into the staged `new`.
+
+    That is config.yml and the virtual environment, plus every top-level
+    entry of the old directory that the new release does not provide: those
+    can only be the user's own files (game records, opening books, notes).
+    Entries the release does provide are not merged, so the pinned version
+    of them wins. Returns the names carried across, sorted.
+    """
+    carried = []
+    if not old.is_dir():
+        return carried
+    for entry in sorted(old.iterdir()):
+        target = new / entry.name
+        always = entry.name in KEPT_ALWAYS
+        if entry.name == "__pycache__" or (os.path.lexists(target) and not always):
+            continue
+        remove_path(target)
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.copytree(entry, target, symlinks=True)
+        else:
+            shutil.copy2(entry, target, follow_symlinks=False)
+        carried.append(entry.name)
+    if "config.yml" in carried and not (new / "config.yml").is_symlink():
+        (new / "config.yml").chmod(0o600)  # it may hold a token
+    return carried
 
 
 def patch_config(text: str, engine_dir: str, engine_name: str) -> str:
@@ -462,19 +498,18 @@ def install_lichess_bot(ctx: Ctx) -> None:
     # may have left the whole install, config.yml included, under `.old`.
     recover_interrupted(dest)
     config = dest / "config.yml"
-    kept_config = config.read_text() if config.exists() else None
+    reinstall = dest.is_dir()
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / "lichess-bot.tar.gz"
         seen = download(url, archive, pin["sha256"])
         safe_extract(archive, Path(tmp) / "src")
         src = single_subdir(Path(tmp) / "src")
-        # Carry the user's configuration and the virtual environment across,
-        # inside the staged tree, so the swap below is all or nothing.
-        if kept_config is not None:
-            write_private(src / "config.yml", kept_config)
-        if (dest / "venv").exists():
-            shutil.copytree(dest / "venv", src / "venv", symlinks=True)
+        # Carry the user's configuration, the virtual environment and the
+        # user's own files across, inside the staged tree, so the swap below
+        # is all or nothing.
+        carried = carry_over(dest, src)
         replace_dir(src, dest)
+    kept_config = "config.yml" in carried
 
     if not (dest / "venv").exists():
         subprocess.run([sys.executable, "-m", "venv", str(dest / "venv")], check=True)
@@ -484,13 +519,23 @@ def install_lichess_bot(ctx: Ctx) -> None:
         check=True,
     )
 
-    if kept_config is not None:
+    if kept_config:
         say("  kept your existing config.yml")
     else:
-        engine_dir, engine_name = engine_location(ctx.args)
+        engine_dir, engine_name = engine_location(ctx.args, ctx.prefix)
         template = (dest / "config.yml.default").read_text()
         write_private(config, patch_config(template, engine_dir, engine_name))
         say(f"  wrote config.yml (engine {Path(engine_dir, engine_name)}, token blank)")
+        if not ctx.args.engine:
+            # lichess-bot refuses to start when the engine directory is missing.
+            Path(engine_dir).mkdir(parents=True, exist_ok=True)
+            say(f"  put the Vyvræl binary at {Path(engine_dir, engine_name)}")
+    own = [name for name in carried if name not in KEPT_ALWAYS]
+    if own:
+        say(f"  kept your own files: {', '.join(own)}")
+    if reinstall:
+        say("  everything else in that directory was replaced by the pinned release:")
+        say("  edits to its files, and files added inside its directories, are gone")
 
     # lichess-bot reads ./config.yml and resolves relative paths in it against
     # the current directory, so the launcher runs it from its own directory,
@@ -582,7 +627,10 @@ lichess-bot next steps (manual by design):
      uncomment that line in ~/.config/vyvrael/lichess-token.env and put the
      token after the '='). Never commit it. While the variable is set, even
      to nothing, it replaces any token in config.yml.
-  3. Build Vyvræl, then run once: vyvrael-lichess-bot -u
+  3. Build Vyvræl. Without --engine, a new config.yml expects the binary at
+     engines/vyvrael under the install prefix: outside lichess-bot's own
+     directory, which a reinstall replaces. Then run once:
+       vyvrael-lichess-bot -u
      That upgrades the account to BOT. It is IRREVERSIBLE.
   4. Afterwards: vyvrael-lichess-bot
      (with --systemd: systemctl --user enable --now vyvrael-lichess-bot)
