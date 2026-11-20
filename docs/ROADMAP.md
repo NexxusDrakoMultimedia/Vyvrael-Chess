@@ -354,7 +354,7 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | --- | --- | --- |
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
 | 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with an AVX2/BMI2 build and with binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the `x86-64-v3` primary build, the optional `x86-64-v3-pext` and `x86-64` builds, and binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
@@ -365,33 +365,42 @@ Decided by the maintainer (all but the first point on 2026-11-21):
 
 - A release ships binaries for Windows and Linux on x86-64, each with a
   SHA-256 checksum file beside it. 0.1.0-alpha.1 did.
-- Each system gets two builds: a generic one, a plain release build for any
-  x86-64 processor, and one for processors with AVX2 and BMI2. Neither is
-  ever built with `target-cpu=native`, and there is no AVX-512 build.
+- **Three builds for each system**, named by `<build>` in the file name:
+
+  | `<build>` | What it is | Standing |
+  | --- | --- | --- |
+  | `x86-64-v3` | Built for the `x86-64-v3` level: AVX2 and BMI2, on Intel from Haswell (2013) and AMD from Excavator and Zen. Sliding-piece attacks by magic bitboards, which are fast on all of those. | **The primary build**, and the least the project supports and tests. |
+  | `x86-64-v3-pext` | The same level, with sliding-piece attacks by the BMI2 instruction PEXT instead. Faster where PEXT is fast (Intel, and AMD from Zen 3); slow on AMD Zen 1 and Zen 2, where PEXT is slow. | Optional. |
+  | `x86-64` | A plain build for any x86-64 processor, for machines older than the primary build runs on. | Optional, for backward compatibility; not the supported minimum. |
+
+  None is ever built with `target-cpu=native`, and there is no AVX-512
+  build.
+- **`x86-64-v3` is the bare minimum** the project targets: the build to
+  measure, to test with and to recommend. The plain `x86-64` build is a
+  courtesy and gets no measurements of its own.
+- **File names:** `vyvrael-<version>-<build>.exe` for Windows and
+  `vyvrael-<version>-<build>` for Linux, for example
+  `vyvrael-0.2.0-x86-64-v3.exe`. The files of 0.1.0-alpha.1 were named
+  before this was decided and keep their names (`...-windows-x86_64.exe`,
+  `...-linux-x86_64`); they are plain `x86-64` builds.
 - The binaries are built by a workflow, not by hand. The maintainer owns
   that workflow, because `.github/workflows` is a protected path that agents
   do not edit: an agent may propose its contents in a document for the
   maintainer to put in place.
-- **The release of milestone 7 (0.2.0) is the first with an AVX2/BMI2 build
-  and with workflow-built binaries.** Until then a release ships generic
+- **The release of milestone 7 (0.2.0) is the first with these builds and
+  with workflow-built binaries.** Until then a release ships plain `x86-64`
   builds made by hand, as 0.1.0-alpha.1 did.
-- **File names:** `vyvrael-<version>-<build>.exe` for Windows and
-  `vyvrael-<version>-<build>` for Linux, where `<build>` names the build.
-  The files of 0.1.0-alpha.1 were named before this was decided and keep
-  their names (`...-windows-x86_64.exe`, `...-linux-x86_64`).
 - Agents prepare a release; the maintainer tags and publishes it.
 - Binaries are attached to the release and never committed.
 
-Open, for the maintainer, to be decided after milestone 7:
+What the builds depend on:
 
-- The processor level the AVX2/BMI2 build names: `x86-64-v3` or `haswell`.
-  Both give AVX2 and BMI2 without AVX-512. `x86-64-v3` is a vendor-neutral
-  level with no tuning for one processor; `haswell` is one Intel processor,
-  which adds a few instructions the engine does not use and tunes the code
-  for that model. The benchmark of queued task 2 is the place to measure
-  the difference.
-- The exact words used for `<build>` (one for the generic build, one for
-  the AVX2/BMI2 build), which follow from that choice.
+- The `x86-64-v3-pext` build needs sliding-piece attacks by PEXT in the
+  engine, which is to be added in milestone 7 behind a feature, with magic
+  bitboards staying the default and perft required to match on both paths.
+  Until that exists there is no such build.
+- The benchmark of queued task 2 measures the three builds against each
+  other on both of the maintainer's machines.
 
 ## Testing tooling (before milestone 6)
 
@@ -549,8 +558,9 @@ it will really be, not one that is slow mainly for lack of them.
   reference positions; `bench` over 30 to 50 positions (opening,
   middlegame, endgame, tactical); the build settings in use (wanted:
   opt-level 3, `lto = "fat"`, one codegen unit, `panic = "abort"`; never
-  `target-cpu=native` in committed configuration, with an optional
-  AVX2/BMI2 build described in the docs); a profile of `bench` on Linux
+  `target-cpu=native` in committed configuration; the three release builds
+  of "Release artifacts" compared, with how to make each described in the
+  docs); a profile of `bench` on Linux
   with the ten hottest functions.
 - [ ] **The usual causes, in this order, as the profile points:**
   allocation or cloning in the hot path; copy-make on a large position;
@@ -653,6 +663,13 @@ results from different machines are not compared with each other.
 
 The other milestone 7 heuristics (killer moves, history, null-move pruning,
 late move reductions) are ordered when the milestone starts.
+
+Also in milestone 7: sliding-piece attacks by the BMI2 instruction PEXT,
+behind a feature, for the optional `x86-64-v3-pext` release build (see
+"Release artifacts"). Magic bitboards stay the default, and perft must give
+the same counts on both paths. It is a speed change that leaves the search
+tree alone, so it is checked by perft and by an unchanged node count, not by
+SPRT.
 
 ## Decisions for milestones 4 to 6
 
