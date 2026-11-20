@@ -375,7 +375,7 @@ Part B, the match and rating scripts:
 
 Part A, the installer:
 
-- [ ] The ladder's opponent engines as pins: name, version, official source,
+- [x] The ladder's opponent engines as pins: name, version, official source,
   method, SHA-256, licence
 - [ ] Install the Linux engines: download or build, `--only`, idempotent
 - [ ] Write the `engines.json` fragment with the baseline's exact names and
