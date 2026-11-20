@@ -325,8 +325,13 @@ def patch_config(text: str, engine_dir: str, engine_name: str) -> str:
 
 
 def systemd_quote(value: str) -> str:
-    """Quotes one argument for a systemd `ExecStart=` line."""
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%")
+    """Quotes one argument for a systemd `ExecStart=` line.
+
+    systemd expands `%` specifiers and `$NAME` / `${NAME}` variables there,
+    even inside double quotes, so both characters are doubled.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = escaped.replace("%", "%%").replace("$", "$$")
     return f'"{escaped}"'
 
 

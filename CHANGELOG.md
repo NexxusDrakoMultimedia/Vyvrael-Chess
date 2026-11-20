@@ -27,6 +27,9 @@ once it has a first release.
 - `Position::put_piece` and `remove_piece` left a stale hash when a pawn was
   added or removed beside an en passant square. Found before any release.
 
+- `scripts/install_tools.py`: a `$` in the install path is now escaped in the
+  systemd unit's `ExecStart`, where systemd would have expanded it.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

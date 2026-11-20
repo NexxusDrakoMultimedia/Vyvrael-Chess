@@ -228,6 +228,21 @@ class Systemd(unittest.TestCase):
         self.assertEqual(install_tools.systemd_quote('say "hi"'), '"say \\"hi\\""')
         self.assertEqual(install_tools.systemd_quote("100%"), '"100%%"')
 
+    def test_dollar_signs_are_not_left_for_systemd_to_expand(self):
+        self.assertEqual(install_tools.systemd_quote("/a/${X}/b"), '"/a/$${X}/b"')
+        self.assertEqual(install_tools.systemd_quote("$HOME"), '"$$HOME"')
+        unit = install_tools.systemd_unit(
+            PurePosixPath("/opt/${X}/venv/bin/python"),
+            PurePosixPath("/opt/${X}/lichess-bot.py"),
+            PurePosixPath("/opt/${X}"),
+            PurePosixPath("/home/me/.config/vyvrael/lichess-token.env"),
+        )
+        self.assertIn(
+            'ExecStart="/opt/$${X}/venv/bin/python" "/opt/$${X}/lichess-bot.py"\n', unit
+        )
+        # Only command lines are expanded; a path setting keeps its dollar.
+        self.assertIn("WorkingDirectory=/opt/${X}\n", unit)
+
     def test_unit_quotes_exec_start_and_is_not_enabled_by_writing(self):
         unit = install_tools.systemd_unit(
             PurePosixPath("/opt/my tools/venv/bin/python"),
