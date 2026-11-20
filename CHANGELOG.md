@@ -177,3 +177,8 @@ once it has a first release.
 - `rng::entropy_seed`, the one permitted reader of system entropy, and
   `rng::stream::STRENGTH`, the stream for randomness that affects playing
   strength. Nothing uses them yet.
+- UCI options `DeterministicRNG` (check, default `false`) and `RngSeed`
+  (spin, default 822286742, which is `0x31031996`). The seed of
+  strength-affecting randomness comes from system entropy unless
+  `DeterministicRNG` is on, and is logged with `info string` in reply to
+  `uci` and whenever it changes. No randomness is drawn yet.

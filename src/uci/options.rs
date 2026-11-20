@@ -7,6 +7,8 @@
 //! [`Options::set`], and nowhere else, so the list a GUI is shown and the
 //! list the engine accepts cannot drift apart. `docs/UCI.md` documents each.
 
+use crate::rng::DEFAULT_SEED;
+
 /// Default size of the transposition table, in mebibytes.
 pub const HASH_DEFAULT: u32 = 16;
 /// Largest transposition table that can be asked for, in mebibytes.
@@ -26,6 +28,11 @@ pub struct Options {
     /// `Threads`: number of search threads. Only 1 is possible until there
     /// is a parallel search.
     pub threads: u32,
+    /// `DeterministicRNG`: whether strength-affecting randomness is seeded
+    /// from `RngSeed` (reproducible) instead of from system entropy.
+    pub deterministic_rng: bool,
+    /// `RngSeed`: the seed used when `DeterministicRNG` is on.
+    pub rng_seed: u32,
 }
 
 impl Default for Options {
@@ -33,6 +40,8 @@ impl Default for Options {
         Options {
             hash_mb: HASH_DEFAULT,
             threads: 1,
+            deterministic_rng: false,
+            rng_seed: DEFAULT_SEED,
         }
     }
 }
@@ -45,6 +54,8 @@ impl Options {
         vec![
             spin("Hash", HASH_DEFAULT, 1, HASH_MAX),
             spin("Threads", 1, 1, THREADS_MAX),
+            check("DeterministicRNG", false),
+            spin("RngSeed", DEFAULT_SEED, 0, u32::MAX),
         ]
     }
 
@@ -60,9 +71,28 @@ impl Options {
         match name.to_ascii_lowercase().as_str() {
             "hash" => self.hash_mb = parse_spin("Hash", value, 1, HASH_MAX)?,
             "threads" => self.threads = parse_spin("Threads", value, 1, THREADS_MAX)?,
+            "deterministicrng" => {
+                self.deterministic_rng = parse_check("DeterministicRNG", value)?;
+            }
+            "rngseed" => self.rng_seed = parse_spin("RngSeed", value, 0, u32::MAX)?,
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
+    }
+}
+
+/// The declaration of an on/off option.
+fn check(name: &str, default: bool) -> String {
+    format!("option name {name} type check default {default}")
+}
+
+/// Reads the value of an on/off option: `true` or `false`.
+fn parse_check(name: &str, value: Option<&str>) -> Result<bool, String> {
+    match value {
+        Some("true") => Ok(true),
+        Some("false") => Ok(false),
+        Some(other) => Err(format!("{name}: expected true or false, got `{other}`")),
+        None => Err(format!("{name}: expected true or false, got no value")),
     }
 }
 
@@ -190,5 +220,49 @@ mod tests {
             );
         }
         assert_eq!(options, Options::default());
+    }
+
+    #[test]
+    fn deterministic_rng_and_rng_seed() {
+        let declared = Options::declarations();
+        assert_eq!(
+            declared[2],
+            "option name DeterministicRNG type check default false"
+        );
+        // The default seed, written out because a GUI needs the number: it
+        // is 0x31031996.
+        assert_eq!(
+            declared[3],
+            "option name RngSeed type spin default 822286742 min 0 max 4294967295"
+        );
+        let mut options = Options::default();
+        assert!(!options.deterministic_rng);
+        assert_eq!(options.rng_seed, DEFAULT_SEED);
+
+        assert_eq!(options.set("DeterministicRNG", Some("true")), Ok(()));
+        assert!(options.deterministic_rng);
+        assert_eq!(options.set("deterministicrng", Some("false")), Ok(()));
+        assert!(!options.deterministic_rng);
+        for bad in ["1", "0", "on", "True", "yes", ""] {
+            assert_eq!(
+                options.set("DeterministicRNG", Some(bad)),
+                Err(format!(
+                    "DeterministicRNG: expected true or false, got `{bad}`"
+                ))
+            );
+        }
+        assert_eq!(
+            options.set("DeterministicRNG", None),
+            Err("DeterministicRNG: expected true or false, got no value".to_string())
+        );
+
+        for (text, value) in [("0", 0), ("12345", 12_345), ("4294967295", u32::MAX)] {
+            assert_eq!(options.set("RngSeed", Some(text)), Ok(()));
+            assert_eq!(options.rng_seed, value);
+        }
+        for bad in ["-1", "4294967296", "0x31031996", "seed"] {
+            assert!(options.set("RngSeed", Some(bad)).is_err(), "{bad}");
+        }
+        assert_eq!(options.rng_seed, u32::MAX);
     }
 }

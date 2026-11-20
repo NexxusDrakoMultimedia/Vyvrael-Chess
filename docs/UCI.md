@@ -106,8 +106,8 @@ search.
 | --- | --- | --- | --- | --- |
 | `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
 | `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
-| `DeterministicRNG` | check | `false` | planned (milestone 5) | When `false`, strength-affecting randomness is seeded from system entropy at startup and the chosen seed is logged with `info string`. When `true`, it is seeded from `RngSeed`. |
-| `RngSeed` | spin | `822286742` (`0x31031996`) | planned (milestone 5) | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. |
+| `DeterministicRNG` | check | `false` | implemented | When `false`, strength-affecting randomness is seeded from system entropy when the engine starts. When `true`, it is seeded from `RngSeed`. Switching it off again takes a fresh entropy seed. |
+| `RngSeed` | spin | `822286742` (`0x31031996`), 0 to 4294967295 | implemented | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. Ignored while it is `false`. |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | planned (milestone 5) | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged. |
@@ -118,6 +118,18 @@ Strength limiting uses randomness to weaken play, so it is governed by
 `DeterministicRNG` and `RngSeed`: non-deterministic by default, reproducible
 when `DeterministicRNG` is `true`. See "Planned features" in
 [ROADMAP.md](ROADMAP.md).
+
+The seed in use is always logged, so any run can be replayed:
+
+```text
+info string rng seed 3141592653 (system entropy)
+info string rng seed 822286742 (RngSeed)
+```
+
+The line is sent in reply to `uci`, just before `uciok`, and again whenever
+one of the two options changes the seed. To replay a game that used an
+entropy seed, set `RngSeed` to the logged number and `DeterministicRNG` to
+`true`.
 
 `DeterministicRNG` and `RngSeed` only govern *strength-affecting*
 randomness. Zobrist keys, magic numbers and similar tables are always

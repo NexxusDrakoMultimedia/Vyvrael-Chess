@@ -21,6 +21,7 @@ use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
 use crate::eval::default_evaluator;
 use crate::movegen::find_legal_move;
+use crate::rng::entropy_seed;
 use crate::search::{Limits, Search};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -59,6 +60,9 @@ pub struct Engine {
     until_stopped: bool,
     /// The values of the UCI options.
     options: Options,
+    /// The seed of strength-affecting randomness: from system entropy, or
+    /// `RngSeed` when `DeterministicRNG` is on.
+    seed: u32,
 }
 
 impl Engine {
@@ -74,6 +78,41 @@ impl Engine {
             worker: None,
             until_stopped: false,
             options: Options::default(),
+            // `DeterministicRNG` is off by default, so the seed comes from
+            // system entropy. This is the one permitted use of it.
+            seed: entropy_seed(),
+        }
+    }
+
+    /// The seed strength-affecting randomness currently starts from.
+    #[must_use]
+    pub const fn rng_seed(&self) -> u32 {
+        self.seed
+    }
+
+    /// Says which seed is in use, so that a run can be replayed: give the
+    /// number as `RngSeed` with `DeterministicRNG` on.
+    fn log_seed(&self) {
+        let source = if self.options.deterministic_rng {
+            "RngSeed"
+        } else {
+            "system entropy"
+        };
+        self.say(&format!("info string rng seed {} ({source})", self.seed));
+    }
+
+    /// Chooses the seed again after `DeterministicRNG` or `RngSeed` may
+    /// have changed, and logs it if it did.
+    fn reseed(&mut self, was_deterministic: bool) {
+        let seed = match (self.options.deterministic_rng, was_deterministic) {
+            (true, _) => self.options.rng_seed,
+            // Just switched off: a fresh seed, not the one a user chose.
+            (false, true) => entropy_seed(),
+            (false, false) => self.seed,
+        };
+        if seed != self.seed || was_deterministic != self.options.deterministic_rng {
+            self.seed = seed;
+            self.log_seed();
         }
     }
 
@@ -93,6 +132,7 @@ impl Engine {
                 for declaration in Options::declarations() {
                     self.say(&declaration);
                 }
+                self.log_seed();
                 self.say("uciok");
             }
             Command::IsReady => {
@@ -112,8 +152,10 @@ impl Engine {
             Command::SetOption { name, value } => {
                 // An option applies from the next search on; a running one
                 // keeps the values it started with.
-                if let Err(problem) = self.options.set(&name, value.as_deref()) {
-                    self.say(&format!("info string {problem}"));
+                let was_deterministic = self.options.deterministic_rng;
+                match self.options.set(&name, value.as_deref()) {
+                    Ok(()) => self.reseed(was_deterministic),
+                    Err(problem) => self.say(&format!("info string {problem}")),
                 }
             }
             Command::Quit => {
@@ -348,6 +390,57 @@ mod tests {
             captured.lines(),
             ["info string Hash: expected a whole number from 1 to 65536, got `0`"]
         );
+    }
+
+    #[test]
+    fn the_seed_comes_from_entropy_unless_told_otherwise() {
+        let (mut engine, captured) = engine();
+        // By default: system entropy, logged in reply to `uci`.
+        engine.handle("uci");
+        let entropy = engine.rng_seed();
+        let lines = captured.lines();
+        assert_eq!(
+            lines[lines.len() - 2],
+            format!("info string rng seed {entropy} (system entropy)")
+        );
+        // Engines do not share a seed: of four more, not all have this one.
+        let others: Vec<u32> = (0..4).map(|_| self::engine().0.rng_seed()).collect();
+        assert!(others.iter().any(|&seed| seed != entropy), "{others:?}");
+
+        // Deterministic: the seed is `RngSeed`, by default the project's.
+        engine.handle("setoption name DeterministicRNG value true");
+        assert_eq!(engine.rng_seed(), crate::rng::DEFAULT_SEED);
+        assert_eq!(
+            captured.lines().last().unwrap(),
+            "info string rng seed 822286742 (RngSeed)"
+        );
+        engine.handle("setoption name RngSeed value 5");
+        assert_eq!(engine.rng_seed(), 5);
+        assert_eq!(
+            captured.lines().last().unwrap(),
+            "info string rng seed 5 (RngSeed)"
+        );
+        // Setting the same seed again changes nothing and says nothing.
+        let before = captured.lines().len();
+        engine.handle("setoption name RngSeed value 5");
+        engine.handle("setoption name Hash value 8");
+        assert_eq!(captured.lines().len(), before);
+
+        // Switched off again: a fresh entropy seed, logged.
+        engine.handle("setoption name DeterministicRNG value false");
+        let fresh = engine.rng_seed();
+        assert_eq!(
+            captured.lines().last().unwrap(),
+            &format!("info string rng seed {fresh} (system entropy)")
+        );
+        // `RngSeed` alone does not touch a seed that came from entropy.
+        let before = captured.lines().len();
+        engine.handle("setoption name RngSeed value 77");
+        assert_eq!(engine.rng_seed(), fresh);
+        assert_eq!(captured.lines().len(), before);
+        // But it is the seed used once determinism is switched on.
+        engine.handle("setoption name DeterministicRNG value true");
+        assert_eq!(engine.rng_seed(), 77);
     }
 
     #[test]
