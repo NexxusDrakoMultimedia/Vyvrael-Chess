@@ -196,7 +196,7 @@ behaviour is noticed.
 - [x] `search`: draw detection (fifty-move rule, repetition, bare material)
 - [x] `search`: principal variation
 - [x] `search`: limits and stopping (depth, nodes, time, stop flag)
-- [ ] `search`: iterative deepening with progress reports
+- [x] `search`: iterative deepening with progress reports
 - [ ] `search`: quiescence search
 - [ ] `cli`: `search` subcommand
 - [ ] `search`: pinned fixed-depth node counts

@@ -96,3 +96,4 @@ once it has a first release.
   history through `Search::with_history`) and the fifty-move rule.
 - The principal variation (`Outcome::pv`).
 - Search limits (`Limits`: depth, nodes, deadline) and an external stop flag.
+- Iterative deepening (`Search::iterate`) with a progress `Report` per depth.

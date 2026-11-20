@@ -12,7 +12,7 @@ mod score;
 
 pub use draw::{fifty_moves_reached, insufficient_material, is_repetition};
 pub use limits::Limits;
-pub use negamax::{Outcome, Search};
+pub use negamax::{Outcome, Report, Search};
 pub use score::{
     DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,
 };

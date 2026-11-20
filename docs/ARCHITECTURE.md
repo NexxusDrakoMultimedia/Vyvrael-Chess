@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -494,6 +494,23 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     iteration entirely and keeps the last complete one.
   - Use depth or node limits for anything that must be reproducible. Time
     limits depend on the machine.
+
+- **Iterative deepening.** `Search::iterate` searches depth 1, then 2, and so
+  on until a limit is reached, calling a `report` callback with a `Report`
+  (depth, score, nodes, elapsed time, principal variation) after each
+  completed depth, and returns the outcome of the deepest one that finished.
+  - It looks wasteful, but each level of the tree is many times larger than
+    the last, so repeating the shallow levels costs little. In return the
+    search can be stopped at any moment and still has a complete answer,
+    which is what playing to a clock needs. Later, the earlier iterations
+    will also feed move ordering (milestone 7).
+  - The first iteration always completes, whatever the limits, so there is
+    always a move to play. An interrupted iteration is discarded.
+  - It ends early when the root has no legal move, and when a forced mate
+    has been found within the depth searched, since a deeper search cannot
+    find a shorter one.
+  - With no ordering heuristics or tables yet, iterating to depth N gives
+    exactly the result of a direct depth-N search; a test relies on that.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -12,11 +12,11 @@
 //! the remaining moves need not be looked at.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::{
-    DRAW, INFINITY, Limits, MAX_PLY, fifty_moves_reached, insufficient_material, is_repetition,
-    mated_in,
+    DRAW, INFINITY, Limits, MATE, MAX_PLY, fifty_moves_reached, insufficient_material,
+    is_repetition, mated_in,
 };
 use crate::board::{Move, Position};
 use crate::eval::{Evaluator, Score};
@@ -34,6 +34,21 @@ pub struct Outcome {
     /// The principal variation: the line of best play for both sides that
     /// the score comes from, starting with `best_move`. It is shorter than
     /// the search depth when the line ends early in a mate or a draw.
+    pub pv: Vec<Move>,
+}
+
+/// Progress after one completed iteration of [`Search::iterate`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Report {
+    /// The depth just completed, in plies.
+    pub depth: u32,
+    /// The score at that depth, for the side to move.
+    pub score: Score,
+    /// Positions visited since the search began, over all iterations.
+    pub nodes: u64,
+    /// Time since the search began.
+    pub elapsed: Duration,
+    /// The principal variation at that depth.
     pub pv: Vec<Move>,
 }
 
@@ -55,6 +70,9 @@ pub struct Search<'a> {
     /// Latched once any limit is hit: from then on every node returns at
     /// once and the search unwinds.
     stopped: bool,
+    /// False while the first iteration runs, so that it always completes and
+    /// there is always a move to play.
+    limits_apply: bool,
 }
 
 /// The stop flag and the clock are looked at once per this many nodes:
@@ -74,6 +92,7 @@ impl<'a> Search<'a> {
             limits: Limits::NONE,
             stop_flag: None,
             stopped: false,
+            limits_apply: true,
         }
     }
 
@@ -114,6 +133,9 @@ impl<'a> Search<'a> {
         if self.stopped {
             return true;
         }
+        if !self.limits_apply {
+            return false;
+        }
         if self.limits.nodes.is_some_and(|limit| self.nodes >= limit) {
             self.stopped = true;
         } else if self.nodes.is_multiple_of(CHECK_INTERVAL) {
@@ -124,6 +146,65 @@ impl<'a> Search<'a> {
             self.stopped = flagged || out_of_time;
         }
         self.stopped
+    }
+
+    /// Whether a limit has been reached, checked right now instead of
+    /// waiting for the next periodic check. Used between iterations.
+    fn limit_reached_now(&self) -> bool {
+        self.limits.nodes.is_some_and(|limit| self.nodes >= limit)
+            || self
+                .stop_flag
+                .is_some_and(|flag| flag.load(Ordering::Relaxed))
+            || self.limits.deadline.is_some_and(|at| Instant::now() >= at)
+    }
+
+    /// Searches `pos` by iterative deepening: depth 1, then 2, and so on,
+    /// until a limit is reached, and returns the outcome of the deepest
+    /// iteration that completed. `report` is called after each one.
+    ///
+    /// Deepening looks wasteful, since every iteration repeats the work of
+    /// the one before, but each level of a chess tree is many times larger
+    /// than the last, so the repeats are a small part of the total. In
+    /// return the search can be stopped at any moment and still has a
+    /// complete answer from the previous depth, which is what playing to a
+    /// clock requires.
+    ///
+    /// The first iteration always completes, whatever the limits, so the
+    /// outcome always names a move if one exists. An iteration that a limit
+    /// interrupts is thrown away. The search also ends early once it has
+    /// found a forced mate that fits inside the depth just searched, because
+    /// searching deeper cannot find a shorter one.
+    pub fn iterate(&mut self, pos: &mut Position, report: &mut dyn FnMut(&Report)) -> Outcome {
+        let start = Instant::now();
+        let deepest = self
+            .limits
+            .depth
+            .map_or(MAX_PLY as u32, |depth| depth.clamp(1, MAX_PLY as u32));
+        let mut best: Option<Outcome> = None;
+        for depth in 1..=deepest {
+            self.limits_apply = depth > 1;
+            let outcome = self.fixed_depth(pos, depth);
+            if self.stopped {
+                break;
+            }
+            report(&Report {
+                depth,
+                score: outcome.score,
+                nodes: self.nodes,
+                elapsed: start.elapsed(),
+                pv: outcome.pv.clone(),
+            });
+            let nothing_to_search = outcome.best_move.is_none();
+            // A mate score counts plies from the root; within `depth` it was
+            // found by the full-width search and is the shortest there is.
+            let mate_found = MATE - outcome.score.abs() <= depth as Score;
+            best = Some(outcome);
+            if nothing_to_search || mate_found || self.limit_reached_now() {
+                break;
+            }
+        }
+        self.limits_apply = true;
+        best.expect("the first iteration is never interrupted")
     }
 
     /// Whether `pos` is drawn by rule, so that searching it is pointless:
@@ -644,6 +725,101 @@ mod tests {
         assert!(searcher.was_stopped());
         assert!(searcher.nodes() <= CHECK_INTERVAL);
         assert_eq!(pos, fen(KIWIPETE));
+    }
+
+    /// Runs iterative deepening and collects the reports.
+    fn iterate(text: &str, limits: Limits) -> (Outcome, Vec<Report>, bool) {
+        let mut reports = Vec::new();
+        let mut searcher = Search::new(&HandCrafted).with_limits(limits);
+        let outcome = searcher.iterate(&mut fen(text), &mut |report| reports.push(report.clone()));
+        (outcome, reports, searcher.was_stopped())
+    }
+
+    /// With no ordering tricks or tables, deepening to depth N must give
+    /// exactly what a direct depth-N search gives.
+    #[test]
+    fn iterating_to_a_depth_equals_searching_that_depth() {
+        for text in [
+            crate::board::START_FEN,
+            KIWIPETE,
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        ] {
+            let (outcome, reports, stopped) = iterate(text, Limits::depth(3));
+            assert!(!stopped);
+            assert_eq!(outcome, search(text, 3), "{text}");
+            // One report per depth, in order, each matching that depth.
+            assert_eq!(reports.len(), 3);
+            for (report, depth) in reports.iter().zip(1..) {
+                assert_eq!(report.depth, depth);
+                let direct = search(text, depth);
+                assert_eq!((report.score, &report.pv), (direct.score, &direct.pv));
+            }
+            assert!(reports.windows(2).all(|pair| pair[0].nodes < pair[1].nodes));
+            assert!(
+                reports
+                    .windows(2)
+                    .all(|pair| pair[0].elapsed <= pair[1].elapsed)
+            );
+        }
+    }
+
+    #[test]
+    fn iteration_stops_once_a_mate_is_proven() {
+        // Mate in two is first seen at depth 4; nothing deeper is searched.
+        let (outcome, reports, _) = iterate("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", Limits::depth(12));
+        assert_eq!(outcome.score, mate_in(3));
+        assert_eq!(reports.last().unwrap().depth, 4);
+        // Being mated in one is seen at depth 3.
+        let (lost, reports, _) = iterate("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", Limits::depth(12));
+        assert_eq!(lost.score, mated_in(2));
+        assert_eq!(reports.last().unwrap().depth, 3);
+    }
+
+    #[test]
+    fn iteration_ends_at_once_when_there_is_nothing_to_search() {
+        let (mated, reports, _) = iterate("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", Limits::depth(9));
+        assert_eq!((mated.score, mated.best_move), (mated_in(0), None));
+        assert_eq!(reports.len(), 1);
+        let (stale, reports, _) = iterate("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1", Limits::depth(9));
+        assert_eq!((stale.score, stale.best_move), (DRAW, None));
+        assert_eq!(reports.len(), 1);
+    }
+
+    /// A limit that interrupts an iteration discards it: the answer is the
+    /// last depth that finished, which is always a complete, legal answer.
+    #[test]
+    fn an_interrupted_iteration_is_discarded() {
+        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(3_000));
+        assert!(stopped);
+        let finished = reports.last().unwrap().depth;
+        assert!((1..4).contains(&finished), "{finished}");
+        assert_eq!(outcome, search(KIWIPETE, finished));
+    }
+
+    #[test]
+    fn the_first_iteration_always_completes() {
+        // A node limit smaller than one iteration, and a raised stop flag.
+        let (outcome, reports, _) = iterate(KIWIPETE, Limits::nodes(1));
+        assert_eq!(reports.len(), 1);
+        assert_eq!(outcome, search(KIWIPETE, 1));
+
+        let flag = AtomicBool::new(true);
+        let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
+        let mut count = 0;
+        let outcome = searcher.iterate(&mut fen(KIWIPETE), &mut |_| count += 1);
+        assert_eq!(count, 1);
+        assert!(legal_moves(&fen(KIWIPETE)).contains(&outcome.best_move.unwrap()));
+
+        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
+        let outcome = searcher.iterate(&mut fen(KIWIPETE), &mut |_| {});
+        assert_eq!(outcome, search(KIWIPETE, 1));
+    }
+
+    #[test]
+    fn a_depth_limit_of_zero_still_searches_one_ply() {
+        let (outcome, reports, _) = iterate(KIWIPETE, Limits::depth(0));
+        assert_eq!(reports.len(), 1);
+        assert_eq!(outcome, search(KIWIPETE, 1));
     }
 
     #[test]
