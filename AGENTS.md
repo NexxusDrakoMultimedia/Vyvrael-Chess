@@ -50,13 +50,18 @@ Layout:
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
 | Script tests | `python3 -m unittest discover -s scripts/tests` |
+| Install Cute Chess and Ordo (Windows) | `python scripts/install_tools.py --dry-run` first |
 | Install external tools (Linux) | `python3 scripts/install_tools.py --dry-run` first; see `docs/TESTING.md` |
+| Install the ladder's engines (Linux) | `python3 scripts/install_tools.py --engines --dry-run` first; `--only "<name>"` for one; `--verify` to check them |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
-| Match and rating scripts | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/match.ps1`, `scripts/windows/rate.ps1`, `scripts/linux/match.sh`, `scripts/linux/rate.sh`) |
+| Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
+| Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |
+| Run a match (Windows) | `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first; see `-Help` |
+| Rate PGN files (Windows) | `scripts/windows/rate.ps1 [options] FILE.pgn ...`; see `-Help` |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 

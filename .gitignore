@@ -20,6 +20,9 @@
 /config.yml
 /lichess-bot/
 
+# Local settings of the match and rating scripts: paths on one machine
+/scripts/local.env
+
 # Python bytecode from the scripts and their tests
 __pycache__/
 

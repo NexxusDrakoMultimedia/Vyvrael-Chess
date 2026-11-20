@@ -164,6 +164,14 @@ Integration tests live in `tests/` and use only the public API.
 | File | What is checked |
 | --- | --- |
 | `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included; archive extraction refuses paths and symlinks that escape, chained links included; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the unit restarts only on failure and gives up after three failed starts in ten minutes; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
+| `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also: an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it. |
+| `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines: the names provided plus the names left out are exactly the 25 of the baseline's ratings file, with no engine invented; no generated name carries a stray space; the limited entries are variants of 3 binaries, 10 in all, each inside its engine's `UCI_Elo` range; every address is HTTPS with a SHA-256; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none). |
+| `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a build from source; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown or uninstallable names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them; from the real table, the 24 names in order with the baseline's values, and Rodent IV told not to limit itself. |
+| `scripts/tests/test_ladder_verify.py` | Python, offline, with small UCI engines written by the tests. A working engine passes and is sent `uci`, its options, `isready`, `ucinewgame`, `position startpos`, `go depth 6` and `quit` in that order; an engine that says nothing, exits, never becomes ready, thinks for ever or names no move fails with a message naming the step, and none of them holds the check up; one that ignores `quit` is killed; a program that is not there is reported; every name of an installed engine is checked with its own options and reported as PASS, FAIL or SKIP. |
+| `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot and the ladder's engines are refused on Windows; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
+| `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_match_sh.py`, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
+| `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
+| `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
 | `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; thirteen lines of bad input, two of them not valid UTF-8, produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
@@ -265,12 +273,14 @@ Programming Wiki ("Perft Results",
 <https://www.chessprogramming.org/Perft_Results>), which engines agree on.
 They were not produced by this engine.
 
-## Installing the external tools (Linux)
+## Installing the external tools
 
 Strength testing uses Cute Chess and Ordo, and playing on Lichess uses
 lichess-bot. They are separate programs that are never part of this
-repository. On Linux, `scripts/install_tools.py` installs pinned versions of
-them for the current user, outside the repository. It needs only Python 3.9
+repository. `scripts/install_tools.py` installs pinned versions of them for
+the current user, outside the repository: all three on Linux, described
+first, and Cute Chess and Ordo on Windows, described at the end of this
+section. It needs only Python 3.9
 or newer (lichess-bot itself needs 3.11); building Ordo needs `gcc` and
 `make` (`sudo apt install build-essential`).
 
@@ -337,10 +347,85 @@ that is known the check accepts any status except 126 and 127, so it cannot
 yet tell a program that starts and then fails from one that works), and that
 lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
 
-The installer does not yet cover Windows, the ladder's opponent engines or
-the match and rating scripts. They are planned on the branch
-`tooling/testing-scripts`; see "Testing tooling" in
-[ROADMAP.md](ROADMAP.md).
+The match and rating scripts that use these tools are described under
+"Strength matches, SPRT and ratings" below.
+
+### The ladder's opponent engines (Linux)
+
+```sh
+python3 scripts/install_tools.py --engines --dry-run   # show what would be done
+python3 scripts/install_tools.py --engines             # all of them
+python3 scripts/install_tools.py --only "Vice 1.1"     # one, by its ladder name
+python3 scripts/install_tools.py --verify              # check what is installed
+python3 scripts/install_tools.py --list                # pins and what is installed
+```
+
+`--engines` installs the opponents of Ladder Baseline 1 under
+`<prefix>/engines`, each in a directory of its own, outside the repository.
+**Vyvræl itself is not part of the installer**: build it with
+`cargo build --release` and keep released builds somewhere of your own.
+
+- **What is installed** is fixed by `scripts/ladder_engines.py`; the table
+  of engines, versions, sources, licences and methods is in
+  [DEPENDENCIES.md](DEPENDENCIES.md). There are 14 programs for 24 of the
+  ladder's 25 names: an entry such as "Stockfish 19-1500" is Stockfish 19
+  with `UCI_LimitStrength` on. Orion 1.1 is left out, because it exists for
+  Windows only.
+- **Supported machines:** x86-64 Linux with AVX2 and BMI2 (any Intel
+  processor from Haswell, 2013, or AMD from Excavator or Zen). No AVX-512
+  build is used and nothing is compiled for "this machine"
+  (`-march=native`); a compiled engine names `haswell` or `x86-64-v3`,
+  except Vice 1.1, whose makefile names no architecture and so builds for
+  plain x86-64.
+- **Downloads and builds.** Eight engines are official binaries, checked
+  by SHA-256. Six are built from source (Princhess, Ethereal, Weiss, Rodent
+  IV, Vice, Fruit) with the project's own build command and need `gcc`,
+  `g++` and `make` (`sudo apt install build-essential`); Princhess also
+  needs `cargo` and `clang`. **The script never runs sudo.** A tool that is
+  missing is named and that engine is skipped; the others are still
+  installed, and the run ends with an error listing what failed.
+- **Safe to run again.** An engine already installed is skipped; `--force`
+  reinstalls. An engine is put in place only when its download or build is
+  complete, so a failure leaves nothing half-installed.
+- **The engine list.** Afterwards the script writes
+  `<prefix>/engines/engines.json` with every installed engine under its
+  ladder name, Hash 64 and one thread where the engine has the option, and
+  the strength settings of the limited entries. Put its path in
+  `scripts/local.env` as `ENGINES_JSON` for `match.sh gauntlet`.
+- **The check.** Last, each engine is started under each of its names and
+  sent `uci`, its options, `isready` and `go depth 6`. The script prints
+  `PASS` or `FAIL` for each name with what happened. Every wait has a time
+  limit (20, 30 and 60 seconds), and an engine that will not quit is
+  killed, so a stuck engine cannot hold the script up. `--verify` runs the
+  check alone.
+
+Status: covered by offline tests with made-up engines. **No ladder engine
+has yet been downloaded, built or checked by the script.** The build
+commands are read from each project's makefile and are unproven until that
+first run, and an old source may not compile cleanly with a current
+compiler (Weiss builds with `-Werror`).
+
+### Cute Chess and Ordo on Windows
+
+```powershell
+python scripts/install_tools.py --dry-run
+python scripts/install_tools.py
+```
+
+On Windows the same script installs the same versions of Cute Chess and
+Ordo from their official zip archives, checked by SHA-256, under the
+install prefix. It needs no administrator rights and does not touch `PATH`:
+it prints the `CUTECHESS_CLI` and `ORDO` lines to put in
+`scripts/local.env`. `cutechess-cli.exe` needs the Microsoft Visual C++
+runtime; if it is missing the script says so and names the installer that
+ships in the archive, which asks for administrator rights and is never run
+by the script. A Cute Chess that is already installed works just as well:
+point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
+
+lichess-bot is not installed on Windows (it runs on the Linux machine
+only), and neither are the ladder's engines: take each from its project's
+own Windows release. Status: tested offline; the real archives have not
+been fetched by the script.
 
 ## Opponent ladder (Ladder Baseline 1)
 
@@ -428,20 +513,170 @@ games were not kept in the repository.
 Forty games against five opponents say nothing reliable about a rating;
 that is milestone 6 (known issue KI-8).
 
-## Strength matches and SPRT (planned, before milestone 6)
+## Strength matches, SPRT and ratings
 
 Search, evaluation and network changes are accepted only when a sequential
-probability ratio test (SPRT) against the previous version shows a gain. A
-match script using Cute Chess (`cutechess-cli`), with Ordo for rating
-lists, will be added before milestone 6 (see "Testing tooling" in
-[ROADMAP.md](ROADMAP.md)) and documented here, including how to read LLR, Elo estimates and error bars.
-Because of that, search is split (see "Decisions for milestones 4 to 6" in
-[ROADMAP.md](ROADMAP.md)): the search core in milestone 4 is checked by
-correctness tests and fixed-depth node counts, and the search heuristics wait
-for milestone 7, after the match script exists, so each has an SPRT result.
+probability ratio test (SPRT) against the previous version shows a gain.
+The result (bounds, games, LLR, outcome) is recorded in the commit message
+of the change or in a table in this file. That is why search is split (see
+"Decisions for milestones 4 to 6" in [ROADMAP.md](ROADMAP.md)): the search
+core is checked by correctness tests and fixed-depth node counts, and each
+search heuristic of milestone 7 gets its own SPRT.
 
-SPRT results are recorded in the commit message of the change or in a table
-in this file.
+Four scripts do the work. The two for each system behave alike; only the
+spelling of the options differs (`--rounds` in bash, `-Rounds` in
+PowerShell).
+
+| Task | Linux | Windows |
+| --- | --- | --- |
+| Run a match | `scripts/linux/match.sh` | `scripts/windows/match.ps1` |
+| Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
+
+They need `cutechess-cli` and Ordo, which are separate programs (see
+"Installing the external tools"). Each script reads the tool's own help
+before using it and stops with a clear message if the tool, or an option it
+needs, is missing. `--help` (`-Help`) prints every option. **Start every
+run with `--dry-run` (`-DryRun`)**: it prints the exact command and runs
+nothing.
+
+**Status:** the scripts are covered by offline tests with stand-in tools,
+and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
+No real match or rating run has been made through them yet.
+
+### Settings that differ between machines
+
+Paths and machine sizes are not in the repository. Copy
+`scripts/local.env.example` to `scripts/local.env` (git-ignored) and set
+what applies: where `cutechess-cli` and Ordo are if not on `PATH`, the
+opening file, the engine list, the output folder, the number of games at
+once and whether to run at low priority. Each setting can also be an
+environment variable with the prefix `VYVRAEL_`, and most an argument. The
+order is argument, environment, local file, built-in default.
+
+Games at once (`CONCURRENCY`) defaults to the physical cores minus two and
+may never exceed the physical cores: engines sharing a core steal each
+other's time and lose games on the clock. On the maintainer's machines it is
+6 on the Windows workstation and 3, at low priority, on the Linux machine.
+
+### The three kinds of match
+
+Build names are plain ASCII, for example `Vyvrael 0.1.0-a1` or
+`Vyvrael dev-1a2b3c4`. A round is two games: one opening, each side once.
+
+**SPRT**, to decide whether a change is a gain:
+
+```sh
+scripts/linux/match.sh sprt \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --base ../builds/vyvrael-0.1.0-a1 --base-name "Vyvrael 0.1.0-a1" \
+  --elo0 0 --elo1 5 --alpha 0.05 --beta 0.05 --rounds 5000 --dry-run
+```
+
+The bounds, `alpha`, `beta` and the round cap are required; the scripts
+have no default for them, so a test's terms are always written down. Bounds
+to start from:
+
+| Purpose | `elo0` | `elo1` | Use it when |
+| --- | --- | --- | --- |
+| A gain | 0 | 5 | A new heuristic or evaluation term: accept only if it is better. |
+| No loss | -5 | 0 | A simplification or refactoring that should play the same. |
+| A large gain, quickly | 0 | 10 | Early on, when changes are worth tens of Elo and games are scarce. |
+
+`alpha` and `beta` of 0.05 each allow a 5% chance of accepting a change
+that is not a gain and a 5% chance of rejecting one that is. The script
+ends by naming the outcome: **H1 accepted** (keep the change), **H0
+accepted** (reject it), or **undecided** when the round cap came first,
+which is not an acceptance. The LLR runs from the lower to the upper bound
+(about -2.94 to 2.94 with those values); the test stops when it crosses
+one.
+
+**Gauntlet**, to measure a build against the ladder:
+
+```sh
+scripts/linux/match.sh gauntlet \
+  --test target/release/vyvrael --test-name "Vyvrael 0.1.0-a1" \
+  --opponent "Stockfish 19-1320" --opponent "Vice 1.1" \
+  --opponent "Rustic Alpha 1.5" --rounds 20 --dry-run
+```
+
+Opponents are named exactly as in the engine list (`ENGINES_JSON`, in Cute
+Chess's `engines.json` format), which carries each one's file and options,
+`UCI_LimitStrength` and `UCI_Elo` for the limited entries included. In
+PowerShell: `-Opponent "Stockfish 19-1320","Vice 1.1"`.
+
+**Head-to-head**, a fixed number of rounds between two builds: as `sprt`
+without the four SPRT options, with the mode `h2h`.
+
+### What every match uses, and why
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Time control | 10+0.1 | As Ladder Baseline 1; short enough for thousands of games. |
+| Hash, threads | 64 MB, 1 | As the baseline; one thread keeps results reproducible in kind. |
+| Pondering | off | Engines must not use each other's time. |
+| Openings | `UHO_Lichess_4852_v1.epd`, random order | Unbalanced human openings reduce draws between unequal engines. |
+| Games per opening | 2, colours swapped | Neither side gets the better half of an opening. |
+| Resign | 3 moves at 700 centipawns, both engines agreeing | Ends decided games early. |
+| Draw | from move 34, 10 moves within 20 centipawns | Ends dead games early. |
+| `-recover` | on | One crashed engine does not end a long run. |
+
+`--tc` and `--hash` can change the first two; the rest is fixed in the
+scripts. **Keep everything the same between two runs you mean to compare**,
+on the same machine with the same number of games at once: results from
+different machines or settings are not comparable.
+
+Each run leaves three files in the output folder (`matches/`, git-ignored),
+named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
+`.notes.txt` with the exact command, each engine's name, file and SHA-256,
+the `cutechess-cli` version, the start and end times and the outcome. Keep
+the notes with any result you record. A script refuses to add games to a
+PGN that already exists; use `--label` for a second run on one day.
+
+### Rating lists with Ordo
+
+```sh
+scripts/linux/rate.sh matches/2026-11-21-gauntlet-Vyvrael-0.1.0-a1.pgn
+```
+
+writes `...-ratings.txt` and `...-ratings.csv` beside the PGN, with the
+baseline's settings: the anchor "Stockfish 19" fixed at 0, the white
+advantage estimated from the games, and 500 simulations for the error
+bars. Several PGN files may be given. The anchor must have played in the
+games; for a gauntlet without Stockfish 19 give another, for example
+`--anchor "Vice 1.1" --anchor-rating -1876.4` to place it where the
+baseline has it.
+
+How to read the table:
+
+- **The order is the result.** The script prints it again on its own.
+- **The distances are not.** When one engine wins nearly every game the
+  scale stretches: the baseline spans about 3,000 points between engines
+  that are not that far apart.
+- **The error column matters.** Two engines whose ranges overlap are not
+  separated. With 40 or 50 games each, the ranges are hundreds of points.
+- **Ratings are relative to the anchor**, on this machine, at this time
+  control. They are not CCRL or FIDE ratings.
+- A nominal `UCI_Elo` in an engine's name is a label, not its strength.
+
+### Pitfalls
+
+- **XBoard-only engines cannot start from FEN openings.** TSCP and
+  Micro-Max were dropped from the baseline for this reason: every game
+  began from an EPD position they could not set up, so the run was invalid.
+  Only UCI engines belong in a match that uses the opening file.
+- **An undecided SPRT is not a pass.** Raise the round cap and run again,
+  or treat the change as unproven.
+- **Do not compare across machines.** A build measured on the workstation
+  and one measured on the Linux machine have not been compared.
+- **Watch the log for time losses and crashes.** `-recover` keeps the match
+  going, so a build that crashes still produces a result; the PGN's last
+  comment of each game says how it ended.
+- **`DeterministicRNG`.** Full-strength play draws no random numbers, so it
+  needs nothing. `--deterministic` sets the option on the Vyvræl builds, but
+  the scripts cannot yet give a build other options, `UCI_LimitStrength`
+  among them, so today it changes nothing in a match. Calibrating `UCI_Elo`
+  (milestone 6) needs limited Vyvræl entries in the engine list, each with
+  its own options.
 
 ## Tactical test suites (planned, milestone 8)
 

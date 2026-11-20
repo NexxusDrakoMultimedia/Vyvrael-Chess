@@ -356,6 +356,126 @@ and the older milestone 6 text below disagree, this section holds.
   both tools on both systems. This replaces the earlier choice of a
   Linux-only installer. Vyvræl itself is not part of the installer.
 
+Chunk checklist (branch `tooling/testing-scripts`, started 2026-11-21). One
+commit per item unless noted; tests and docs travel with each.
+
+Part B, the match and rating scripts:
+
+- [x] Local settings: a git-ignored file read by all four scripts, with a
+  committed example
+- [x] `scripts/linux/match.sh`: arguments, safety checks and `--dry-run`
+  for the modes `sprt`, `gauntlet` and `h2h`
+- [x] `scripts/linux/match.sh`: run notes (command, names, SHA-256s, tool
+  versions, times) and the progress log
+- [x] `scripts/linux/rate.sh`: Ordo with an anchor, one or more PGN files
+- [x] `scripts/windows/match.ps1`: the same behaviour and flags
+- [x] `scripts/windows/rate.ps1`: the same behaviour and flags
+- [x] `docs/TESTING.md`: running the scripts, the fixed defaults, example
+  SPRT bounds, pitfalls
+
+Part A, the installer:
+
+- [x] The ladder's opponent engines as pins: name, version, official source,
+  method, SHA-256, licence
+- [x] Install the Linux engines: download or build, `--only`, idempotent
+- [x] Write the `engines.json` fragment with the baseline's exact names and
+  options
+- [x] Verify each installed engine (`uci`, `isready`, `go depth 6`) with
+  timeouts
+- [x] Install Cute Chess and Ordo on Windows from the official releases
+- [x] `docs/TESTING.md` and `docs/DEPENDENCIES.md`: the engine table and the
+  Linux and Windows instructions
+
+Nothing on this branch has been run against a real ladder engine, a real
+match or the real Ordo; that first run needs the Linux machine.
+
+## Queued work (requested 2026-11-21)
+
+Two tasks asked for by the maintainer. Each gets a branch of its own from
+`main`, small commits, and no version bump, tag or release. The first
+follows the tooling branch; the second waits until milestone 7 is done (the
+maintainer's decision of 2026-11-21).
+
+### 1. Optional determinism: `Seed`, `Variety`, `bench`
+
+Why: self-play of 0.1.0-a1 repeats games. Investigated on 2026-11-21: at
+full strength nothing is random (the search draws no random numbers, there
+is no transposition table, and moves are tried in a fixed order), so the
+same position searched to the same depth gives the same move. The only
+time-dependence is which depth finishes before the deadline: the clock is
+read every 1,024 nodes and an interrupted iteration is discarded. In the
+release check's 20 self-play games, 3 of 10 opening pairs were identical
+move for move and 7 diverged.
+
+Decided by the maintainer:
+
+- [ ] **One option `Seed`** replaces `DeterministicRNG` and `RngSeed`: 0
+  takes a seed from system entropy (not the clock; the rule against
+  time-based seeding stands), anything else is fixed. Spin, 0 to
+  2147483647: Cute Chess keeps spin values as signed 32-bit numbers, and
+  with today's maximum of 4294967295 its GUI resets `RngSeed` to 0 whenever
+  it is edited. Seeds taken from entropy stay in that range so any logged
+  seed can be typed back. The seed is logged with `info string` at start
+  and at every `ucinewgame`, as now.
+- [ ] **Option `Variety`** (spin, centipawns, 0 to 100, **default 0**). At
+  the root only and only in the first 12 full moves, choose at random among
+  the moves within `Variety` of the best, weighted towards the best. Never
+  when the best score is a mate, and never a move that a second check shows
+  to lose more than `Variety`. With 0 the engine plays exactly the best
+  move, so matches and SPRT are untouched. It is exempt from the SPRT rule,
+  like `UCI_LimitStrength`, because it weakens play on purpose; say so in
+  `AGENTS.md`. The Lichess bot sets it (10) in `docs/LICHESS.md`.
+- [ ] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
+  `Seed` fixed and `Variety` 0, printing `<nodes> nodes <nps> nps`. The
+  node count must be the same on every run.
+- [ ] Tests: bench twice gives one node count; a fixed-depth search with a
+  fixed `Seed` and `Variety` 0 is reproducible; with `Variety` 0 the root
+  move is always the best one; the seed line is printed (no test may depend
+  on two entropy seeds differing).
+- [ ] Docs: the deterministic guarantee is one thread, a fixed `Seed` and
+  `Variety` 0 (`docs/TESTING.md`, `docs/UCI.md`); the options in the README
+  and `docs/LICHESS.md`; the randomness table in `docs/ARCHITECTURE.md`;
+  the match scripts' `--deterministic`, which sets the old option; a
+  changelog entry.
+- [ ] Report: what made the engine deterministic, the bench node count
+  before and after, the options added.
+
+### 2. Benchmark and speed up (after milestone 7)
+
+Why: in a 10+0.1 gauntlet 0.1.0-a1 reached only depth 3 to 6 (median 4) at
+about 0.28 s a move. Measure before changing anything; do not assume the
+cause. **It starts after milestone 7**, so the order is: tooling, task 1,
+milestone 6, milestone 7, then this. Task 1 provides `bench`. By then move
+ordering, the transposition table and the other search heuristics exist and
+have each passed an SPRT, so this task measures and speeds up the search as
+it will really be, not one that is slow mainly for lack of them.
+
+- [ ] **Baseline, reported before any change:** perft speed on the
+  reference positions; `bench` over 30 to 50 positions (opening,
+  middlegame, endgame, tactical); the build settings in use (wanted:
+  opt-level 3, `lto = "fat"`, one codegen unit, `panic = "abort"`; never
+  `target-cpu=native` in committed configuration, with an optional
+  AVX2/BMI2 build described in the docs); a profile of `bench` on Linux
+  with the ten hottest functions.
+- [ ] **The usual causes, in this order, as the profile points:**
+  allocation or cloning in the hot path; copy-make on a large position;
+  move generation; evaluation recomputed at every node instead of updated;
+  the transposition table (there is none yet); how often the clock is read;
+  quiescence search; debug assertions or bounds checks left in release.
+- [ ] **One change per commit, with bench nodes and speed before and
+  after** in the message. A pure speed change keeps the bench node count
+  identical; if the count changes it is a search change: stop and explain.
+- [ ] **Search changes** (move ordering, pruning, reductions, evaluation)
+  go in separate, clearly labelled commits and are not called stronger.
+  The heuristics of milestone 7 are done by then; anything further found
+  here follows the same rule, one feature per commit, each accepted only by
+  an SPRT.
+- [ ] `docs/testing/bench-history.md`: a row per commit (commit, change,
+  nodes, speed, perft speed). Bench and perft stay fast enough for CI.
+- [ ] Report: speed before and after, the hotspots and what changed for
+  each, which commits are pure speed and which change the search, and what
+  to SPRT next.
+
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
 Scope as amended by the maintainer on 2026-11-20. It replaces the original
@@ -420,8 +540,8 @@ Notes for whoever starts it:
 
 - `scripts/install_tools.py` already installs pinned versions of both tools
   (and lichess-bot) on Linux; see TESTING.md. It has unit tests but has not
-  been run end to end. It is Linux-only today; Windows support is planned
-  (see "Testing tooling" above).
+  been run end to end. On Windows it installs Cute Chess and Ordo (not
+  lichess-bot, which runs on the Linux machine only).
 
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.

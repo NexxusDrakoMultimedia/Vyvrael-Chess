@@ -8,6 +8,48 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/local.env.example`: the settings the match and rating scripts
+  read from a git-ignored `scripts/local.env` (tool locations, the opening
+  file, the engine list, concurrency, priority).
+- `scripts/linux/match.sh`: runs a `cutechess-cli` match in one of three
+  modes, `sprt`, `gauntlet` or `h2h`, with the ladder's fixed settings.
+  SPRT bounds and a round cap are required; `--dry-run` prints the command.
+  Beside the PGN it writes a log of the progress and run notes (the exact
+  command, engine names with the SHA-256 of each binary, the tool's
+  version, start and end times), and it ends an SPRT by saying which
+  hypothesis was accepted and at what LLR.
+- `scripts/windows/match.ps1`: the same match script for Windows
+  PowerShell 5.1 and PowerShell 7, with the same modes, checks and defaults
+  (`-Rounds` for `--rounds`, and so on); low priority is BelowNormal.
+- `scripts/linux/rate.sh`: runs Ordo over one or more PGN files with an
+  anchor engine (by default "Stockfish 19" at 0, as in Ladder Baseline 1),
+  writes a text table and a CSV, and prints the order with a reminder of
+  what the numbers do not say.
+- `scripts/windows/rate.ps1`: the same rating script for Windows.
+- `scripts/install_tools.py` on Windows installs Cute Chess 1.5.1 and Ordo
+  1.2.6 from their official zip archives, checked by SHA-256, without
+  administrator rights, and prints the two lines to put in
+  `scripts/local.env`. It reports a missing Visual C++ runtime and never
+  installs it. lichess-bot and the ladder's engines are not installed on
+  Windows.
+- `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
+  engines, pinned (14 binaries for 24 of the ladder's 25 names; Orion 1.1
+  is left out, because it exists for Windows only).
+- `scripts/install_tools.py --engines` installs those engines on Linux
+  under `<prefix>/engines`, each in a directory of its own: an official
+  binary where there is one, otherwise a build from the official source.
+  `--only "<name>"` installs one. It never uses sudo, names a missing build
+  tool and carries on with the other engines, and leaves nothing behind of
+  an engine whose download or build failed. It then writes
+  `<prefix>/engines/engines.json`, the list of what is installed under the
+  ladder's names, the limited entries (such as "Stockfish 19-1500")
+  included, with Hash 64, one thread and the strength settings. Last, it
+  starts every installed engine under each of its names, sends `uci`, its
+  options, `isready` and `go depth 6`, and prints PASS or FAIL; every wait
+  has a time limit. `--verify` runs that check alone.
+
 ## [0.1.0-alpha.1] - 2026-11-21
 
 The first release: a complete UCI chess engine, in alpha. Release notes:
