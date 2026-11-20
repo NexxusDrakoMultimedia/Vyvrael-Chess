@@ -99,3 +99,4 @@ once it has a first release.
 - Iterative deepening (`Search::iterate`) with a progress `Report` per depth.
 - Quiescence search: captures and queen promotions are played out before a
   position is evaluated, most valuable victim first.
+- `search` subcommand of the binary: fixed-depth search with a line per depth.

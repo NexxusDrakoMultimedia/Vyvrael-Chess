@@ -12,6 +12,7 @@ use std::time::Instant;
 use crate::board::Position;
 use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
 use crate::perft::{divide, perft, perft_copy_make};
+use crate::search::{Limits, MAX_PLY, Report, Search, moves_to_mate};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -21,6 +22,7 @@ Usage:
   vyvrael perft <depth> [--divide | --copy-make] [FEN]
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
+  vyvrael search <depth> [FEN]             search to a fixed depth
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
@@ -32,6 +34,10 @@ flags cannot be combined.
 
 eval prints the hand-crafted evaluation of FEN (the start position if
 omitted) in centipawns, with its parts. It does not search.
+
+search runs the search to <depth> plies from FEN (the start position if
+omitted) and prints one line per completed depth, then the best move. Scores
+are in centipawns for the side to move, or shown as mate in N moves.
 ";
 
 /// Exit status for success.
@@ -61,6 +67,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Res
         }
         Some("perft") => run_perft(&args[1..], out, err),
         Some("eval") => run_eval(&args[1..], out, err),
+        Some("search") => run_search(&args[1..], out, err),
         Some(other) => {
             writeln!(err, "unknown command: {other}")?;
             write!(err, "{USAGE}")?;
@@ -109,6 +116,66 @@ fn run_eval(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Re
         out,
         "total for the side to move: {:+}",
         HandCrafted.evaluate(&pos)
+    )?;
+    Ok(EXIT_OK)
+}
+
+/// One line of search progress, in the vocabulary of UCI `info` lines
+/// (without the time, so that the output is the same on every run).
+fn progress_line(report: &Report) -> String {
+    let score = match moves_to_mate(report.score) {
+        Some(moves) => format!("mate {moves}"),
+        None => format!("cp {}", report.score),
+    };
+    let mut line = format!(
+        "depth {} score {score} nodes {}",
+        report.depth, report.nodes
+    );
+    if !report.pv.is_empty() {
+        line.push_str(" pv");
+        for mv in &report.pv {
+            line.push_str(&format!(" {mv}"));
+        }
+    }
+    line
+}
+
+fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let depth = args.first().and_then(|text| text.parse::<u32>().ok());
+    let Some(depth) = depth.filter(|depth| (1..=MAX_PLY as u32).contains(depth)) else {
+        writeln!(err, "search: expected a depth from 1 to {MAX_PLY}")?;
+        write!(err, "{USAGE}")?;
+        return Ok(EXIT_USAGE);
+    };
+    let fields: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+    let Some(mut pos) = position_from(&fields, "search", err)? else {
+        return Ok(EXIT_USAGE);
+    };
+
+    let start = Instant::now();
+    let mut lines = Vec::new();
+    let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+    let outcome = searcher.iterate(&mut pos, &mut |report| lines.push(progress_line(report)));
+    let elapsed = start.elapsed();
+    for line in lines {
+        writeln!(out, "{line}")?;
+    }
+    match outcome.best_move {
+        Some(mv) => writeln!(out, "bestmove {mv}")?,
+        None => writeln!(out, "bestmove (none)")?,
+    }
+
+    let nodes = searcher.nodes();
+    let seconds = elapsed.as_secs_f64();
+    let rate = if seconds > 0.0 {
+        (nodes as f64 / seconds) as u64
+    } else {
+        0
+    };
+    writeln!(
+        err,
+        "time: {} ms, {nodes} nodes, {rate} nodes per second",
+        elapsed.as_millis()
     )?;
     Ok(EXIT_OK)
 }
@@ -305,6 +372,74 @@ total for the side to move: +0
         assert_eq!(status, EXIT_USAGE);
         assert!(out.is_empty());
         assert!(err.contains("eval: invalid FEN"));
+    }
+
+    #[test]
+    fn search_prints_a_line_per_depth_then_the_best_move() {
+        let (status, out, err) = run_args(&["search", "3"]);
+        assert_eq!(status, EXIT_OK);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 4);
+        for (line, depth) in lines[..3].iter().zip(1..) {
+            assert!(
+                line.starts_with(&format!("depth {depth} score cp ")),
+                "{line}"
+            );
+            assert!(line.contains(" nodes ") && line.contains(" pv "), "{line}");
+        }
+        assert_eq!(lines[0], "depth 1 score cp 40 nodes 21 pv d2d4");
+        assert!(lines[3].starts_with("bestmove "));
+        // The best move is the first move of the last line's variation.
+        let best = lines[3].trim_start_matches("bestmove ");
+        assert!(lines[2].contains(&format!(" pv {best}")));
+        assert!(err.contains("nodes per second"));
+        // The same command gives the same output: nothing depends on time.
+        assert_eq!(run_args(&["search", "3"]).1, out);
+    }
+
+    #[test]
+    fn search_reports_mates_in_moves() {
+        let (_, out, _) = run_args(&["search", "5", "7k/8/8/8/8/8/R7/1R4K1 w - - 0 1"]);
+        let lines: Vec<&str> = out.lines().collect();
+        // Mate in two is proven at depth 3, and the search stops there.
+        assert_eq!(lines.len(), 4);
+        assert!(
+            lines[2].starts_with("depth 3 score mate 2 nodes "),
+            "{}",
+            lines[2]
+        );
+        assert!(lines[3] == "bestmove b1b7" || lines[3] == "bestmove a2a7");
+
+        let (_, lost, _) = run_args(&["search", "4", "7k/1R6/8/8/8/8/R7/6K1 b - - 0 1"]);
+        assert!(lost.contains("score mate -1 "), "{lost}");
+        assert!(lost.ends_with("bestmove h8g8\n"));
+    }
+
+    #[test]
+    fn search_with_no_legal_move() {
+        let (status, out, _) = run_args(&["search", "3", "R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1"]);
+        assert_eq!(status, EXIT_OK);
+        assert_eq!(out, "depth 1 score mate 0 nodes 1\nbestmove (none)\n");
+        let (_, stale, _) = run_args(&["search", "3", "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"]);
+        assert_eq!(stale, "depth 1 score cp 0 nodes 1\nbestmove (none)\n");
+    }
+
+    #[test]
+    fn search_rejects_bad_input() {
+        for args in [
+            &["search"][..],
+            &["search", "0"],
+            &["search", "deep"],
+            &["search", "129"],
+        ] {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_USAGE, "{args:?}");
+            assert!(out.is_empty());
+            assert!(err.contains("expected a depth from 1 to 128"));
+        }
+        let (status, _, err) = run_args(&["search", "2", "not", "a", "fen"]);
+        assert_eq!(status, EXIT_USAGE);
+        assert!(err.contains("search: invalid FEN"));
     }
 
     #[test]

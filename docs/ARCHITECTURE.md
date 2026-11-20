@@ -33,10 +33,10 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -330,7 +330,9 @@ on this square attack?".
   identifies itself on stderr, leaving stdout empty for the future UCI
   protocol. `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
-  parts. Exit status 2 means the command line was not understood.
+  parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
+  prints one line per depth and the best move, with timing on stderr so that
+  stdout is identical on every run. Exit status 2 means the command line was not understood.
 
 ## Evaluation
 

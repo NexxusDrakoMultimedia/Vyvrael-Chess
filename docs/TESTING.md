@@ -49,6 +49,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces or straight ahead; no capture around the board edge, with the bait placed on the exact square a wrapping shift would reach, for both edge files and both colours. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge for either colour. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square, with the crossed and destination squares each tested for both colours; an attacked b-file square is allowed. |
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched; legal moves keep the pseudo-legal order. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
+| `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
 | `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
@@ -85,6 +86,33 @@ a FEN) and its parts: material, the piece-square balance for the middlegame
 and the endgame, the game phase, and the total from White's point of view and
 from the side to move's. It does not search, so it says how the position
 looks, not what is about to happen in it. All numbers are centipawns.
+
+## Running a search by hand
+
+```sh
+cargo run --release -- search <depth> [FEN]
+```
+
+searches the position (the start position without a FEN) by iterative
+deepening to the given depth. It prints one line per completed depth, in the
+vocabulary of UCI `info` lines, and then the best move:
+
+```
+depth 1 score cp 40 nodes 21 pv d2d4
+depth 2 score cp 0 nodes 243 pv d2d4 d7d5
+bestmove d2d4
+```
+
+- `score cp N` is in centipawns for the side to move; `score mate N` means
+  mate in N moves (negative: the side to move is being mated).
+- `nodes` counts positions visited since the search began, quiescence search
+  included.
+- `pv` is the line of best play the score comes from.
+- Time and speed go to stderr, so stdout is identical on every run and can be
+  compared between versions.
+
+A fixed-depth search uses no clock and no randomness, so it is fully
+reproducible: the same position and depth always give the same lines.
 
 ## Integration tests
 

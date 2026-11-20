@@ -37,19 +37,20 @@ cargo test --workspace --release
 ```
 
 Running the binary with no arguments prints the engine name and version to
-stderr and exits; the UCI loop arrives in milestone 5. Two subcommands exist
-so far, `perft` and `eval`:
+stderr and exits; the UCI loop arrives in milestone 5. Three subcommands exist
+so far, `perft`, `eval` and `search`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
 cargo run --release -- perft 3 --divide   # the same, split by first move
 cargo run --release -- perft 5 --copy-make  # same count, copy-make style
 cargo run --release -- eval               # static evaluation, with its parts
+cargo run --release -- search 4           # search 4 plies and name the best move
 cargo run --release -- help
 ```
 
-`perft` takes an optional FEN after the depth, and `eval` takes an optional
-FEN. See
+`perft` and `search` take an optional FEN after the depth, and `eval` takes an
+optional FEN. See
 [docs/TESTING.md](docs/TESTING.md) for what the numbers mean.
 
 ## Using it in a GUI or lichess-bot
