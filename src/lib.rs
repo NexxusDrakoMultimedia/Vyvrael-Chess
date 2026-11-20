@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Nexxus Drako Multimedia
 
-//! Vyvræl: a dragon-flavoured, aggressive UCI chess engine.
+//! Vyvræl: a dragon-flavoured UCI chess engine in Rust, built with AI and
+//! playing for the attack.
 //!
 //! This library crate holds the whole engine (board representation, move
 //! generation, evaluation, search and the UCI front end) so that the binary,

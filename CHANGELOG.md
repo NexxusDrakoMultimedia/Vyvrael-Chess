@@ -10,6 +10,11 @@ once it has a first release.
 
 ### Changed
 
+- The project's tagline is now "A dragon-flavoured UCI chess engine in Rust,
+  built with AI and playing for the attack." It replaces "Dragon-flavoured,
+  aggressive, vibecoded UCI-compatible chess engine written in Rust." in the
+  README, the package description and the crate documentation. "Playing for
+  the attack" is a style goal; the engine's strength is not measured yet.
 - The time kept back on every move is no longer a fixed 30 ms: it is the
   new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone, and
   `uci::time_for_move` and `uci::limits_for` take the overhead as an

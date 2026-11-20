@@ -1,5 +1,5 @@
 # Vyvrael-Chess
-Dragon-flavoured, aggressive, vibecoded UCI-compatible chess engine written in Rust.
+A dragon-flavoured UCI chess engine in Rust, built with AI and playing for the attack.
 
 ## What it is
 

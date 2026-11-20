@@ -11,7 +11,7 @@ repository = "https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess"
 
 [package]
 name = "vyvrael"
-description = "Vyvræl: a dragon-flavoured, aggressive UCI chess engine"
+description = "A dragon-flavoured UCI chess engine in Rust, built with AI and playing for the attack."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -7,8 +7,13 @@ lines.
 ## Project overview
 
 Vyvræl is a UCI-compatible chess engine written in Rust by Nexxus Drako
-Multimedia. It has a dragon theme and an aggressive playing style. It is
-licensed GPL-3.0-or-later.
+Multimedia. It is licensed GPL-3.0-or-later.
+
+The official tagline is "A dragon-flavoured UCI chess engine in Rust, built
+with AI and playing for the attack." Use it word for word wherever the
+project is described in one line. "Playing for the attack" is a style goal,
+not a strength claim: never call Vyvræl strong or give it a rating that has
+not been measured (milestone 6).
 
 The project is labelled **X** on the [0rwx scale](https://0rwx.com/): the
 maintainer curates agent output rather than reading every line. Tests,

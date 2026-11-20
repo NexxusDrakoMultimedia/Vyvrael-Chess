@@ -467,7 +467,9 @@ is a starting point, not a commitment:
 - A logo or avatar (the dragon theme), in the sizes the places it appears
   need, with its licence stated.
 - A one-line description and a short paragraph, used consistently in the
-  README, the bot profile and any listing.
+  README, the bot profile and any listing. The one line is decided
+  (2026-11-20): "A dragon-flavoured UCI chess engine in Rust, built with AI
+  and playing for the attack." It states a style goal, not a strength.
 - The bot profile itself: name, flag, bio, links.
 - What the engine says about itself over UCI (`id name`, `id author`).
 - Credit and the 0rwx level X disclosure, which belongs wherever the engine
