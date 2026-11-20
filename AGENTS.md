@@ -58,7 +58,8 @@ Layout:
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
 | Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
 | Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |
-| Windows match and rating scripts | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/match.ps1`, `scripts/windows/rate.ps1`) |
+| Run a match (Windows) | `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first; see `-Help` |
+| Rate PGN files (Windows) | not implemented yet (branch `tooling/testing-scripts`: `scripts/windows/rate.ps1`) |
 | Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
 | Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 

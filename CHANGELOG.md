@@ -20,6 +20,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   command, engine names with the SHA-256 of each binary, the tool's
   version, start and end times), and it ends an SPRT by saying which
   hypothesis was accepted and at what LLR.
+- `scripts/windows/match.ps1`: the same match script for Windows
+  PowerShell 5.1 and PowerShell 7, with the same modes, checks and defaults
+  (`-Rounds` for `--rounds`, and so on); low priority is BelowNormal.
 - `scripts/linux/rate.sh`: runs Ordo over one or more PGN files with an
   anchor engine (by default "Stockfish 19" at 0, as in Ladder Baseline 1),
   writes a text table and a CSV, and prints the order with a reminder of

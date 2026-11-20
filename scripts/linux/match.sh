@@ -265,7 +265,10 @@ fi
 [[ -n $openings ]] || die "no opening file: give --openings, or set OPENINGS in scripts/local.env"
 [[ -f $openings ]] || die "opening file not found: $openings"
 
-cores=$(physical_cores)
+# PHYSICAL_CORES gives the count where it cannot be detected.
+cores=$(setting PHYSICAL_CORES)
+cores=${cores:-$(physical_cores)}
+is_whole "$cores" || die "PHYSICAL_CORES must be a whole number, got '$cores'"
 if [[ -z $concurrency ]]; then
     concurrency=$((cores > 3 ? cores - 2 : 1))
 fi

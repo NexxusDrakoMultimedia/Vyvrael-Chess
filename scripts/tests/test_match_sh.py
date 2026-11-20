@@ -329,6 +329,11 @@ class MatchShTest(Fixture, unittest.TestCase):
         self.refused(self.sprt("--concurrency", "5"), "more than the 4 physical cores")
         self.refused(self.sprt("--concurrency", "0"), "--concurrency must be a whole number")
 
+    def test_the_core_count_can_be_given(self):
+        env = {"VYVRAEL_PHYSICAL_CORES": "8"}
+        self.assertIn("-concurrency 6", " ".join(self.command(self.sprt(env=env))))
+        self.refused(self.sprt("--concurrency", "9", env=env), "more than the 8 physical cores")
+
     def test_openings_are_required(self):
         result = self.run_script(
             "h2h", *self.builds(), "--rounds", "5", "--cutechess", self.cutechess.as_posix(),
