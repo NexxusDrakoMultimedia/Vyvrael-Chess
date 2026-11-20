@@ -77,7 +77,7 @@ installer generates, and this baseline is due to be run again.
 
 ## How to read this
 
-- **Use the order, not the magnitudes.** Many pairings were lopsided, so Ordo's total spread (about 3000 points) is exaggerated.
+- **Use the order, not the magnitudes.** Many pairings were lopsided, so Ordo's scale is stretched: the total spread (about 3000 points) says more about that than about the engines.
 - **Many neighbours are tied.** With 48 games per engine the error bars are ±250 to ±500. Stockfish 19, Reckless and Viridithas are indistinguishable; so are Stockfish 19-2200 and -2400, and the Rustic versions are not in version order.
 - **Nominal `UCI_Elo` is not strength.** At 10+0.1 the Stockfish entries do not match their labels.
 - **Orion 1.1 is mid-table**, not a weak engine.
