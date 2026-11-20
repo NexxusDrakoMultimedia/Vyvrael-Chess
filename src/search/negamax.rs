@@ -19,10 +19,10 @@ use super::{
     DRAW, INFINITY, Limits, MATE, MAX_PLY, fifty_moves_reached, insufficient_material,
     is_repetition, mated_in,
 };
-use crate::board::{Move, PieceKind, Position};
+use crate::attacks::knight_attacks;
+use crate::board::{Color, Move, MoveKind, PieceKind, Position, Square};
 use crate::eval::{Evaluator, Score};
-use crate::movegen::legal_moves;
-use crate::movegen::pseudo_legal_moves;
+use crate::movegen::{MoveList, legal_moves, pseudo_legal_moves};
 
 /// What a search found.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -413,6 +413,8 @@ impl Search<'_> {
     ///   evaluation is a lower bound on its score ("standing pat").
     /// - When it is in check there is no standing pat: every legal move is
     ///   searched, and having none is checkmate.
+    /// - When it is not in check and has no legal move at all, that is
+    ///   stalemate and a draw, whatever the material says.
     ///
     /// Captures cannot go on for ever, so this ends without a depth limit.
     ///
@@ -425,13 +427,27 @@ impl Search<'_> {
         }
         self.nodes += 1;
         // A capture can leave too little material to mate with. Repetition
-        // and the fifty-move rule cannot arise here: captures are
-        // irreversible.
+        // and the fifty-move rule are not looked for here: captures cannot
+        // lead to either, and the quiet moves that get out of a check are
+        // left to the main search, which tests for both one ply deeper.
         if ply > 0 && insufficient_material(pos) {
             return DRAW;
         }
 
         let in_check = pos.in_check();
+        // Stalemate has to be seen before standing pat: the side that
+        // cannot move is usually far behind, and the evaluation would call
+        // the position won for the other side. Generating moves at every
+        // node just for this would be costly, so a glance at the pawns and
+        // knights rules it out first, which it nearly always does.
+        let mut generated = None;
+        if !in_check && !has_free_piece(pos) {
+            let moves = pseudo_legal_moves(pos);
+            if !has_legal_move(pos, &moves) {
+                return DRAW;
+            }
+            generated = Some(moves);
+        }
         let mut best = -INFINITY;
         if !in_check || ply >= MAX_PLY {
             let stand_pat = self.evaluator.evaluate(pos);
@@ -443,9 +459,10 @@ impl Search<'_> {
         }
 
         let mut any_legal = false;
+        let moves = generated.unwrap_or_else(|| pseudo_legal_moves(pos));
         // Most valuable victim first: see `ordering.rs` for why this is not
         // optional here.
-        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
+        for &mv in &captures_first(pos, &moves) {
             if !in_check && !is_tactical(mv) {
                 continue;
             }
@@ -482,6 +499,74 @@ impl Search<'_> {
 /// passant and capturing promotions included) and promotions to a queen.
 fn is_tactical(mv: Move) -> bool {
     mv.is_capture() || mv.promotion() == Some(PieceKind::Queen)
+}
+
+/// Whether the side to move, which must **not be in check**, has a pawn or
+/// a knight that is certain to have a legal move. `false` means "not
+/// certain", not "no legal move".
+///
+/// When the king is not in check, a move can only be illegal by exposing
+/// it: a king move onto an attacked square, or a piece leaving a line it
+/// shared with its king. A piece that stands on no rank, file or diagonal
+/// with its own king therefore moves freely. So a pawn off the king's lines
+/// with an empty square ahead, or a knight off them with a square to go to,
+/// proves the position is not stalemate, from the bitboards alone and
+/// without generating a move.
+fn has_free_piece(pos: &Position) -> bool {
+    let side = pos.side_to_move();
+    let Some(king) = pos.king_square(side) else {
+        return false;
+    };
+    let (ahead, back) = match side {
+        Color::White => (pos.pieces_of(side, PieceKind::Pawn).north(), -1),
+        Color::Black => (pos.pieces_of(side, PieceKind::Pawn).south(), 1),
+    };
+    let mut pushes = ahead & !pos.occupied();
+    while let Some(to) = pushes.pop_lsb() {
+        if to
+            .offset(0, back)
+            .is_some_and(|from| !on_a_line(from, king))
+        {
+            return true;
+        }
+    }
+    let mut knights = pos.pieces_of(side, PieceKind::Knight);
+    while let Some(from) = knights.pop_lsb() {
+        let targets = knight_attacks(from) & !pos.occupied_by(side);
+        if !on_a_line(from, king) && !targets.is_empty() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether at least one of the pseudo-legal `moves` of `pos` is legal, for
+/// a side to move that is **not in check**.
+///
+/// Playing a move to test it is costly, so the same reasoning as in
+/// [`has_free_piece`] comes first: any move by a piece off the king's lines
+/// is legal (en passant aside, which takes a second pawn off a rank). Only
+/// when there is no such move are moves played out.
+fn has_legal_move(pos: &Position, moves: &MoveList) -> bool {
+    let Some(king) = pos.king_square(pos.side_to_move()) else {
+        return !moves.is_empty();
+    };
+    let cannot_be_pinned = |mv: &Move| {
+        mv.kind() != MoveKind::EnPassant && mv.from() != king && !on_a_line(mv.from(), king)
+    };
+    moves.iter().any(cannot_be_pinned)
+        || moves.iter().any(|&mv| {
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            !next.can_capture_king()
+        })
+}
+
+/// Whether two squares share a rank, a file or a diagonal.
+const fn on_a_line(a: Square, b: Square) -> bool {
+    let files = a.file().abs_diff(b.file());
+    let ranks = a.rank().abs_diff(b.rank());
+    files == 0 || ranks == 0 || files == ranks
 }
 
 /// The score of a position whose side to move has no legal move: checkmate
@@ -668,26 +753,68 @@ mod tests {
         assert_eq!(stalemate.best_move, None);
     }
 
-    /// A queen up with two tempting moves, Qf7 and Qg6, that leave the bare
-    /// king without a legal move and not in check. A search that scored
-    /// "no legal moves" as a win would play one of them; this one must count
-    /// them as draws and keep the queen instead.
+    /// Whether the side to move in `pos` is stalemated.
+    fn is_stalemate(pos: &Position) -> bool {
+        legal_moves(pos).is_empty() && !pos.in_check()
+    }
+
+    /// A queen up with three tempting moves, Qf7, Qg6 and Kg6, that leave
+    /// the bare king without a legal move and not in check. A search that
+    /// scored "no legal moves" as a win would play one of them and report a
+    /// mate; this one must count them as draws and keep the win instead.
     #[test]
     fn stalemate_is_scored_as_a_draw_inside_the_tree() {
         let text = "7k/8/4QK2/8/8/8/8/8 w - - 0 1";
-        for stalemating in ["e6f7", "e6g6"] {
+        let stalemating = ["e6f7", "e6g6", "f6g6"];
+        for text_move in stalemating {
             let mut pos = fen(text);
-            let mv = pos.parse_move(stalemating).unwrap();
+            let mv = pos.parse_move(text_move).unwrap();
             let _undo = pos.make_move(mv);
+            assert!(is_stalemate(&pos), "{text_move}");
+        }
+        // Depth 1 as well: there the stalemates sit at the horizon, where
+        // quiescence search has to recognise them.
+        for depth in 1..=3 {
+            let outcome = search(text, depth);
+            let chosen = outcome.best_move.unwrap();
             assert!(
-                legal_moves(&pos).is_empty() && !pos.in_check(),
-                "{stalemating}"
+                !stalemating.contains(&chosen.to_string().as_str()),
+                "depth {depth}: {chosen}"
+            );
+            let mut pos = fen(text);
+            let _undo = pos.make_move(chosen);
+            assert!(!is_stalemate(&pos), "depth {depth}: {chosen}");
+            assert!(outcome.score > 500, "depth {depth}: {outcome:?}");
+            // Mate is three plies away, so only depth 3 may report one.
+            assert_eq!(
+                crate::search::is_mate_score(outcome.score),
+                depth == 3,
+                "depth {depth}: {outcome:?}"
             );
         }
-        let outcome = search(text, 2);
-        let chosen = best(text, 2);
-        assert!(chosen != "e6f7" && chosen != "e6g6", "{chosen}");
-        assert!(outcome.score > 500, "{outcome:?}");
+    }
+
+    /// At the horizon a stalemate is a draw, not the static evaluation,
+    /// which would call a position a queen down lost.
+    #[test]
+    fn quiescence_scores_stalemate_as_a_draw() {
+        let stalemate = fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1");
+        assert!(is_stalemate(&stalemate));
+        assert!(HandCrafted.evaluate(&stalemate) < -800);
+        assert_eq!(quiet_value(&stalemate, 0), DRAW);
+        assert_eq!(quiet_value(&stalemate, 3), DRAW);
+        // Even when the window says the evaluation would be good enough.
+        let mut searcher = Search::new(&HandCrafted);
+        assert_eq!(searcher.quiesce(&stalemate, 1, -2_000, -1_000), DRAW);
+
+        // A one-ply search must not walk into one: after Kb2 the black king
+        // on d1 has no move.
+        let text = "8/8/8/8/8/8/5Q2/K2k4 w - - 0 1";
+        let mut pos = fen(text);
+        let trap = pos.parse_move("a1b2").unwrap();
+        let _undo = pos.make_move(trap);
+        assert!(is_stalemate(&pos));
+        assert_ne!(best(text, 1), "a1b2");
     }
 
     /// The principal variation must be a line of legal moves that really
@@ -1080,9 +1207,86 @@ mod tests {
         assert_eq!(pos, fen(KIWIPETE));
     }
 
+    /// The shortcut in `has_legal_move` must agree with real legality on
+    /// every position of a tree that is not in check, pins, en passant and
+    /// stalemates included.
+    #[test]
+    fn has_legal_move_agrees_with_move_generation() {
+        fn walk(pos: &mut Position, depth: u32, seen: &mut u64, free: &mut u64) {
+            let legal = legal_moves(pos);
+            if !pos.in_check() {
+                *seen += 1;
+                let fast = has_legal_move(pos, &pseudo_legal_moves(pos));
+                assert_eq!(fast, !legal.is_empty(), "{}", pos.to_fen());
+                // The glance at pawns and knights may only say "yes" when
+                // there really is a legal move.
+                if has_free_piece(pos) {
+                    *free += 1;
+                    assert!(!legal.is_empty(), "{}", pos.to_fen());
+                }
+            }
+            if depth == 0 {
+                return;
+            }
+            for &mv in &legal {
+                let undo = pos.make_move(mv);
+                walk(pos, depth - 1, seen, free);
+                pos.unmake_move(mv, undo);
+            }
+        }
+        let (mut seen, mut free) = (0, 0);
+        for (text, depth) in [
+            (KIWIPETE, 2),
+            (ROOK_ENDGAME, 3),
+            // En passant that would expose the king along the rank.
+            ("8/8/8/KPp4r/8/8/8/7k w - c6 0 2", 2),
+            // Queen and king against king, close to stalemate.
+            ("7k/8/4QK2/8/8/8/8/8 w - - 0 1", 3),
+            ("8/8/8/8/8/8/5Q2/K2k4 w - - 0 1", 3),
+        ] {
+            walk(&mut fen(text), depth, &mut seen, &mut free);
+        }
+        assert!(seen > 5_000, "{seen}");
+        // The glance settles many positions, but not all of them.
+        assert!(free > seen / 4 && free < seen, "{free} of {seen}");
+
+        // The rook is pinned by the bishop on c3 and the king's two squares
+        // are covered by the other bishop and the knight: stalemate,
+        // although there are pseudo-legal moves.
+        let pinned = fen("k7/8/4b3/8/8/2b5/1R1n4/K7 w - - 0 1");
+        assert!(!pseudo_legal_moves(&pinned).is_empty());
+        assert!(is_stalemate(&pinned));
+        assert!(!has_legal_move(&pinned, &pseudo_legal_moves(&pinned)));
+        assert!(!has_free_piece(&pinned));
+        // A pinned pawn and a pinned knight are not counted as free; ones
+        // off the king's lines are.
+        assert!(!has_free_piece(&fen("4k3/4r3/8/8/8/8/4P3/4K3 w - - 0 1")));
+        assert!(!has_free_piece(&fen("4k3/4r3/8/8/8/8/4N3/4K3 w - - 0 1")));
+        assert!(has_free_piece(&fen("4k3/4r3/8/8/8/8/1P6/4K3 w - - 0 1")));
+        assert!(has_free_piece(&fen("4k3/4r3/8/8/8/1N6/8/4K3 w - - 0 1")));
+        // A blocked pawn is not free, for either colour.
+        assert!(!has_free_piece(&fen("4k3/8/8/8/1p6/1P6/8/4K3 w - - 0 1")));
+        assert!(!has_free_piece(&fen("4k3/8/8/8/1p6/1P6/8/4K3 b - - 0 1")));
+        assert!(has_free_piece(&fen("4k3/8/8/8/1p6/8/1P6/4K3 b - - 0 1")));
+        assert_eq!(quiet_value(&pinned, 1), DRAW);
+    }
+
+    #[test]
+    fn squares_on_a_line() {
+        use crate::board::Square;
+        assert!(on_a_line(Square::A1, Square::A8));
+        assert!(on_a_line(Square::A1, Square::H1));
+        assert!(on_a_line(Square::A1, Square::H8));
+        assert!(on_a_line(Square::H1, Square::A8));
+        assert!(on_a_line(Square::E4, Square::E4));
+        assert!(!on_a_line(Square::A1, Square::B3));
+        assert!(!on_a_line(Square::E4, Square::F6));
+        assert!(!on_a_line(Square::A1, Square::H7));
+    }
+
     #[test]
     fn tactical_moves() {
-        use crate::board::{MoveKind, Square};
+        use crate::board::MoveKind;
         let mv = |kind| Move::new(Square::E7, Square::E8, kind);
         assert!(is_tactical(mv(MoveKind::Capture)));
         assert!(is_tactical(mv(MoveKind::EnPassant)));

@@ -10,6 +10,11 @@ once it has a first release.
 
 ### Fixed
 
+- A stalemate at the search horizon was scored as the static evaluation, so
+  a one-ply search could play a stalemating move and report a won position.
+  Quiescence search now scores stalemate as a draw. Found in the milestone 4
+  review, before any release.
+
 - A `Search` that had been stopped by a limit could not be used again:
   `iterate` panicked and `fixed_depth` returned no move. Each call now starts
   a new search. Found in the milestone 4 review, before any release.

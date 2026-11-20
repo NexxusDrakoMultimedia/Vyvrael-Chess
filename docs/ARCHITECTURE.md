@@ -531,9 +531,20 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     check is seen one ply earlier than the nominal depth.
   - It has no depth limit. Captures cannot continue for ever, and a ply cap
     (`MAX_PLY`) is the backstop.
+  - Not in check and with no legal move at all, the position is stalemate
+    and scores `DRAW`. This is tested before standing pat, because the side
+    that cannot move is usually far behind and the evaluation would call the
+    position won for the other side. Generating moves at every node only for
+    this would cost about a fifth of the search's speed, so a glance at the
+    bitboards comes first: when the king is not in check, a pawn or knight
+    that shares no rank, file or diagonal with its own king cannot be pinned,
+    so one with a square to go to proves there is a legal move. Moves are
+    generated for the test only when no such piece exists.
   - Of the draw rules only insufficient material is checked here, because a
-    capture can leave bare kings. Captures are irreversible, so no repetition
-    can arise and the fifty-move clock restarts.
+    capture can leave bare kings. Captures cannot repeat a position and they
+    restart the fifty-move clock. The quiet moves that get out of a check can
+    do neither, and quiescence does not test them for repetition or the
+    fifty-move rule; the main search does, one ply deeper.
   - **Captures are tried most valuable victim first** (`search/ordering.rs`),
     with the least valuable attacker breaking ties and promotions counted as
     the material they gain. Alpha-beta returns the same value in any order,
