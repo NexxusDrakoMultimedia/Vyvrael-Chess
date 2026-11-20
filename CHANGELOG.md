@@ -19,6 +19,10 @@ once it has a first release.
   new option `Move Overhead`. The constant `uci::MOVE_OVERHEAD` is gone, and
   `uci::time_for_move` and `uci::limits_for` take the overhead as an
   argument. With the default, play is as before.
+- The Lichess plan: a casual-only bot account (`Vyvrael-Chess`) after the
+  first alpha release, and rated play only after 0.2.0. It replaces the
+  earlier plan of a private test first. The branding requirement now gates
+  rated play, not the first release.
 
 ### Fixed
 
@@ -222,6 +226,8 @@ once it has a first release.
 - Integration tests that drive the engine binary over pipes
   (`tests/uci.rs`).
 - Added Ladder Baseline 1 reference results (docs/testing/)
+- `docs/LICHESS.md`: the Lichess bot policy, the facts and rules it rests
+  on, a checklist for the maintainer, and the anti-abuse rules.
 - UCI option `Move Overhead` (spin, default 30, 0 to 5000 ms): time kept
   back from every time limit for delays the engine cannot measure, such as
   the network between a Lichess game and the engine.

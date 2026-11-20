@@ -256,9 +256,9 @@ Scope summaries live in the "Build order" section of
 that milestone starts, and must include the known issues due in it:
 
 - Milestone 2: none left.
-- After milestone 5: private `lichess-bot` smoke test. Public only later,
-  after milestone 7 and the branding (see "Playing on Lichess with
-  lichess-bot").
+- After the first release (0.1.0-alpha.1): a casual-only Lichess bot, run
+  by the maintainer. Rated play only later, after milestone 7 and the
+  branding (see "Playing on Lichess with lichess-bot").
 - Milestone 5: none left (KI-3 and KI-7 were fixed in it).
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
 - Milestone 7: KI-9, KI-10.
@@ -447,12 +447,13 @@ NNUE is 9 and tablebases are 10.
   2026-11-20). The full scope is under "Milestone 6: strength testing"
   above.
 
-### Branding, required before going public
+### Branding, required before rated play
 
-Required by the maintainer (2026-11-20): Vyvræl gets its branding before it
-is published anywhere the public meets it, whether that is a Lichess bot
-account, a rating list, a release or an announcement. Private testing does
-not need it. **Going public is blocked until this is done.**
+Required by the maintainer (2026-11-20, amended the same day): Vyvræl gets
+its branding before it plays rated games on Lichess or is entered in a
+rating list. **Rated play is blocked until this is done.** The first alpha
+release and the casual-only bot do not wait for it: they use what is already
+decided (the name, the tagline and the avatar below).
 
 Vyvræl is an **Australian** engine and is to be presented as one wherever a
 country is asked for or shown: the Lichess bot profile's flag, rating lists
@@ -524,29 +525,34 @@ What it needs:
   into a tracked file and never handled by an AI agent. The repository will
   carry only an example configuration with a placeholder where the token
   goes, and the real configuration file will be git-ignored.
-- **Documentation:** tested setup steps in the README (replacing the current
-  placeholder) and in `docs/UCI.md`, including which engine options to set.
+- **Documentation:** [LICHESS.md](LICHESS.md) holds the policy, the
+  maintainer's checklist and the anti-abuse rules.
 
-Plan, in this order (milestone 5 comes two milestones before milestone 7, so
-the private test comes well before the bot is public):
+Plan, as amended by the maintainer on 2026-11-20. It replaces the earlier
+plan of a private test first and a public bot only after milestone 7:
 
-- **First, after milestone 5**, a private smoke test that the engine
-  plays complete games over the real protocol without losing on time,
-  crashing or making illegal moves.
-- **Later, going public: not before milestone 7**, which follows milestone
-  6, **and not before the branding above is done**, so the bot that other people
-  play has been through SPRT-tested search. Playing rated games with an
-  untested engine would say little and could annoy opponents.
-- Time management has to be sound first: `go wtime/btime/winc/binc` handling
-  is part of milestone 5, and a bot that flags is worse than no bot.
-- `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play once
-  they are calibrated.
+- **After the maintainer tags 0.1.0-alpha.1: a casual-only bot.** The
+  maintainer upgrades the account `Vyvrael-Chess` to BOT and runs
+  lichess-bot accepting casual challenges only. Casual games cost nobody
+  rating points, and they show whether the engine plays complete games over
+  the real protocol without losing on time, crashing or making illegal
+  moves.
+- **Rated play: not before 0.2.0 (milestone 7)**, which follows milestone
+  6, **and not before the branding above is done**, so a bot that plays for
+  rating has a measured strength and SPRT-accepted search. The maintainer
+  decides when, and re-reads the Lichess Terms of Service and Bot API
+  documentation first.
+- Until the upgrade nobody plays a game on the account: one game makes the
+  upgrade impossible.
+- A bot that loses on time is worse than no bot: the option `Move Overhead`
+  exists for this, and LICHESS.md gives a starting value.
+- `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play
+  once they are calibrated; on a rated account that would have to be said
+  in the profile.
 
-Open questions for the maintainer, to settle before going public: the
-branding (see above), the bot's
-account name, which time controls and variants to accept, whether to accept
-rated games and challenges from humans, other bots or both, and where the bot
-will run (it needs a machine that stays on).
+Still open for the maintainer, before rated play: the rest of the branding
+(see above), which time controls and variants to accept, and whether to
+accept challenges from humans, other bots or both.
 
 ## Ideas for later
 

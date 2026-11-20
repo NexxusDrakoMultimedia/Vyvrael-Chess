@@ -39,7 +39,8 @@ Layout:
 - `tools/vyvrael-train`: NNUE training (milestone 9).
 - `scripts/`: helper scripts and their tests (the external-tool installer).
 - `branding/`: brand assets, all rights reserved, not under the GPL.
-- `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE.
+- `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE,
+  Lichess.
 
 ## Commands
 
@@ -100,6 +101,8 @@ Update this table in the same commit that adds or changes a command.
   opening books). Record source URL, licence and date fetched in
   `docs/DATA.md`, confirmed on the official source page.
 - Endgame tablebases (milestone 10) are optional: ask the maintainer first.
+- Never touch Lichess: no API token, no API call, no account upgrade, no
+  launching lichess-bot, not in CI either. See `docs/LICHESS.md`.
 
 ## Randomness
 
