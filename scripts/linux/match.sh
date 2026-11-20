@@ -164,8 +164,13 @@ low_priority=${low_priority:-false}
 [[ $low_priority == true || $low_priority == false ]] || die "LOW_PRIORITY must be true or false, got '$low_priority'"
 
 check_name() {
-    local what=$1 name=$2
-    [[ $name =~ ^[\ -~]+$ ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
+    local what=$1 name=$2 other
+    # What is left after deleting every byte from space to "~". tr in the C
+    # locale compares bytes; a range in a bash pattern or regular expression
+    # follows the user's locale instead, and on Linux that refused plain
+    # names such as "Vyvrael 0.1.0-a1".
+    other=$(printf '%s' "$name" | LC_ALL=C tr -d ' -~')
+    [[ -n $name && -z $other ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
     [[ $name != *'"'* && $name != *"'"* && $name != *'='* ]] || die "$what '$name' may not contain quotes or '='"
     [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$name' may not start or end with a space"
 }
