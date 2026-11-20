@@ -94,3 +94,4 @@ once it has a first release.
 - Fixed-depth negamax search with alpha-beta pruning (`search::Search`).
 - Draw detection in search: insufficient material, repetition (with game
   history through `Search::with_history`) and the fifty-move rule.
+- The principal variation (`Outcome::pv`).

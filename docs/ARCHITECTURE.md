@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `help`. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection. |
+| `search` | in progress (milestone 4) | Search core. Implemented so far: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation. |
 | UCI | planned (milestone 5) | Protocol loop; search on its own thread. |
 
 ## Board representation
@@ -469,6 +469,14 @@ In progress (milestone 4). `src/search/` looks ahead to choose a move.
     checkmated, because a mate delivered on the hundredth ply still wins.
   - The root is never scored as drawn, since a move must still be returned
     there.
+
+- **Principal variation.** `Outcome::pv` is the line of best play the score
+  comes from, starting with the best move. `Search` keeps one line per ply (a
+  "triangular" table): a node that finds a new best move stores that move
+  followed by its child's line. The line is shorter than the depth when it
+  ends in a mate or a draw. It is what UCI reports as `pv`, and it is also a
+  check on the search: playing it out must reach a position whose evaluation
+  is the reported score.
 
 ## How search, evaluation and UCI fit together (planned)
 

@@ -20,13 +20,17 @@ use crate::movegen::legal_moves;
 use crate::movegen::pseudo_legal_moves;
 
 /// What a search found.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Outcome {
     /// The value of the position for the side to move.
     pub score: Score,
     /// The move that achieves it, or `None` when the side to move has no
     /// legal move (checkmate or stalemate).
     pub best_move: Option<Move>,
+    /// The principal variation: the line of best play for both sides that
+    /// the score comes from, starting with `best_move`. It is shorter than
+    /// the search depth when the line ends early in a mate or a draw.
+    pub pv: Vec<Move>,
 }
 
 /// A search in progress: the evaluator it uses and what it has counted.
@@ -37,6 +41,10 @@ pub struct Search<'a> {
     /// the game so far, then the path from the root. Used to see
     /// repetitions.
     keys: Vec<u64>,
+    /// The best line found from each ply ("triangular" table): `pv[p]` is
+    /// the line starting at ply `p`. A node that finds a new best move writes
+    /// that move followed by its child's line.
+    pv: Vec<Vec<Move>>,
 }
 
 impl<'a> Search<'a> {
@@ -47,6 +55,8 @@ impl<'a> Search<'a> {
             evaluator,
             nodes: 0,
             keys: Vec::new(),
+            // One line per ply, plus one for the child of the deepest node.
+            pv: vec![Vec::new(); MAX_PLY + 2],
         }
     }
 
@@ -70,6 +80,16 @@ impl<'a> Search<'a> {
         fifty_moves_reached(pos) && !(pos.in_check() && legal_moves(pos).is_empty())
     }
 
+    /// Records `mv` as the best move at `ply`, followed by the best line
+    /// already found for the position it leads to.
+    fn update_pv(&mut self, ply: usize, mv: Move) {
+        let (upper, lower) = self.pv.split_at_mut(ply + 1);
+        let line = &mut upper[ply];
+        line.clear();
+        line.push(mv);
+        line.extend_from_slice(&lower[0]);
+    }
+
     /// How many positions have been visited so far.
     #[must_use]
     pub const fn nodes(&self) -> u64 {
@@ -88,6 +108,7 @@ impl<'a> Search<'a> {
             "search depth must be between 1 and MAX_PLY"
         );
         self.nodes += 1;
+        self.pv[0].clear();
         let mut alpha = -INFINITY;
         let mut best_move = None;
         for &mv in &pseudo_legal_moves(pos) {
@@ -106,16 +127,19 @@ impl<'a> Search<'a> {
             if best_move.is_none() || score > alpha {
                 alpha = score;
                 best_move = Some(mv);
+                self.update_pv(0, mv);
             }
         }
         match best_move {
             Some(_) => Outcome {
                 score: alpha,
                 best_move,
+                pv: self.pv[0].clone(),
             },
             None => Outcome {
                 score: no_moves_score(pos, 0),
                 best_move: None,
+                pv: Vec::new(),
             },
         }
     }
@@ -135,6 +159,7 @@ impl<'a> Search<'a> {
         beta: Score,
     ) -> Score {
         self.nodes += 1;
+        self.pv[ply].clear();
         // The root is never scored as a draw here: a move must still be
         // chosen there. Everywhere else a drawn position ends the line.
         if self.is_draw(pos) {
@@ -163,6 +188,7 @@ impl<'a> Search<'a> {
                 best = score;
                 if score > alpha {
                     alpha = score;
+                    self.update_pv(ply, mv);
                     if alpha >= beta {
                         // The opponent has a better option elsewhere and
                         // will never let the game reach this position.
@@ -350,6 +376,59 @@ mod tests {
         let chosen = best(text, 2);
         assert!(chosen != "e6f7" && chosen != "e6g6", "{chosen}");
         assert!(outcome.score > 500, "{outcome:?}");
+    }
+
+    /// The principal variation must be a line of legal moves that really
+    /// leads to the reported score.
+    #[test]
+    fn the_principal_variation_explains_the_score() {
+        let positions = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 b - - 0 10",
+            "4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1",
+        ];
+        for text in positions {
+            for depth in 1..=4u32 {
+                let outcome = search(text, depth);
+                assert_eq!(outcome.pv.first().copied(), outcome.best_move, "{text}");
+                assert!(outcome.pv.len() <= depth as usize, "{text} depth {depth}");
+
+                let mut pos = fen(text);
+                for mv in &outcome.pv {
+                    assert!(legal_moves(&pos).contains(mv), "{text}: {mv} is not legal");
+                    let _undo = pos.make_move(*mv);
+                }
+                // These positions have no mate or draw within four plies, so
+                // the line runs the full depth and ends in a position whose
+                // evaluation, seen from the root side, is the score.
+                assert_eq!(outcome.pv.len(), depth as usize, "{text} depth {depth}");
+                let from_root_side = if depth % 2 == 0 { 1 } else { -1 };
+                let leaf = HandCrafted.evaluate(&pos) * from_root_side;
+                assert_eq!(leaf, outcome.score, "{text} depth {depth}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_principal_variation_of_a_mate_ends_in_checkmate() {
+        let outcome = search("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 4);
+        assert_eq!(
+            outcome.pv.len(),
+            3,
+            "mate in two is three plies: {:?}",
+            outcome.pv
+        );
+        let mut pos = fen("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1");
+        for mv in &outcome.pv {
+            assert!(legal_moves(&pos).contains(mv));
+            let _undo = pos.make_move(*mv);
+        }
+        assert!(pos.in_check() && legal_moves(&pos).is_empty());
+
+        // No legal move at the root: nothing to play.
+        assert!(search("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", 3).pv.is_empty());
     }
 
     /// Plays `moves` from `pos` and returns the hashes of the positions
