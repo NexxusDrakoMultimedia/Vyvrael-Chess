@@ -339,13 +339,16 @@ What to know before running it:
 
 Status: the script's helper functions are covered by offline unit tests
 (`python3 -m unittest discover -s scripts/tests`, also run in CI), which
-download and install nothing. **The installer itself has not yet been run
-end to end.** Three details can only be confirmed by a real run: that this
-Cute Chess AppImage runs `cutechess-cli` when given a leading `cli` argument,
-which exit status `cutechess-cli --version` and `ordo -h` end with (until
-that is known the check accepts any status except 126 and 127, so it cannot
-yet tell a program that starts and then fails from one that works), and that
-lichess-bot reads its token from `LICHESS_BOT_TOKEN`.
+download and install nothing. **The maintainer has installed Cute Chess and
+Ordo with it on the Linux machine (2026-11-21), and played a real match and
+made a rating list with what it installed.** That confirms that this Cute
+Chess AppImage runs `cutechess-cli` when given a leading `cli` argument.
+Two details are still open: which exit status `cutechess-cli --version` and
+`ordo -h` end with (the check accepts any status except 126 and 127, so it
+cannot yet tell a program that starts and then fails from one that works),
+and that lichess-bot reads its token from `LICHESS_BOT_TOKEN`. The
+lichess-bot part has one known fault: see KI-11 in
+[ROADMAP.md](ROADMAP.md).
 
 The match and rating scripts that use these tools are described under
 "Strength matches, SPRT and ratings" below.
@@ -415,8 +418,8 @@ fetched once, a failing engine did not stop the others, and the engine list
 was written with the 22 names installed. All 13 engines the installer now
 provides have therefore been installed on Linux at least once. A real match
 and a rating run with the bash scripts followed (see "Strength matches,
-SPRT and ratings"). Not recorded: how `cutechess-cli` and Ordo were
-installed on that machine, by this script or otherwise.
+SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
+installed.
 
 ### Cute Chess and Ordo on Windows
 

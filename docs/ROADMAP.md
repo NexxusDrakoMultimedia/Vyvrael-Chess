@@ -120,6 +120,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
 | KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Resolved in milestone 6 for the build measured, and re-measured after milestone 7. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 
 ## Milestone 2: move generation
 
@@ -290,7 +291,7 @@ that milestone starts, and must include the known issues due in it:
 - Milestone 5: none left (KI-3 and KI-7 were fixed in it).
 - Milestone 6: calibration of `UCI_Elo`; KI-8.
 - Milestone 7: KI-9, KI-10.
-- Not yet scheduled: KI-2.
+- Not yet scheduled: KI-2, KI-11.
 
 ## Planned features
 
@@ -648,7 +649,8 @@ Notes for whoever starts it:
 
 - `scripts/install_tools.py` installs pinned versions of both tools (and
   lichess-bot) on Linux, and Cute Chess and Ordo on Windows; see
-  TESTING.md. It has unit tests but has not been run end to end.
+  TESTING.md. The maintainer has installed both tools with it on the Linux
+  machine and used them for a real match and rating (2026-11-21).
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
 - The match settings rely on the UCI options `Hash` and `Threads`.
