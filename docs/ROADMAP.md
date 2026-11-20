@@ -559,6 +559,12 @@ To go into the chunk checklist when it is written:
 - Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
   on (Ladder Baseline 1 and its Ordo anchor, not Lichess, CCRL or FIDE)
   and that the scale is stretched at the low end.
+- Robustness, wanted before 0.2.0 because the bot plays in public:
+  - a test that feeds the UCI loop malformed and unexpected input and
+    asserts that it never panics. The release profile uses
+    `panic = "abort"`, so a panic ends the engine in the middle of a game;
+  - a soak test through `cutechess-cli` at several time controls (1+0, 3+2
+    and 60+0) with no illegal move, crash, stall or time loss.
 
 Notes for whoever starts it:
 
