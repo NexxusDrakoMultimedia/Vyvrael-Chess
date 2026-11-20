@@ -52,6 +52,9 @@ once it has a first release.
   user's own top-level files, and the default engine path is now
   `<prefix>/engines/vyvrael`, outside the directory a reinstall replaces.
 
+- `scripts/install_tools.py`: `--dry-run` now reports an already installed
+  tool as such, as a real run does, instead of saying it would install it.
+
 ### Added
 
 - Cargo workspace: engine crate `vyvrael` (library + binary) and stub tool

@@ -591,6 +591,62 @@ class Private(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
 
 
+def run_main(argv: list[str]) -> str:
+    """Runs the installer's `main` offline and returns what it printed.
+
+    Downloading and running programs are replaced by mocks that fail the
+    test, so a mistake here can never fetch, build or start anything.
+    """
+    forbidden = AssertionError("the test tried to leave the sandbox")
+    with mock.patch.object(install_tools, "download", side_effect=forbidden), mock.patch.object(
+        install_tools.subprocess, "run", side_effect=forbidden
+    ), redirect_stdout(io.StringIO()) as out:
+        install_tools.main(argv)
+    return out.getvalue()
+
+
+def record_as_installed(prefix: str, tool: str) -> None:
+    """Makes `prefix` look as if the pinned version of `tool` were installed."""
+    pin = install_tools.PINS[tool]
+    ctx = install_tools.Ctx(args(prefix=prefix))
+    (ctx.prefix / tool).mkdir(parents=True, exist_ok=True)
+    info = {"version": pin["version"], "sha256": pin["sha256"], "path": str(ctx.prefix / tool)}
+    if "commit" in pin:
+        info["commit"] = pin["commit"]
+    ctx.record(tool, info)
+
+
+class DryRun(unittest.TestCase):
+    def test_reports_already_installed_like_a_real_run(self):
+        for tool in install_tools.TOOLS:
+            with tempfile.TemporaryDirectory() as tmp:
+                record_as_installed(tmp, tool)
+                out = run_main(["--prefix", tmp, "--dry-run", "--tool", tool])
+                self.assertIn(f"{tool}: {install_tools.PINS[tool]['version']} already installed", out)
+                self.assertNotIn("would install", out, tool)
+                self.assertNotIn("would build", out, tool)
+
+    def test_reports_an_install_when_nothing_is_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = run_main(["--prefix", tmp, "--dry-run", "--tool", "cutechess"])
+            self.assertIn("[dry-run] would install", out)
+            self.assertNotIn("already installed", out)
+
+    def test_force_is_reported_as_a_reinstall(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record_as_installed(tmp, "cutechess")
+            out = run_main(["--prefix", tmp, "--dry-run", "--force", "--tool", "cutechess"])
+            self.assertIn("[dry-run] would install", out)
+
+    def test_writes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # The default tools; lichess-bot would stop on a Python before 3.11.
+            out = run_main(["--prefix", tmp, "--dry-run"])
+            self.assertIn("cutechess", out)
+            self.assertIn("ordo", out)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+
 class CommandLine(unittest.TestCase):
     def test_parser_defaults(self):
         parsed = install_tools.build_parser().parse_args([])

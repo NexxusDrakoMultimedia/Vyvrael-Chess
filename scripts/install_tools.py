@@ -679,7 +679,9 @@ def main(argv: list[str] | None = None) -> None:
         wanted = TOOLS
     for tool in wanted:
         have = ctx.installed_version(tool)
-        if have == PINS[tool]["version"] and not args.force and not args.dry_run:
+        # No dry-run exception here: a dry run reports what a real run would
+        # do, and a real run skips a tool that is already installed.
+        if have == PINS[tool]["version"] and not args.force:
             say(f"{tool}: {have} already installed (use --force to reinstall)")
             continue
         INSTALLERS[tool](ctx)
