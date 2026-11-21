@@ -31,7 +31,7 @@ work is actually done is this:
    scripts and the installer. See "Testing tooling (before milestone 6)".
    Done on 2026-11-21.
 2. **Queued task 1:** the options `Seed` and `Variety` and the `bench`
-   command. See "Queued work".
+   command. See "Queued work". Done on 2026-11-22.
 3. **Milestone 6:** strength testing.
 4. **Milestone 7:** search heuristics.
 5. **Queued task 2:** benchmark and speed up.
@@ -569,7 +569,7 @@ Decided by the maintainer:
   and `docs/LICHESS.md`; the randomness table in `docs/ARCHITECTURE.md`;
   the match scripts' `--deterministic`, which sets the old option; a
   changelog entry.
-- [ ] Report: what made the engine deterministic, the bench node count
+- [x] Report: what made the engine deterministic, the bench node count
   before and after, the options added.
 
 Chunk order (branch `task/1-seed-variety-bench`, started 2026-11-22), one
