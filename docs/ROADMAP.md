@@ -564,7 +564,7 @@ Decided by the maintainer:
   fixed `Seed` and `Variety` 0 is reproducible; with `Variety` 0 the root
   move is always the best one; the seed line is printed (no test may depend
   on two entropy seeds differing).
-- [ ] Docs: the deterministic guarantee is one thread, a fixed `Seed` and
+- [x] Docs: the deterministic guarantee is one thread, a fixed `Seed` and
   `Variety` 0 (`docs/TESTING.md`, `docs/UCI.md`); the options in the README
   and `docs/LICHESS.md`; the randomness table in `docs/ARCHITECTURE.md`;
   the match scripts' `--deterministic`, which sets the old option; a
