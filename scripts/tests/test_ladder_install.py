@@ -379,19 +379,20 @@ class LadderInstallTest(unittest.TestCase):
             self.install(engines, only=["Gamma 3"])
 
     def test_an_unknown_or_uninstallable_name_is_explained(self):
+        ctx = self.ctx()
         out = io.StringIO()
         with redirect_stderr(out), self.assertRaises(SystemExit):
-            ladder_install.select(["Stockfish 18"])
+            ladder_install.select(ctx, ["Stockfish 18"])
         self.assertIn("no engine named 'Stockfish 18'", out.getvalue())
         self.assertIn("Stockfish 19", out.getvalue())
         out = io.StringIO()
         with redirect_stderr(out), self.assertRaises(SystemExit):
-            ladder_install.select(["Orion 1.1"])
-        self.assertIn("Orion 1.1 cannot be installed", out.getvalue())
+            ladder_install.select(ctx, ["Orion 1.1"])
+        self.assertIn("Orion 1.1 cannot be installed on linux", out.getvalue())
         # The real table: every name of the ladder selects one of its engines.
         for name in ladder_engines.ladder_names():
-            self.assertEqual(len(ladder_install.select([name])), 1, name)
-        self.assertEqual(len(ladder_install.select(None)), len(ladder_engines.ENGINES))
+            self.assertEqual(len(ladder_install.select(ctx, [name])), 1, name)
+        self.assertEqual(len(ladder_install.select(ctx, None)), len(ladder_engines.pins("linux")))
 
     def test_a_dry_run_changes_nothing(self):
         url, digest = self.serve("bare", b"ELF")
@@ -457,7 +458,7 @@ class LadderInstallTest(unittest.TestCase):
     def test_the_real_ladder_gives_the_baselines_names_and_values(self):
         ctx = self.ctx()
         entries = []
-        for engine in ladder_engines.ENGINES:
+        for engine in ladder_engines.pins("linux"):
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
         self.assertEqual(len(entries), 27)

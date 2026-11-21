@@ -30,6 +30,22 @@ import ladder_engines
 BUILD_TIMEOUT = 3600  # seconds; the largest build is a Rust engine with its dependencies
 
 
+def system_of(ctx) -> str:
+    """The system whose pins apply: "linux" or "windows" (set on the run's
+    context; Linux when it says nothing)."""
+    return getattr(ctx, "system", None) or "linux"
+
+
+def build_of(ctx) -> str:
+    """The build of engines to install: "avx2" (the default) or "pext"."""
+    return getattr(ctx, "engine_build", None) or "avx2"
+
+
+def active_pins(ctx) -> list[dict]:
+    """The pins of every engine installable for this run's system and build."""
+    return ladder_engines.pins(system_of(ctx), build_of(ctx))
+
+
 def slug(name: str) -> str:
     """A directory name for an engine: "Rustic Alpha 3.0.6" -> "rustic-alpha-3.0.6"."""
     return re.sub(r"[^a-z0-9.]+", "-", name.lower()).strip("-")
@@ -65,6 +81,10 @@ def is_installed(ctx, engine: dict) -> bool:
         entry.get("url") == engine["url"]
         and entry.get("sha256") == engine["sha256"]
         and entry.get("command") == engine.get("build", {}).get("command")
+        # The same program: another build may come from the same archive.
+        and entry.get("binary") == str(installed_binary(ctx, engine))
+        and entry.get("binary_sha256", engine.get("member_sha256"))
+        == engine.get("member_sha256", entry.get("binary_sha256"))
         and installed_binary(ctx, engine).is_file()
         # What the engine needs beside it (a network, a book, personalities).
         and all((home / Path(extra).name).exists() for extra in engine.get("beside", []))
@@ -76,23 +96,26 @@ def missing_tools(engine: dict) -> list[str]:
     return [tool for tool in engine.get("build", {}).get("tools", []) if not shutil.which(tool)]
 
 
-def select(only: list[str] | None) -> list[dict]:
-    """The engines to install: all of them, or those named with --only.
+def select(ctx, only: list[str] | None) -> list[dict]:
+    """The pins to install: all of this system's, or those named with --only.
 
     A limited entry ("Stockfish 19-1500") selects its engine, since it is the
     same program. An unknown name ends the run with the names that exist.
     """
+    available = active_pins(ctx)
     if not only:
-        return list(ladder_engines.ENGINES)
+        return available
+    system = system_of(ctx)
+    names = ladder_engines.ladder_names(system)
+    unavailable = ladder_engines.NOT_INSTALLABLE[system]
     chosen = []
     for name in only:
-        base = re.sub(r"-\d+$", "", name) if name in ladder_engines.ladder_names() else name
-        try:
-            engine = ladder_engines.by_name(base)
-        except KeyError:
-            if name in ladder_engines.NOT_INSTALLABLE:
-                tools.die(f"{name} cannot be installed: {ladder_engines.NOT_INSTALLABLE[name]}")
-            known = ", ".join(engine["name"] for engine in ladder_engines.ENGINES)
+        base = re.sub(r"-\d+$", "", name) if name in names else name
+        engine = next((p for p in available if p["name"] == base), None)
+        if engine is None:
+            if name in unavailable:
+                tools.die(f"{name} cannot be installed on {system}: {unavailable[name]}")
+            known = ", ".join(p["name"] for p in available)
             tools.die(f"no engine named '{name}' in the ladder. Known: {known}")
         if engine not in chosen:
             chosen.append(engine)
@@ -258,7 +281,7 @@ def install_engines(ctx, only: list[str] | None, force: bool) -> tuple[list[dict
     earlier install of the same engine is left as it was, on disk and in the
     record: a failure happens before anything is swapped into place.
     """
-    chosen = select(only)
+    chosen = select(ctx, only)
     fetched = {"dir": tempfile.mkdtemp(prefix="vyvrael-fetched-")}
     present, failed = [], []
     try:
@@ -339,7 +362,7 @@ def write_engines_json(ctx) -> Path | None:
     """
     path = engines_json_path(ctx)
     entries = []
-    for engine in ladder_engines.ENGINES:
+    for engine in active_pins(ctx):
         if is_installed(ctx, engine):
             entries.extend(engine_entries(ctx, engine))
     if ctx.dry:

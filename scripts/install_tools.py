@@ -841,7 +841,7 @@ def main(argv: list[str] | None = None) -> None:
         import ladder_engines
         import ladder_install
 
-        for engine in ladder_engines.ENGINES:
+        for engine in ladder_install.active_pins(ctx):
             have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
             say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")

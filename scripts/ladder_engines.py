@@ -372,8 +372,8 @@ ENGINES = [
     },
 ]
 
-# Engines of the baseline that the installer cannot provide on Linux, and why.
-NOT_INSTALLABLE = {
+# Engines of the baseline that the installer cannot provide, per system, and why.
+NOT_INSTALLABLE = {"linux": {
     "Orion 1.1": "The official site (orionchess.com) offers Windows programs only and the "
     "source is not published, so there is nothing to download or build for Linux.",
     "Ethereal 12.75": "There is no official Linux binary, and the source of v12.75 does "
@@ -387,7 +387,7 @@ NOT_INSTALLABLE = {
     "author's site that no page there links to and no digest covers. Installing it would "
     "need a Python environment with PyTorch, which the installer does not set up (the "
     "maintainer's decision, 2026-11-21).",
-}
+}, "windows": {}}
 
 # What every engine of the ladder is given, as in the baselines. Each pin's
 # `options` add the rest of Ladder Baseline 2's settings: books and online
@@ -396,11 +396,57 @@ NOT_INSTALLABLE = {
 HASH_MB = 64
 
 
-def ladder_names() -> list[str]:
-    """Every name the installer can provide: each engine, then its limited
-    variants, in the table's order."""
+SYSTEMS = ("linux", "windows")
+BUILDS = ("avx2", "pext")
+
+# The fields of an entry that say where its program comes from. At the top
+# level they describe the Linux program; an entry's "windows" section gives
+# its own set for Windows.
+SOURCE_FIELDS = ("method", "url", "sha256", "archive", "binary", "member_sha256",
+                 "beside", "build")
+
+
+def pin(engine: dict, system: str = "linux", build: str = "avx2") -> dict | None:
+    """The engine's pin for one system and build, as one flat entry, or None
+    if the engine cannot be installed there.
+
+    On Linux the entry's own fields are the pin (an entry with "linux": None
+    exists on Windows only). On Windows its "windows" section replaces the
+    source fields. With build "pext", a "pext" section (at the top level for
+    Linux, inside "windows" for Windows) replaces fields again: the PEXT
+    build of an engine that offers one. Engines without one have a single
+    build, used for both.
+    """
+    if system not in SYSTEMS or build not in BUILDS:
+        raise ValueError(f"unknown system or build: {system}, {build}")
+    if system == "linux":
+        if "linux" in engine and engine["linux"] is None:
+            return None
+        flat = {k: v for k, v in engine.items() if k not in ("linux", "windows", "pext")}
+        override = engine.get("pext")
+    else:
+        section = engine.get("windows")
+        if section is None:
+            return None
+        flat = {k: v for k, v in engine.items()
+                if k not in SOURCE_FIELDS + ("linux", "windows", "pext")}
+        flat.update({k: v for k, v in section.items() if k != "pext"})
+        override = section.get("pext")
+    if build == "pext" and override:
+        flat.update(override)
+    return flat
+
+
+def pins(system: str = "linux", build: str = "avx2") -> list[dict]:
+    """Every engine that can be installed on `system`, as flat pins."""
+    return [p for p in (pin(engine, system, build) for engine in ENGINES) if p is not None]
+
+
+def ladder_names(system: str = "linux") -> list[str]:
+    """Every name the installer can provide on `system`: each engine, then
+    its limited variants, in the table's order."""
     names = []
-    for engine in ENGINES:
+    for engine in pins(system):
         names.append(engine["name"])
         names.extend(f"{engine['name']}-{elo}" for elo in engine.get("variants", []))
     return names
