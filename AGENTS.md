@@ -101,7 +101,10 @@ Update this table in the same commit that adds or changes a command.
   net itself unless it is small and the maintainer approves).
 - A new net, eval change or search change is accepted only if SPRT against
   the previous version shows a gain. Record the result in the commit message
-  or `docs/TESTING.md`.
+  or `docs/TESTING.md`. Exempt: options that weaken play on purpose and are
+  off by default, `UCI_LimitStrength` / `UCI_Elo` and `Variety`. With them
+  at their defaults play must be unchanged, shown by an unchanged bench node
+  count, and they stay at their defaults in every strength match.
 - Before adding a dependency, check its licence is GPL-3.0-or-later
   compatible and record it in `docs/DEPENDENCIES.md`. One dependency per
   commit. Prefer none in the engine crate.
