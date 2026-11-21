@@ -136,6 +136,24 @@ class LadderEnginesTest(unittest.TestCase):
                                  engine["name"])
                 self.assertIsInstance(value, (bool, int, str), engine["name"])
 
+    def test_the_default_build_avoids_pext_and_the_pext_build_uses_it(self):
+        for system in ladder_engines.SYSTEMS:
+            avx2 = {p["name"]: p for p in ladder_engines.pins(system, "avx2")}
+            pext = {p["name"]: p for p in ladder_engines.pins(system, "pext")}
+            self.assertEqual(list(avx2), list(pext), system)
+            for name, pin in avx2.items():
+                text = " ".join([pin["url"], pin["binary"]]
+                                + pin.get("build", {}).get("command", [])).lower()
+                for word in ("pext", "bmi2", "use_pext"):
+                    self.assertNotIn(word, text, f"{name} on {system}")
+        linux_avx2 = {p["name"]: p for p in ladder_engines.pins("linux", "avx2")}
+        linux_pext = {p["name"]: p for p in ladder_engines.pins("linux", "pext")}
+        changed = sorted(n for n in linux_avx2 if linux_avx2[n] != linux_pext[n])
+        self.assertEqual(changed, ["Arasan 26.1", "Stash 37.0", "Weiss 2.0"])
+        self.assertEqual(linux_pext["Arasan 26.1"]["binary"], "arasanx-64-avx2-bmi2")
+        self.assertIn("-DUSE_PEXT", " ".join(linux_pext["Weiss 2.0"]["build"]["command"]))
+        self.assertTrue(linux_pext["Stash 37.0"]["binary"].endswith("-bmi2"))
+
     def test_a_pin_is_resolved_per_system_and_build(self):
         engine = {
             "name": "Both 1", "version": "1", "licence": "MIT", "hash": True,

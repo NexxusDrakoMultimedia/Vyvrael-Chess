@@ -83,7 +83,7 @@ Sources and licences were read on each project's own page or repository on
 | Arasan 26.1 (also limited to 1500, 1800) | v26.1 | MIT | official binary | <https://github.com/jdart1/arasan-chess> | `33c0c4f8f70c3ed5...` |
 | Viridithas 20 | v20.0.0 | MIT | official binary | <https://github.com/cosmobobak/viridithas> | `eb53de2fde546f3b...` |
 | Reckless 0.9.0 | v0.9.0 | AGPL-3.0 | official binary | <https://github.com/codedeliveryservice/Reckless> | `09ba1634faaffec5...` |
-| Stash 37.0 | v37.0 | GPL-3.0 | official binary | <https://gitlab.com/mhouppin/stash-bot> | `70f8935f8e45cefe...` |
+| Stash 37.0 | v37.0 | GPL-3.0 | official binary (popcnt; bmi2 for `pext`) | <https://gitlab.com/mhouppin/stash-bot> | `8643547bfe9505d5...` (`pext`: `70f8935f8e45cefe...`) |
 | Princhess 0.22.0 | 0.22.0 | GPL-3.0 | built from official source | <https://github.com/princesslana/princhess> | `a21d53cefdcad7b4...` |
 | Weiss 2.0 | v2.0 | GPL-3.0 | built from official source | <https://github.com/TerjeKir/weiss> | `ddcd263e493987bd...` |
 | Rodent IV (also limited to 1600, 2000) | 0.33 (commit e8d84c8) | GPL-3.0 | built from official source | <https://github.com/nescitus/rodent-iv> | `db372b48a8ccf22d...` |
@@ -133,3 +133,12 @@ compiled with `-march=native`; a compiled engine names `haswell` or
 x86-64). Stockfish 19 ships one Linux binary that chooses its code path
 at run time, and the Rustic Alpha binaries do not state their processor
 level (they contain no AVX-512).
+
+**Two builds.** The installer takes the `avx2` build by default and the
+`pext` build with `--engine-build pext` (or `ENGINE_BUILD=pext` in
+`scripts/local.env`). Only engines that offer a PEXT build of their own
+differ: on Linux Arasan (`arasanx-64-avx2` or `arasanx-64-avx2-bmi2` from the
+same archive), Stash (its popcnt or its bmi2 file; it has no AVX2 build) and
+Weiss (built without or with `-DUSE_PEXT`). Every other engine has one build
+for both. PEXT is fast on Intel from Haswell and on AMD from Zen 3, and slow
+on AMD Zen 1 and Zen 2.

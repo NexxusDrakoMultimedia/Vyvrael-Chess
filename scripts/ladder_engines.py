@@ -35,6 +35,9 @@ from __future__ import annotations
 #             list of arguments, no shell), extra environment, and the tools
 #             that must be on PATH
 #   hash, threads  whether the engine has those UCI options
+#   pext      fields that replace the above for the engine's PEXT build, where
+#             it has one; without it the one build serves both (see pin())
+#   windows   the source fields for Windows, with their own "pext" (see pin())
 #   options   fixed UCI options for every entry of the engine, as (name, value)
 #             pairs, beside Hash, Threads and the strength settings
 #   limit     (lowest, highest) UCI_Elo if it has UCI_LimitStrength, else None
@@ -70,14 +73,19 @@ ENGINES = [
         "v26.1/arasan-linux-binaries-26.1.tar.gz",
         "sha256": "33c0c4f8f70c3ed5e4aa086b9cffd542ad7af616ab4adc9662e9b56fcff91ac5",
         "archive": "tar.gz",
-        "binary": "arasanx-64-avx2-bmi2",
+        "binary": "arasanx-64-avx2",
+        "pext": {"binary": "arasanx-64-avx2-bmi2"},
         "beside": ["arasanv8-20261005.nnue", "book.bin"],
         "hash": True,
         "threads": True,
         "limit": (1000, 3450),
         "options": [("OwnBook", False), ("Use tablebases", False), ("Move overhead", 30)],
         "variants": [1500, 1800],
-        "notes": "The archive also holds an AVX-512 binary, which is not used. The network "
+        "notes": "One archive holds the avx2 build and the avx2-bmi2 build, whose sliding-"
+        "piece attacks use PEXT (the project's Makefile: BUILD_TYPE=avx2-bmi2 adds -DBMI2), "
+        "so the build only changes which file is installed. The avx2 file's name follows "
+        "the Makefile's naming and has not yet been installed from this archive on Linux. "
+        "The archive also holds an AVX-512 binary, which is not used. The network "
         "file must sit beside the binary. The engine's own book (book.bin) is installed "
         "beside it too, as in Ladder Baseline 1, but switched off with OwnBook, as in "
         "Ladder Baseline 2. UCI_Elo moves in steps of about 24.5: "
@@ -125,17 +133,25 @@ ENGINES = [
         "licence": "GPL-3.0",
         "method": "download",
         "url": "https://gitlab.com/-/project/15050434/uploads/"
-        "131cd784128eb9e8e458795daef39f04/stash-37.0-linux-x86_64-bmi2",
-        "sha256": "70f8935f8e45cefec1236d3566f3cfab35b03fc78b239db5de670288a777b23c",
+        "826ccefa3ce9e480250fc57b34000001/stash-37.0-linux-x86_64-popcnt",
+        "sha256": "8643547bfe9505d580275f48ce77c67d36f5c6325e97dadc5260bd74d16dd286",
         "archive": "none",
-        "binary": "stash-37.0-linux-x86_64-bmi2",
+        "binary": "stash-37.0-linux-x86_64-popcnt",
+        "pext": {
+            "url": "https://gitlab.com/-/project/15050434/uploads/"
+            "131cd784128eb9e8e458795daef39f04/stash-37.0-linux-x86_64-bmi2",
+            "sha256": "70f8935f8e45cefec1236d3566f3cfab35b03fc78b239db5de670288a777b23c",
+            "binary": "stash-37.0-linux-x86_64-bmi2",
+        },
         "hash": True,
         "threads": True,
         "limit": None,
         "options": [("MoveOverhead", 30)],
         "notes": "The file linked from the v37.0 release, fetched by GitLab's project-number "
         "address because the address in the release text answers 404 to a script. GitLab "
-        "publishes no digest, so this one is what the file had on 2026-11-21.",
+        "publishes no digest, so these are what the files had on 2026-11-21. Stash has no "
+        "AVX2 build: the default is its popcnt build, and the PEXT build is its bmi2 build "
+        "(ARCH=x86-64-bmi2, -DUSE_PEXT).",
     },
     {
         "name": "Princhess 0.22.0",
@@ -180,9 +196,16 @@ ENGINES = [
             "dir": "src",
             "command": ["make", "basic", "CC=gcc",
                         "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -O3 -flto "
-                        "-march=haswell -DUSE_PEXT"],
+                        "-march=haswell"],
             "tools": ["gcc", "make"],
         },
+        "pext": {"build": {
+            "dir": "src",
+            "command": ["make", "basic", "CC=gcc",
+                        "CFLAGS=-std=gnu11 -Wall -Wextra -Wshadow -O3 -flto "
+                        "-march=haswell -DUSE_PEXT"],
+            "tools": ["gcc", "make"],
+        }},
         "hash": True,
         "threads": True,
         "limit": None,
@@ -190,7 +213,8 @@ ENGINES = [
         "notes": "No official Linux binary. The makefile's flags are given again with "
         "-march=haswell for -march=native, and without its -Werror: a current gcc "
         "warns about sign comparisons in this 2021 source, and with -Werror those "
-        "warnings stopped the build on the maintainer's Linux machine (2026-11-21).",
+        "warnings stopped the build on the maintainer's Linux machine (2026-11-21). The "
+        "PEXT build adds -DUSE_PEXT, as the makefile's own pext build does.",
     },
     {
         "name": "Rodent IV",

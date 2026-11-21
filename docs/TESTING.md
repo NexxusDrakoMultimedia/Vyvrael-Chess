@@ -382,6 +382,13 @@ python3 scripts/install_tools.py --list                # pins and what is instal
   (`-march=native`); a compiled engine names `haswell` or `x86-64-v3`,
   except Vice 1.1, whose makefile names no architecture and so builds for
   plain x86-64.
+- **Two builds, `avx2` (the default) and `pext`.** `--engine-build pext`,
+  `VYVRAEL_ENGINE_BUILD=pext` or `ENGINE_BUILD=pext` in `scripts/local.env`
+  installs the PEXT build of the engines that have one (Arasan, Stash,
+  Weiss); the others have a single build. Use `pext` on Intel from Haswell
+  and AMD from Zen 3, where PEXT is fast; both of the maintainer's machines
+  do. Changing the build reinstalls those engines on the next run. See
+  [DEPENDENCIES.md](DEPENDENCIES.md).
 - **Downloads and builds.** Eight engines are official binaries, checked
   by SHA-256. Six are built from source (Princhess, Weiss, Rodent IV, Vice,
   Fruit, CT800) with the project's own build command and need `gcc`,
