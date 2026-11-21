@@ -51,6 +51,27 @@ class LadderEnginesTest(unittest.TestCase):
         for name in provided:
             self.assertEqual(name, name.strip())
 
+    def test_windows_provides_every_name_of_the_baseline(self):
+        provided = ladder_engines.ladder_names("windows")
+        self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
+        self.assertEqual(sorted(provided), sorted(baseline_names()))
+        self.assertEqual(ladder_engines.NOT_INSTALLABLE["windows"], {})
+        self.assertEqual(len(ladder_engines.pins("windows")), 17)
+        # Windows takes official programs only; nothing is built there.
+        for engine in ladder_engines.pins("windows"):
+            self.assertEqual(engine["method"], "download", engine["name"])
+            self.assertNotIn("build", engine, engine["name"])
+            self.assertTrue(engine["binary"].endswith(".exe"), engine["name"])
+
+    def test_an_engine_missing_on_a_system_says_why(self):
+        for system in ladder_engines.SYSTEMS:
+            pinned = {p["name"] for p in ladder_engines.pins(system)}
+            for engine in ladder_engines.ENGINES:
+                if engine["name"] not in pinned:
+                    self.assertIn(engine["name"], ladder_engines.NOT_INSTALLABLE[system])
+            for name in ladder_engines.NOT_INSTALLABLE[system]:
+                self.assertNotIn(name, pinned, f"{name} on {system}")
+
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.pins("linux")]
         self.assertEqual(len(binaries), 14)
@@ -85,10 +106,15 @@ class LadderEnginesTest(unittest.TestCase):
                 self.assertGreater(len(engine["http_reason"]), 40, name)
             else:
                 self.assertTrue(engine["url"].startswith("https://"), name)
-            self.assertTrue(engine["source"].startswith("https://"), name)
+            web = ("https://", "http://") if engine.get("http_reason") else ("https://",)
+            self.assertTrue(engine["source"].startswith(web), name)
             self.assertIn(engine["method"], ("download", "build"), name)
             self.assertIn(engine["archive"], ("none", "tar.gz", "zip", "7z"), name)
-            self.assertRegex(engine["licence"], r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT)$", name)
+            self.assertRegex(engine["licence"],
+                             r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT|Freeware)$", name)
+            if engine["licence"] == "Freeware":
+                # Closed source: the notes must say what its terms allow.
+                self.assertIn("redistribution", engine["notes"], name)
             self.assertGreater(len(engine["notes"]), 10, name)
             # Nothing is fetched without a digest, source archives included.
             self.assertRegex(engine["sha256"] or "", r"^[0-9a-f]{64}$", name)

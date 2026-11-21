@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
 """Vyvræl tooling installer: Cute Chess, Ordo, lichess-bot and the ladder's
-opponent engines on Linux; Cute Chess and Ordo on Windows.
+opponent engines on Linux; Cute Chess, Ordo and the ladder's opponent
+engines on Windows.
 
 Installs the three external programs the project uses for strength testing
 and for playing on Lichess. They are separate programs: nothing is vendored
@@ -933,16 +934,70 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def list_engines(ctx) -> None:
+    """Prints the ladder's engines for this system and build, and whether
+    each is installed."""
+    import ladder_install
+
+    say(f"ladder engines for {ctx.system}, {ctx.engine_build} build:")
+    for engine in ladder_install.active_pins(ctx):
+        have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
+        say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
+
+
+def install_ladder_engines(ctx, args) -> tuple[list[str], list[str]]:
+    """Installs the ladder's engines for this system and build (all, or those
+    of --only), writes the engine list and checks them. Returns the engines
+    that could not be installed and the names that failed the check."""
+    import ladder_install
+    import ladder_verify
+
+    say(f"ladder engines for {ctx.system}, {ctx.engine_build} build")
+    _, failed = ladder_install.install_engines(ctx, args.only, args.force)
+    ladder_install.write_engines_json(ctx)
+    broken = []
+    if not args.dry_run:
+        say("checking the installed engines (uci, isready, go depth 6):")
+        broken = ladder_verify.verify_engines(ctx, args.only)
+    return failed, broken
+
+
+def report_engines(failed: list[str], broken: list[str]) -> None:
+    """Ends the run with an error if an engine was not installed or failed
+    the check."""
+    if failed:
+        die(
+            f"not installed: {', '.join(failed)} (see above). Nothing was changed"
+            " for them; the other engines are unaffected."
+        )
+    if broken:
+        die(
+            f"installed but failing the check: {', '.join(broken)} (see above)."
+            " They are still listed in engines.json; do not use them until they pass."
+        )
+
+
+def verify_only(ctx, args) -> None:
+    """--verify without --engines: check what is there and change nothing."""
+    import ladder_verify
+
+    broken = ladder_verify.verify_engines(ctx, args.only)
+    if broken:
+        die(f"the check failed for: {', '.join(broken)}")
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     ctx = Ctx(args)
+    engines_wanted = args.engines or bool(args.only)
     if args.list and sys.platform == "win32":
         import windows_tools
 
         for tool, pin in windows_tools.PINS.items():
             have = "installed" if windows_tools.is_installed(ctx, tool) else "not installed"
             say(f"{tool:12} pinned {pin['version']:14} {have}")
-        say("lichess-bot and the ladder's engines are installed on Linux only")
+        list_engines(ctx)
+        say("lichess-bot is installed on Linux only")
         say(f"prefix {ctx.prefix}")
         return
     if args.list:
@@ -950,44 +1005,35 @@ def main(argv: list[str] | None = None) -> None:
             pin = PINS[tool]
             have = ctx.installed_version(tool) or "not installed"
             say(f"{tool:12} pinned {pin['version']:14} installed: {have}  ({pin['licence']})")
-        import ladder_engines
-        import ladder_install
-
-        for engine in ladder_install.active_pins(ctx):
-            have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
-            say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
+        list_engines(ctx)
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")
         return
     if sys.platform == "win32":
-        # Windows: the two tools only, from their official zip archives.
+        # Windows: Cute Chess and Ordo from their official zip archives, and
+        # the ladder's engines from their official Windows releases.
         import windows_tools
 
-        if args.engines or args.only or args.verify:
-            die(
-                "the ladder's engines are installed by this script on Linux only; on"
-                " Windows take each one from its project's own release"
-            )
-        wanted = args.tool or DEFAULT_TOOLS
+        if args.verify and not args.engines:
+            verify_only(ctx, args)
+            return
+        wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
         if "all" in wanted:
             wanted = list(windows_tools.PINS)
-        failed = windows_tools.install_tools_windows(ctx, wanted, args.force)
+        failed = windows_tools.install_tools_windows(ctx, wanted, args.force) if wanted else []
+        engines_failed, engines_broken = (
+            install_ladder_engines(ctx, args) if engines_wanted else ([], []))
         if failed:
             die(f"the check failed for {', '.join(failed)} (see above)")
+        report_engines(engines_failed, engines_broken)
         return
     if not sys.platform.startswith("linux") and not args.dry_run:
         die("this installer supports Linux and Windows only; see docs/TESTING.md")
 
     if args.verify and not args.engines:
-        # Check what is there and change nothing.
-        import ladder_verify
-
-        broken = ladder_verify.verify_engines(ctx, args.only)
-        if broken:
-            die(f"the check failed for: {', '.join(broken)}")
+        verify_only(ctx, args)
         return
 
     # --engines (or --only) installs engines; tools then only if asked for.
-    engines_wanted = args.engines or bool(args.only)
     wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
     if "all" in wanted:
         wanted = TOOLS
@@ -1009,17 +1055,8 @@ def main(argv: list[str] | None = None) -> None:
         else:
             ctx.forget(tool)
             failed.append(tool)
-    engines_failed, engines_broken = [], []
-    if engines_wanted:
-        import ladder_install
-
-        _, engines_failed = ladder_install.install_engines(ctx, args.only, args.force)
-        ladder_install.write_engines_json(ctx)
-        if not args.dry_run:
-            import ladder_verify
-
-            say("checking the installed engines (uci, isready, go depth 6):")
-            engines_broken = ladder_verify.verify_engines(ctx, args.only)
+    engines_failed, engines_broken = (
+        install_ladder_engines(ctx, args) if engines_wanted else ([], []))
     if not args.dry_run and wanted:
         path_hint(ctx)
         if "lichess-bot" in wanted:
@@ -1029,16 +1066,7 @@ def main(argv: list[str] | None = None) -> None:
             f"the check failed for {', '.join(failed)} (see above). The files are in place under"
             f" {ctx.prefix} but not recorded as installed, so the next run installs again."
         )
-    if engines_failed:
-        die(
-            f"not installed: {', '.join(engines_failed)} (see above). Nothing was changed"
-            " for them; the other engines are unaffected."
-        )
-    if engines_broken:
-        die(
-            f"installed but failing the check: {', '.join(engines_broken)} (see above)."
-            " They are still listed in engines.json; do not use them until they pass."
-        )
+    report_engines(engines_failed, engines_broken)
 
 
 if __name__ == "__main__":

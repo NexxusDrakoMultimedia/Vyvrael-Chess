@@ -353,7 +353,7 @@ lichess-bot part has one known fault: see KI-11 in
 The match and rating scripts that use these tools are described under
 "Strength matches, SPRT and ratings" below.
 
-### The ladder's opponent engines (Linux)
+### The ladder's opponent engines (Linux and Windows)
 
 ```sh
 python3 scripts/install_tools.py --engines --dry-run   # show what would be done
@@ -363,6 +363,8 @@ python3 scripts/install_tools.py --verify              # check what is installed
 python3 scripts/install_tools.py --list                # pins and what is installed
 ```
 
+On Windows the commands are the same with `python` for `python3`.
+
 `--engines` installs the opponents of Ladder Baseline 2 under
 `<prefix>/engines`, each in a directory of its own, outside the repository.
 **Vyvræl itself is not part of the installer**: build it with
@@ -370,12 +372,17 @@ python3 scripts/install_tools.py --list                # pins and what is instal
 
 - **What is installed** is fixed by `scripts/ladder_engines.py`; the table
   of engines, versions, sources, licences and methods is in
-  [DEPENDENCIES.md](DEPENDENCIES.md). There are 14 programs for 27 of the
-  ladder's 30 names: an entry such as "Stockfish 19-1500" is Stockfish 19
-  with `UCI_LimitStrength` on. Three are left out: Orion 1.1, which exists
-  for Windows only; Ethereal 12.75, whose source crashes when built with a
-  current compiler; and Nostradamus 0.4, a Python program with a PyTorch
-  model, which the installer does not set up.
+  [DEPENDENCIES.md](DEPENDENCIES.md). An entry such as "Stockfish 19-1500"
+  is Stockfish 19 with `UCI_LimitStrength` on.
+  - **Windows: 17 programs for all 30 names**, every one an official
+    Windows binary (or, for Fruit 2.1, the distribution the maintainer
+    chose), and each the very file of Ladder Baseline 2 by SHA-256 in the
+    `pext` build. Nothing is compiled on Windows.
+  - **Linux: 14 programs for 27 of the 30 names.** Three are left out:
+    Orion 1.1, which exists for Windows only; Ethereal 12.75, whose source
+    crashes when built with a current compiler; and Nostradamus 0.4, a
+    Python program with a PyTorch model, which the installer does not set
+    up.
 - **Supported machines:** x86-64 Linux with AVX2 and BMI2 (any Intel
   processor from Haswell, 2013, or AMD from Excavator or Zen). No AVX-512
   build is used and nothing is compiled for "this machine"
@@ -385,13 +392,20 @@ python3 scripts/install_tools.py --list                # pins and what is instal
 - **Two builds, `avx2` (the default) and `pext`.** `--engine-build pext`,
   `VYVRAEL_ENGINE_BUILD=pext` or `ENGINE_BUILD=pext` in `scripts/local.env`
   installs the PEXT build of the engines that have one (Arasan, Stash,
-  Weiss); the others have a single build. Use `pext` on Intel from Haswell
+  Weiss, and Ethereal on Windows); the others have a single build. Stash
+  has no AVX2 build: its default is the popcnt file, and Ladder Baseline 2
+  used its generic file, which neither build installs. Use `pext` on Intel from Haswell
   and AMD from Zen 3, where PEXT is fast; both of the maintainer's machines
   do. Changing the build reinstalls those engines on the next run. See
   [DEPENDENCIES.md](DEPENDENCIES.md).
-- **Downloads and builds.** Eight engines are official binaries, checked
-  by SHA-256. Six are built from source (Princhess, Weiss, Rodent IV, Vice,
-  Fruit, CT800) with the project's own build command and need `gcc`,
+- **Downloads and builds.** Every file is checked by SHA-256. On Windows
+  all are downloads: bare programs or members of zip archives, and Rodent
+  IV's 7-Zip archive, which Windows' own `tar` unpacks (Windows 10 or
+  later). Rodent IV's site serves plain HTTP only, so that one download is
+  over HTTP, which its pin explains; its digest is checked like any other.
+  On Linux eight engines are official binaries. Six are built from source
+  (Princhess, Weiss, Rodent IV, Vice, Fruit, CT800) with the project's own
+  build command and need `gcc`,
   `g++` and `make` (`sudo apt install build-essential`); Princhess also
   needs `cargo` and `clang`. **The script never runs sudo.** A tool that is
   missing is named and that engine is skipped; the others are still
@@ -426,8 +440,12 @@ once, by the maintainer on the Linux machine on 2026-11-21**:
 
 Every download matched its SHA-256, the shared Rustic Alpha archive was
 fetched once, a failing engine did not stop the others, and the engine list
-was written with the 22 names installed. All 13 engines the installer now
-provides have therefore been installed on Linux at least once. A real match
+was written with the 22 names installed. All 13 engines the installer then
+provided have therefore been installed on Linux at least once. What came
+later has not been run for real yet: CT800 1.46 on Linux, the `avx2` builds
+of Arasan, Stash and Weiss on Linux, and the whole Windows engine installer
+(only its files' digests were checked, by downloading each once on
+2026-11-21). A real match
 and a rating run with the bash scripts followed (see "Strength matches,
 SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
 installed.
@@ -450,9 +468,9 @@ by the script. A Cute Chess that is already installed works just as well:
 point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
 
 lichess-bot is not installed on Windows (it runs on the Linux machine
-only), and neither are the ladder's engines: take each from its project's
-own Windows release. Status: tested offline; the real archives have not
-been fetched by the script.
+only). The ladder's engines are: see "The ladder's opponent engines (Linux
+and Windows)" above. Status of the tools part: tested offline; the real
+archives have not been fetched by the script.
 
 ## Opponent ladder (Ladder Baseline 2)
 

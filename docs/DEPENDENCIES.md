@@ -66,10 +66,12 @@ not pinned by this project.
 | --- | --- | --- | --- | --- |
 | *name* | *x.y* | *SPDX expression* | *crate* | *reason, and why an in-house alternative was not chosen* |
 
-## Opponent engines of the ladder (Linux)
+## Opponent engines of the ladder (Linux and Windows)
 
 The engines of Ladder Baseline 2, the reference ladder, as
-`scripts/install_tools.py` is to install them on Linux. They are separate programs, run only as opponents in matches:
+`scripts/install_tools.py` is to install them on Linux and on Windows (the
+Windows table follows the Linux one). They are separate programs, run only
+as opponents in matches:
 none is linked into Vyvræl, vendored or redistributed by this project. The
 full pins (addresses, complete SHA-256 digests, build commands and notes)
 are in `scripts/ladder_engines.py`, which is the place to change them.
@@ -99,11 +101,44 @@ MIT licence with further terms for its GUI, which is not used here. All of
 them, and Fruit's GPL-2.0, permit downloading the program or building it
 from source for private testing.
 
-Left out, with the reason:
+Left out on Linux, with the reason:
 
 - **Orion 1.1:** The official site (orionchess.com) offers Windows programs only and the source is not published, so there is nothing to download or build for Linux.
 - **Ethereal 12.75:** No official Linux binary exists, and its source does not run when built with a current compiler: the engine crashes at the first `go` (gcc 15.2, 2026-11-21), because it allocates data that it declares 64-byte aligned with `calloc`. Building it would mean patching the engine.
 - **Nostradamus 0.4** (<https://github.com/david-carteau/nostradamus>, MIT): not a compiled program but a Python program with a PyTorch model. Its only release file is a Windows executable, and the model's weights are not in the repository but in a zip on the author's site that no page there links to and no digest covers. Installing it would need a Python environment with PyTorch, which the installer does not set up (the maintainer's decision, 2026-11-21).
+
+On Windows every engine of the ladder is installed, all from official
+Windows files except Fruit 2.1 (below), and nothing is compiled. Each file
+was downloaded once on 2026-11-21 and its SHA-256 compared: the file of the
+`pext` build is in every case the very file of Ladder Baseline 2, except
+Stash, whose Baseline 2 file was its generic build. Where a project
+publishes no digest, the recorded one is what it served that day.
+
+| Engine | Windows file (`avx2`; `pext` if different) | Licence | From | SHA-256 of the program |
+| --- | --- | --- | --- | --- |
+| Stockfish 19 (and its six limited entries) | `stockfish-windows-x86-64-universal.exe` in the release zip | GPL-3.0 | GitHub release sf_19 | `45bc8e4969147db9...` |
+| Arasan 26.1 (and its two) | `arasanx-64-avx2.exe`; `arasanx-64-avx2-bmi2.exe`, in `arasan26.1.zip`, with its network and book beside it | MIT | GitHub release v26.1 | `67ff0441343bd5f6...`; `cca0e46c7a1d18d4...` |
+| Viridithas 20 | `viridithas-20-win-x86-64-v3.exe` | MIT | GitHub release v20.0.0 | `c7fa86b2b46fe1c3...` |
+| Reckless 0.9.0 | `reckless-windows-avx2.exe` | AGPL-3.0 | GitHub release v0.9.0 | `b74ead5648cfa7a7...` |
+| Stash 37.0 | `stash-37.0-windows-x86_64-popcnt.exe`; `...-bmi2.exe` | GPL-3.0 | GitLab release v37.0 | `e86edfdafa35416c...`; `7cd0e8bb0bf48e81...` |
+| Princhess 0.22.0 | `princhess.exe` | GPL-3.0 | GitHub release 0.22.0 | `7a95e41985483b86...` |
+| Ethereal 12.75 | `Ethereal12.75-x64-popcnt-avx2.exe`; `...-pext-avx2.exe` | GPL-3.0 | GitHub release v12.75 | `5e891c6d5f0775ab...`; `22f12797fd43e220...` |
+| Weiss 2.0 | `weiss-popcnt.exe`; `weiss-pext.exe`, in the Windows collection zip | GPL-3.0 | GitHub release v2.0 | `c56623c15c777442...`; `5bc2262139ae0712...` |
+| Orion 1.1 | `orion64-v1.1-pop-avx.exe` in `Orion-v1.1.zip`, its network beside it | Freeware, closed source (free use, unmodified redistribution) | <https://www.orionchess.com/> | `712ba9848e84c9a7...` |
+| Rodent IV (and its two) | `rodent-iv-x64.exe` in `FinalRodent.7z`, its personalities and books beside it | GPL-3.0 | the author's site, <http://pkoziol.cal24.pl/rodent/rodent.htm> (plain HTTP only) | `39c879b2dfdaf025...` |
+| Vice 1.1 | `vice11_win32.exe` in `Vice11.zip` (a 32-bit program) | MIT | <https://www.bluefeversoft.com/> | `92827b547b32b7a7...` |
+| Fruit 2.1 | `fruit_21.exe` | GPL-2.0 | <https://github.com/Warpten/Fruit-2.1>, commit `09627df` | `7f321a960887af6c...` |
+| Rustic Alpha 1.5, 2.4, 3.0.6 | `rustic-alpha-<version>-win64.exe` in the same zip as on Linux | GPL-3.0 | Codeberg release alpha-3.0.6 | `2ee1c05f...`, `07803166...`, `fa8c6511...` |
+| CT800 1.46 (and its three) | `CT800_V1.46_x64.exe` in the same zip as on Linux | GPL-3.0-or-later | <https://www.ct800.net/> | `dc0c1f6e49c56898...` |
+| Nostradamus 0.4 | `nostradamus-v0.4.exe` (about 156 MB, its model inside) | MIT | GitHub release v0.4 | `485d3b606ad8784e...` |
+
+Fruit 2.1 has no official Windows download (the author's site is gone);
+its file is taken from `github.com/Warpten/Fruit-2.1` at a fixed commit, as
+the maintainer chose on 2026-11-21. Rodent IV's Windows release is on the
+author's own site, which serves plain HTTP only (its HTTPS certificate is
+for another host name); the installer allows that for this one pin, which
+says why, and still checks the digest. The fruitchess.com beta of
+2005-11-03 is a possible later addition, not part of the ladder.
 
 Fruit 2.1 is the one engine not taken from its project's own page: the
 author's site is gone, so the source is the original tarball as Debian keeps

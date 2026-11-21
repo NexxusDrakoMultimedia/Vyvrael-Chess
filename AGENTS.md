@@ -52,7 +52,7 @@ Layout:
 | Script tests | `python3 -m unittest discover -s scripts/tests` |
 | Install Cute Chess and Ordo (Windows) | `python scripts/install_tools.py --dry-run` first |
 | Install external tools (Linux) | `python3 scripts/install_tools.py --dry-run` first; see `docs/TESTING.md` |
-| Install the ladder's engines (Linux) | `python3 scripts/install_tools.py --engines --dry-run` first; `--only "<name>"` for one; `--verify` to check them |
+| Install the ladder's engines (Linux, Windows) | `python3 scripts/install_tools.py --engines --dry-run` first (`python` on Windows); `--only "<name>"` for one; `--verify` to check them; `--engine-build pext` or `ENGINE_BUILD=pext` in `scripts/local.env` for PEXT builds |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
