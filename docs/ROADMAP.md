@@ -31,7 +31,7 @@ work is actually done is this:
    scripts and the installer. See "Testing tooling (before milestone 6)".
    Done on 2026-11-21.
 2. **Queued task 1:** the options `Seed` and `Variety` and the `bench`
-   command. See "Queued work".
+   command. See "Queued work". Done on 2026-11-22.
 3. **Milestone 6:** strength testing.
 4. **Milestone 7:** search heuristics.
 5. **Queued task 2:** benchmark and speed up.
@@ -323,8 +323,7 @@ Constraints that already apply:
 
 - Weakening is **strength-affecting randomness** (see the randomness rules in
   [AGENTS.md](../AGENTS.md)). It draws from the `rng` module, is seeded from
-  system entropy by default, and is reproducible with `DeterministicRNG` and
-  `RngSeed` (with the single option `Seed` once queued task 1 is done). It
+  system entropy by default, and is reproducible with a fixed `Seed`. It
   gets its own row in the randomness table in
   [ARCHITECTURE.md](ARCHITECTURE.md).
 - With `UCI_LimitStrength = false` (the default) play must be unchanged: no
@@ -539,7 +538,7 @@ move for move and 7 diverged.
 
 Decided by the maintainer:
 
-- [ ] **One option `Seed`** replaces `DeterministicRNG` and `RngSeed`: 0
+- [x] **One option `Seed`** replaces `DeterministicRNG` and `RngSeed`: 0
   takes a seed from system entropy (not the clock; the rule against
   time-based seeding stands), anything else is fixed. Spin, 0 to
   2147483647: Cute Chess keeps spin values as signed 32-bit numbers, and
@@ -547,7 +546,7 @@ Decided by the maintainer:
   it is edited. Seeds taken from entropy stay in that range so any logged
   seed can be typed back. The seed is logged with `info string` at start
   and at every `ucinewgame`, as now.
-- [ ] **Option `Variety`** (spin, centipawns, 0 to 100, **default 0**). At
+- [x] **Option `Variety`** (spin, centipawns, 0 to 100, **default 0**). At
   the root only and only in the first 12 full moves, choose at random among
   the moves within `Variety` of the best, weighted towards the best. Never
   when the best score is a mate, and never a move that a second check shows
@@ -555,23 +554,60 @@ Decided by the maintainer:
   move, so matches and SPRT are untouched. It is exempt from the SPRT rule,
   like `UCI_LimitStrength`, because it weakens play on purpose; say so in
   `AGENTS.md`. The Lichess bot sets it (10) in `docs/LICHESS.md`.
-- [ ] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
+- [x] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
   `Seed` fixed and `Variety` 0, printing `<nodes> nodes <nps> nps`. The
   node count must be the same on every run.
-- [ ] Once `bench` exists, record the first bench node count and speed and
+- [x] Once `bench` exists, record the first bench node count and speed and
   the perft speed in `docs/testing/bench-history.md`, so that queued task 2
   has a baseline from before milestone 7.
-- [ ] Tests: bench twice gives one node count; a fixed-depth search with a
+- [x] Tests: bench twice gives one node count; a fixed-depth search with a
   fixed `Seed` and `Variety` 0 is reproducible; with `Variety` 0 the root
   move is always the best one; the seed line is printed (no test may depend
   on two entropy seeds differing).
-- [ ] Docs: the deterministic guarantee is one thread, a fixed `Seed` and
+- [x] Docs: the deterministic guarantee is one thread, a fixed `Seed` and
   `Variety` 0 (`docs/TESTING.md`, `docs/UCI.md`); the options in the README
   and `docs/LICHESS.md`; the randomness table in `docs/ARCHITECTURE.md`;
   the match scripts' `--deterministic`, which sets the old option; a
   changelog entry.
-- [ ] Report: what made the engine deterministic, the bench node count
+- [x] Report: what made the engine deterministic, the bench node count
   before and after, the options added.
+
+Chunk order (branch `task/1-seed-variety-bench`, started 2026-11-22), one
+commit each with its tests and docs:
+
+1. `bench` first, so that its node count before `Seed` and `Variety` can
+   be compared with the count after them: the two must be equal, because
+   neither option may change the full-strength search.
+2. `rng`: entropy seeds from 1 to 2147483647.
+3. `uci`: the option `Seed` in place of `DeterministicRNG` and `RngSeed`,
+   and no test that needs two entropy seeds to differ.
+4. `search`: the choice of a varied move, on its own and tested.
+5. `uci`: the option `Variety`, using it.
+6. The match scripts: `--deterministic` / `-Deterministic` set `Seed`.
+7. `AGENTS.md`: `Variety` is exempt from the SPRT rule.
+8. Docs: README, `UCI.md`, `TESTING.md`, `LICHESS.md`, `ARCHITECTURE.md`'s
+   randomness table, the changelog.
+9. `docs/testing/bench-history.md`: the first bench and perft figures.
+
+Design decisions taken for it (open to the maintainer's review):
+
+- **Entropy seeds avoid 0.** `Seed` 0 means "take one from entropy", so an
+  entropy seed is drawn from 1 to 2147483647: any logged seed can be typed
+  back as `Seed` and means the same thing.
+- **The second check of `Variety`.** After the ordinary search reaches depth
+  D, each other root move is first scored cheaply (quiescence only) and
+  kept as a candidate if that is within `Variety` plus a margin of the best;
+  each candidate is then searched exactly to the best move's depth (D) and
+  kept only if that score is within `Variety` of the best move's. A move
+  whose check is cut short by a limit is never played. The pick is weighted
+  by the square of `Variety + 1 −` its loss, so the best move is the most
+  likely and a move `Variety` worse the least.
+- **`Variety` gets a share of the time.** When it applies, the ordinary
+  search gets two thirds of the move's time or node budget and the checks
+  the rest, so that a varied move has been checked to the same depth as the
+  best one. With `go depth` there is no budget to share and the checks run
+  to completion, which keeps a fixed-depth run reproducible. With `Variety`
+  0 nothing changes: the search gets the whole budget, as now.
 
 ### 2. Benchmark and speed up (after milestone 7)
 
@@ -665,9 +701,8 @@ Notes for whoever starts it:
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
 - The match settings rely on the UCI options `Hash` and `Threads`.
-  Repeatable limited-strength runs also need a fixed seed: the options
-  `DeterministicRNG` and `RngSeed` today, the single option `Seed` once
-  queued task 1 is done.
+  Repeatable limited-strength runs also need a fixed seed: the option
+  `Seed`.
 - Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
   the engine list: the match scripts give a build under test no options of
   its own.

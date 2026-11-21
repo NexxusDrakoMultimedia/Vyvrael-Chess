@@ -133,10 +133,15 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
     the release binary, keep `protocol: "uci"`, and set `ponder: false`
     (Vyvræl does not ponder; the default is `true`).
 12. **Set the engine options.** Under `engine: uci_options:`, keep only
-    options Vyvræl offers: `Move Overhead: 100`, `Threads: 1`, `Hash: 64`.
-    Delete `SyzygyPath` and `UCI_ShowWDL`, which Vyvræl does not have, and
-    change the default `Threads: 4`, which Vyvræl refuses. Leave
-    `UCI_LimitStrength` out, so the bot plays at full strength.
+    options Vyvræl offers: `Move Overhead: 100`, `Threads: 1`, `Hash: 64`,
+    and, from 0.1.0-alpha.2 on, `Variety: 10`. Delete `SyzygyPath` and
+    `UCI_ShowWDL`, which Vyvræl does not have, and change the default
+    `Threads: 4`, which Vyvræl refuses. Leave `UCI_LimitStrength` out, so
+    the bot plays at full strength, and leave `Seed` out, so every game takes
+    its own seed (logged in lichess-bot's engine output). `Variety: 10` lets
+    the bot vary its first twelve moves among moves checked to be within 10
+    centipawns of its best, so it does not repeat the same games; a release
+    before 0.1.0-alpha.2 has no `Variety` and refuses it.
 13. **Keep lichess-bot's own `move_overhead: 2000`** (top level, in
     milliseconds). See "Move overhead" below.
 14. **Start the bot and watch the first games** from start to finish. Stop

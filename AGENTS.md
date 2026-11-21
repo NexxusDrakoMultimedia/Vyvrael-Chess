@@ -31,7 +31,9 @@ Layout:
   - `src/search/`: search.
   - `src/perft.rs`: perft node counting.
   - `src/uci/`: the UCI protocol (parsing, options, time, engine loop).
-  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`).
+  - `src/bench.rs`: the bench, a fixed search workload.
+  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`,
+    `bench`).
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.
@@ -57,6 +59,7 @@ Layout:
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
+| Bench (node count and speed) | `cargo run --release -- bench [depth]` |
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
 | Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
 | Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |
@@ -98,7 +101,10 @@ Update this table in the same commit that adds or changes a command.
   net itself unless it is small and the maintainer approves).
 - A new net, eval change or search change is accepted only if SPRT against
   the previous version shows a gain. Record the result in the commit message
-  or `docs/TESTING.md`.
+  or `docs/TESTING.md`. Exempt: options that weaken play on purpose and are
+  off by default, `UCI_LimitStrength` / `UCI_Elo` and `Variety`. With them
+  at their defaults play must be unchanged, shown by an unchanged bench node
+  count, and they stay at their defaults in every strength match.
 - Before adding a dependency, check its licence is GPL-3.0-or-later
   compatible and record it in `docs/DEPENDENCIES.md`. One dependency per
   commit. Prefer none in the engine crate.
@@ -126,11 +132,13 @@ shared in the tool crates).
 - **Strength-affecting randomness** (move-choice randomisation, opening
   variety, eval noise, skill weakening, random book choice) is
   non-deterministic by default with an opt-in:
-  - UCI check option `DeterministicRNG` (default `false`) and spin option
-    `RngSeed` (default `0x31031996`);
-  - `DeterministicRNG = false`: seed from system entropy at startup (the one
-    allowed use) and log the seed with `info string`;
-  - `DeterministicRNG = true`: seed from `RngSeed`.
+  - UCI spin option `Seed` (0 to 2147483647, default `0`);
+  - `Seed = 0`: seed from system entropy at startup and at every
+    `ucinewgame` (the one allowed use), from 1 to 2147483647, and log the
+    seed with `info string`;
+  - any other `Seed`: that seed.
+  - Determinism means one thread, a fixed `Seed`, `Variety` 0 and a fixed
+    depth or node count.
 - **Non-strength-affecting randomness** (Zobrist keys, magic search, test
   fixtures, property tests, datagen openings, shuffles) is always
   deterministic from the default seed or a derived stream. Tools may take

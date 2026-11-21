@@ -110,6 +110,10 @@ fn a_whole_conversation() {
             .count(),
         7
     );
+    assert!(hello.contains(&"option name Variety type spin default 0 min 0 max 100".to_string()));
+    assert!(
+        hello.contains(&"option name Seed type spin default 0 min 0 max 2147483647".to_string())
+    );
 
     engine.send("isready");
     assert_eq!(engine.line(), "readyok");

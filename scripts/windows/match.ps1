@@ -66,7 +66,7 @@ Options:
   -OutDir DIR         where the PGN, log and notes go (default: matches)
   -Label TEXT         added to the output file names
   -Seed N             seed for the opening order (default: random)
-  -Deterministic      set DeterministicRNG=true on the Vyvrael builds
+  -Deterministic      set Seed=822286742 and Variety=0 on the Vyvrael builds
   -LowPriority        run at low priority (BelowNormal)
   -NoLowPriority      do not, whatever the local settings say
   -DryRun             print the cutechess-cli command and stop
@@ -317,7 +317,8 @@ $stem = Join-Path $OutDir $stemName
 $pgn = "$stem.pgn"
 
 $buildOptions = @('proto=uci', 'option.Threads=1')
-if ($Deterministic) { $buildOptions += 'option.DeterministicRNG=true' }
+# A fixed seed (the project's default, 0x31031996) and no variety.
+if ($Deterministic) { $buildOptions += @('option.Seed=822286742', 'option.Variety=0') }
 
 $arguments = @()
 if ($Mode -eq 'gauntlet') { $arguments += @('-tournament', 'gauntlet', '-seeds', '1') }

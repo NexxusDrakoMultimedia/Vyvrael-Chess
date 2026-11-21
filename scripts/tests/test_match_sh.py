@@ -227,7 +227,10 @@ class MatchShTest(Fixture, unittest.TestCase):
         self.assertIn("-each tc=60+0.6 option.Hash=128", joined)
         self.assertIn("-concurrency 2", joined)
         self.assertIn("-srand 7", joined)
-        self.assertEqual(words.count("option.DeterministicRNG=true"), 2)
+        # Both builds get a fixed Seed and no Variety; the old option is gone.
+        self.assertEqual(words.count("option.Seed=822286742"), 2)
+        self.assertEqual(words.count("option.Variety=0"), 2)
+        self.assertNotIn("DeterministicRNG", joined)
         self.assertEqual(words[-1], "out dir/2026-01-02-sprt-Vyvrael-dev-abc1234-run2.pgn")
 
     # --- settings from the environment and the local file -------------------

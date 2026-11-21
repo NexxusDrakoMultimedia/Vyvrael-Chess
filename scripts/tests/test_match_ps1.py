@@ -233,7 +233,10 @@ class MatchPs1Test(Fixture, unittest.TestCase):
         self.assertIn("-each tc=60+0.6 option.Hash=128", joined)
         self.assertIn("-concurrency 3", joined)
         self.assertIn("-srand 7", joined)
-        self.assertEqual(words.count("option.DeterministicRNG=true"), 2)
+        # Both builds get a fixed Seed and no Variety; the old option is gone.
+        self.assertEqual(words.count("option.Seed=822286742"), 2)
+        self.assertEqual(words.count("option.Variety=0"), 2)
+        self.assertNotIn("DeterministicRNG", joined)
         self.assertEqual(
             Path(words[-1]).as_posix(), "out dir/2026-01-02-sprt-Vyvrael-dev-abc1234-run2.pgn"
         )

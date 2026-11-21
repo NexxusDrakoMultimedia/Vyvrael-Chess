@@ -40,7 +40,7 @@ Options:
   --out-dir DIR        where the PGN, log and notes go (default: matches)
   --label TEXT         added to the output file names
   --seed N             seed for the opening order (default: random)
-  --deterministic      set DeterministicRNG=true on the Vyvræl builds
+  --deterministic      set Seed=822286742 and Variety=0 on the Vyvræl builds
   --low-priority       run at low priority (nice)
   --no-low-priority    do not, whatever the local settings say
   --dry-run            print the cutechess-cli command and stop
@@ -313,7 +313,8 @@ stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode-$slug${label:+-$la
 pgn="$stem.pgn"
 
 build_options=(proto=uci option.Threads=1)
-[[ $deterministic == true ]] && build_options+=(option.DeterministicRNG=true)
+# A fixed seed (the project's default, 0x31031996) and no variety.
+[[ $deterministic == true ]] && build_options+=(option.Seed=822286742 option.Variety=0)
 
 cmd=("$cutechess")
 [[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)

@@ -52,7 +52,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, and refuses a bad depth or extra arguments. |
+| `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
 | `eval::Material` | Piece values keep the usual orderings (bishop above knight, two rooks above a queen, rook above knight plus pawn); the start position is balanced at full material; a missing queen scores +900 or -900 depending on the side to move; rook against knight and pawn, bishop against knight, bare kings. |
@@ -72,8 +73,9 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `uci` output | Scores as `cp` or as `mate` in the engine's own moves, negative when it is the one mated; `info` lines with depth, score, nodes, speed, time and line, without a `pv` word when there is no line, with no division by zero for an instant search, and with the speed taken from the full time; `bestmove` with a move and `0000` without one. |
 | `uci` time management | No clock and no move time means no time limit, also when only the other side's clock is sent; `movetime` is used less the overhead and takes precedence over a clock; the overhead is the one passed in (six values from 0 to 60 s, for a move time and for the last move before a time control), caps the time without shortening an ordinary share, and moves the deadline; each side uses its own clock and increment, and a clock sent without increments works and does not borrow the other side's; `movestogo` divides the time, and 1 or 0 allows all that is left less the overhead; the plan never exceeds the clock for 96 combinations of time, increment and moves to go, including a fallen flag and a large increment on an empty clock; limits combine the deadline with depth and nodes; `infinite` switches the clock off. |
 | `uci` engine | `uci` and `isready` are answered; `go depth` makes exactly the search a direct call makes (same nodes, line and best move), which is the check that the protocol layer changes nothing; a new engine is at the start position; `position` with moves equals the same position as a FEN; an illegal move (five kinds) or a bad FEN refuses the whole command and keeps the position; the game history reaches the search (a repetition found only with it); `ucinewgame` resets; no legal move gives `bestmove 0000`; mates are reported in moves; node and move-time limits end the search; an infinite search and a bare `go` answer only after `stop`, and `isready` is answered meanwhile; `stop` ends a long search within two seconds, and says nothing without a search; `position` and `ucinewgame` end a running search before they act; `go infinite depth 1` searches one depth and still waits for `stop`; `go` thinks on the clock of the side to move, for both sides; `Move Overhead` reaches the clock (five seconds kept back from a five-second move time answers at once, and none kept back lets the search past the first depth); limited strength is given the game's history and the limits of `go`; full strength draws no random numbers; weakened play draws from the strength stream of the seed, checked against the library for six seeds; a second `go` ends the first; `quit` ends the search and the loop; what is not understood is reported with `info string`; every output line is a protocol line; at the end of input a search is allowed to finish and an infinite one is stopped; lines that are not valid UTF-8 are reported and the commands after them still obeyed, with the running search still reporting; a read error ends the loop only after the search has reported. |
-| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `DeterministicRNG` accepts only `true` and `false`; `RngSeed` accepts 0 to 4294967295 in decimal; `UCI_LimitStrength` is off by default; `UCI_Elo` accepts 400 to 1800 and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default and is logged in reply to `uci`, engines do not share a seed, `DeterministicRNG` switches to `RngSeed` and back to a fresh entropy seed with a log line each time (fresh meaning not the user's seed kept, checked over four switches), and `RngSeed` alone does not touch an entropy seed. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its own seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 400 and 1800 look 2 and 3 plies ahead, a rating out of range is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
-| `rng` entropy and streams | The stream indices are 0, 1 and 2 and are never renumbered; the first three outputs of the strength stream of the default seed are pinned (computed with an independent implementation); eight entropy seeds are not all equal, which is all that can be tested of something not reproducible by design. |
+| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` accepts 400 to 1800 and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 400 and 1800 look 2 and 3 plies ahead, a rating out of range is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
+| `rng` entropy and streams | The stream indices are 0, 1 and 2 and are never renumbered; the first three outputs of the strength stream of the default seed are pinned (computed with an independent implementation); every entropy seed is a valid `Seed`, from 1 to 2147483647 and never 0, and any 64 random bits map to such a seed, the same every time; no test relies on two entropy seeds differing, which chance could break. |
+| `search` variety | It applies only above 0 and up to the twelfth full move; never with a mate for or against; over three opening positions, three `Variety` values and eight seeds every choice is within `Variety` of the best and has the score an exact search of it gives; a move that leaves the queen to be taken is never chosen over twenty seeds, while other queen moves are; a rook move that allows a back-rank mate passes the cheap filter (checked) and the second check still never lets it be played, while other safe moves are; the same seed gives the same choice and twenty seeds play more than one move; the weight is largest for the best move and falls with every centipawn of loss; one number is drawn per choice; with `stop` already raised, or a budget of one node, only the best move is offered; the budget is split two thirds to the search, a depth limit stays with the search. |
 | `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); a higher rating never looks less far or errs more, over the whole range. |
 
 Rows are added as modules land.
@@ -157,6 +159,36 @@ bestmove d2d4
 A fixed-depth search uses no clock and no randomness, so it is fully
 reproducible: the same position and depth always give the same lines.
 
+## Bench
+
+```sh
+cargo run --release -- bench [depth]
+```
+
+searches the seven positions of `src/bench.rs` (an opening, middlegames
+with and without tactics, endgames) to depth 4, or the depth given, at full
+strength, each as a new search with iterative deepening, and prints one
+line:
+
+```
+16611416 nodes 2601114 nps
+```
+
+- **The node count is the fingerprint of the search.** It depends on what
+  the search does, not on the machine or the clock, so it is the same on
+  every run of the same build: full-strength search draws no random
+  numbers, which is what playing with `Seed` fixed and `Variety` 0 means.
+  A pure speed change must leave it unchanged; a change that alters it is a
+  search change and needs its SPRT. `tests/bench.rs` pins it.
+- **The speed varies** with the machine and with what else it is doing.
+  Compare speeds only on one machine, idle, over several runs.
+- The figures for each measured build, with perft speeds, are kept in
+  [`testing/bench-history.md`](testing/bench-history.md).
+
+The positions avoid Kiwipete, whose depth 4 alone takes about 25 seconds
+without move ordering (known issue KI-9). Queued task 2 widens the set once
+milestone 7 makes deeper searches cheap.
+
 ## Integration tests
 
 Integration tests live in `tests/` and use only the public API.
@@ -174,6 +206,7 @@ Integration tests live in `tests/` and use only the public API.
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
 | `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; thirteen lines of bad input, two of them not valid UTF-8, produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (16,611,416 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
@@ -739,12 +772,15 @@ How to read the table:
 - **Watch the log for time losses and crashes.** `-recover` keeps the match
   going, so a build that crashes still produces a result; the PGN's last
   comment of each game says how it ended.
-- **`DeterministicRNG`.** Full-strength play draws no random numbers, so it
-  needs nothing. `--deterministic` sets the option on the Vyvræl builds, but
-  the scripts cannot yet give a build other options, `UCI_LimitStrength`
-  among them, so today it changes nothing in a match. Calibrating `UCI_Elo`
-  (milestone 6) needs limited Vyvræl entries in the engine list, each with
-  its own options.
+- **`--deterministic` (`-Deterministic`)** sets `Seed=822286742` (the
+  project's default seed, `0x31031996`) and `Variety=0` on the Vyvræl
+  builds. Both are already what a match needs: `Variety` is 0 by default and
+  full-strength play then draws no random numbers, so the switch only
+  writes that down in the command. The scripts cannot yet give a build other
+  options, `UCI_LimitStrength` among them. Calibrating `UCI_Elo` (milestone
+  6) needs limited Vyvræl entries in the engine list, each with its own
+  options. Never run a strength match with `Variety` above 0. (`--seed N`
+  is a different thing: the seed of the opening order, `-srand`.)
 
 ## Tactical test suites (planned, milestone 8)
 
@@ -757,17 +793,24 @@ the tooling.
 - All non-strength-affecting randomness (Zobrist keys, magic numbers, test
   fixtures) is generated from the fixed seed `0x31031996` and is identical on
   every run and platform.
-- Strength-affecting randomness is seeded from system entropy by default. For
-  a reproducible run set the UCI options `DeterministicRNG = true` and, if
-  wanted, `RngSeed`. The engine logs the seed in use with `info string` in
-  reply to `uci`, so a run with an entropy seed can be reproduced afterwards
-  by giving that number as `RngSeed`. Today only limited-strength play
-  (`UCI_LimitStrength`) uses this randomness; full-strength play uses none.
+- Strength-affecting randomness is seeded from system entropy by default
+  (`Seed` 0). For a reproducible run set the UCI option `Seed` to any number
+  from 1 to 2147483647. The engine logs the seed in use with `info string`
+  in reply to `uci` and at every `ucinewgame`, so a run with an entropy seed
+  can be reproduced afterwards by giving that number as `Seed`. Two things
+  use this randomness: limited-strength play (`UCI_LimitStrength`) and, at
+  full strength, `Variety` above 0 in the first 12 full moves. Full-strength
+  play with `Variety` 0, the default, uses none.
+- **The deterministic guarantee:** one thread, a fixed `Seed`, `Variety` 0,
+  and a fixed depth or node count (never a time limit). With these, the
+  same commands give the same moves. (With `Variety` above 0 a fixed `Seed`
+  and `go depth` still reproduce a game.) `vyvrael bench` is the check that
+  full-strength search stays deterministic: its node count is the same on
+  every run.
 - **Multithreaded search is not bit-for-bit deterministic**, whatever the
   seed: thread scheduling changes the order in which shared tables are
-  written. For reproducible results use **one thread, a fixed seed, and a
-  fixed depth or node count** (never a time limit). Regression tests and
-  performance comparisons use these settings.
+  written. Regression tests and performance comparisons therefore use one
+  thread.
 
 ## Reading results
 

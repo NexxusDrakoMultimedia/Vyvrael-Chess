@@ -343,7 +343,15 @@ on this square attack?".
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
   parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
   prints one line per depth and the best move, with timing on stderr so that
-  stdout is identical on every run. Exit status 2 means the command line was not understood.
+  stdout is identical on every run. `bench [depth]` runs `bench::bench` and
+  prints `<nodes> nodes <nps> nps`. Exit status 2 means the command line was not understood.
+
+- **Bench** (`bench.rs`): `bench(depth)` searches the fixed positions of
+  `BENCH_POSITIONS` to `depth` at full strength, each as a new search with
+  iterative deepening and no time limit, and returns the nodes visited and
+  the time taken. Nothing random is involved, so the node count is a
+  function of the search alone; `tests/bench.rs` pins it at
+  `BENCH_DEPTH`.
 
 ## Evaluation
 
@@ -606,12 +614,47 @@ The generator is handed in by the caller and advanced once per root move
 before any searching, so the errors are a function of the position and the
 seed alone. Which pass they are applied to depends on the limits: with a
 node limit, or time that is never used up, a weakened game is reproducible
-under `DeterministicRNG`; with a clock that cuts passes short it is not.
+with a fixed `Seed`; with a clock that cuts passes short it is not.
 
 Scoring the position after a root move uses `Search::reply_value`, which
 treats that position as a node inside a search and not as a root: a
 position drawn by rule is worth a draw, and a mate is counted from the
 position before it.
+
+### Variety in the opening
+
+Implemented in `search/variety.rs`. At full strength the same position
+searched to the same depth gives the same move, so self-play and a bot
+repeat their games. `varied_move` lets the engine play, in the first 12 full
+moves (`VARIETY_FULL_MOVES`), a move within `Variety` centipawns of the best
+instead, at random and weighted towards the best. It runs after the
+ordinary search, from its outcome and the depth D it reached:
+
+1. **Cheap scores.** Every root move is scored by quiescence search alone
+   (`reply_value` at depth 0). A move is worth checking if that is within
+   `Variety` plus 100 centipawns of the best cheap score; quiescence
+   misjudges quiet moves, so the margin is generous.
+2. **The second check.** Each move worth checking, most promising first,
+   is searched exactly to the best move's depth (`reply_value` at D − 1
+   after the move). It is kept only if that score is within `Variety` of
+   the best move's score and is not a mate. Once a limit or `stop` cuts a
+   search short, no further move is checked, and an unchecked move is never
+   played.
+3. **The choice.** Among the best move and the kept ones, each is weighted
+   by `(Variety + 1 − loss)²`, so the best move has the largest weight and a
+   move exactly `Variety` worse the least. One number is drawn from the
+   generator per choice, however many moves were checked.
+
+It is not used when the best score is a mate, for or against, or when
+there is no move. `split_limits` shares the move's budget: when `Variety`
+applies, the ordinary search gets two thirds of the time and node limit and
+the checks the rest, so that a varied move is checked as deeply as the best
+one was found; a depth limit stays with the search and the checks then run
+to completion, which keeps a fixed-depth run reproducible.
+
+This is strength-affecting randomness, from the same generator as weakened
+play (see the randomness table below), and it weakens play on purpose, so
+it is off by default and exempt from the SPRT rule.
 
 ## UCI
 
@@ -661,11 +704,13 @@ and option is listed in [UCI.md](UCI.md).
     one generator, `Rng::stream(seed, stream::STRENGTH)`, on the command
     thread. Each weakened search gets a generator of its own, seeded by one
     draw from it, so the random sequence of a game depends on the commands
-    and not on how far each search got. Full-strength play never draws from
-    it. `ucinewgame` restarts the generator: from the chosen seed under
-    `DeterministicRNG`, otherwise from a new entropy seed that is logged
-    there. Either way one logged number replays one game, including the
-    later games of a session, which is how match tools play.
+    and not on how far each search got. Full-strength play draws from it
+    only when `Variety` applies, one draw per `go`, for the choice's own
+    generator (see "Variety in the opening"); with `Variety` 0 it never
+    does. `ucinewgame` restarts the generator and logs its seed: the chosen
+    `Seed`, or with `Seed` 0 a new entropy seed. Either way one logged
+    number replays one game, including the later games of a session, which
+    is how match tools play.
   - **Bytes, not text.** `run` reads lines as bytes and replaces what is
     not valid UTF-8, so a stray byte spoils one line and not the session.
   - **End of input** without `quit` lets a running search finish and report,
@@ -727,27 +772,29 @@ which defaults to `DEFAULT_SEED`.
 - **Compile-time use:** every method is a `const fn`, so tables can be
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
-  strength-affecting randomness when the UCI option `DeterministicRNG` is
-  `false`. `rng::entropy_seed()` is that path and the only code that reads
+  strength-affecting randomness when the UCI option `Seed` is 0, its
+  default. `rng::entropy_seed()` is that path and the only code that reads
   system entropy; it takes its randomness from the standard library's
-  `RandomState`, so the engine stays free of dependencies. Its caller logs
-  the seed with `info string`, so even such a run can be replayed by giving
-  the logged value as `RngSeed`.
+  `RandomState`, so the engine stays free of dependencies, and maps it to a
+  seed from 1 to `rng::SEED_MAX` (2147483647). Its caller logs the seed with
+  `info string`, so even such a run can be replayed by giving the logged
+  value as `Seed`.
 
 ### Table of randomness uses
 
 Every use of randomness is listed here and classified. "Strength-affecting"
 means the randomness can change how strongly or how differently the engine
-plays; such uses are non-deterministic by default with `DeterministicRNG` /
-`RngSeed` as the opt-in. Everything else is always deterministic.
+plays; such uses are non-deterministic by default (`Seed` 0), with a fixed
+`Seed` as the opt-in. Everything else is always deterministic.
 
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
 | Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
-| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` when the engine starts and again at every `ucinewgame`, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` each time | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` (1 to 2147483647) when the engine starts and again at every `ucinewgame` while `Seed` is 0, or the `Seed` given; logged with `info string` at start and at every `ucinewgame` | This seed decides weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
 | Weakened move choice (`search::weakened_move`, used when `UCI_LimitStrength` is on) | implemented | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
+| Varied opening move (`search::varied_move`, used when `Variety` is above 0, at full strength, in the first 12 full moves) | implemented | **Yes** | The same as weakened play: one draw from the UCI layer's `stream::STRENGTH` generator per `go` where it applies, giving the choice its own generator | It decides which of the checked moves is played, so it changes how the engine plays by design. With `Variety` 0 nothing is drawn. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
 Stream indices of the default seed are registered in `rng::stream` so that
@@ -757,7 +804,7 @@ subsystems never share or shift each other's numbers:
 | --- | --- | --- |
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 | 1 | `stream::MAGICS` | Magic-number search |
-| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI options select (system entropy, or `RngSeed`), not necessarily the default seed. |
+| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI option `Seed` selects (system entropy, or the seed given), not necessarily the default seed. |
 
 Planned uses (each gets a real row when it lands): datagen opening
 randomisation (milestone 9, not strength-affecting; per-game derived seeds).

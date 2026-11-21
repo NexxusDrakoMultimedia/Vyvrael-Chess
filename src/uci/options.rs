@@ -9,8 +9,8 @@
 
 use std::time::Duration;
 
-use crate::rng::DEFAULT_SEED;
-use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN};
+use crate::rng::SEED_MAX;
+use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN, VARIETY_MAX};
 
 /// Default size of the transposition table, in mebibytes.
 pub const HASH_DEFAULT: u32 = 16;
@@ -36,11 +36,14 @@ pub struct Options {
     /// `Threads`: number of search threads. Only 1 is possible until there
     /// is a parallel search.
     pub threads: u32,
-    /// `DeterministicRNG`: whether strength-affecting randomness is seeded
-    /// from `RngSeed` (reproducible) instead of from system entropy.
-    pub deterministic_rng: bool,
-    /// `RngSeed`: the seed used when `DeterministicRNG` is on.
-    pub rng_seed: u32,
+    /// `Seed`: the seed of strength-affecting randomness, from 1 to
+    /// [`SEED_MAX`], or 0 (the default) to take a new one from system
+    /// entropy when the engine starts and at every `ucinewgame`.
+    pub seed: u32,
+    /// `Variety`: in the first 12 full moves, how many centipawns below the
+    /// best a move may be and still be played, chosen at random; 0 (the
+    /// default) always plays the best move. See `search::varied_move`.
+    pub variety: u32,
     /// `UCI_LimitStrength`: whether to play below full strength.
     pub limit_strength: bool,
     /// `UCI_Elo`: the rating to play at when `UCI_LimitStrength` is on.
@@ -56,8 +59,8 @@ impl Default for Options {
         Options {
             hash_mb: HASH_DEFAULT,
             threads: 1,
-            deterministic_rng: false,
-            rng_seed: DEFAULT_SEED,
+            seed: 0,
+            variety: 0,
             limit_strength: false,
             elo: ELO_DEFAULT,
             move_overhead_ms: MOVE_OVERHEAD_DEFAULT,
@@ -73,8 +76,8 @@ impl Options {
         vec![
             spin("Hash", HASH_DEFAULT, 1, HASH_MAX),
             spin("Threads", 1, 1, THREADS_MAX),
-            check("DeterministicRNG", false),
-            spin("RngSeed", DEFAULT_SEED, 0, u32::MAX),
+            spin("Seed", 0, 0, SEED_MAX),
+            spin("Variety", 0, 0, VARIETY_MAX),
             check("UCI_LimitStrength", false),
             spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
             spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
@@ -100,10 +103,8 @@ impl Options {
         match name.to_ascii_lowercase().as_str() {
             "hash" => self.hash_mb = parse_spin("Hash", value, 1, HASH_MAX)?,
             "threads" => self.threads = parse_spin("Threads", value, 1, THREADS_MAX)?,
-            "deterministicrng" => {
-                self.deterministic_rng = parse_check("DeterministicRNG", value)?;
-            }
-            "rngseed" => self.rng_seed = parse_spin("RngSeed", value, 0, u32::MAX)?,
+            "seed" => self.seed = parse_spin("Seed", value, 0, SEED_MAX)?,
+            "variety" => self.variety = parse_spin("Variety", value, 0, VARIETY_MAX)?,
             "uci_limitstrength" => {
                 self.limit_strength = parse_check("UCI_LimitStrength", value)?;
             }
@@ -226,11 +227,14 @@ mod tests {
         for name in [
             "elo",
             "limitstrength",
-            "seed",
+            "seeds",
             "Hash ",
             " Hash",
             "Hash1",
             "UCI_",
+            // The options `Seed` replaced are gone.
+            "DeterministicRNG",
+            "RngSeed",
         ] {
             assert_eq!(
                 options.set(name, Some("1")),
@@ -238,7 +242,7 @@ mod tests {
                 "{name:?}"
             );
         }
-        for name in ["DeterministicRNG", "UCI_LimitStrength"] {
+        for name in ["UCI_LimitStrength"] {
             for value in ["TRUE", "FALSE", "False", "True", "1", "0", " true"] {
                 assert!(options.set(name, Some(value)).is_err(), "{name} {value:?}");
             }
@@ -307,48 +311,62 @@ mod tests {
         assert_eq!(options, Options::default());
     }
 
+    /// `Seed`: 0 by default, meaning a seed from entropy; any value up to the
+    /// largest signed 32-bit number, which Cute Chess can still store.
     #[test]
-    fn deterministic_rng_and_rng_seed() {
-        let declared = Options::declarations();
+    fn seed() {
         assert_eq!(
-            declared[2],
-            "option name DeterministicRNG type check default false"
-        );
-        // The default seed, written out because a GUI needs the number: it
-        // is 0x31031996.
-        assert_eq!(
-            declared[3],
-            format!("option name RngSeed type spin default {DEFAULT_SEED} min 0 max 4294967295")
+            Options::declarations()[2],
+            "option name Seed type spin default 0 min 0 max 2147483647"
         );
         let mut options = Options::default();
-        assert!(!options.deterministic_rng);
-        assert_eq!(options.rng_seed, DEFAULT_SEED);
-
-        assert_eq!(options.set("DeterministicRNG", Some("true")), Ok(()));
-        assert!(options.deterministic_rng);
-        assert_eq!(options.set("deterministicrng", Some("false")), Ok(()));
-        assert!(!options.deterministic_rng);
-        for bad in ["1", "0", "on", "True", "yes", ""] {
+        assert_eq!(options.seed, 0, "a seed from entropy unless asked");
+        for (text, value) in [
+            ("1", 1),
+            ("822286742", crate::rng::DEFAULT_SEED),
+            ("2147483647", SEED_MAX),
+            ("0", 0),
+        ] {
+            assert_eq!(options.set("Seed", Some(text)), Ok(()));
+            assert_eq!(options.seed, value);
+        }
+        assert_eq!(options.set("seed", Some("77")), Ok(()));
+        for bad in ["-1", "2147483648", "4294967295", "0x31031996", "seed", ""] {
             assert_eq!(
-                options.set("DeterministicRNG", Some(bad)),
+                options.set("Seed", Some(bad)),
                 Err(format!(
-                    "DeterministicRNG: expected true or false, got `{bad}`"
-                ))
+                    "Seed: expected a whole number from 0 to 2147483647, got `{bad}`"
+                )),
+                "{bad}"
             );
         }
-        assert_eq!(
-            options.set("DeterministicRNG", None),
-            Err("DeterministicRNG: expected true or false, got no value".to_string())
-        );
+        assert_eq!(options.seed, 77);
+    }
 
-        for (text, value) in [("0", 0), ("12345", 12_345), ("4294967295", u32::MAX)] {
-            assert_eq!(options.set("RngSeed", Some(text)), Ok(()));
-            assert_eq!(options.rng_seed, value);
+    /// `Variety`: 0 by default, so the best move is always played unless a
+    /// user asks otherwise; up to 100 centipawns.
+    #[test]
+    fn variety() {
+        assert_eq!(
+            Options::declarations()[3],
+            "option name Variety type spin default 0 min 0 max 100"
+        );
+        let mut options = Options::default();
+        assert_eq!(options.variety, 0, "the best move unless asked");
+        for (text, value) in [("10", 10), ("100", 100), ("0", 0), ("1", 1)] {
+            assert_eq!(options.set("Variety", Some(text)), Ok(()));
+            assert_eq!(options.variety, value);
         }
-        for bad in ["-1", "4294967296", "0x31031996", "seed"] {
-            assert!(options.set("RngSeed", Some(bad)).is_err(), "{bad}");
+        for bad in ["101", "-1", "10cp", "0.5", ""] {
+            assert_eq!(
+                options.set("variety", Some(bad)),
+                Err(format!(
+                    "Variety: expected a whole number from 0 to 100, got `{bad}`"
+                )),
+                "{bad}"
+            );
         }
-        assert_eq!(options.rng_seed, u32::MAX);
+        assert_eq!(options.variety, 1);
     }
 
     #[test]
@@ -401,8 +419,8 @@ mod tests {
             [
                 "Hash",
                 "Threads",
-                "DeterministicRNG",
-                "RngSeed",
+                "Seed",
+                "Variety",
                 "UCI_LimitStrength",
                 "UCI_Elo",
                 "Move Overhead"
