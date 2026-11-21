@@ -797,13 +797,16 @@ the tooling.
   (`Seed` 0). For a reproducible run set the UCI option `Seed` to any number
   from 1 to 2147483647. The engine logs the seed in use with `info string`
   in reply to `uci` and at every `ucinewgame`, so a run with an entropy seed
-  can be reproduced afterwards by giving that number as `Seed`. Today only
-  limited-strength play (`UCI_LimitStrength`) uses this randomness;
-  full-strength play uses none.
-- **The deterministic guarantee:** one thread, a fixed `Seed`, and a fixed
-  depth or node count (never a time limit). With these, the same commands
-  give the same moves. `vyvrael bench` is the check that full-strength
-  search stays deterministic: its node count is the same on every run.
+  can be reproduced afterwards by giving that number as `Seed`. Two things
+  use this randomness: limited-strength play (`UCI_LimitStrength`) and, at
+  full strength, `Variety` above 0 in the first 12 full moves. Full-strength
+  play with `Variety` 0, the default, uses none.
+- **The deterministic guarantee:** one thread, a fixed `Seed`, `Variety` 0,
+  and a fixed depth or node count (never a time limit). With these, the
+  same commands give the same moves. (With `Variety` above 0 a fixed `Seed`
+  and `go depth` still reproduce a game.) `vyvrael bench` is the check that
+  full-strength search stays deterministic: its node count is the same on
+  every run.
 - **Multithreaded search is not bit-for-bit deterministic**, whatever the
   seed: thread scheduling changes the order in which shared tables are
   written. Regression tests and performance comparisons therefore use one

@@ -704,8 +704,10 @@ and option is listed in [UCI.md](UCI.md).
     one generator, `Rng::stream(seed, stream::STRENGTH)`, on the command
     thread. Each weakened search gets a generator of its own, seeded by one
     draw from it, so the random sequence of a game depends on the commands
-    and not on how far each search got. Full-strength play never draws from
-    it. `ucinewgame` restarts the generator and logs its seed: the chosen
+    and not on how far each search got. Full-strength play draws from it
+    only when `Variety` applies, one draw per `go`, for the choice's own
+    generator (see "Variety in the opening"); with `Variety` 0 it never
+    does. `ucinewgame` restarts the generator and logs its seed: the chosen
     `Seed`, or with `Seed` 0 a new entropy seed. Either way one logged
     number replays one game, including the later games of a session, which
     is how match tools play.

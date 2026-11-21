@@ -168,7 +168,8 @@ breaks that in the opening:
   searched again to the same depth, and only a move whose score that second
   search puts within `Variety` of the best is a choice. The rest of the
   budget is for that check; a move it could not check in time is not
-  played. With `go depth` the check always completes.
+  played. With `go depth` alone (no clock, `movetime` or `nodes`, and no
+  `stop`) the check always completes.
 - The engine plays one of the choices at random, the best move included
   and the most likely, and says so in an `info string` when it is not the
   best: `info string variety: d7d6 instead of g8f6, 9 cp below it, one of 6
@@ -243,8 +244,9 @@ a seed of its own** from system entropy, and with a fixed `Seed` every game
 starts from that same seed. To replay a game, set `Seed` to the number
 logged at its `ucinewgame`, then send the same commands.
 
-`Seed` only governs *strength-affecting* randomness. Zobrist keys, magic numbers and similar tables are always
-generated from the fixed default seed and are not affected by these options.
+`Seed` only governs *strength-affecting* randomness. Zobrist keys, magic
+numbers and similar tables are always generated from the fixed default seed
+and are not affected by it.
 See the randomness table in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Output rules

@@ -137,8 +137,8 @@ shared in the tool crates).
     `ucinewgame` (the one allowed use), from 1 to 2147483647, and log the
     seed with `info string`;
   - any other `Seed`: that seed.
-  - Determinism means one thread, a fixed `Seed` and a fixed depth or node
-    count.
+  - Determinism means one thread, a fixed `Seed`, `Variety` 0 and a fixed
+    depth or node count.
 - **Non-strength-affecting randomness** (Zobrist keys, magic search, test
   fixtures, property tests, datagen openings, shuffles) is always
   deterministic from the default seed or a derived stream. Tools may take
