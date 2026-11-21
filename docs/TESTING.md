@@ -443,39 +443,55 @@ only), and neither are the ladder's engines: take each from its project's
 own Windows release. Status: tested offline; the real archives have not
 been fetched by the script.
 
-## Opponent ladder (Ladder Baseline 1)
+## Opponent ladder (Ladder Baseline 2)
 
-[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md) records
-a round robin between 25 engines of very different strength, with Ordo's
-ratings in
-[`ladder-Baseline-1-ratings.txt`](testing/ladder-Baseline-1-ratings.txt) and
-[`ladder-Baseline-1-ratings.csv`](testing/ladder-Baseline-1-ratings.csv). It
-is the reference list of opponents for measuring Vyvræl.
+The reference ladder is **Ladder Baseline 2 (current); Ladder Baseline 1 is
+kept as history.**
 
-**Vyvræl is not in it and has no rating in it.** The ladder is of 25 other
-engines and was run by the maintainer before Vyvræl had a UCI interface. The
-Ordo ratings are relative to the anchor engine (Stockfish 19 = 0) and
-describe only those 25 engines. Vyvræl's own strength will be measured later
-(milestone 6, known issue KI-8) by gauntlets against the lower rungs, with a
-separate results file; it must not be inserted into the baseline file or
-inferred from it. A first snapshot of 0.1.0-alpha.1, from before milestone
-6, is in
+- [`docs/testing/ladder-Baseline-2.md`](testing/ladder-Baseline-2.md)
+  records a round robin between 30 engines of very different strength,
+  played by the maintainer on 2026-11-21, with Ordo's ratings in
+  [`ladder-Baseline-2-ratings.txt`](testing/ladder-Baseline-2-ratings.txt)
+  and
+  [`ladder-Baseline-2-ratings.csv`](testing/ladder-Baseline-2-ratings.csv).
+  It is the reference list of opponents for measuring Vyvræl, from
+  0.1.0-alpha.2 on; its section "Using the ladder for Vyvræl" names the
+  core opponents of a gauntlet.
+- [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), with
+  [`ladder-Baseline-1-ratings.txt`](testing/ladder-Baseline-1-ratings.txt)
+  and
+  [`ladder-Baseline-1-ratings.csv`](testing/ladder-Baseline-1-ratings.csv),
+  is the first ladder: 25 engines, one round. It is kept as history;
+  0.1.0-alpha.1 was measured against it.
+
+**Vyvræl is in neither and has no rating in them.** The ladders are of other
+engines only. Their Ordo ratings are relative to the anchor engine
+(Stockfish 19 = 0) and describe only those engines. Vyvræl's own strength is
+measured (milestone 6, known issue KI-8) by gauntlets against the lower
+rungs, with a separate results file; it must not be inserted into a baseline
+file or inferred from it. A first snapshot of 0.1.0-alpha.1, from before
+milestone 6 and against Ladder Baseline 1, is in
 [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md).
 
-- **Fixed settings of the run:** round robin, one round, two games per
-  pairing with sides swapped (600 games); time control 10+0.1, pondering
-  off; openings from `UHO_Lichess_4852_v1.epd` in random order; Hash 64 MB
-  and one thread per engine; draw adjudication from move 34 (10 moves within
-  20 centipawns) and resign adjudication (3 moves, 700 centipawns,
-  two-sided); no book and no tablebases. Keep these the same in any run that
-  is to be compared with it.
-- **Read the order, not the spread.** With 48 games per engine the error
-  bars are 250 to 500 points and many neighbours are tied, and lopsided
-  pairings stretch Ordo's scale to about 3,000 points. The order of the
-  rungs is the useful result; the Elo distances between them are not.
-- The games themselves (`Baseline1.pgn`) are not in the repository: `*.pgn`
-  is git-ignored. The SHA-256 in the baseline file is of the maintainer's
-  local copy.
+- **Fixed settings of Ladder Baseline 2:** round robin, two rounds of two
+  games per pairing with sides swapped (four games per pairing, 1,740 games,
+  116 per engine); time
+  control 10+0.1, pondering off; openings from `UHO_Lichess_4852_v1.epd` in
+  random order; Hash 64 MB and one thread per engine; `Move Overhead` 30 ms
+  in every engine that has the option (Ladder Baseline 1 left each engine at
+  its own default); draw adjudication from move 34 (10 moves within 20
+  centipawns) and resign adjudication (3 moves, 700 centipawns, two-sided);
+  no book and no tablebases. Keep these the same in any run that is to be
+  compared with it.
+- **Read the order, not the spread.** With 116 games per engine the error
+  bars are about 180 to 290 points (250 to 500 in Ladder Baseline 1, with 48
+  games each), close neighbours are not separated, and lopsided pairings
+  stretch Ordo's scale to about 2,500 points (about 3,000 in Ladder Baseline
+  1). The order of the rungs is the useful result; the Elo distances between
+  them are not, and the magnitudes of the two ladders cannot be compared.
+- The games themselves (`Baseline1.pgn`, `Baseline2.pgn`) are not in the
+  repository: `*.pgn` is git-ignored. The SHA-256 in each baseline file is
+  of the maintainer's local copy.
 
 ## Complete games in cutechess-cli (release check)
 
@@ -504,9 +520,9 @@ cutechess-cli \
 For games against other engines, add `-tournament gauntlet`, keep Vyvræl as
 the first engine, and replace the second with one `-engine conf="<name>"`
 per opponent, where the name is the one in Cute Chess's own `engines.json`
-(the names of Ladder Baseline 1). `-rounds 4` then gives eight games against
-each. Every flag above was checked against `cutechess-cli --help` of
-version 1.5.1.
+(the names of the reference ladder, Ladder Baseline 2). `-rounds 4` then
+gives eight games against each. Every flag above was checked against
+`cutechess-cli --help` of version 1.5.1.
 
 How to read it: the PGN's last comment of each game says how it ended.
 "mates", a draw by rule, and "wins by adjudication" are complete games.
@@ -634,8 +650,8 @@ without the four SPRT options, with the mode `h2h`.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Time control | 10+0.1 | As Ladder Baseline 1; short enough for thousands of games. |
-| Hash, threads | 64 MB, 1 | As the baseline; one thread keeps results reproducible in kind. |
+| Time control | 10+0.1 | As Ladder Baselines 1 and 2; short enough for thousands of games. |
+| Hash, threads | 64 MB, 1 | As the baselines; one thread keeps results reproducible in kind. |
 | Pondering | off | Engines must not use each other's time. |
 | Openings | `UHO_Lichess_4852_v1.epd`, random order | Unbalanced human openings reduce draws between unequal engines. |
 | Games per opening | 2, colours swapped | Neither side gets the better half of an opening. |
@@ -666,15 +682,15 @@ baseline's settings: the anchor "Stockfish 19" fixed at 0, the white
 advantage estimated from the games, and 500 simulations for the error
 bars. Several PGN files may be given. The anchor must have played in the
 games; for a gauntlet without Stockfish 19 give another, for example
-`--anchor "Vice 1.1" --anchor-rating -1876.4` to place it where the
-baseline has it.
+`--anchor "Vice 1.1" --anchor-rating -1436.2` to place it where the
+reference ladder, Ladder Baseline 2, has it.
 
 How to read the table:
 
 - **The order is the result.** The script prints it again on its own.
 - **The distances are not.** When one engine wins nearly every game the
-  scale stretches: the baseline spans about 3,000 points between engines
-  that are not that far apart.
+  scale stretches: Ladder Baseline 2 spans about 2,500 points, and Ladder
+  Baseline 1 about 3,000, between engines that are not that far apart.
 - **The error column matters.** Two engines whose ranges overlap are not
   separated. With 40 or 50 games each, the ranges are hundreds of points.
 - **Ratings are relative to the anchor**, on this machine, at this time

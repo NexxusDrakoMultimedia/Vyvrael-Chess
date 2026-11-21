@@ -2,3 +2,7 @@
 # platform, so files such as LICENSE.md stay byte-identical to their source.
 * text=auto eol=lf
 *.png binary
+# Ordo output is committed byte for byte as the maintainer produced it
+# (both files have CRLF line endings), so it is not normalised.
+docs/testing/ladder-Baseline-2-ratings.txt -text
+docs/testing/ladder-Baseline-2-ratings.csv -text
