@@ -353,11 +353,22 @@ ENGINE_BUILDS = ("avx2", "pext")
 def local_setting(key: str, path: Path | None = None) -> str | None:
     """The value of `key` in scripts/local.env, read as the match scripts
     read it: KEY=VALUE lines, "#" comments and blank lines skipped, nothing
-    expanded or executed. None if the file or the key is not there."""
+    expanded or executed. None if the file or the key is not there.
+
+    Like match.ps1 (which reads it with ReadAllLines) the text may be UTF-8
+    with or without a byte-order mark, or UTF-16 with one, as Windows
+    PowerShell 5.1 often writes it; match.sh also drops a UTF-8 mark.
+    """
+    file = path or local_env_path()
     try:
-        lines = (path or local_env_path()).read_text(encoding="utf-8").splitlines()
+        data = file.read_bytes()
     except OSError:
         return None
+    encoding = "utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        lines = data.decode(encoding).splitlines()
+    except UnicodeDecodeError:
+        die(f"{file} is not UTF-8 or UTF-16 text; save it as UTF-8")
     for line in lines:
         if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
             continue

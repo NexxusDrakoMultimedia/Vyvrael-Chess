@@ -468,6 +468,20 @@ class EngineBuild(unittest.TestCase):
                 os.environ.pop("VYVRAEL_ENGINE_BUILD", None)
                 install_tools.engine_build(args(), local)
 
+    def test_the_file_may_have_a_byte_order_mark_or_be_utf16(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "local.env"
+            text = "ENGINE_BUILD=pext\r\nCONCURRENCY=6\r\n"
+            for data in (b"\xef\xbb\xbf" + text.encode("utf-8"),
+                         text.encode("utf-16"),        # with its byte-order mark
+                         text.encode("utf-8")):
+                local.write_bytes(data)
+                self.assertEqual(install_tools.local_setting("ENGINE_BUILD", local), "pext")
+                self.assertEqual(install_tools.local_setting("CONCURRENCY", local), "6")
+            local.write_bytes(b"ENGINE_BUILD=\xff\xff\n")
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                install_tools.local_setting("ENGINE_BUILD", local)
+
     def test_the_file_follows_vyvrael_local_env(self):
         with tempfile.TemporaryDirectory() as tmp:
             local = Path(tmp) / "elsewhere.env"
