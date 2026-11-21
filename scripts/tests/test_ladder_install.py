@@ -200,10 +200,13 @@ class LadderInstallTest(unittest.TestCase):
         url, digest = self.serve("bad.zip", buffer.getvalue())
         engine = self.source_engine(url=url, sha256=digest, archive="zip")
         with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
-            _, _, failed, printed = self.install([engine])
+            ctx, _, failed, printed = self.install([engine])
+        # The zip/build path goes through the shared extractor, which refuses
+        # the archive; that nothing lands outside its target is checked by
+        # test_unsafe_archive_paths_are_refused in test_windows_tools.py.
         self.assertEqual(failed, ["Test 1.0"])
         self.assertIn("unsafe path in archive", printed)
-        self.assertFalse((self.tmp / "outside.c").exists())
+        self.assertFalse((ctx.prefix / "engines" / "test-1.0").exists())
 
     def test_an_engine_without_a_digest_is_refused(self):
         url, _ = self.serve("bare", b"ELF")
