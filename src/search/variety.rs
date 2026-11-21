@@ -336,10 +336,14 @@ mod tests {
         // White's queen on d5 is attacked by the pawn on e6; only moving it
         // away keeps it, and the rest lose far more than 100 centipawns.
         let pos = fen("rnbqkbnr/pppp1ppp/4p3/3Q4/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 3");
+        let mut other_moves = 0;
         for seed in 1..=20 {
             let (best, varied) = vary(&pos, 2, 100, seed);
             let varied = varied.unwrap();
             assert!(varied.loss <= 100);
+            if Some(varied.best_move) != best.best_move {
+                other_moves += 1;
+            }
             let mut next = pos.clone();
             let _undo = next.make_move(varied.best_move);
             // The queen is not left on d5.
@@ -350,6 +354,47 @@ mod tests {
                 varied.best_move, best.best_move
             );
         }
+        // Variety was at work: other queen moves were played too.
+        assert!(other_moves > 0);
+    }
+
+    /// The second check is what stops a move whose loss the cheap score
+    /// cannot see: moving the rook off the back rank allows Re1 mate, a
+    /// quiet move that quiescence does not look at. Such a move passes the
+    /// cheap filter, and only the exact search rejects it.
+    #[test]
+    fn the_second_check_rejects_what_the_cheap_score_misses() {
+        let pos = fen("4r1k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1");
+        let cheap = |mv: Move| {
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            -Search::new(&HandCrafted)
+                .with_history(&[pos.hash()])
+                .reply_value(&next, 0)
+        };
+        let top = legal_moves(&pos).iter().map(|&mv| cheap(mv)).max().unwrap();
+        let losing = ["a1a2", "a1a3", "a1a4", "a1a5", "a1a6", "a1a7"];
+        // The cheap score of each losing rook move gets it past the filter.
+        for text in losing {
+            let mv = find_legal_move(&pos, text).unwrap();
+            assert!(cheap(mv) >= top - 100 - PREFILTER_MARGIN, "{text}");
+        }
+        let mut other_moves = 0;
+        for seed in 1..=20 {
+            let (best, varied) = vary(&pos, 3, 100, seed);
+            assert!(!is_mate_score(best.score));
+            let varied = varied.unwrap();
+            if Some(varied.best_move) != best.best_move {
+                other_moves += 1;
+            }
+            let played = varied.best_move.to_string();
+            assert!(
+                !losing.contains(&played.as_str()),
+                "seed {seed} played {played}"
+            );
+        }
+        // Variety was at work: safe moves other than the best were played.
+        assert!(other_moves > 0);
     }
 
     #[test]
