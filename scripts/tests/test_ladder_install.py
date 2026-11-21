@@ -179,6 +179,32 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(ctx.installed_entry("engine:Test 1.0")["command"],
                          engine["build"]["command"])
 
+    def test_a_build_from_a_zip_source_archive(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("proj-1.0/src/main.c", b"zipped source")
+            bundle.writestr("proj-1.0/readme.txt", b"read me")
+        url, digest = self.serve("src.zip", buffer.getvalue())
+        engine = self.source_engine(url=url, sha256=digest, archive="zip")
+        with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
+            ctx, _, failed, printed = self.install([engine])
+        self.assertEqual(failed, [], printed)
+        program = ctx.prefix / "engines" / "test-1.0" / "engine"
+        self.assertEqual(program.read_bytes(), b"built zipped source")
+
+    def test_a_zip_source_archive_may_not_escape(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("proj-1.0/src/main.c", b"source")
+            bundle.writestr("../outside.c", b"evil")
+        url, digest = self.serve("bad.zip", buffer.getvalue())
+        engine = self.source_engine(url=url, sha256=digest, archive="zip")
+        with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
+            _, _, failed, printed = self.install([engine])
+        self.assertEqual(failed, ["Test 1.0"])
+        self.assertIn("unsafe path in archive", printed)
+        self.assertFalse((self.tmp / "outside.c").exists())
+
     def test_an_engine_without_a_digest_is_refused(self):
         url, _ = self.serve("bare", b"ELF")
         _, present, failed, printed = self.install([self.engine(url=url, sha256=None)])

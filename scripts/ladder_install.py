@@ -201,11 +201,17 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
         program = stage / Path(engine["binary"]).name
         if engine["archive"] == "none":
             shutil.copyfile(archive, program)
-        elif engine["archive"] == "zip":
+        elif engine["archive"] == "zip" and engine["method"] == "download":
+            # An archive of ready binaries: only the one member is read.
             extract_zip_member(archive, engine["binary"], program)
         else:
+            # A source archive (tar.gz or zip) or a tar.gz of binaries: the
+            # whole tree is unpacked, with the same checks for either kind.
             tree_root = work / "tree"
-            tools.safe_extract(archive, tree_root)
+            if engine["archive"] == "zip":
+                tools.safe_extract_zip(archive, tree_root)
+            else:
+                tools.safe_extract(archive, tree_root)
             tree = tools.single_subdir(tree_root)
             if engine["method"] == "build":
                 run_build(engine, tree, work / "build.log")
