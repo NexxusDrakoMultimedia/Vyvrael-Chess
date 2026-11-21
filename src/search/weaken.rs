@@ -13,8 +13,7 @@
 //! not, unless the noise is as large as a queen.
 //!
 //! This is **strength-affecting randomness**: the generator is handed in by
-//! the caller, which seeds it according to the UCI options
-//! `DeterministicRNG` and `RngSeed`.
+//! the caller, which seeds it according to the UCI option `Seed`.
 
 use std::sync::atomic::AtomicBool;
 

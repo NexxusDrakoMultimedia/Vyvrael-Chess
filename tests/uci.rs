@@ -108,7 +108,10 @@ fn a_whole_conversation() {
             .iter()
             .filter(|line| line.starts_with("option name "))
             .count(),
-        7
+        6
+    );
+    assert!(
+        hello.contains(&"option name Seed type spin default 0 min 0 max 2147483647".to_string())
     );
 
     engine.send("isready");

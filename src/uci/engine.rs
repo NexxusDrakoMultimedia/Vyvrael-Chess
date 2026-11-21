@@ -60,8 +60,8 @@ pub struct Engine {
     until_stopped: bool,
     /// The values of the UCI options.
     options: Options,
-    /// The seed of strength-affecting randomness: from system entropy, or
-    /// `RngSeed` when `DeterministicRNG` is on.
+    /// The seed of strength-affecting randomness: the option `Seed`, or
+    /// one from system entropy while `Seed` is 0.
     seed: u32,
     /// The generator of strength-affecting randomness, started from `seed`.
     /// It stays on the command thread: each weakened search is given a
@@ -74,8 +74,8 @@ impl Engine {
     /// to `out`.
     #[must_use]
     pub fn new(out: Box<dyn Write + Send>) -> Engine {
-        // `DeterministicRNG` is off by default, so the seed comes from
-        // system entropy. This is the one permitted use of it.
+        // `Seed` is 0 by default, so the seed comes from system entropy.
+        // This is the one permitted use of it.
         let seed = entropy_seed();
         Engine {
             out: Arc::new(Mutex::new(out)),
@@ -97,26 +97,27 @@ impl Engine {
     }
 
     /// Says which seed is in use, so that a run can be replayed: give the
-    /// number as `RngSeed` with `DeterministicRNG` on.
+    /// number as `Seed`.
     fn log_seed(&self) {
-        let source = if self.options.deterministic_rng {
-            "RngSeed"
-        } else {
+        let source = if self.options.seed == 0 {
             "system entropy"
+        } else {
+            "Seed"
         };
         self.say(&format!("info string rng seed {} ({source})", self.seed));
     }
 
-    /// Chooses the seed again after `DeterministicRNG` or `RngSeed` may
-    /// have changed, and logs it if it did.
-    fn reseed(&mut self, was_deterministic: bool) {
-        let seed = match (self.options.deterministic_rng, was_deterministic) {
-            (true, _) => self.options.rng_seed,
-            // Just switched off: a fresh seed, not the one a user chose.
-            (false, true) => entropy_seed(),
-            (false, false) => self.seed,
+    /// Chooses the seed again after `Seed` may have changed from
+    /// `previous`, and logs it if it did.
+    fn reseed(&mut self, previous: u32) {
+        let seed = match (self.options.seed, previous) {
+            // A seed was given: use it.
+            (0, 0) => self.seed,
+            // Just set back to 0: a fresh seed, not the one a user chose.
+            (0, _) => entropy_seed(),
+            (given, _) => given,
         };
-        if seed != self.seed || was_deterministic != self.options.deterministic_rng {
+        if seed != self.seed || (previous == 0) != (self.options.seed == 0) {
             self.seed = seed;
             self.rng = Rng::stream(seed, stream::STRENGTH);
             self.log_seed();
@@ -155,11 +156,12 @@ impl Engine {
                 // Every game starts its random sequence afresh, so that any
                 // game can be replayed by itself from one logged number.
                 // With a chosen seed that is the same seed again; without
-                // one it is a new seed from system entropy, logged here.
-                if !self.options.deterministic_rng {
+                // one it is a new seed from system entropy. Either way it is
+                // logged here, so a match tool's log names it for each game.
+                if self.options.seed == 0 {
                     self.seed = entropy_seed();
-                    self.log_seed();
                 }
+                self.log_seed();
                 self.rng = Rng::stream(self.seed, stream::STRENGTH);
             }
             Command::Position { fen, moves } => self.set_position(fen.as_deref(), &moves),
@@ -168,9 +170,9 @@ impl Engine {
             Command::SetOption { name, value } => {
                 // An option applies from the next search on; a running one
                 // keeps the values it started with.
-                let was_deterministic = self.options.deterministic_rng;
+                let previous = self.options.seed;
                 match self.options.set(&name, value.as_deref()) {
-                    Ok(()) => self.reseed(was_deterministic),
+                    Ok(()) => self.reseed(previous),
                     Err(problem) => self.say(&format!("info string {problem}")),
                 }
             }
@@ -466,78 +468,88 @@ mod tests {
         );
     }
 
+    /// No test here relies on two entropy seeds differing: an entropy seed
+    /// is only checked to be a valid seed and to be the one logged.
     #[test]
     fn the_seed_comes_from_entropy_unless_told_otherwise() {
         let (mut engine, captured) = engine();
         // By default: system entropy, logged in reply to `uci`.
         engine.handle("uci");
         let entropy = engine.rng_seed();
+        assert!((1..=crate::rng::SEED_MAX).contains(&entropy));
         let lines = captured.lines();
         assert_eq!(
             lines[lines.len() - 2],
             format!("info string rng seed {entropy} (system entropy)")
         );
-        // Engines do not share a seed: of four more, not all have this one.
-        let others: Vec<u32> = (0..4).map(|_| self::engine().0.rng_seed()).collect();
-        assert!(others.iter().any(|&seed| seed != entropy), "{others:?}");
 
-        // Deterministic: the seed is `RngSeed`, by default the project's.
-        engine.handle("setoption name DeterministicRNG value true");
-        assert_eq!(engine.rng_seed(), crate::rng::DEFAULT_SEED);
-        assert_eq!(
-            captured.lines().last().unwrap(),
-            &format!(
-                "info string rng seed {} (RngSeed)",
-                crate::rng::DEFAULT_SEED
-            )
-        );
-        engine.handle("setoption name RngSeed value 5");
+        // A seed given: that is the seed, logged as such.
+        engine.handle("setoption name Seed value 5");
         assert_eq!(engine.rng_seed(), 5);
         assert_eq!(
             captured.lines().last().unwrap(),
-            "info string rng seed 5 (RngSeed)"
+            "info string rng seed 5 (Seed)"
         );
         // Setting the same seed again changes nothing and says nothing.
         let before = captured.lines().len();
-        engine.handle("setoption name RngSeed value 5");
+        engine.handle("setoption name Seed value 5");
         engine.handle("setoption name Hash value 8");
         assert_eq!(captured.lines().len(), before);
+        // Another seed: used and logged.
+        engine.handle("setoption name Seed value 77");
+        assert_eq!(engine.rng_seed(), 77);
+        assert_eq!(
+            captured.lines().last().unwrap(),
+            "info string rng seed 77 (Seed)"
+        );
+        // A refused value is reported and keeps the seed.
+        engine.handle("setoption name Seed value 2147483648");
+        assert_eq!(engine.rng_seed(), 77);
 
-        // Switched off again: a fresh entropy seed, logged.
-        engine.handle("setoption name DeterministicRNG value false");
+        // Back to 0: a seed from entropy again, logged as such. (Whether
+        // it differs from 77 is left to chance and not tested.)
+        engine.handle("setoption name Seed value 0");
         let fresh = engine.rng_seed();
+        assert!((1..=crate::rng::SEED_MAX).contains(&fresh));
         assert_eq!(
             captured.lines().last().unwrap(),
             &format!("info string rng seed {fresh} (system entropy)")
         );
-        // Fresh, not the user's seed kept under another label: switching
-        // on and off four more times does not give 5 every time.
-        let again: Vec<u32> = (0..4)
-            .map(|_| {
-                engine.handle("setoption name DeterministicRNG value true");
-                assert_eq!(engine.rng_seed(), 5);
-                engine.handle("setoption name DeterministicRNG value false");
-                engine.rng_seed()
-            })
-            .collect();
-        assert!(again.iter().any(|&seed| seed != 5), "{again:?}");
-        let fresh = engine.rng_seed();
-        // `RngSeed` alone does not touch a seed that came from entropy.
+        // 0 again changes nothing and says nothing.
         let before = captured.lines().len();
-        engine.handle("setoption name RngSeed value 77");
+        engine.handle("setoption name Seed value 0");
         assert_eq!(engine.rng_seed(), fresh);
         assert_eq!(captured.lines().len(), before);
-        // But it is the seed used once determinism is switched on.
-        engine.handle("setoption name DeterministicRNG value true");
-        assert_eq!(engine.rng_seed(), 77);
+    }
+
+    /// The seed is logged at every `ucinewgame`, whether it was given or
+    /// taken from entropy, and a given seed stays the same.
+    #[test]
+    fn every_new_game_logs_its_seed() {
+        let (mut engine, captured) = engine();
+        engine.handle("setoption name Seed value 1234");
+        for _ in 0..2 {
+            engine.handle("ucinewgame");
+            assert_eq!(
+                captured.lines().last().unwrap(),
+                "info string rng seed 1234 (Seed)"
+            );
+        }
+        engine.handle("setoption name Seed value 0");
+        engine.handle("ucinewgame");
+        let seed = engine.rng_seed();
+        assert_eq!(
+            captured.lines().last().unwrap(),
+            &format!("info string rng seed {seed} (system entropy)")
+        );
     }
 
     /// The lines of a weakened game from the start position with a chosen
     /// seed: one `go` per entry of `commands` after the options are set.
     fn weakened(seed: u32, commands: &[&str]) -> Vec<String> {
+        assert_ne!(seed, 0, "Seed 0 would mean a seed from entropy");
         let mut lines = vec![
-            "setoption name DeterministicRNG value true".to_string(),
-            format!("setoption name RngSeed value {seed}"),
+            format!("setoption name Seed value {seed}"),
             "setoption name UCI_LimitStrength value true".to_string(),
         ];
         lines.extend(commands.iter().map(ToString::to_string));
@@ -677,10 +689,9 @@ mod tests {
     /// have been.
     #[test]
     fn full_strength_does_not_draw_random_numbers() {
-        for seed in 0..6 {
-            let seed_option = format!("setoption name RngSeed value {seed}");
+        for seed in 1..=6 {
+            let seed_option = format!("setoption name Seed value {seed}");
             let after_full_strength = played(&[
-                "setoption name DeterministicRNG value true",
                 &seed_option,
                 "go depth 2",
                 "setoption name UCI_LimitStrength value true",
@@ -697,7 +708,7 @@ mod tests {
     /// of the strength stream of that seed.
     #[test]
     fn weakened_play_draws_from_the_strength_stream() {
-        for seed in 0..6 {
+        for seed in 1..=6 {
             let mut base = Rng::stream(seed, stream::STRENGTH);
             let mut rng = Rng::from_state(base.next_u64());
             let stop = AtomicBool::new(false);
@@ -771,17 +782,18 @@ mod tests {
     #[test]
     fn limited_strength_plays_a_weakened_move() {
         let lines = weakened(1, &["go depth 9"]);
-        // Two seed lines, then one `info` for the weakened choice (its own
+        // The seed line, then one `info` for the weakened choice (its own
         // shallow depth, whatever `go` asked for), then the move.
-        assert_eq!(lines.len(), 4, "{lines:?}");
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert_eq!(lines[0], "info string rng seed 1 (Seed)");
         assert!(
-            lines[2].starts_with("info depth 3 score cp "),
+            lines[1].starts_with("info depth 3 score cp "),
             "{}",
-            lines[2]
+            lines[1]
         );
-        let best = lines[3].strip_prefix("bestmove ").unwrap();
+        let best = lines[2].strip_prefix("bestmove ").unwrap();
         assert!(find_legal_move(&Position::startpos(), best).is_some());
-        assert!(lines[2].ends_with(&format!(" pv {best}")));
+        assert!(lines[1].ends_with(&format!(" pv {best}")));
     }
 
     #[test]
@@ -789,7 +801,7 @@ mod tests {
         let game = [GO, "position startpos moves e2e4", GO];
         assert_eq!(weakened(7, &game), weakened(7, &game));
         // Other seeds play other moves: of twenty, not all open the same.
-        let openings: Vec<Vec<String>> = (0..20).map(|seed| weakened(seed, &[GO])).collect();
+        let openings: Vec<Vec<String>> = (1..=20).map(|seed| weakened(seed, &[GO])).collect();
         let first = best_of(&openings[0])[0].clone();
         assert!(
             openings.iter().any(|lines| *best_of(lines)[0] != first),
@@ -799,14 +811,14 @@ mod tests {
 
     #[test]
     fn a_new_game_restarts_the_sequence_of_a_chosen_seed() {
-        for seed in 0..5 {
+        for seed in 1..=5 {
             let lines = weakened(seed, &[GO, "ucinewgame", GO]);
             let best = best_of(&lines);
             assert_eq!(best[0], best[1], "seed {seed}");
         }
         // Without a new game the sequence runs on: the same position is not
         // always answered with the same move.
-        let differs = (0..20).any(|seed| {
+        let differs = (1..=20).any(|seed| {
             let lines = weakened(seed, &[GO, GO]);
             let best = best_of(&lines);
             best[0] != best[1]
@@ -819,18 +831,18 @@ mod tests {
         // The two ends of the range differ in how far they look, which the
         // `info` line shows.
         let low = weakened(3, &["setoption name UCI_Elo value 400", GO]);
-        assert!(low[2].starts_with("info depth 2 "), "{}", low[2]);
+        assert!(low[1].starts_with("info depth 2 "), "{}", low[1]);
         let high = weakened(3, &["setoption name UCI_Elo value 1800", GO]);
-        assert!(high[2].starts_with("info depth 3 "), "{}", high[2]);
+        assert!(high[1].starts_with("info depth 3 "), "{}", high[1]);
         // A rating out of range is refused and the old one kept.
         let refused = weakened(3, &["setoption name UCI_Elo value 3000", GO]);
         assert_eq!(
-            refused[2],
+            refused[1],
             "info string UCI_Elo: expected a whole number from 400 to 1800, got `3000`"
         );
         assert_eq!(
-            refused[3..],
-            weakened(3, &[GO])[2..],
+            refused[2..],
+            weakened(3, &[GO])[1..],
             "still the default rating"
         );
         // Without `UCI_LimitStrength` the rating changes nothing.
@@ -871,9 +883,8 @@ mod tests {
             }
             games.push((seed, moves));
         }
-        // The games did not share a seed.
-        assert!(games.iter().any(|(seed, _)| *seed != games[0].0));
-
+        // Whether the games had different seeds is left to chance and not
+        // tested; what matters is that each can be replayed from its own.
         for (seed, moves) in games {
             let replay = weakened(
                 seed,

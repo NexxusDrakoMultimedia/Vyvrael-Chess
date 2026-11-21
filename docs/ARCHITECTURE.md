@@ -614,7 +614,7 @@ The generator is handed in by the caller and advanced once per root move
 before any searching, so the errors are a function of the position and the
 seed alone. Which pass they are applied to depends on the limits: with a
 node limit, or time that is never used up, a weakened game is reproducible
-under `DeterministicRNG`; with a clock that cuts passes short it is not.
+with a fixed `Seed`; with a clock that cuts passes short it is not.
 
 Scoring the position after a root move uses `Search::reply_value`, which
 treats that position as a node inside a search and not as a root: a
@@ -670,10 +670,10 @@ and option is listed in [UCI.md](UCI.md).
     thread. Each weakened search gets a generator of its own, seeded by one
     draw from it, so the random sequence of a game depends on the commands
     and not on how far each search got. Full-strength play never draws from
-    it. `ucinewgame` restarts the generator: from the chosen seed under
-    `DeterministicRNG`, otherwise from a new entropy seed that is logged
-    there. Either way one logged number replays one game, including the
-    later games of a session, which is how match tools play.
+    it. `ucinewgame` restarts the generator and logs its seed: the chosen
+    `Seed`, or with `Seed` 0 a new entropy seed. Either way one logged
+    number replays one game, including the later games of a session, which
+    is how match tools play.
   - **Bytes, not text.** `run` reads lines as bytes and replaces what is
     not valid UTF-8, so a stray byte spoils one line and not the session.
   - **End of input** without `quit` lets a running search finish and report,
@@ -735,26 +735,27 @@ which defaults to `DEFAULT_SEED`.
 - **Compile-time use:** every method is a `const fn`, so tables can be
   generated at compile time with no start-up cost.
 - **Ambient entropy:** forbidden everywhere except one path: seeding
-  strength-affecting randomness when the UCI option `DeterministicRNG` is
-  `false`. `rng::entropy_seed()` is that path and the only code that reads
+  strength-affecting randomness when the UCI option `Seed` is 0, its
+  default. `rng::entropy_seed()` is that path and the only code that reads
   system entropy; it takes its randomness from the standard library's
-  `RandomState`, so the engine stays free of dependencies. Its caller logs
-  the seed with `info string`, so even such a run can be replayed by giving
-  the logged value as `RngSeed`.
+  `RandomState`, so the engine stays free of dependencies, and maps it to a
+  seed from 1 to `rng::SEED_MAX` (2147483647). Its caller logs the seed with
+  `info string`, so even such a run can be replayed by giving the logged
+  value as `Seed`.
 
 ### Table of randomness uses
 
 Every use of randomness is listed here and classified. "Strength-affecting"
 means the randomness can change how strongly or how differently the engine
-plays; such uses are non-deterministic by default with `DeterministicRNG` /
-`RngSeed` as the opt-in. Everything else is always deterministic.
+plays; such uses are non-deterministic by default (`Seed` 0), with a fixed
+`Seed` as the opt-in. Everything else is always deterministic.
 
 | Use | Status | Strength-affecting? | Seed | Justification |
 | --- | --- | --- | --- | --- |
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
 | Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
-| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` when the engine starts and again at every `ucinewgame`, or `RngSeed` when `DeterministicRNG` is on; logged with `info string` each time | This seed will decide weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` (1 to 2147483647) when the engine starts and again at every `ucinewgame` while `Seed` is 0, or the `Seed` given; logged with `info string` at start and at every `ucinewgame` | This seed decides weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
 | Weakened move choice (`search::weakened_move`, used when `UCI_LimitStrength` is on) | implemented | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
@@ -765,7 +766,7 @@ subsystems never share or shift each other's numbers:
 | --- | --- | --- |
 | 0 | `stream::ZOBRIST` | Zobrist keys |
 | 1 | `stream::MAGICS` | Magic-number search |
-| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI options select (system entropy, or `RngSeed`), not necessarily the default seed. |
+| 2 | `stream::STRENGTH` | Strength-affecting randomness. Taken from the seed the UCI option `Seed` selects (system entropy, or the seed given), not necessarily the default seed. |
 
 Planned uses (each gets a real row when it lands): datagen opening
 randomisation (milestone 9, not strength-affecting; per-game derived seeds).

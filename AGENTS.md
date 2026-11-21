@@ -129,11 +129,13 @@ shared in the tool crates).
 - **Strength-affecting randomness** (move-choice randomisation, opening
   variety, eval noise, skill weakening, random book choice) is
   non-deterministic by default with an opt-in:
-  - UCI check option `DeterministicRNG` (default `false`) and spin option
-    `RngSeed` (default `0x31031996`);
-  - `DeterministicRNG = false`: seed from system entropy at startup (the one
-    allowed use) and log the seed with `info string`;
-  - `DeterministicRNG = true`: seed from `RngSeed`.
+  - UCI spin option `Seed` (0 to 2147483647, default `0`);
+  - `Seed = 0`: seed from system entropy at startup and at every
+    `ucinewgame` (the one allowed use), from 1 to 2147483647, and log the
+    seed with `info string`;
+  - any other `Seed`: that seed.
+  - Determinism means one thread, a fixed `Seed` and a fixed depth or node
+    count.
 - **Non-strength-affecting randomness** (Zobrist keys, magic search, test
   fixtures, property tests, datagen openings, shuffles) is always
   deterministic from the default seed or a derived stream. Tools may take

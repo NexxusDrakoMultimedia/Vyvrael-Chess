@@ -17,12 +17,11 @@ id name Vyvræl 0.1.0-alpha.1
 id author Nexxus Drako Multimedia
 option name Hash type spin default 16 min 1 max 65536
 option name Threads type spin default 1 min 1 max 1
-option name DeterministicRNG type check default false
-option name RngSeed type spin default 822286742 min 0 max 4294967295
+option name Seed type spin default 0 min 0 max 2147483647
 option name UCI_LimitStrength type check default false
 option name UCI_Elo type spin default 1200 min 400 max 1800
 option name Move Overhead type spin default 30 min 0 max 5000
-info string rng seed 2463767669 (system entropy)
+info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
 go depth 3
@@ -136,8 +135,7 @@ search.
 | --- | --- | --- | --- | --- |
 | `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
 | `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
-| `DeterministicRNG` | check | `false` | implemented | When `false`, strength-affecting randomness is seeded from system entropy when the engine starts. When `true`, it is seeded from `RngSeed`. Switching it off again takes a fresh entropy seed. |
-| `RngSeed` | spin | `822286742` (`0x31031996`), 0 to 4294967295 | implemented | Seed for strength-affecting randomness when `DeterministicRNG` is `true`. Ignored while it is `false`. |
+| `Seed` | spin | `0` (0 to 2147483647) | implemented | Seed of strength-affecting randomness. `0` takes a new seed from system entropy when the engine starts and at every `ucinewgame`; any other value is that seed. Setting it back to `0` takes a fresh entropy seed. The maximum is the largest signed 32-bit number, which Cute Chess can store; entropy seeds stay from 1 to it, so a logged seed can always be given back. It replaces `DeterministicRNG` and `RngSeed` (0.1.0-alpha.1). |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
@@ -146,9 +144,13 @@ search.
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
-`DeterministicRNG` and `RngSeed`: non-deterministic by default, reproducible
-when `DeterministicRNG` is `true`. See "Planned features" in
-[ROADMAP.md](ROADMAP.md).
+`Seed`: non-deterministic by default (`Seed` 0), reproducible with any other
+value. See "Planned features" in [ROADMAP.md](ROADMAP.md).
+
+**Deterministic play** needs one thread, a fixed `Seed` and a search that
+does not depend on the clock (`go depth` or `go nodes`). Full-strength play
+draws no random numbers at all, so at a fixed depth it is the same with any
+`Seed`; the seed matters for limited strength.
 
 ### Move Overhead
 
@@ -188,7 +190,7 @@ this means for a GUI:
   last pass that finished, so short of time the engine looks less far, but
   it has always looked at every move. The first pass (one ply) always
   completes, as the first depth of the ordinary search does.
-- The moves are random, so two games differ unless `DeterministicRNG` is on.
+- The moves are random, so two games differ unless `Seed` is fixed.
   `ucinewgame` starts the random sequence again, from the chosen seed or
   from a new logged entropy seed, so each game can be replayed by itself,
   given the same commands and limits that do not depend on the clock
@@ -200,19 +202,17 @@ this means for a GUI:
 The seed in use is always logged, so any run can be replayed:
 
 ```text
-info string rng seed 3141592653 (system entropy)
-info string rng seed 822286742 (RngSeed)
+info string rng seed 1141592653 (system entropy)
+info string rng seed 822286742 (Seed)
 ```
 
-The line is sent in reply to `uci`, just before `uciok`, whenever one of the
-two options changes the seed, and at every `ucinewgame` when the seed comes
-from system entropy, because **every game takes a seed of its own**. With a
-chosen seed (`DeterministicRNG`) every game starts from that same seed. To
-replay a game, set `RngSeed` to the number logged at its `ucinewgame` and
-`DeterministicRNG` to `true`, then send the same commands.
+The line is sent in reply to `uci`, just before `uciok`, whenever `Seed`
+changes the seed, and at every `ucinewgame`: with `Seed` 0 **every game takes
+a seed of its own** from system entropy, and with a fixed `Seed` every game
+starts from that same seed. To replay a game, set `Seed` to the number
+logged at its `ucinewgame`, then send the same commands.
 
-`DeterministicRNG` and `RngSeed` only govern *strength-affecting*
-randomness. Zobrist keys, magic numbers and similar tables are always
+`Seed` only governs *strength-affecting* randomness. Zobrist keys, magic numbers and similar tables are always
 generated from the fixed default seed and are not affected by these options.
 See the randomness table in [ARCHITECTURE.md](ARCHITECTURE.md).
 

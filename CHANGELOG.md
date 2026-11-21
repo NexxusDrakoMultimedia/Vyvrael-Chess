@@ -8,6 +8,21 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Changed
+
+- **The UCI option `Seed` replaces `DeterministicRNG` and `RngSeed`.** It is
+  a spin from 0 to 2147483647, default 0. With 0 the seed of
+  strength-affecting randomness comes from system entropy when the engine
+  starts and at every `ucinewgame`, as with `DeterministicRNG` off before;
+  any other value is the seed, as `RngSeed` with `DeterministicRNG` on was.
+  The largest value is the largest signed 32-bit number, because Cute Chess
+  stores spin values that way and reset `RngSeed` (up to 4294967295) to 0
+  whenever it was edited. Entropy seeds now stay from 1 to 2147483647, so a
+  logged seed can always be given back as `Seed`. The seed is logged with
+  `info string` in reply to `uci` and now at every `ucinewgame`, also when
+  it was given. A GUI or script that sets the old options gets "unknown
+  option" for them.
+
 ### Added
 
 - `vyvrael bench [depth]`: searches seven fixed positions to depth 4 (or the

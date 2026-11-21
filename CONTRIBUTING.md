@@ -66,10 +66,9 @@ All randomness goes through the engine's `rng` module:
 - one default seed, `DEFAULT_SEED = 0x31031996`, referenced by name;
 - an in-house PRNG (no `rand` crate) with golden-value tests;
 - no system entropy or time-based seeding, except for strength-affecting
-  randomness when the UCI option `DeterministicRNG` is `false` (the default),
-  in which case the chosen seed is logged with `info string`; with
-  `DeterministicRNG` set to `true` it is seeded from the UCI spin option
-  `RngSeed` (default `0x31031996`);
+  randomness when the UCI spin option `Seed` is 0 (the default), in which
+  case the seed taken is logged with `info string`; any other `Seed` (1 to
+  2147483647) is used as given;
 - independent streams derive their seeds from the base seed and an index;
 - non-strength-affecting randomness (Zobrist keys, magic search, tests,
   datagen, shuffles) is always deterministic; tools may take a `--seed`

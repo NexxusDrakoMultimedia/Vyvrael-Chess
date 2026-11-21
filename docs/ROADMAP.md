@@ -323,8 +323,7 @@ Constraints that already apply:
 
 - Weakening is **strength-affecting randomness** (see the randomness rules in
   [AGENTS.md](../AGENTS.md)). It draws from the `rng` module, is seeded from
-  system entropy by default, and is reproducible with `DeterministicRNG` and
-  `RngSeed` (with the single option `Seed` once queued task 1 is done). It
+  system entropy by default, and is reproducible with a fixed `Seed`. It
   gets its own row in the randomness table in
   [ARCHITECTURE.md](ARCHITECTURE.md).
 - With `UCI_LimitStrength = false` (the default) play must be unchanged: no
@@ -539,7 +538,7 @@ move for move and 7 diverged.
 
 Decided by the maintainer:
 
-- [ ] **One option `Seed`** replaces `DeterministicRNG` and `RngSeed`: 0
+- [x] **One option `Seed`** replaces `DeterministicRNG` and `RngSeed`: 0
   takes a seed from system entropy (not the clock; the rule against
   time-based seeding stands), anything else is fixed. Spin, 0 to
   2147483647: Cute Chess keeps spin values as signed 32-bit numbers, and
@@ -702,9 +701,8 @@ Notes for whoever starts it:
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
 - The match settings rely on the UCI options `Hash` and `Threads`.
-  Repeatable limited-strength runs also need a fixed seed: the options
-  `DeterministicRNG` and `RngSeed` today, the single option `Seed` once
-  queued task 1 is done.
+  Repeatable limited-strength runs also need a fixed seed: the option
+  `Seed`.
 - Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
   the engine list: the match scripts give a build under test no options of
   its own.

@@ -32,7 +32,7 @@ pub mod stream {
     /// Randomness that changes how strongly the engine plays: weakened move
     /// choice under `UCI_LimitStrength` (`uci`). Unlike the others, this
     /// stream is taken from the seed the UCI options select, which is not
-    /// the default seed unless `DeterministicRNG` says so.
+    /// the default seed unless `Seed` says so.
     pub const STRENGTH: u64 = 2;
 }
 
