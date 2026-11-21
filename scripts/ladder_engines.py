@@ -324,7 +324,7 @@ ENGINES = [
         "name": "CT800 1.46",
         "version": "V1.46 (released 2024-08-29)",
         "source": "https://www.ct800.net/",
-        "licence": "GPL-3.0",
+        "licence": "GPL-3.0-or-later",
         "method": "build",
         "url": "https://www.ct800.net/downloads/ct800-v1.46.zip",
         "sha256": "61647c7146fd8b3219c36dc987130d92be9f0fe37d494bb41aee192c930aa1c6",
@@ -344,7 +344,7 @@ ENGINES = [
         },
         "hash": True,
         "threads": False,
-        "limit": (1000, 2300),
+        "limit": (1000, 2250),
         "variants": [1200, 1500, 1800],
         "options": [("OwnBook", False), ("Keep Hash Tables", False),
                     ("Move Overhead [ms]", 30)],
@@ -356,10 +356,11 @@ ENGINES = [
         "published; this one is what ct800.net served on 2026-11-21. The opening book is "
         "compiled in, so nothing goes beside the binary. As in Ladder Baseline 2 its book "
         "is off, the hash is cleared between games and the move overhead is 30 ms. UCI_Elo "
-        "runs from 1000 to a top the engine works out from its speed at start-up (2300 at "
-        "its reference speed, more on a faster machine); the ladder's values are far "
-        "below it. Its notes for 1.46 warn that the strength limit can play up to 50 Elo "
-        "stronger, not weaker, at under 15 seconds a move.",
+        "runs from 1000 to a top the engine works out from its speed at start-up: 2250 at "
+        "its reference speed of 30,000 nodes a second or slower, more on a faster machine "
+        "(its source starts at 2300, rounds down to 50 and keeps 50 in hand). The "
+        "ladder's values are far below it. Its notes for 1.46 warn that the strength "
+        "limit can play up to 50 Elo stronger, not weaker, at under 15 seconds a move.",
     },
 ]
 

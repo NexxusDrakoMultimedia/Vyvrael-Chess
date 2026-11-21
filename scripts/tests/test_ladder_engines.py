@@ -76,7 +76,7 @@ class LadderEnginesTest(unittest.TestCase):
             self.assertTrue(engine["source"].startswith("https://"), name)
             self.assertIn(engine["method"], ("download", "build"), name)
             self.assertIn(engine["archive"], ("none", "tar.gz", "zip"), name)
-            self.assertRegex(engine["licence"], r"^(GPL-[23]\.0|AGPL-3\.0|MIT)$", name)
+            self.assertRegex(engine["licence"], r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT)$", name)
             self.assertGreater(len(engine["notes"]), 10, name)
             # Nothing is fetched without a digest, source archives included.
             self.assertRegex(engine["sha256"] or "", r"^[0-9a-f]{64}$", name)
