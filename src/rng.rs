@@ -36,14 +36,22 @@ pub mod stream {
     pub const STRENGTH: u64 = 2;
 }
 
-/// A 32-bit seed taken from the operating system's randomness.
+/// The largest seed a user can give: 2147483647, the largest signed 32-bit
+/// number. Cute Chess keeps spin values as signed 32-bit numbers, so a
+/// larger one could not be typed into it. Seeds taken from entropy stay
+/// between 1 and this, so that any logged seed can be given back.
+pub const SEED_MAX: u32 = 0x7FFF_FFFF;
+
+/// A seed taken from the operating system's randomness, from 1 to
+/// [`SEED_MAX`].
 ///
 /// **This is the only place in the project that reads ambient entropy**, and
 /// it has exactly one permitted caller: seeding strength-affecting
-/// randomness when the UCI option `DeterministicRNG` is `false`. Everything
+/// randomness when the UCI option `Seed` is 0, its default. Everything
 /// else must be reproducible from [`DEFAULT_SEED`] or a seed the user gave.
 /// The caller takes one seed per game and logs it, so even such a game can
-/// be replayed afterwards by passing the logged value as `RngSeed`.
+/// be replayed afterwards by giving the logged value as `Seed`. It is never
+/// 0, because `Seed` 0 means "take one from entropy".
 ///
 /// The standard library's `RandomState` is the source: every new one gets
 /// keys derived from operating-system randomness. That keeps the engine
@@ -53,8 +61,14 @@ pub fn entropy_seed() -> u32 {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
 
-    let keyed = RandomState::new().build_hasher().finish();
-    (mix64(keyed) >> 32) as u32
+    seed_from_bits(RandomState::new().build_hasher().finish())
+}
+
+/// Turns 64 random bits into a seed from 1 to [`SEED_MAX`]: mixed, then
+/// reduced. The reduction's bias is about one in four billion, far too
+/// small to matter for choosing a seed.
+const fn seed_from_bits(bits: u64) -> u32 {
+    (mix64(bits) % SEED_MAX as u64) as u32 + 1
 }
 
 /// SplitMix64's state increment (the 64-bit golden-ratio constant).
@@ -377,11 +391,35 @@ mod tests {
         assert_eq!(take(&mut rng, 3), golden);
     }
 
-    /// Entropy seeds are not reproducible by design, so all that can be
-    /// tested is that they vary: eight of them are not all the same.
+    /// Entropy seeds are not reproducible by design, and no test may rely on
+    /// two of them differing. What can be tested is that each lies where a
+    /// user's `Seed` can: from 1 to `SEED_MAX`, never the 0 that means
+    /// "from entropy".
     #[test]
-    fn entropy_seeds_vary() {
-        let seeds: Vec<u32> = (0..8).map(|_| entropy_seed()).collect();
-        assert!(seeds.iter().any(|&seed| seed != seeds[0]), "{seeds:?}");
+    fn entropy_seeds_are_valid_seeds() {
+        for _ in 0..32 {
+            let seed = entropy_seed();
+            assert!((1..=SEED_MAX).contains(&seed), "{seed}");
+        }
+    }
+
+    /// The mapping from random bits to a seed: whatever the bits, the seed
+    /// is from 1 to `SEED_MAX`, and the same bits always give the same seed.
+    #[test]
+    fn random_bits_become_a_valid_seed() {
+        assert_eq!(SEED_MAX, 2_147_483_647);
+        assert_eq!(SEED_MAX, i32::MAX as u32);
+        for bits in [
+            0,
+            1,
+            2,
+            u64::from(SEED_MAX),
+            u64::MAX,
+            u64::from(DEFAULT_SEED),
+        ] {
+            let seed = seed_from_bits(bits);
+            assert!((1..=SEED_MAX).contains(&seed), "{bits}: {seed}");
+            assert_eq!(seed_from_bits(bits), seed);
+        }
     }
 }
