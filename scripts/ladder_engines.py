@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
-"""The opponent engines of Ladder Baseline 1, pinned for Linux.
+"""The opponent engines of Ladder Baseline 2, pinned for Linux.
 
-Which engines, versions and names: docs/testing/ladder-Baseline-1.md and its
+Which engines, versions and names: docs/testing/ladder-Baseline-2.md and its
 ratings files, which are the source of truth. This module records where each
 one comes from on Linux and how the names of the ladder map to binaries; the
 installer (install_tools.py) acts on it. Vyvræl itself is not in it.
@@ -320,6 +320,47 @@ ENGINES = [
         "limit": None,
         "notes": "See Rustic Alpha 1.5.",
     },
+    {
+        "name": "CT800 1.46",
+        "version": "V1.46 (released 2024-08-29)",
+        "source": "https://www.ct800.net/",
+        "licence": "GPL-3.0",
+        "method": "build",
+        "url": "https://www.ct800.net/downloads/ct800-v1.46.zip",
+        "sha256": "61647c7146fd8b3219c36dc987130d92be9f0fe37d494bb41aee192c930aa1c6",
+        "archive": "zip",
+        "binary": "source/application-uci/ct800",
+        "build": {
+            "dir": "source/application-uci",
+            "command": ["gcc", "-pthread", "-Wall", "-Wextra", "-Wlogical-op",
+                        "-Wstrict-prototypes", "-Wshadow", "-O2", "-march=haswell",
+                        "-flto=auto", "-std=c99", "-faggressive-loop-optimizations",
+                        "-fno-unsafe-loop-optimizations", "-fgcse-sm", "-fgcse-las",
+                        "-fgcse-after-reload", "-fno-strict-aliasing", "-fno-strict-overflow",
+                        "-fno-common", "-o", "ct800", "play.c", "tuner.c", "kpk.c", "eval.c",
+                        "move_gen.c", "hashtables.c", "search.c", "util.c", "book.c",
+                        "kpk_table.c", "bookdata.c", "-lrt", "-Wl,-s"],
+            "tools": ["gcc"],
+        },
+        "hash": True,
+        "threads": False,
+        "limit": (1000, 2300),
+        "variants": [1200, 1500, 1800],
+        "options": [("OwnBook", False), ("Keep Hash Tables", False),
+                    ("Move Overhead [ms]", 30)],
+        "notes": "The official zip holds the source, Windows binaries (its CT800_V1.46_x64.exe "
+        "is the file of Ladder Baseline 2, by SHA-256) and no Linux binary: its Linux readme "
+        "says to build with make_ct800_linux.sh. The command is that script's, with "
+        "-march=haswell for -march=native -mtune=native and without -Werror, which the "
+        "readme itself names as the workaround when a compiler warns. No digest is "
+        "published; this one is what ct800.net served on 2026-11-21. The opening book is "
+        "compiled in, so nothing goes beside the binary. As in Ladder Baseline 2 its book "
+        "is off, the hash is cleared between games and the move overhead is 30 ms. UCI_Elo "
+        "runs from 1000 to a top the engine works out from its speed at start-up (2300 at "
+        "its reference speed, more on a faster machine); the ladder's values are far "
+        "below it. Its notes for 1.46 warn that the strength limit can play up to 50 Elo "
+        "stronger, not weaker, at under 15 seconds a move.",
+    },
 ]
 
 # Engines of the baseline that the installer cannot provide on Linux, and why.
@@ -331,9 +372,15 @@ NOT_INSTALLABLE = {
     "alignment and allocates it with calloc, which does not provide that, so the engine "
     "crashes at the first `go` (seen with gcc 15.2 on 2026-11-21 at every optimisation "
     "level). Building it would mean patching the engine, which the installer does not do.",
+    "Nostradamus 0.4": "Not a compiled program: a Python program with a PyTorch model "
+    "(github.com/david-carteau/nostradamus, MIT). Its only release file is a Windows "
+    "executable, and the model's weights are not in the repository but in a zip on the "
+    "author's site that no page there links to and no digest covers. Installing it would "
+    "need a Python environment with PyTorch, which the installer does not set up (the "
+    "maintainer's decision, 2026-11-21).",
 }
 
-# What every engine of the ladder is given, as in the baseline.
+# What every engine of the ladder is given, as in the baselines.
 HASH_MB = 64
 
 

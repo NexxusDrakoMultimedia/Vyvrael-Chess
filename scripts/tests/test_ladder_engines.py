@@ -16,14 +16,14 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ladder_engines  # noqa: E402
 
-BASELINE = Path(__file__).resolve().parents[2] / "docs/testing/ladder-Baseline-1-ratings.csv"
+BASELINE = Path(__file__).resolve().parents[2] / "docs/testing/ladder-Baseline-2-ratings.csv"
 
 
 def baseline_names() -> list[str]:
-    """The names in the baseline's ratings file. One of them, "Stockfish
-    19-2400 ", carries a trailing space there, from the engine list the run
-    was made with. The maintainer decided on 2026-11-21 that the name is
-    written without it from now on, so names are compared without it."""
+    """The names in the ratings file of Ladder Baseline 2, the reference
+    ladder. Names are compared without surrounding spaces: in Ladder
+    Baseline 1 "Stockfish 19-2400 " carried a trailing one, which the
+    maintainer dropped on 2026-11-21."""
     with open(BASELINE, encoding="utf-8", newline="") as handle:
         return [row["PLAYER"].strip() for row in csv.DictReader(handle)]
 
@@ -31,14 +31,14 @@ def baseline_names() -> list[str]:
 class LadderEnginesTest(unittest.TestCase):
     def test_the_names_are_exactly_those_of_the_baseline(self):
         baseline = baseline_names()
-        self.assertEqual(len(baseline), 25)
+        self.assertEqual(len(baseline), 30)
         provided = ladder_engines.ladder_names()
         left_out = list(ladder_engines.NOT_INSTALLABLE)
         self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
         # Every name of the baseline is either provided or listed as left
         # out with a reason, and nothing else is: no invented engines.
         self.assertEqual(sorted(provided + left_out), sorted(baseline))
-        self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75"])
+        self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75", "Nostradamus 0.4"])
         for reason in ladder_engines.NOT_INSTALLABLE.values():
             self.assertGreater(len(reason), 40)
         # No generated name carries a stray space.
@@ -47,7 +47,7 @@ class LadderEnginesTest(unittest.TestCase):
 
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.ENGINES]
-        self.assertEqual(len(binaries), 13)
+        self.assertEqual(len(binaries), 14)
         for name in binaries:
             self.assertIsNone(re.search(r"-\d{4}$", name), name)
         variants = {
@@ -56,7 +56,8 @@ class LadderEnginesTest(unittest.TestCase):
         self.assertEqual(variants["Stockfish 19"], [1320, 1500, 1800, 2000, 2200, 2400])
         self.assertEqual(variants["Arasan 26.1"], [1500, 1800])
         self.assertEqual(variants["Rodent IV"], [1600, 2000])
-        self.assertEqual(sum(len(elos) for elos in variants.values()), 10)
+        self.assertEqual(variants["CT800 1.46"], [1200, 1500, 1800])
+        self.assertEqual(sum(len(elos) for elos in variants.values()), 13)
 
     def test_a_variant_needs_an_engine_that_can_be_limited_that_far(self):
         for engine in ladder_engines.ENGINES:

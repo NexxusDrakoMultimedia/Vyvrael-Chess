@@ -68,8 +68,8 @@ not pinned by this project.
 
 ## Opponent engines of the ladder (Linux)
 
-The engines of Ladder Baseline 1 as `scripts/install_tools.py` is to install
-them on Linux. They are separate programs, run only as opponents in matches:
+The engines of Ladder Baseline 2, the reference ladder, as
+`scripts/install_tools.py` is to install them on Linux. They are separate programs, run only as opponents in matches:
 none is linked into Vyvræl, vendored or redistributed by this project. The
 full pins (addresses, complete SHA-256 digests, build commands and notes)
 are in `scripts/ladder_engines.py`, which is the place to change them.
@@ -92,6 +92,7 @@ Sources and licences were read on each project's own page or repository on
 | Rustic Alpha 1.5 | 1.5.0 (branch release/alpha-1/1.5) | GPL-3.0 | official binary | <https://codeberg.org/mvanthoor/rustic> | `ac385c81fdc42a2f...` |
 | Rustic Alpha 2.4 | alpha-2.4.0 | GPL-3.0 | official binary | <https://codeberg.org/mvanthoor/rustic> | `ac385c81fdc42a2f...` |
 | Rustic Alpha 3.0.6 | alpha-3.0.6 | GPL-3.0 | official binary | <https://codeberg.org/mvanthoor/rustic> | `ac385c81fdc42a2f...` |
+| CT800 1.46 (also limited to 1200, 1500, 1800) | V1.46 | GPL-3.0-or-later | built from official source (zip) | <https://www.ct800.net/> | `61647c7146fd8b32...` |
 
 Licences are as each repository's licence file states them. Arasan's is the
 MIT licence with further terms for its GUI, which is not used here. All of
@@ -102,11 +103,24 @@ Left out, with the reason:
 
 - **Orion 1.1:** The official site (orionchess.com) offers Windows programs only and the source is not published, so there is nothing to download or build for Linux.
 - **Ethereal 12.75:** No official Linux binary exists, and its source does not run when built with a current compiler: the engine crashes at the first `go` (gcc 15.2, 2026-11-21), because it allocates data that it declares 64-byte aligned with `calloc`. Building it would mean patching the engine.
+- **Nostradamus 0.4** (<https://github.com/david-carteau/nostradamus>, MIT): not a compiled program but a Python program with a PyTorch model. Its only release file is a Windows executable, and the model's weights are not in the repository but in a zip on the author's site that no page there links to and no digest covers. Installing it would need a Python environment with PyTorch, which the installer does not set up (the maintainer's decision, 2026-11-21).
 
 Fruit 2.1 is the one engine not taken from its project's own page: the
 author's site is gone, so the source is the original tarball as Debian keeps
 it, which the maintainer accepted on 2026-11-21. Arasan is installed with
-its own opening book, as it was in the baseline run.
+its own opening book, as it was in Ladder Baseline 1's run. CT800 is the
+first pin with options of its own in the engine list (book off, hash
+cleared between games, 30 ms of move overhead), as in Ladder Baseline 2;
+the other engines still get only Hash, Threads and their strength
+settings.
+
+CT800's zip also holds the Windows binary of Ladder Baseline 2, identical by
+SHA-256, but no Linux binary: its readme says to build with
+`make_ct800_linux.sh`, which compiles with `-march=native`. The installer
+runs the same `gcc` command with `-march=haswell` instead and without
+`-Werror` (the readme's own workaround for compiler warnings). No digest is
+published for the zip; the one recorded is what ct800.net served on
+2026-11-21.
 
 Targets: x86-64 with AVX2 and BMI2. No AVX-512 build is used and nothing is
 compiled with `-march=native`; a compiled engine names `haswell` or

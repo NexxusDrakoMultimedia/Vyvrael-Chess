@@ -457,7 +457,7 @@ class LadderInstallTest(unittest.TestCase):
         for engine in ladder_engines.ENGINES:
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
-        self.assertEqual(len(entries), 23)
+        self.assertEqual(len(entries), 27)
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
@@ -470,6 +470,13 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(by_name["Rustic Alpha 1.5"], {})
         self.assertEqual(by_name["Vice 1.1"], {"Hash": 64})
         self.assertEqual(by_name["Viridithas 20"], {"Hash": 64, "Threads": 1})
+        # CT800 as in Ladder Baseline 2: no Threads option, book off, the
+        # hash cleared between games, 30 ms of move overhead.
+        ct800 = {"Hash": 64, "OwnBook": False, "Keep Hash Tables": False,
+                 "Move Overhead [ms]": 30}
+        self.assertEqual(by_name["CT800 1.46"], dict(ct800, UCI_LimitStrength=False))
+        self.assertEqual(by_name["CT800 1.46-1200"],
+                         dict(ct800, UCI_LimitStrength=True, UCI_Elo=1200))
 
     def test_a_dry_run_writes_no_engine_list(self):
         ctx = self.ctx(dry_run=True)

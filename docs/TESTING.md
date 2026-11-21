@@ -363,18 +363,19 @@ python3 scripts/install_tools.py --verify              # check what is installed
 python3 scripts/install_tools.py --list                # pins and what is installed
 ```
 
-`--engines` installs the opponents of Ladder Baseline 1 under
+`--engines` installs the opponents of Ladder Baseline 2 under
 `<prefix>/engines`, each in a directory of its own, outside the repository.
 **Vyvræl itself is not part of the installer**: build it with
 `cargo build --release` and keep released builds somewhere of your own.
 
 - **What is installed** is fixed by `scripts/ladder_engines.py`; the table
   of engines, versions, sources, licences and methods is in
-  [DEPENDENCIES.md](DEPENDENCIES.md). There are 13 programs for 23 of the
-  ladder's 25 names: an entry such as "Stockfish 19-1500" is Stockfish 19
-  with `UCI_LimitStrength` on. Two are left out: Orion 1.1, which exists for
-  Windows only, and Ethereal 12.75, whose source crashes when built with a
-  current compiler.
+  [DEPENDENCIES.md](DEPENDENCIES.md). There are 14 programs for 27 of the
+  ladder's 30 names: an entry such as "Stockfish 19-1500" is Stockfish 19
+  with `UCI_LimitStrength` on. Three are left out: Orion 1.1, which exists
+  for Windows only; Ethereal 12.75, whose source crashes when built with a
+  current compiler; and Nostradamus 0.4, a Python program with a PyTorch
+  model, which the installer does not set up.
 - **Supported machines:** x86-64 Linux with AVX2 and BMI2 (any Intel
   processor from Haswell, 2013, or AMD from Excavator or Zen). No AVX-512
   build is used and nothing is compiled for "this machine"
@@ -382,8 +383,8 @@ python3 scripts/install_tools.py --list                # pins and what is instal
   except Vice 1.1, whose makefile names no architecture and so builds for
   plain x86-64.
 - **Downloads and builds.** Eight engines are official binaries, checked
-  by SHA-256. Five are built from source (Princhess, Weiss, Rodent IV, Vice,
-  Fruit) with the project's own build command and need `gcc`,
+  by SHA-256. Six are built from source (Princhess, Weiss, Rodent IV, Vice,
+  Fruit, CT800) with the project's own build command and need `gcc`,
   `g++` and `make` (`sudo apt install build-essential`); Princhess also
   needs `cargo` and `clang`. **The script never runs sudo.** A tool that is
   missing is named and that engine is skipped; the others are still
@@ -393,8 +394,10 @@ python3 scripts/install_tools.py --list                # pins and what is instal
   complete, so a failure leaves nothing half-installed.
 - **The engine list.** Afterwards the script writes
   `<prefix>/engines/engines.json` with every installed engine under its
-  ladder name, Hash 64 and one thread where the engine has the option, and
-  the strength settings of the limited entries. Put its path in
+  ladder name, Hash 64 and one thread where the engine has the option, the
+  strength settings of the limited entries, and any options the engine's
+  pin fixes (so far only CT800's, as in Ladder Baseline 2: book off, hash
+  cleared between games, 30 ms of move overhead). Put its path in
   `scripts/local.env` as `ENGINES_JSON` for `match.sh gauntlet`.
 - **The check.** Last, each engine is started under each of its names and
   sent `uci`, its options, `isready` and `go depth 6`. The script prints

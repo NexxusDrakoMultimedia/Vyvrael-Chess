@@ -34,19 +34,25 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   `scripts/local.env`. It reports a missing Visual C++ runtime and never
   installs it. lichess-bot and the ladder's engines are not installed on
   Windows.
-- `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
-  engines, pinned (13 binaries for 23 of the ladder's 25 names). Orion 1.1
-  is left out because it exists for Windows only, and Ethereal 12.75
-  because its source crashes when built with a current compiler.
+- `scripts/ladder_engines.py`: the Linux sources of the opponent engines of
+  Ladder Baseline 2, the reference ladder, pinned (14 programs for 27 of
+  the ladder's 30 names, CT800 1.46 and its three limited entries
+  included). Orion 1.1 is left out because it exists for Windows only,
+  Ethereal 12.75 because its source crashes when built with a current
+  compiler, and Nostradamus 0.4 because it is a Python program with a
+  PyTorch model, which the installer does not set up.
 - `scripts/install_tools.py --engines` installs those engines on Linux
   under `<prefix>/engines`, each in a directory of its own: an official
-  binary where there is one, otherwise a build from the official source.
+  binary where there is one, otherwise a build from the official source
+  (a tar.gz or zip archive).
   `--only "<name>"` installs one. It never uses sudo, names a missing build
   tool and carries on with the other engines, and leaves nothing behind of
   an engine whose download or build failed. It then writes
   `<prefix>/engines/engines.json`, the list of what is installed under the
   ladder's names, the limited entries (such as "Stockfish 19-1500")
-  included, with Hash 64, one thread and the strength settings. Last, it
+  included, with Hash 64, one thread, the strength settings and any
+  options an engine's pin fixes (CT800: book off, hash cleared between
+  games, 30 ms of move overhead, as in Ladder Baseline 2). Last, it
   starts every installed engine under each of its names, sends `uci`, its
   options, `isready` and `go depth 6`, and prints PASS or FAIL; every wait
   has a time limit. `--verify` runs that check alone.
