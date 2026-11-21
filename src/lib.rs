@@ -9,6 +9,7 @@
 //! the integration tests and the tool crates all share one implementation.
 
 pub mod attacks;
+pub mod bench;
 pub mod board;
 pub mod cli;
 pub mod eval;

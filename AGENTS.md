@@ -31,7 +31,9 @@ Layout:
   - `src/search/`: search.
   - `src/perft.rs`: perft node counting.
   - `src/uci/`: the UCI protocol (parsing, options, time, engine loop).
-  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`).
+  - `src/bench.rs`: the bench, a fixed search workload.
+  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`,
+    `bench`).
   - `src/board/`: board representation (types, position, FEN, Zobrist
     hashing, make/unmake, move parsing).
 - `tests/`: integration tests that use only the public API.
@@ -57,6 +59,7 @@ Layout:
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate a position | `cargo run --release -- eval [FEN]` |
 | Search a position | `cargo run --release -- search <depth> [FEN]` |
+| Bench (node count and speed) | `cargo run --release -- bench [depth]` |
 | Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
 | Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
 | Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |

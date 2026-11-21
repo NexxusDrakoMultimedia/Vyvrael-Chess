@@ -39,8 +39,8 @@ cargo test --workspace --release
 ```
 
 Run with no arguments, the binary speaks UCI on standard input and output
-(see [docs/UCI.md](docs/UCI.md)). It also has three subcommands, `perft`,
-`eval` and `search`:
+(see [docs/UCI.md](docs/UCI.md)). It also has four subcommands, `perft`,
+`eval`, `search` and `bench`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
@@ -48,6 +48,7 @@ cargo run --release -- perft 3 --divide   # the same, split by first move
 cargo run --release -- perft 5 --copy-make  # same count, copy-make style
 cargo run --release -- eval               # static evaluation, with its parts
 cargo run --release -- search 4           # search 4 plies and name the best move
+cargo run --release -- bench              # a fixed search workload: nodes and speed
 cargo run --release -- help
 ```
 

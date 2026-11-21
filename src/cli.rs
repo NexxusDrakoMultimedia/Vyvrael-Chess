@@ -9,6 +9,7 @@
 use std::io::{self, Write};
 use std::time::Instant;
 
+use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
 use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
 use crate::perft::{divide, perft, perft_copy_make};
@@ -24,6 +25,7 @@ Usage:
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
   vyvrael search <depth> [FEN]             search to a fixed depth
+  vyvrael bench [depth]                    a fixed search workload: nodes and speed
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
@@ -39,6 +41,10 @@ omitted) in centipawns, with its parts. It does not search.
 search runs the search to <depth> plies from FEN (the start position if
 omitted) and prints one line per completed depth, then the best move. Scores
 are in centipawns for the side to move, or shown as mate in N moves.
+
+bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
+given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
+is the same on every run of the same build; the speed is not.
 ";
 
 /// Exit status for success.
@@ -68,6 +74,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Res
         Some("perft") => run_perft(&args[1..], out, err),
         Some("eval") => run_eval(&args[1..], out, err),
         Some("search") => run_search(&args[1..], out, err),
+        Some("bench") => run_bench(&args[1..], out, err),
         Some(other) => {
             writeln!(err, "unknown command: {other}")?;
             write!(err, "{USAGE}")?;
@@ -174,6 +181,33 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
         err,
         "time: {} ms, {nodes} nodes, {rate} nodes per second",
         elapsed.as_millis()
+    )?;
+    Ok(EXIT_OK)
+}
+
+fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let depth = match args {
+        [] => Some(BENCH_DEPTH),
+        [text] => text
+            .parse::<u32>()
+            .ok()
+            .filter(|depth| (1..=MAX_PLY as u32).contains(depth)),
+        _ => None,
+    };
+    let Some(depth) = depth else {
+        writeln!(
+            err,
+            "bench: expected nothing, or a depth from 1 to {MAX_PLY}"
+        )?;
+        write!(err, "{USAGE}")?;
+        return Ok(EXIT_USAGE);
+    };
+    let result = bench(depth);
+    writeln!(
+        out,
+        "{} nodes {} nps",
+        result.nodes,
+        result.nodes_per_second()
     )?;
     Ok(EXIT_OK)
 }
@@ -441,6 +475,38 @@ total for the side to move: +0
         let (status, _, err) = run_args(&["search", "2", "not", "a", "fen"]);
         assert_eq!(status, EXIT_USAGE);
         assert!(err.contains("search: invalid FEN"));
+    }
+
+    /// The bench prints one line, `<nodes> nodes <nps> nps`, and the same
+    /// node count every time. A shallow depth keeps the test quick.
+    #[test]
+    fn bench_prints_nodes_and_speed_the_same_every_run() {
+        let (status, first, err) = run_args(&["bench", "2"]);
+        assert_eq!(status, EXIT_OK);
+        assert!(err.is_empty());
+        let words: Vec<&str> = first.split_whitespace().collect();
+        assert_eq!(words.len(), 4, "{first}");
+        assert_eq!((words[1], words[3]), ("nodes", "nps"));
+        assert!(words[0].parse::<u64>().unwrap() > 0);
+        assert!(words[2].parse::<u64>().is_ok());
+        assert!(first.ends_with(" nps\n"));
+        let (_, second, _) = run_args(&["bench", "2"]);
+        assert_eq!(second.split_whitespace().next(), Some(words[0]));
+    }
+
+    #[test]
+    fn bench_rejects_bad_input() {
+        for args in [
+            &["bench", "0"][..],
+            &["bench", "deep"],
+            &["bench", "129"],
+            &["bench", "2", "3"],
+        ] {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_USAGE, "{args:?}");
+            assert!(out.is_empty());
+            assert!(err.contains("bench: expected nothing, or a depth from 1 to 128"));
+        }
     }
 
     #[test]

@@ -10,6 +10,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- `vyvrael bench [depth]`: searches seven fixed positions to depth 4 (or the
+  depth given) at full strength and prints `<nodes> nodes <nps> nps`. The
+  node count is the same on every run of a build (16,611,416 for this one)
+  and changes only when what the search does changes; the speed is for
+  comparing builds on one machine.
+
 - `scripts/local.env.example`: the settings the match and rating scripts
   read from a git-ignored `scripts/local.env` (tool locations, the opening
   file, the engine list, concurrency, priority).

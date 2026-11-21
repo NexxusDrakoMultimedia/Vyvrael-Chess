@@ -343,7 +343,15 @@ on this square attack?".
   timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
   parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
   prints one line per depth and the best move, with timing on stderr so that
-  stdout is identical on every run. Exit status 2 means the command line was not understood.
+  stdout is identical on every run. `bench [depth]` runs `bench::bench` and
+  prints `<nodes> nodes <nps> nps`. Exit status 2 means the command line was not understood.
+
+- **Bench** (`bench.rs`): `bench(depth)` searches the fixed positions of
+  `BENCH_POSITIONS` to `depth` at full strength, each as a new search with
+  iterative deepening and no time limit, and returns the nodes visited and
+  the time taken. Nothing random is involved, so the node count is a
+  function of the search alone; `tests/bench.rs` pins it at
+  `BENCH_DEPTH`.
 
 ## Evaluation
 

@@ -52,7 +52,8 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, and refuses a bad depth or extra arguments. |
+| `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
 | `eval::Material` | Piece values keep the usual orderings (bishop above knight, two rooks above a queen, rook above knight plus pawn); the start position is balanced at full material; a missing queen scores +900 or -900 depending on the side to move; rook against knight and pawn, bishop against knight, bare kings. |
@@ -157,6 +158,36 @@ bestmove d2d4
 A fixed-depth search uses no clock and no randomness, so it is fully
 reproducible: the same position and depth always give the same lines.
 
+## Bench
+
+```sh
+cargo run --release -- bench [depth]
+```
+
+searches the seven positions of `src/bench.rs` (an opening, middlegames
+with and without tactics, endgames) to depth 4, or the depth given, at full
+strength, each as a new search with iterative deepening, and prints one
+line:
+
+```
+16611416 nodes 2601114 nps
+```
+
+- **The node count is the fingerprint of the search.** It depends on what
+  the search does, not on the machine or the clock, so it is the same on
+  every run of the same build: full-strength search draws no random
+  numbers, which is what playing with `Seed` fixed and `Variety` 0 means.
+  A pure speed change must leave it unchanged; a change that alters it is a
+  search change and needs its SPRT. `tests/bench.rs` pins it.
+- **The speed varies** with the machine and with what else it is doing.
+  Compare speeds only on one machine, idle, over several runs.
+- The figures for each measured build, with perft speeds, are kept in
+  [`testing/bench-history.md`](testing/bench-history.md).
+
+The positions avoid Kiwipete, whose depth 4 alone takes about 25 seconds
+without move ordering (known issue KI-9). Queued task 2 widens the set once
+milestone 7 makes deeper searches cheap.
+
 ## Integration tests
 
 Integration tests live in `tests/` and use only the public API.
@@ -174,6 +205,7 @@ Integration tests live in `tests/` and use only the public API.
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
 | `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; thirteen lines of bad input, two of them not valid UTF-8, produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (16,611,416 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |

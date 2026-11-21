@@ -555,7 +555,7 @@ Decided by the maintainer:
   move, so matches and SPRT are untouched. It is exempt from the SPRT rule,
   like `UCI_LimitStrength`, because it weakens play on purpose; say so in
   `AGENTS.md`. The Lichess bot sets it (10) in `docs/LICHESS.md`.
-- [ ] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
+- [x] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
   `Seed` fixed and `Variety` 0, printing `<nodes> nodes <nps> nps`. The
   node count must be the same on every run.
 - [ ] Once `bench` exists, record the first bench node count and speed and
