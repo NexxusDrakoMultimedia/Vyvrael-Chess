@@ -573,6 +573,43 @@ Decided by the maintainer:
 - [ ] Report: what made the engine deterministic, the bench node count
   before and after, the options added.
 
+Chunk order (branch `task/1-seed-variety-bench`, started 2026-11-22), one
+commit each with its tests and docs:
+
+1. `bench` first, so that its node count before `Seed` and `Variety` can
+   be compared with the count after them: the two must be equal, because
+   neither option may change the full-strength search.
+2. `rng`: entropy seeds from 1 to 2147483647.
+3. `uci`: the option `Seed` in place of `DeterministicRNG` and `RngSeed`,
+   and no test that needs two entropy seeds to differ.
+4. `search`: the choice of a varied move, on its own and tested.
+5. `uci`: the option `Variety`, using it.
+6. The match scripts: `--deterministic` / `-Deterministic` set `Seed`.
+7. `AGENTS.md`: `Variety` is exempt from the SPRT rule.
+8. Docs: README, `UCI.md`, `TESTING.md`, `LICHESS.md`, `ARCHITECTURE.md`'s
+   randomness table, the changelog.
+9. `docs/testing/bench-history.md`: the first bench and perft figures.
+
+Design decisions taken for it (open to the maintainer's review):
+
+- **Entropy seeds avoid 0.** `Seed` 0 means "take one from entropy", so an
+  entropy seed is drawn from 1 to 2147483647: any logged seed can be typed
+  back as `Seed` and means the same thing.
+- **The second check of `Variety`.** After the ordinary search reaches depth
+  D, each other root move is first scored cheaply (quiescence only) and
+  kept as a candidate if that is within `Variety` plus a margin of the best;
+  each candidate is then searched exactly to the best move's depth (D) and
+  kept only if that score is within `Variety` of the best move's. A move
+  whose check is cut short by a limit is never played. The pick is weighted
+  by the square of `Variety + 1 −` its loss, so the best move is the most
+  likely and a move `Variety` worse the least.
+- **`Variety` gets a share of the time.** When it applies, the ordinary
+  search gets two thirds of the move's time or node budget and the checks
+  the rest, so that a varied move has been checked to the same depth as the
+  best one. With `go depth` there is no budget to share and the checks run
+  to completion, which keeps a fixed-depth run reproducible. With `Variety`
+  0 nothing changes: the search gets the whole budget, as now.
+
 ### 2. Benchmark and speed up (after milestone 7)
 
 Why: in a 10+0.1 gauntlet 0.1.0-a1 reached only depth 3 to 6 (median 4) at
