@@ -558,7 +558,7 @@ Decided by the maintainer:
 - [x] **`vyvrael bench`**: a fixed set of positions to a fixed depth with
   `Seed` fixed and `Variety` 0, printing `<nodes> nodes <nps> nps`. The
   node count must be the same on every run.
-- [ ] Once `bench` exists, record the first bench node count and speed and
+- [x] Once `bench` exists, record the first bench node count and speed and
   the perft speed in `docs/testing/bench-history.md`, so that queued task 2
   has a baseline from before milestone 7.
 - [ ] Tests: bench twice gives one node count; a fixed-depth search with a
