@@ -38,7 +38,7 @@ work is actually done is this:
 6. **Milestone 8 onwards**, in numerical order.
 
 **Where things run** (the maintainer, 2026-11-21): strength is measured on
-the Windows workstation, where Ladder Baseline 1 and the results of
+the Windows workstation, where Ladder Baselines 1 and 2 and the results of
 0.1.0-alpha.1 were played, so that later measurements can be compared with
 them. lichess-bot runs on the Linux machine only. The scripts and the
 installer still work on both systems.
@@ -342,7 +342,8 @@ change the engine's strength. The calibration of 0.1.0 is provisional until
 then, and the release notes of 0.2.0 say so.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
-of Ladder Baseline 1 and its Ordo anchor (Stockfish 19 = 0), not to
+of the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1 is
+kept as history), and its Ordo anchor (Stockfish 19 = 0), not to
 Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
 most visibly at the low end: the limited-strength engines of the baseline
 rate far below the numbers in their names. So documentation and the bot's profile must say which scale a number
@@ -618,10 +619,14 @@ known issue KI-8 (the evaluation's strength). The scripts and the installer
 it uses are built beforehand and described under "Testing tooling (before
 milestone 6)" above.
 
-**Opponent ladder reference:** Ladder Baseline 1,
-[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), a round
-robin of 25 other engines run by the maintainer. Vyvræl is not in it. It
-orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
+**Opponent ladder reference:** Ladder Baseline 2 (current); Ladder Baseline
+1 is kept as history. Ladder Baseline 2,
+[`docs/testing/ladder-Baseline-2.md`](testing/ladder-Baseline-2.md), is a
+round robin of 30 other engines run by the maintainer on 2026-11-21; it
+replaced Ladder Baseline 1,
+[`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md) (25
+engines), against which 0.1.0-alpha.1 was measured. Vyvræl is in neither.
+The reference ladder orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
 are measured by gauntlets against its lower rungs, in separate results
 files, with the same time control, hash, threads and openings.
 
@@ -639,7 +644,8 @@ engine: they run as separate programs and are installed by the user.
 To go into the chunk checklist when it is written:
 
 - Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
-  on (Ladder Baseline 1 and its Ordo anchor, not Lichess, CCRL or FIDE)
+  on: the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1
+  is kept as history), and its Ordo anchor, not Lichess, CCRL or FIDE;
   and that the scale is stretched by lopsided results, most visibly at the
   low end.
 - Robustness, wanted before 0.2.0 because the bot plays in public:
@@ -872,7 +878,8 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
 - Larger or bucketed NNUE architectures; training-data selection favouring
   attacking play.
 - Opening book support for match play.
-- Ladder Baseline 2: the round robin run again with Vyvræl builds in it.
+- Ladder Baseline 3: the round robin run again with Vyvræl builds in it.
+  (Ladder Baseline 2, run on 2026-11-21, has none.)
 - Submitting Vyvræl to rating lists. Blocked on the branding, like rated
   play.
 - Non-regression SPRT bounds for pure refactorings and speed work, beside
