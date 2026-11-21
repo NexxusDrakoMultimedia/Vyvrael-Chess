@@ -277,6 +277,47 @@ def replace_dir(new: Path, dest: Path) -> None:
 
 
 # ---------------------------------------------------------------- paths
+def local_env_path() -> Path:
+    """The settings file shared with the match and rating scripts:
+    VYVRAEL_LOCAL_ENV if set, else scripts/local.env (git-ignored)."""
+    return Path(os.environ.get("VYVRAEL_LOCAL_ENV")
+                or Path(__file__).resolve().parent / "local.env")
+
+# The builds of the ladder's engines: AVX2 by default, PEXT where an engine
+# offers a build of its own for it (see scripts/ladder_engines.py).
+ENGINE_BUILDS = ("avx2", "pext")
+
+
+def local_setting(key: str, path: Path | None = None) -> str | None:
+    """The value of `key` in scripts/local.env, read as the match scripts
+    read it: KEY=VALUE lines, "#" comments and blank lines skipped, nothing
+    expanded or executed. None if the file or the key is not there."""
+    try:
+        lines = (path or local_env_path()).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() == key:
+            return value
+    return None
+
+
+def engine_build(args, path: Path | None = None) -> str:
+    """Which build of the ladder's engines to install: --engine-build, then
+    VYVRAEL_ENGINE_BUILD, then ENGINE_BUILD in scripts/local.env, then avx2."""
+    value = (getattr(args, "engine_build", None)
+             or os.environ.get("VYVRAEL_ENGINE_BUILD")
+             or local_setting("ENGINE_BUILD", path)
+             or "avx2")
+    value = value.strip().lower()
+    if value not in ENGINE_BUILDS:
+        die(f"unknown engine build '{value}': use {' or '.join(ENGINE_BUILDS)}")
+    return value
+
+
 class Ctx:
     """Where things go, worked out once from the command line."""
 
@@ -297,6 +338,9 @@ class Ctx:
             self.bin = Path.home() / ".local/bin"
         self.dry = args.dry_run
         self.manifest = self.prefix / "manifest.json"
+        # Which pins of the ladder's engines apply (scripts/ladder_engines.py).
+        self.system = "windows" if sys.platform == "win32" else "linux"
+        self.engine_build = engine_build(args)
 
     def _read_manifest(self) -> dict:
         try:
@@ -814,6 +858,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="only check the installed ladder engines (uci, isready, go depth 6) and"
         " report PASS or FAIL for each; nothing is installed. --engines also runs"
         " this check after installing",
+    )
+    parser.add_argument(
+        "--engine-build",
+        choices=ENGINE_BUILDS,
+        help="which build of the ladder's engines: avx2 (the default) or pext, for"
+        " engines that offer a PEXT build (default from VYVRAEL_ENGINE_BUILD or"
+        " ENGINE_BUILD in scripts/local.env)",
     )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")

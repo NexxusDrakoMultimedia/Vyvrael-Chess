@@ -357,6 +357,39 @@ class Paths(unittest.TestCase):
             self.assertIsNone(ctx.installed_version("ordo"))
 
 
+class EngineBuild(unittest.TestCase):
+    def test_the_order_is_argument_environment_file_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "local.env"
+            local.write_text("# a comment\nCONCURRENCY=3\nENGINE_BUILD=pext\n", encoding="utf-8")
+            empty = Path(tmp) / "none.env"
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("VYVRAEL_ENGINE_BUILD", None)
+                self.assertEqual(install_tools.engine_build(args(), empty), "avx2")
+                self.assertEqual(install_tools.engine_build(args(), local), "pext")
+                os.environ["VYVRAEL_ENGINE_BUILD"] = "avx2"
+                self.assertEqual(install_tools.engine_build(args(), local), "avx2")
+                self.assertEqual(
+                    install_tools.engine_build(args(engine_build="pext"), empty), "pext")
+
+    def test_an_unknown_build_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "local.env"
+            local.write_text("ENGINE_BUILD=native\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {}, clear=False), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                os.environ.pop("VYVRAEL_ENGINE_BUILD", None)
+                install_tools.engine_build(args(), local)
+
+    def test_the_file_follows_vyvrael_local_env(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "elsewhere.env"
+            local.write_text("ENGINE_BUILD=pext\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"VYVRAEL_LOCAL_ENV": str(local)}):
+                self.assertEqual(install_tools.local_setting("ENGINE_BUILD"), "pext")
+                self.assertIsNone(install_tools.local_setting("OPENINGS"))
+
+
 class Shims(unittest.TestCase):
     def test_quotes_paths_arguments_and_environment(self):
         text = install_tools.shim_text(

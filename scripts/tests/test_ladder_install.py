@@ -83,7 +83,11 @@ class LadderInstallTest(unittest.TestCase):
             prefix=str(self.tmp / "prefix"), bin_dir=None, engine=None, systemd=False,
             dry_run=dry_run,
         )
-        return install_tools.Ctx(args)
+        ctx = install_tools.Ctx(args)
+        # The Linux pins and the default build, whatever the machine running
+        # the tests is and whatever its scripts/local.env says.
+        ctx.system, ctx.engine_build = "linux", "avx2"
+        return ctx
 
     def engine(self, name: str = "Test 1.0", **fields) -> dict:
         base = {
