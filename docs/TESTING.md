@@ -772,12 +772,15 @@ How to read the table:
 - **Watch the log for time losses and crashes.** `-recover` keeps the match
   going, so a build that crashes still produces a result; the PGN's last
   comment of each game says how it ended.
-- **`DeterministicRNG`.** Full-strength play draws no random numbers, so it
-  needs nothing. `--deterministic` sets the option on the Vyvræl builds, but
-  the scripts cannot yet give a build other options, `UCI_LimitStrength`
-  among them, so today it changes nothing in a match. Calibrating `UCI_Elo`
-  (milestone 6) needs limited Vyvræl entries in the engine list, each with
-  its own options.
+- **`--deterministic` (`-Deterministic`)** sets `Seed=822286742` (the
+  project's default seed, `0x31031996`) and `Variety=0` on the Vyvræl
+  builds. Both are already what a match needs: `Variety` is 0 by default and
+  full-strength play then draws no random numbers, so the switch only
+  writes that down in the command. The scripts cannot yet give a build other
+  options, `UCI_LimitStrength` among them. Calibrating `UCI_Elo` (milestone
+  6) needs limited Vyvræl entries in the engine list, each with its own
+  options. Never run a strength match with `Variety` above 0. (`--seed N`
+  is a different thing: the seed of the opening order, `-srand`.)
 
 ## Tactical test suites (planned, milestone 8)
 

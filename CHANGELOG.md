@@ -22,6 +22,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   `info string` in reply to `uci` and now at every `ucinewgame`, also when
   it was given. A GUI or script that sets the old options gets "unknown
   option" for them.
+- The match scripts' `--deterministic` (`-Deterministic`) now sets
+  `Seed=822286742` and `Variety=0` on the Vyvræl builds instead of the old
+  `DeterministicRNG=true`.
 
 ### Added
 
