@@ -114,10 +114,12 @@ impl Engine {
     /// `previous`, and logs it if it did.
     fn reseed(&mut self, previous: u32) {
         let seed = match (self.options.seed, previous) {
-            // A seed was given: use it.
+            // Still 0: keep the entropy seed this game already has, so that
+            // setting another option does not reseed in the middle of it.
             (0, 0) => self.seed,
             // Just set back to 0: a fresh seed, not the one a user chose.
             (0, _) => entropy_seed(),
+            // A seed was given: use it.
             (given, _) => given,
         };
         if seed != self.seed || (previous == 0) != (self.options.seed == 0) {
@@ -303,6 +305,7 @@ impl Engine {
                         .with_history(&history)
                         .with_limits(search_limits)
                         .with_stop_flag(&stop);
+                    let started = Instant::now();
                     let mut reached = 0;
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
@@ -331,6 +334,18 @@ impl Engine {
                                              below it, one of {} moves",
                                             varied.best_move, varied.loss, varied.choices
                                         ),
+                                    );
+                                    // The last `info` line is for the move played,
+                                    // so a GUI records its score and line.
+                                    send(
+                                        &out,
+                                        &info_line(&Report {
+                                            depth: reached,
+                                            score: varied.score,
+                                            nodes: search.nodes() + varied.nodes,
+                                            elapsed: started.elapsed(),
+                                            pv: vec![varied.best_move],
+                                        }),
                                     );
                                     Outcome {
                                         score: varied.score,
@@ -582,18 +597,22 @@ mod tests {
         let (mut engine, captured) = engine();
         engine.handle("setoption name Seed value 1234");
         for _ in 0..2 {
+            // Each `ucinewgame` adds a line of its own.
+            let before = captured.lines().len();
             engine.handle("ucinewgame");
-            assert_eq!(
-                captured.lines().last().unwrap(),
-                "info string rng seed 1234 (Seed)"
-            );
+            let lines = captured.lines();
+            assert_eq!(lines.len(), before + 1);
+            assert_eq!(lines[before], "info string rng seed 1234 (Seed)");
         }
         engine.handle("setoption name Seed value 0");
+        let before = captured.lines().len();
         engine.handle("ucinewgame");
         let seed = engine.rng_seed();
+        let lines = captured.lines();
+        assert_eq!(lines.len(), before + 1);
         assert_eq!(
-            captured.lines().last().unwrap(),
-            &format!("info string rng seed {seed} (system entropy)")
+            lines[before],
+            format!("info string rng seed {seed} (system entropy)")
         );
     }
 
@@ -1066,7 +1085,10 @@ mod tests {
     /// time the engine says so and stays within `Variety`.
     #[test]
     fn variety_with_a_fixed_seed_is_reproducible_and_near_the_best() {
-        let best = last_best(&session(&["go depth 3"]));
+        let plain = stable(&session(&["go depth 3"]));
+        let best = last_best(&plain);
+        let start = Position::startpos();
+        let best_score = direct(crate::board::START_FEN, 3).0.score;
         let mut varied = 0;
         for seed in 1..=12 {
             let game = [
@@ -1077,9 +1099,31 @@ mod tests {
             let game: Vec<&str> = game.iter().map(String::as_str).collect();
             let lines = stable(&session(&game));
             assert_eq!(lines, stable(&session(&game)), "seed {seed}");
+            // Root only: after the seed line, the search's own lines are
+            // exactly those of the plain search; only what follows differs.
+            assert_eq!(lines[1..4], plain[..3], "seed {seed}");
             let played = last_best(&lines);
             if played != best {
                 varied += 1;
+                // An independent exact search of the move played puts it
+                // within 60 centipawns of the best move's score.
+                let mv = find_legal_move(&start, &played).unwrap();
+                let mut next = start.clone();
+                let _undo = next.make_move(mv);
+                let score = -Search::new(&HandCrafted)
+                    .with_history(&[start.hash()])
+                    .reply_value(&next, 2);
+                assert!(
+                    (0..=60).contains(&(best_score - score)),
+                    "seed {seed}: {played}"
+                );
+                // The last `info` line is for the move played.
+                let last_info = &lines[lines.len() - 2];
+                assert!(
+                    last_info.starts_with(&format!("info depth 3 score cp {score} "))
+                        && last_info.ends_with(&format!(" pv {played}")),
+                    "{last_info}"
+                );
                 let note = lines
                     .iter()
                     .find(|line| line.starts_with("info string variety: "))
@@ -1122,11 +1166,21 @@ mod tests {
             assert_eq!(lines[1..], plain[..], "seed {seed}");
         }
         // Limited strength draws exactly what it drew before: Variety adds
-        // no draw of its own there.
+        // no draw of its own there. Over three moves an extra draw at the
+        // first would shift the generators of the second and third.
+        let moves = [
+            GO,
+            "position startpos moves e2e4",
+            GO,
+            "position startpos moves e2e4 e7e5",
+            GO,
+        ];
         for seed in 1..=3 {
+            let mut with_variety = vec!["setoption name Variety value 100"];
+            with_variety.extend(moves);
             assert_eq!(
-                weakened(seed, &["setoption name Variety value 100", GO]),
-                weakened(seed, &[GO]),
+                weakened(seed, &with_variety),
+                weakened(seed, &moves),
                 "seed {seed}"
             );
         }
