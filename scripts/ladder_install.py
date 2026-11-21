@@ -213,7 +213,9 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
     try:
         if engine["url"] not in fetched:
             download = work / "download"
-            tools.download(engine["url"], download, engine["sha256"])
+            # Plain HTTP only for a pin that says why; the digest is checked.
+            tools.download(engine["url"], download, engine["sha256"],
+                           allow_http=bool(engine.get("http_reason")))
             kept = Path(fetched["dir"]) / hashlib.sha256(engine["url"].encode()).hexdigest()
             shutil.move(str(download), kept)
             fetched[engine["url"]] = kept
@@ -225,14 +227,19 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
         if engine["archive"] == "none":
             shutil.copyfile(archive, program)
         elif engine["archive"] == "zip" and engine["method"] == "download":
-            # An archive of ready binaries: only the one member is read.
+            # An archive of ready binaries: only the named members are read,
+            # the program and the files it needs beside it.
             extract_zip_member(archive, engine["binary"], program)
+            for extra in engine.get("beside", []):
+                extract_zip_member(archive, extra, stage / Path(extra).name)
         else:
-            # A source archive (tar.gz or zip) or a tar.gz of binaries: the
-            # whole tree is unpacked, with the same checks for either kind.
+            # A source archive (tar.gz or zip), or a tar.gz or 7z of binaries:
+            # the whole tree is unpacked, with the same checks for each kind.
             tree_root = work / "tree"
             if engine["archive"] == "zip":
                 tools.safe_extract_zip(archive, tree_root)
+            elif engine["archive"] == "7z":
+                tools.safe_extract_7z(archive, tree_root)
             else:
                 tools.safe_extract(archive, tree_root)
             tree = tools.single_subdir(tree_root)

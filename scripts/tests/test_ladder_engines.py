@@ -78,10 +78,16 @@ class LadderEnginesTest(unittest.TestCase):
     def test_every_source_is_https_and_pinned(self):
         for engine in all_pins():
             name = engine["name"]
-            self.assertTrue(engine["url"].startswith("https://"), name)
+            if engine.get("http_reason"):
+                # Plain HTTP only where the project serves nothing else, and
+                # then the pin says why; the digest below is checked anyway.
+                self.assertTrue(engine["url"].startswith(("https://", "http://")), name)
+                self.assertGreater(len(engine["http_reason"]), 40, name)
+            else:
+                self.assertTrue(engine["url"].startswith("https://"), name)
             self.assertTrue(engine["source"].startswith("https://"), name)
             self.assertIn(engine["method"], ("download", "build"), name)
-            self.assertIn(engine["archive"], ("none", "tar.gz", "zip"), name)
+            self.assertIn(engine["archive"], ("none", "tar.gz", "zip", "7z"), name)
             self.assertRegex(engine["licence"], r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT)$", name)
             self.assertGreater(len(engine["notes"]), 10, name)
             # Nothing is fetched without a digest, source archives included.

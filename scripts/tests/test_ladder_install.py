@@ -46,16 +46,19 @@ class LadderInstallTest(unittest.TestCase):
         self.served.mkdir()
         self.urls: dict[str, Path] = {}
         self.downloads: list[str] = []
+        self.http_allowed: list[bool] = []
         patcher = mock.patch.object(install_tools, "download", self.fake_download)
         patcher.start()
         self.addCleanup(patcher.stop)
 
     # --- stand-ins ----------------------------------------------------------
 
-    def fake_download(self, url: str, dest: Path, sha256: str | None) -> str:
+    def fake_download(self, url: str, dest: Path, sha256: str | None,
+                      allow_http: bool = False) -> str:
         """Copies the file the test serves at `url`, checking the digest as
-        the real download does."""
+        the real download does, and records whether plain HTTP was allowed."""
         self.downloads.append(url)
+        self.http_allowed.append(allow_http)
         data = self.urls[url].read_bytes()
         if sha256 is not None and sha(data) != sha256:
             install_tools.die(f"checksum mismatch for {url}")
@@ -161,6 +164,30 @@ class LadderInstallTest(unittest.TestCase):
         # The shared archive is fetched once.
         self.assertEqual(self.downloads, [url])
 
+    def test_a_zip_member_with_files_beside_it(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("Pack-1.0/engine.exe", b"MZ engine")
+            bundle.writestr("Pack-1.0/engine.nn", b"network")
+            bundle.writestr("Pack-1.0/logo.jpg", b"not wanted")
+        url, digest = self.serve("pack.zip", buffer.getvalue())
+        engine = self.engine(url=url, sha256=digest, archive="zip",
+                             binary="Pack-1.0/engine.exe", beside=["Pack-1.0/engine.nn"],
+                             member_sha256=sha(b"MZ engine"))
+        ctx, _, failed, printed = self.install([engine])
+        self.assertEqual(failed, [], printed)
+        home = ctx.prefix / "engines" / "test-1.0"
+        self.assertEqual(sorted(p.name for p in home.iterdir()), ["engine.exe", "engine.nn"])
+        self.assertEqual((home / "engine.nn").read_bytes(), b"network")
+        self.assertTrue(ladder_install.is_installed(ctx, engine))
+
+    def test_plain_http_is_allowed_only_for_a_pin_that_says_why(self):
+        url, digest = self.serve("bare", b"ELF bare")
+        self.install([self.engine(url=url, sha256=digest)])
+        self.install([self.engine("Old 1", url=url, sha256=digest,
+                                  http_reason="the project's site serves only HTTP")])
+        self.assertEqual(self.http_allowed, [False, True])
+
     # --- builds -------------------------------------------------------------
 
     def source_engine(self, **fields) -> dict:
@@ -225,10 +252,10 @@ class LadderInstallTest(unittest.TestCase):
         good = self.engine("Good 2", url=good_url, sha256=digest)
         real = self.fake_download
 
-        def flaky(url, dest, sha256):
+        def flaky(url, dest, sha256, allow_http=False):
             if url.endswith("/gone"):
                 raise OSError("server answered 404")
-            return real(url, dest, sha256)
+            return real(url, dest, sha256, allow_http)
 
         with mock.patch.object(install_tools, "download", flaky):
             ctx, present, failed, printed = self.install([gone, good])

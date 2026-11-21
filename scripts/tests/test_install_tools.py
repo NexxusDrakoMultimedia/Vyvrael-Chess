@@ -87,6 +87,37 @@ class Download(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
             install_tools.download("http://example.invalid/x", Path(tmp) / "x", None)
 
+    def test_plain_http_needs_a_digest_and_stays_on_the_web(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for url, digest in (("http://example.invalid/x", None),
+                                ("ftp://example.invalid/x", "a" * 64)):
+                with self.assertRaises(SystemExit, msg=url), redirect_stderr(io.StringIO()):
+                    install_tools.download(url, Path(tmp) / "x", digest, allow_http=True)
+        request = install_tools.urllib.request.Request("http://example.invalid/x")
+        handler = install_tools.WebOnlyRedirects()
+        for newurl in ("ftp://example.invalid/x", "file:///etc/passwd"):
+            with self.assertRaises(SystemExit, msg=newurl), redirect_stderr(io.StringIO()):
+                handler.redirect_request(request, None, 302, "Found", {}, newurl)
+        followed = handler.redirect_request(request, None, 302, "Found", {},
+                                            "http://other.invalid/y")
+        self.assertEqual(followed.full_url, "http://other.invalid/y")
+
+    def test_plain_http_with_a_digest_is_checked(self):
+        # No network: the opener answers from memory with the wrong bytes.
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.geturl.return_value = "http://example.invalid/x"
+        response.read.side_effect = [b"other bytes", b""]
+        opener = mock.MagicMock()
+        opener.open.return_value = response
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(install_tools.urllib.request, "build_opener",
+                                  return_value=opener), \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), \
+                self.assertRaises(SystemExit):
+            install_tools.download("http://example.invalid/x", Path(tmp) / "x", "a" * 64,
+                                   allow_http=True)
+
     def redirect(self, newurl: str):
         request = install_tools.urllib.request.Request("https://example.invalid/x")
         handler = install_tools.HttpsOnlyRedirects()
@@ -217,6 +248,62 @@ class Extract(unittest.TestCase):
             with mock.patch.object(tarfile.TarFile, "extractall") as extractall:
                 install_tools.safe_extract(path, Path(tmp) / "out")
                 extractall.assert_called_once()
+
+    def fake_tar(self, listing: str, names: str):
+        """A stand-in for Windows' tar: answers -tvf and -tf from text and
+        records an extraction instead of doing one."""
+        calls = []
+
+        def run(words, **_):
+            calls.append(words)
+            out = {"-tvf": listing, "-tf": names}.get(words[1], "")
+            return mock.Mock(returncode=0, stdout=out, stderr="")
+        return run, calls
+
+    def test_7z_entries_that_escape_or_link_are_refused_before_extracting(self):
+        cases = [
+            ("-rw-r--r-- 0 0 0 1 Jan 1 2020 top/ok\n", "top/ok\n../evil\n"),
+            ("-rw-r--r-- 0 0 0 1 Jan 1 2020 top/ok\n", "top/ok\nC:/evil\n"),
+            ("lrwxrwxrwx 0 0 0 0 Jan 1 2020 top/link -> /etc\n", "top/link\n"),
+        ]
+        for listing, names in cases:
+            run, calls = self.fake_tar(listing, names)
+            with tempfile.TemporaryDirectory() as tmp, \
+                    mock.patch.object(install_tools.subprocess, "run", run), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit, msg=names):
+                install_tools.safe_extract_7z(Path(tmp) / "a.7z", Path(tmp) / "out",
+                                              tar=Path("tar.exe"))
+            self.assertNotIn("-xf", [words[1] for words in calls])
+
+    def test_a_safe_7z_is_extracted_into_the_destination(self):
+        run, calls = self.fake_tar("drwxr-xr-x 0 0 0 0 Jan 1 2020 top/\n"
+                                   "-rw-r--r-- 0 0 0 1 Jan 1 2020 top/engine.exe\n",
+                                   "top/\ntop/engine.exe\n")
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(install_tools.subprocess, "run", run):
+            install_tools.safe_extract_7z(Path(tmp) / "a.7z", Path(tmp) / "out",
+                                          tar=Path("tar.exe"))
+            self.assertEqual(calls[-1][1:4], ["-xf", str(Path(tmp) / "a.7z"), "-C"])
+
+    def test_without_windows_tar_a_7z_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(install_tools, "windows_tar", lambda: None), \
+                redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            install_tools.safe_extract_7z(Path(tmp) / "a.7z", Path(tmp) / "out")
+
+    @unittest.skipUnless(install_tools.windows_tar(), "needs Windows' own tar")
+    def test_a_real_7z_with_windows_tar(self):
+        tar = install_tools.windows_tar()
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "src" / "top"
+            source.mkdir(parents=True)
+            (source / "engine.exe").write_bytes(b"MZ engine")
+            archive = Path(tmp) / "a.7z"
+            install_tools.subprocess.run(
+                [str(tar), "--format", "7zip", "-cf", str(archive), "-C",
+                 str(Path(tmp) / "src"), "top"], check=True)
+            install_tools.safe_extract_7z(archive, Path(tmp) / "out")
+            self.assertEqual((Path(tmp) / "out/top/engine.exe").read_bytes(), b"MZ engine")
 
     def test_single_subdir_falls_back_to_the_directory_itself(self):
         with tempfile.TemporaryDirectory() as tmp:

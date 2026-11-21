@@ -115,21 +115,40 @@ def https_opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(HttpsOnlyRedirects)
 
 
-def download(url: str, dest: Path, sha256: str | None) -> str:
+class WebOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follows a redirect only to an HTTP or HTTPS address (never ftp: or
+    file:). Used only for a pinned file that its project serves over plain
+    HTTP, whose digest is checked."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith(("https://", "http://")):
+            die(f"refusing a redirect away from the web: {req.full_url} -> {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def download(url: str, dest: Path, sha256: str | None, allow_http: bool = False) -> str:
     """Downloads `url` to `dest` and returns its SHA-256.
 
     Only HTTPS is used, for the address given and for every redirect. With
     `sha256` given, a mismatch deletes the file and aborts. Without it the
     digest is printed so it can be pinned.
+
+    `allow_http` also accepts plain HTTP, for a file whose project serves it
+    no other way; it needs `sha256`, so what arrives is still checked byte
+    for byte.
     """
-    if not url.startswith("https://"):
+    if allow_http and sha256 is None:
+        die(f"refusing to download over plain HTTP without a pinned digest: {url}")
+    schemes = ("https://", "http://") if allow_http else ("https://",)
+    if not url.lower().startswith(schemes):
         die(f"refusing to download over anything but HTTPS: {url}")
     say(f"  downloading {url}")
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": "install-tools"})
-    with https_opener().open(request, timeout=60) as response:
+    opener = urllib.request.build_opener(WebOnlyRedirects) if allow_http else https_opener()
+    with opener.open(request, timeout=60) as response:
         # Belt and braces: the address the bytes really come from.
-        if not response.geturl().lower().startswith("https://"):
+        if not response.geturl().lower().startswith(schemes):
             die(f"refusing to download over anything but HTTPS: {response.geturl()}")
         with open(dest, "wb") as out:
             for chunk in iter(lambda: response.read(1 << 20), b""):
@@ -216,6 +235,48 @@ def safe_extract_zip(archive: Path, dest: Path) -> None:
             if stat.S_ISLNK(info.external_attr >> 16):
                 die(f"link in archive: {info.filename}")
         bundle.extractall(dest)
+
+
+def windows_tar() -> Path | None:
+    """Windows' own tar (bsdtar, from Windows 10 1803 on), which reads 7-Zip
+    archives. Not the tar of Git for Windows, which cannot."""
+    root = os.environ.get("SystemRoot") or r"C:\Windows"
+    program = Path(root) / "System32" / "tar.exe"
+    return program if program.is_file() else None
+
+
+def safe_extract_7z(archive: Path, dest: Path, tar: Path | None = None) -> None:
+    """Extracts a 7-Zip archive with Windows' tar, after refusing entries that
+    would land outside `dest` and entries that are links or special files."""
+    tar = tar or windows_tar()
+    if tar is None:
+        die("a 7-Zip archive needs Windows' own tar (System32\\tar.exe, Windows 10 or"
+            " later); it is not there")
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    def run(*words: str) -> str:
+        result = subprocess.run([str(tar), *words, str(archive)], capture_output=True,
+                                text=True, encoding="utf-8", errors="replace", check=False)
+        if result.returncode != 0:
+            die(f"tar could not read {archive.name}: {result.stderr.strip()}")
+        return result.stdout
+
+    for line in run("-tvf").splitlines():
+        if line and line[0] not in "-d":
+            die(f"link or special file in archive: {line}")
+    for name in run("-tf").splitlines():
+        if not name:
+            continue
+        if name.startswith(("/", "\\")) or ":" in name:
+            die(f"unsafe path in archive: {name}")
+        target = (dest / name).resolve()
+        if target != dest and dest not in target.parents:
+            die(f"unsafe path in archive: {name}")
+    result = subprocess.run([str(tar), "-xf", str(archive), "-C", str(dest)],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        die(f"tar could not unpack {archive.name}: {result.stderr.strip()}")
 
 
 def single_subdir(path: Path) -> Path:
