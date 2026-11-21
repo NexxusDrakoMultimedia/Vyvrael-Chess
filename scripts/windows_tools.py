@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import subprocess
 import tempfile
-import zipfile
 from pathlib import Path
 
 import install_tools as tools
@@ -74,23 +72,6 @@ def is_installed(ctx, tool: str) -> bool:
     )
 
 
-def safe_extract_zip(archive: Path, dest: Path) -> None:
-    """Extracts a zip archive, refusing entries that would land outside
-    `dest` and entries that are links."""
-    dest = dest.resolve()
-    dest.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive) as bundle:
-        for info in bundle.infolist():
-            if info.filename.startswith(("/", "\\")) or ":" in info.filename:
-                tools.die(f"unsafe path in archive: {info.filename}")
-            target = (dest / info.filename).resolve()
-            if target != dest and dest not in target.parents:
-                tools.die(f"unsafe path in archive: {info.filename}")
-            if stat.S_ISLNK(info.external_attr >> 16):
-                tools.die(f"link in archive: {info.filename}")
-        bundle.extractall(dest)
-
-
 def missing_runtime(system_root: str | None = None) -> list[str]:
     """The Visual C++ runtime files that are not in System32."""
     root = system_root or os.environ.get("SystemRoot") or r"C:\Windows"
@@ -110,7 +91,7 @@ def install(ctx, tool: str) -> dict | None:
         archive = work / "download.zip"
         tools.download(pin["url"], archive, pin["sha256"])
         stage = work / "stage"
-        safe_extract_zip(archive, stage)
+        tools.safe_extract_zip(archive, stage)
         if not (stage / pin["program"]).is_file():
             tools.die(f"{pin['program']} is not in the archive")
         tools.replace_dir(stage, dest)

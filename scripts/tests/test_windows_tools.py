@@ -195,7 +195,7 @@ class WindowsToolsTest(unittest.TestCase):
             archive = self.tmp / "bad.zip"
             archive.write_bytes(zip_bytes({name: b"x"}))
             with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit, msg=name):
-                windows_tools.safe_extract_zip(archive, self.tmp / "out")
+                install_tools.safe_extract_zip(archive, self.tmp / "out")
         self.assertFalse((self.tmp / "outside.exe").exists())
 
     def test_a_missing_visual_c_runtime_is_reported_not_installed(self):

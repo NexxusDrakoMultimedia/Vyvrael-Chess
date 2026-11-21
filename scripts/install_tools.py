@@ -41,6 +41,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 # What gets installed. Change these only in a reviewed commit, and record the
@@ -198,6 +199,23 @@ def safe_extract(archive: Path, dest: Path) -> None:
             tar.extractall(dest, filter="data")
         else:
             tar.extractall(dest)
+
+
+def safe_extract_zip(archive: Path, dest: Path) -> None:
+    """Extracts a zip archive, refusing entries that would land outside
+    `dest` and entries that are links."""
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as bundle:
+        for info in bundle.infolist():
+            if info.filename.startswith(("/", "\\")) or ":" in info.filename:
+                die(f"unsafe path in archive: {info.filename}")
+            target = (dest / info.filename).resolve()
+            if target != dest and dest not in target.parents:
+                die(f"unsafe path in archive: {info.filename}")
+            if stat.S_ISLNK(info.external_attr >> 16):
+                die(f"link in archive: {info.filename}")
+        bundle.extractall(dest)
 
 
 def single_subdir(path: Path) -> Path:
