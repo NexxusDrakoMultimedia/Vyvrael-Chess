@@ -55,6 +55,7 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": (1320, 3190),
+        "options": [("Move Overhead", 30)],
         "variants": [1320, 1500, 1800, 2000, 2200, 2400],
         "notes": "The only official x86-64 Linux file: one binary that picks its code "
         "path for the processor at run time. There is no separate AVX2/BMI2 file to pin.",
@@ -74,11 +75,12 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": (1000, 3450),
+        "options": [("OwnBook", False), ("Use tablebases", False), ("Move overhead", 30)],
         "variants": [1500, 1800],
         "notes": "The archive also holds an AVX-512 binary, which is not used. The network "
         "file must sit beside the binary. The engine's own book (book.bin) is installed "
-        "beside it too, as it was in the baseline run, and the book option is left at "
-        "the engine's default. UCI_Elo moves in steps of about 24.5: "
+        "beside it too, as in Ladder Baseline 1, but switched off with OwnBook, as in "
+        "Ladder Baseline 2. UCI_Elo moves in steps of about 24.5: "
         "1500 and 1800 play as 1490 and 1784 on the engine's own scale.",
     },
     {
@@ -112,6 +114,7 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": None,
+        "options": [("MoveOverhead", 30)],
         "notes": "The digest is the one GitHub publishes for the file; it was not "
         "downloaded when this was recorded.",
     },
@@ -129,6 +132,7 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": None,
+        "options": [("MoveOverhead", 30)],
         "notes": "The file linked from the v37.0 release, fetched by GitLab's project-number "
         "address because the address in the release text answers 404 to a script. GitLab "
         "publishes no digest, so this one is what the file had on 2026-11-21.",
@@ -182,6 +186,7 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": None,
+        "options": [("NoobBook", False), ("OnlineSyzygy", False)],
         "notes": "No official Linux binary. The makefile's flags are given again with "
         "-march=haswell for -march=native, and without its -Werror: a current gcc "
         "warns about sign comparisons in this 2021 source, and with -Werror those "
@@ -210,6 +215,7 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": (800, 2800),
+        "options": [("UseBook", False), ("TimeBuffer", 30)],
         "variants": [1600, 2000],
         "notes": "The repository has no tags or releases, so the pin is a commit, chosen "
         "by the maintainer on 2026-11-21; the engine reports itself as Rodent IV 0.33. "
@@ -237,6 +243,7 @@ ENGINES = [
         "hash": True,
         "threads": False,
         "limit": None,
+        "options": [("Book", False)],
         "notes": "No tags; the commit is the one titled 'initial commit of Vice 1.1 Source'. "
         "Later commits and the main branch are a different engine (Vice 1.2). The makefile "
         "names no architecture, so the build is plain x86-64. The engine's book "
@@ -261,6 +268,7 @@ ENGINES = [
         "hash": True,
         "threads": False,
         "limit": None,
+        "options": [("OwnBook", False)],
         "notes": "Not from the project's own page: the author's site is gone, and this is "
         "the original source as Debian keeps it, accepted by the maintainer on "
         "2026-11-21. The digest is the one in Debian's signed source description. The "
@@ -381,7 +389,10 @@ NOT_INSTALLABLE = {
     "maintainer's decision, 2026-11-21).",
 }
 
-# What every engine of the ladder is given, as in the baselines.
+# What every engine of the ladder is given, as in the baselines. Each pin's
+# `options` add the rest of Ladder Baseline 2's settings: books and online
+# tablebases off and 30 ms of move overhead, under the engine's own option
+# names (read from each engine's `uci` answer on 2026-11-21).
 HASH_MB = 64
 
 

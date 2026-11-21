@@ -50,9 +50,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   an engine whose download or build failed. It then writes
   `<prefix>/engines/engines.json`, the list of what is installed under the
   ladder's names, the limited entries (such as "Stockfish 19-1500")
-  included, with Hash 64, one thread, the strength settings and any
-  options an engine's pin fixes (CT800: book off, hash cleared between
-  games, 30 ms of move overhead, as in Ladder Baseline 2). Last, it
+  included, with Hash 64, one thread, the strength settings and the rest
+  of Ladder Baseline 2's settings (books and tablebases off, 30 ms of move
+  overhead where the engine has the option). Last, it
   starts every installed engine under each of its names, sends `uci`, its
   options, `isready` and `go depth 6`, and prints PASS or FAIL; every wait
   has a time limit. `--verify` runs that check alone.

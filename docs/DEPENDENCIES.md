@@ -107,12 +107,17 @@ Left out, with the reason:
 
 Fruit 2.1 is the one engine not taken from its project's own page: the
 author's site is gone, so the source is the original tarball as Debian keeps
-it, which the maintainer accepted on 2026-11-21. Arasan is installed with
-its own opening book, as it was in Ladder Baseline 1's run. CT800 is the
-first pin with options of its own in the engine list (book off, hash
-cleared between games, 30 ms of move overhead), as in Ladder Baseline 2;
-the other engines still get only Hash, Threads and their strength
-settings.
+it, which the maintainer accepted on 2026-11-21.
+
+The engine list gives every engine Ladder Baseline 2's settings under the
+engine's own option names, as read from each engine's `uci` answer on
+2026-11-21: books off (Arasan `OwnBook`, Fruit `OwnBook`, Vice `Book`,
+Rodent IV `UseBook`, Weiss `NoobBook`, CT800 `OwnBook`), tablebases off
+(Arasan `Use tablebases`, Weiss `OnlineSyzygy`), CT800's `Keep Hash Tables`
+off, and 30 ms of move overhead where there is the option (Stockfish `Move
+Overhead`, Arasan `Move overhead`, Reckless and Stash `MoveOverhead`,
+Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`). The book files that
+Arasan, Fruit and Rodent IV ship are still installed beside them, unused.
 
 CT800's zip also holds the Windows binary of Ladder Baseline 2, identical by
 SHA-256, but no Linux binary: its readme says to build with

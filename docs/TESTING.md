@@ -395,9 +395,10 @@ python3 scripts/install_tools.py --list                # pins and what is instal
 - **The engine list.** Afterwards the script writes
   `<prefix>/engines/engines.json` with every installed engine under its
   ladder name, Hash 64 and one thread where the engine has the option, the
-  strength settings of the limited entries, and any options the engine's
-  pin fixes (so far only CT800's, as in Ladder Baseline 2: book off, hash
-  cleared between games, 30 ms of move overhead). Put its path in
+  strength settings of the limited entries, and the rest of Ladder
+  Baseline 2's settings under each engine's own option names: books and
+  tablebases off and 30 ms of move overhead where the engine has the option
+  (the list is in [DEPENDENCIES.md](DEPENDENCIES.md)). Put its path in
   `scripts/local.env` as `ENGINES_JSON` for `match.sh gauntlet`.
 - **The check.** Last, each engine is started under each of its names and
   sent `uci`, its options, `isready` and `go depth 6`. The script prints

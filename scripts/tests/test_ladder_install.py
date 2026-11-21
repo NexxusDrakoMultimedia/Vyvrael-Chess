@@ -464,15 +464,26 @@ class LadderInstallTest(unittest.TestCase):
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
-                         {"Hash": 64, "Threads": 1, "UCI_LimitStrength": True, "UCI_Elo": 1320})
+                         {"Hash": 64, "Threads": 1, "Move Overhead": 30,
+                          "UCI_LimitStrength": True, "UCI_Elo": 1320})
         self.assertEqual(by_name["Arasan 26.1-1800"]["UCI_Elo"], 1800)
         self.assertEqual(by_name["Rodent IV-1600"]["UCI_Elo"], 1600)
         # Rodent IV limits itself unless told not to.
         self.assertIs(by_name["Rodent IV"]["UCI_LimitStrength"], False)
         self.assertNotIn("UCI_Elo", by_name["Rodent IV"])
         self.assertEqual(by_name["Rustic Alpha 1.5"], {})
-        self.assertEqual(by_name["Vice 1.1"], {"Hash": 64})
+        self.assertEqual(by_name["Vice 1.1"], {"Hash": 64, "Book": False})
         self.assertEqual(by_name["Viridithas 20"], {"Hash": 64, "Threads": 1})
+        # Ladder Baseline 2's settings under each engine's own option names:
+        # books off and 30 ms of move overhead.
+        self.assertEqual(by_name["Arasan 26.1-1500"]["OwnBook"], False)
+        self.assertEqual(by_name["Arasan 26.1"]["Move overhead"], 30)
+        self.assertEqual(by_name["Reckless 0.9.0"]["MoveOverhead"], 30)
+        self.assertEqual(by_name["Stash 37.0"]["MoveOverhead"], 30)
+        self.assertEqual(by_name["Rodent IV-2000"]["TimeBuffer"], 30)
+        self.assertIs(by_name["Rodent IV-2000"]["UseBook"], False)
+        self.assertIs(by_name["Fruit 2.1"]["OwnBook"], False)
+        self.assertIs(by_name["Weiss 2.0"]["NoobBook"], False)
         # CT800 as in Ladder Baseline 2: no Threads option, book off, the
         # hash cleared between games, 30 ms of move overhead.
         ct800 = {"Hash": 64, "OwnBook": False, "Keep Hash Tables": False,
