@@ -66,6 +66,20 @@ is in [docs/UCI.md](docs/UCI.md).
 - **lichess-bot:** set `engine.name` to the binary name and
   `engine.protocol` to `uci` in `config.yml`.
 
+Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
+`UCI_Elo` and `Move Overhead`:
+
+- **`Seed`** (0 to 2147483647, default 0): the seed of the engine's
+  strength-affecting randomness. 0 takes a new one from system entropy for
+  every game and logs it; any other number fixes it, to replay a game.
+- **`Variety`** (0 to 100 centipawns, default 0): in the first twelve
+  moves, play now and then a move checked to be within this many
+  centipawns of the best, so that games do not repeat. 0 always plays the
+  best move, as matches and tests need.
+
+Play is deterministic with one thread, a fixed `Seed`, `Variety` 0 and a
+fixed depth or node count.
+
 The protocol is tested by driving the binary over pipes (`tests/uci.rs`)
 and by complete games under `cutechess-cli` (see
 [docs/TESTING.md](docs/TESTING.md)). It has **not yet been tried in a GUI

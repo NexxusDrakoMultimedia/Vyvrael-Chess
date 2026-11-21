@@ -546,7 +546,7 @@ Decided by the maintainer:
   it is edited. Seeds taken from entropy stay in that range so any logged
   seed can be typed back. The seed is logged with `info string` at start
   and at every `ucinewgame`, as now.
-- [ ] **Option `Variety`** (spin, centipawns, 0 to 100, **default 0**). At
+- [x] **Option `Variety`** (spin, centipawns, 0 to 100, **default 0**). At
   the root only and only in the first 12 full moves, choose at random among
   the moves within `Variety` of the best, weighted towards the best. Never
   when the best score is a mate, and never a move that a second check shows
@@ -560,7 +560,7 @@ Decided by the maintainer:
 - [x] Once `bench` exists, record the first bench node count and speed and
   the perft speed in `docs/testing/bench-history.md`, so that queued task 2
   has a baseline from before milestone 7.
-- [ ] Tests: bench twice gives one node count; a fixed-depth search with a
+- [x] Tests: bench twice gives one node count; a fixed-depth search with a
   fixed `Seed` and `Variety` 0 is reproducible; with `Variety` 0 the root
   move is always the best one; the seed line is printed (no test may depend
   on two entropy seeds differing).

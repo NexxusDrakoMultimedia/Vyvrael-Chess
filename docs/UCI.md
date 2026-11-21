@@ -18,6 +18,7 @@ id author Nexxus Drako Multimedia
 option name Hash type spin default 16 min 1 max 65536
 option name Threads type spin default 1 min 1 max 1
 option name Seed type spin default 0 min 0 max 2147483647
+option name Variety type spin default 0 min 0 max 100
 option name UCI_LimitStrength type check default false
 option name UCI_Elo type spin default 1200 min 400 max 1800
 option name Move Overhead type spin default 30 min 0 max 5000
@@ -136,6 +137,7 @@ search.
 | `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
 | `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
 | `Seed` | spin | `0` (0 to 2147483647) | implemented | Seed of strength-affecting randomness. `0` takes a new seed from system entropy when the engine starts and at every `ucinewgame`; any other value is that seed. Setting it back to `0` takes a fresh entropy seed. The maximum is the largest signed 32-bit number, which Cute Chess can store; entropy seeds stay from 1 to it, so a logged seed can always be given back. It replaces `DeterministicRNG` and `RngSeed` (0.1.0-alpha.1). |
+| `Variety` | spin | `0` (0 to 100) | implemented | Centipawns. In the first 12 full moves, at full strength, play at random among the best move and the moves a second search checks to be within this many centipawns of it, weighted towards the best. Never when the best score is a mate. `0` always plays the best move. It weakens play on purpose. See "Variety" below. |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
@@ -147,10 +149,39 @@ Strength limiting uses randomness to weaken play, so it is governed by
 `Seed`: non-deterministic by default (`Seed` 0), reproducible with any other
 value. See "Planned features" in [ROADMAP.md](ROADMAP.md).
 
-**Deterministic play** needs one thread, a fixed `Seed` and a search that
-does not depend on the clock (`go depth` or `go nodes`). Full-strength play
-draws no random numbers at all, so at a fixed depth it is the same with any
-`Seed`; the seed matters for limited strength.
+**Deterministic play** needs one thread, a fixed `Seed`, `Variety` 0 and a
+search that does not depend on the clock (`go depth` or `go nodes`).
+Full-strength play with `Variety` 0 draws no random numbers at all, so at a
+fixed depth it is the same with any `Seed`; the seed matters for limited
+strength and for `Variety`.
+
+### Variety
+
+An engine that always plays its best move repeats its games: the same
+position searched to the same depth gives the same move. `Variety` above 0
+breaks that in the opening:
+
+- It applies at full strength, in positions whose full-move number is at
+  most 12, and never when the best score is a mate.
+- The search runs as usual, on two thirds of the move's time or node
+  budget. Then every other move gets a quick score, those near the best are
+  searched again to the same depth, and only a move whose score that second
+  search puts within `Variety` of the best is a choice. The rest of the
+  budget is for that check; a move it could not check in time is not
+  played. With `go depth` the check always completes.
+- The engine plays one of the choices at random, the best move included
+  and the most likely, and says so in an `info string` when it is not the
+  best: `info string variety: d7d6 instead of g8f6, 9 cp below it, one of 6
+  moves`. The `info` lines before it are those of the search.
+- It draws from the same seeded generator as limited strength, so with a
+  fixed `Seed` and `go depth` a varied game is reproducible.
+
+What "within 10 centipawns" means depends on the evaluation: at shallow
+depths the hand-crafted evaluation rates many quiet opening moves within a
+few centipawns of each other, so a large `Variety` plays odd but legal
+openings. `Variety` weakens play on purpose, so it is exempt from the rule
+that changes must pass an SPRT, and it must be 0 in any match that measures
+strength.
 
 ### Move Overhead
 

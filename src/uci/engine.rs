@@ -22,7 +22,10 @@ use crate::board::{Bitboard, Position, Square};
 use crate::eval::default_evaluator;
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
-use crate::search::{Limits, Report, Search, Weakening, weakened_move};
+use crate::search::{
+    Limits, Outcome, Report, Search, Weakening, split_limits, varied_move, variety_applies,
+    weakened_move,
+};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Where protocol output goes, shared by the command thread and the search
@@ -280,15 +283,65 @@ impl Engine {
                 Rng::from_state(self.rng.next_u64()),
             )
         });
+        // `Variety` (full strength only): the search gets part of the budget
+        // and the checks of a varied move the rest, with a generator of
+        // their own, drawn only when it applies. With `Variety` 0 nothing
+        // here changes the search or touches the generator.
+        let variety = self.options.variety;
+        let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
+        let (search_limits, check_limits) = if varying {
+            split_limits(limits, Instant::now())
+        } else {
+            (limits, Limits::NONE)
+        };
+        let variety_rng = varying.then(|| Rng::from_state(self.rng.next_u64()));
         let search = move || {
             let evaluator = default_evaluator();
             let outcome = match weakened {
                 None => {
                     let mut search = Search::new(evaluator.as_ref())
                         .with_history(&history)
-                        .with_limits(limits)
+                        .with_limits(search_limits)
                         .with_stop_flag(&stop);
-                    search.iterate(&position, &mut |report| send(&out, &info_line(report)))
+                    let mut reached = 0;
+                    let outcome = search.iterate(&position, &mut |report| {
+                        reached = report.depth;
+                        send(&out, &info_line(report));
+                    });
+                    match variety_rng {
+                        None => outcome,
+                        Some(mut rng) => {
+                            let varied = varied_move(
+                                &position,
+                                &history,
+                                evaluator.as_ref(),
+                                &outcome,
+                                reached,
+                                variety,
+                                check_limits,
+                                &stop,
+                                &mut rng,
+                            );
+                            match (varied, outcome.best_move) {
+                                (Some(varied), Some(best)) if varied.best_move != best => {
+                                    send(
+                                        &out,
+                                        &format!(
+                                            "info string variety: {} instead of {best}, {} cp \
+                                             below it, one of {} moves",
+                                            varied.best_move, varied.loss, varied.choices
+                                        ),
+                                    );
+                                    Outcome {
+                                        score: varied.score,
+                                        best_move: Some(varied.best_move),
+                                        pv: vec![varied.best_move],
+                                    }
+                                }
+                                _ => outcome,
+                            }
+                        }
+                    }
                 }
                 Some((weakening, mut rng)) => {
                     let started = Instant::now();
@@ -969,6 +1022,114 @@ mod tests {
 
     fn stable(lines: &[String]) -> Vec<String> {
         lines.iter().map(|line| strip_time(line)).collect()
+    }
+
+    /// The move of a session's last `bestmove` line.
+    fn last_best(lines: &[String]) -> String {
+        lines
+            .iter()
+            .rev()
+            .find_map(|line| line.strip_prefix("bestmove "))
+            .unwrap()
+            .to_string()
+    }
+
+    /// With `Variety` 0, the default, the root move is always the search's
+    /// best, with the same output, whatever the seed.
+    #[test]
+    fn variety_0_plays_the_best_move() {
+        let plain = stable(&session(&["go depth 3"]));
+        assert_eq!(
+            stable(&session(&["setoption name Variety value 0", "go depth 3"])),
+            plain
+        );
+        for seed in 1..=3 {
+            let lines = stable(&session(&[
+                &format!("setoption name Seed value {seed}"),
+                "setoption name Variety value 0",
+                "go depth 3",
+            ]));
+            assert_eq!(lines[1..], plain[..], "seed {seed}");
+        }
+        assert_eq!(
+            last_best(&plain),
+            direct(crate::board::START_FEN, 3)
+                .0
+                .best_move
+                .unwrap()
+                .to_string()
+        );
+    }
+
+    /// With a fixed `Seed` and `go depth`, a varied game is reproducible;
+    /// over several seeds some move other than the best is played, and each
+    /// time the engine says so and stays within `Variety`.
+    #[test]
+    fn variety_with_a_fixed_seed_is_reproducible_and_near_the_best() {
+        let best = last_best(&session(&["go depth 3"]));
+        let mut varied = 0;
+        for seed in 1..=12 {
+            let game = [
+                format!("setoption name Seed value {seed}"),
+                "setoption name Variety value 60".to_string(),
+                "go depth 3".to_string(),
+            ];
+            let game: Vec<&str> = game.iter().map(String::as_str).collect();
+            let lines = stable(&session(&game));
+            assert_eq!(lines, stable(&session(&game)), "seed {seed}");
+            let played = last_best(&lines);
+            if played != best {
+                varied += 1;
+                let note = lines
+                    .iter()
+                    .find(|line| line.starts_with("info string variety: "))
+                    .unwrap();
+                assert!(
+                    note.starts_with(&format!(
+                        "info string variety: {played} instead of {best}, "
+                    )),
+                    "{note}"
+                );
+                let loss: i32 = note
+                    .split(", ")
+                    .nth(1)
+                    .unwrap()
+                    .split(' ')
+                    .next()
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+                assert!((0..=60).contains(&loss), "{note}");
+            }
+        }
+        assert!(varied > 0, "no seed varied the move");
+    }
+
+    /// After the twelfth full move, and under `UCI_LimitStrength`, `Variety`
+    /// changes nothing.
+    #[test]
+    fn variety_is_only_for_the_opening_at_full_strength() {
+        let late =
+            "position fen r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 13";
+        let plain = stable(&session(&[late, "go depth 3"]));
+        for seed in 1..=4 {
+            let lines = stable(&session(&[
+                &format!("setoption name Seed value {seed}"),
+                "setoption name Variety value 100",
+                late,
+                "go depth 3",
+            ]));
+            assert_eq!(lines[1..], plain[..], "seed {seed}");
+        }
+        // Limited strength draws exactly what it drew before: Variety adds
+        // no draw of its own there.
+        for seed in 1..=3 {
+            assert_eq!(
+                weakened(seed, &["setoption name Variety value 100", GO]),
+                weakened(seed, &[GO]),
+                "seed {seed}"
+            );
+        }
     }
 
     #[test]

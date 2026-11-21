@@ -25,6 +25,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- UCI option `Variety` (spin, 0 to 100 centipawns, default 0). In the first
+  12 full moves, at full strength, the engine plays at random among its
+  best move and the moves a second search checks to be within `Variety` of
+  it, weighted towards the best, so that its games do not repeat. Never
+  when the best score is a mate; a move that could not be checked in time
+  is never played; the search keeps two thirds of the move's budget. An
+  `info string` says when a move other than the best was played. With 0,
+  the default, play is exactly as before. It weakens play on purpose and is
+  exempt from the SPRT rule; it must be 0 in strength matches.
 - `vyvrael bench [depth]`: searches seven fixed positions to depth 4 (or the
   depth given) at full strength and prints `<nodes> nodes <nps> nps`. The
   node count is the same on every run of a build (16,611,416 for this one)

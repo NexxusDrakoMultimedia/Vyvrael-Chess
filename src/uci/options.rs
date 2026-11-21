@@ -10,7 +10,7 @@
 use std::time::Duration;
 
 use crate::rng::SEED_MAX;
-use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN};
+use crate::search::{ELO_DEFAULT, ELO_MAX, ELO_MIN, VARIETY_MAX};
 
 /// Default size of the transposition table, in mebibytes.
 pub const HASH_DEFAULT: u32 = 16;
@@ -40,6 +40,10 @@ pub struct Options {
     /// [`SEED_MAX`], or 0 (the default) to take a new one from system
     /// entropy when the engine starts and at every `ucinewgame`.
     pub seed: u32,
+    /// `Variety`: in the first 12 full moves, how many centipawns below the
+    /// best a move may be and still be played, chosen at random; 0 (the
+    /// default) always plays the best move. See `search::varied_move`.
+    pub variety: u32,
     /// `UCI_LimitStrength`: whether to play below full strength.
     pub limit_strength: bool,
     /// `UCI_Elo`: the rating to play at when `UCI_LimitStrength` is on.
@@ -56,6 +60,7 @@ impl Default for Options {
             hash_mb: HASH_DEFAULT,
             threads: 1,
             seed: 0,
+            variety: 0,
             limit_strength: false,
             elo: ELO_DEFAULT,
             move_overhead_ms: MOVE_OVERHEAD_DEFAULT,
@@ -72,6 +77,7 @@ impl Options {
             spin("Hash", HASH_DEFAULT, 1, HASH_MAX),
             spin("Threads", 1, 1, THREADS_MAX),
             spin("Seed", 0, 0, SEED_MAX),
+            spin("Variety", 0, 0, VARIETY_MAX),
             check("UCI_LimitStrength", false),
             spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
             spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
@@ -98,6 +104,7 @@ impl Options {
             "hash" => self.hash_mb = parse_spin("Hash", value, 1, HASH_MAX)?,
             "threads" => self.threads = parse_spin("Threads", value, 1, THREADS_MAX)?,
             "seed" => self.seed = parse_spin("Seed", value, 0, SEED_MAX)?,
+            "variety" => self.variety = parse_spin("Variety", value, 0, VARIETY_MAX)?,
             "uci_limitstrength" => {
                 self.limit_strength = parse_check("UCI_LimitStrength", value)?;
             }
@@ -336,10 +343,36 @@ mod tests {
         assert_eq!(options.seed, 77);
     }
 
+    /// `Variety`: 0 by default, so the best move is always played unless a
+    /// user asks otherwise; up to 100 centipawns.
+    #[test]
+    fn variety() {
+        assert_eq!(
+            Options::declarations()[3],
+            "option name Variety type spin default 0 min 0 max 100"
+        );
+        let mut options = Options::default();
+        assert_eq!(options.variety, 0, "the best move unless asked");
+        for (text, value) in [("10", 10), ("100", 100), ("0", 0), ("1", 1)] {
+            assert_eq!(options.set("Variety", Some(text)), Ok(()));
+            assert_eq!(options.variety, value);
+        }
+        for bad in ["101", "-1", "10cp", "0.5", ""] {
+            assert_eq!(
+                options.set("variety", Some(bad)),
+                Err(format!(
+                    "Variety: expected a whole number from 0 to 100, got `{bad}`"
+                )),
+                "{bad}"
+            );
+        }
+        assert_eq!(options.variety, 1);
+    }
+
     #[test]
     fn limit_strength() {
         assert_eq!(
-            Options::declarations()[3],
+            Options::declarations()[4],
             "option name UCI_LimitStrength type check default false"
         );
         let mut options = Options::default();
@@ -355,7 +388,7 @@ mod tests {
     #[test]
     fn elo() {
         assert_eq!(
-            Options::declarations()[4],
+            Options::declarations()[5],
             "option name UCI_Elo type spin default 1200 min 400 max 1800"
         );
         let mut options = Options::default();
@@ -387,6 +420,7 @@ mod tests {
                 "Hash",
                 "Threads",
                 "Seed",
+                "Variety",
                 "UCI_LimitStrength",
                 "UCI_Elo",
                 "Move Overhead"
@@ -397,7 +431,7 @@ mod tests {
     #[test]
     fn move_overhead() {
         assert_eq!(
-            Options::declarations()[5],
+            Options::declarations()[6],
             "option name Move Overhead type spin default 30 min 0 max 5000"
         );
         let mut options = Options::default();
