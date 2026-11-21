@@ -621,6 +621,41 @@ treats that position as a node inside a search and not as a root: a
 position drawn by rule is worth a draw, and a mate is counted from the
 position before it.
 
+### Variety in the opening
+
+Implemented in `search/variety.rs`. At full strength the same position
+searched to the same depth gives the same move, so self-play and a bot
+repeat their games. `varied_move` lets the engine play, in the first 12 full
+moves (`VARIETY_FULL_MOVES`), a move within `Variety` centipawns of the best
+instead, at random and weighted towards the best. It runs after the
+ordinary search, from its outcome and the depth D it reached:
+
+1. **Cheap scores.** Every root move is scored by quiescence search alone
+   (`reply_value` at depth 0). A move is worth checking if that is within
+   `Variety` plus 100 centipawns of the best cheap score; quiescence
+   misjudges quiet moves, so the margin is generous.
+2. **The second check.** Each move worth checking, most promising first,
+   is searched exactly to the best move's depth (`reply_value` at D − 1
+   after the move). It is kept only if that score is within `Variety` of
+   the best move's score and is not a mate. Once a limit or `stop` cuts a
+   search short, no further move is checked, and an unchecked move is never
+   played.
+3. **The choice.** Among the best move and the kept ones, each is weighted
+   by `(Variety + 1 − loss)²`, so the best move has the largest weight and a
+   move exactly `Variety` worse the least. One number is drawn from the
+   generator per choice, however many moves were checked.
+
+It is not used when the best score is a mate, for or against, or when
+there is no move. `split_limits` shares the move's budget: when `Variety`
+applies, the ordinary search gets two thirds of the time and node limit and
+the checks the rest, so that a varied move is checked as deeply as the best
+one was found; a depth limit stays with the search and the checks then run
+to completion, which keeps a fixed-depth run reproducible.
+
+This is strength-affecting randomness, from the same generator as weakened
+play (see the randomness table below), and it weakens play on purpose, so
+it is off by default and exempt from the SPRT rule.
+
 ## UCI
 
 Implemented in `src/uci/`, the protocol layer; every command
