@@ -113,6 +113,8 @@ class LadderVerifyTest(unittest.TestCase):
         args = argparse.Namespace(prefix=str(self.tmp / "prefix"), bin_dir=None, engine=None,
                                   systemd=False, dry_run=False)
         ctx = install_tools.Ctx(args)
+        # The Linux pins, whatever the machine running the tests is.
+        ctx.system, ctx.engine_build = "linux", "avx2"
         table = [
             {"name": "Good 1", "binary": "good", "hash": True, "threads": False,
              "limit": (1000, 2000), "variants": [1500]},

@@ -195,7 +195,7 @@ class WindowsToolsTest(unittest.TestCase):
             archive = self.tmp / "bad.zip"
             archive.write_bytes(zip_bytes({name: b"x"}))
             with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit, msg=name):
-                windows_tools.safe_extract_zip(archive, self.tmp / "out")
+                install_tools.safe_extract_zip(archive, self.tmp / "out")
         self.assertFalse((self.tmp / "outside.exe").exists())
 
     def test_a_missing_visual_c_runtime_is_reported_not_installed(self):
@@ -229,17 +229,29 @@ class WindowsToolsTest(unittest.TestCase):
         self.assertEqual(self.downloads, [])
         self.assertFalse(ctx.prefix.exists())
 
-    def test_main_takes_the_windows_path_on_windows_and_refuses_engines_there(self):
+    def test_main_takes_the_windows_path_on_windows_for_tools_and_engines(self):
         prefix = str(self.tmp / "prefix")
         out = io.StringIO()
         with mock.patch.object(sys, "platform", "win32"), redirect_stdout(out):
             install_tools.main(["--prefix", prefix, "--tool", "ordo"])
         self.assertIn("ORDO=", out.getvalue())
-        err = io.StringIO()
-        with mock.patch.object(sys, "platform", "win32"), redirect_stderr(err), \
-                self.assertRaises(SystemExit):
-            install_tools.main(["--prefix", prefix, "--engines"])
-        self.assertIn("on Linux only", err.getvalue())
+        # --engines takes the Windows pins of the chosen build, and alone it
+        # installs no tool. A dry run downloads nothing.
+        self.downloads.clear()
+        for build, wanted, unwanted in (
+                ("avx2", "Ethereal12.75-x64-popcnt-avx2.exe", "pext-avx2"),
+                ("pext", "Ethereal12.75-x64-pext-avx2.exe", "popcnt-avx2")):
+            out = io.StringIO()
+            with mock.patch.object(sys, "platform", "win32"), redirect_stdout(out):
+                install_tools.main(["--prefix", prefix, "--engines", "--dry-run",
+                                    "--engine-build", build])
+            printed = out.getvalue()
+            self.assertIn(f"ladder engines for windows, {build} build", printed)
+            self.assertIn(wanted, printed)
+            self.assertNotIn(unwanted, printed)
+            self.assertIn("https://www.orionchess.com/download/Orion-v1.1.zip", printed)
+            self.assertNotIn("cutechess", printed.lower())
+        self.assertEqual(self.downloads, [])
 
 
 if __name__ == "__main__":

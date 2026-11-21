@@ -46,16 +46,19 @@ class LadderInstallTest(unittest.TestCase):
         self.served.mkdir()
         self.urls: dict[str, Path] = {}
         self.downloads: list[str] = []
+        self.http_allowed: list[bool] = []
         patcher = mock.patch.object(install_tools, "download", self.fake_download)
         patcher.start()
         self.addCleanup(patcher.stop)
 
     # --- stand-ins ----------------------------------------------------------
 
-    def fake_download(self, url: str, dest: Path, sha256: str | None) -> str:
+    def fake_download(self, url: str, dest: Path, sha256: str | None,
+                      allow_http: bool = False) -> str:
         """Copies the file the test serves at `url`, checking the digest as
-        the real download does."""
+        the real download does, and records whether plain HTTP was allowed."""
         self.downloads.append(url)
+        self.http_allowed.append(allow_http)
         data = self.urls[url].read_bytes()
         if sha256 is not None and sha(data) != sha256:
             install_tools.die(f"checksum mismatch for {url}")
@@ -83,7 +86,11 @@ class LadderInstallTest(unittest.TestCase):
             prefix=str(self.tmp / "prefix"), bin_dir=None, engine=None, systemd=False,
             dry_run=dry_run,
         )
-        return install_tools.Ctx(args)
+        ctx = install_tools.Ctx(args)
+        # The Linux pins and the default build, whatever the machine running
+        # the tests is and whatever its scripts/local.env says.
+        ctx.system, ctx.engine_build = "linux", "avx2"
+        return ctx
 
     def engine(self, name: str = "Test 1.0", **fields) -> dict:
         base = {
@@ -157,6 +164,30 @@ class LadderInstallTest(unittest.TestCase):
         # The shared archive is fetched once.
         self.assertEqual(self.downloads, [url])
 
+    def test_a_zip_member_with_files_beside_it(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("Pack-1.0/engine.exe", b"MZ engine")
+            bundle.writestr("Pack-1.0/engine.nn", b"network")
+            bundle.writestr("Pack-1.0/logo.jpg", b"not wanted")
+        url, digest = self.serve("pack.zip", buffer.getvalue())
+        engine = self.engine(url=url, sha256=digest, archive="zip",
+                             binary="Pack-1.0/engine.exe", beside=["Pack-1.0/engine.nn"],
+                             member_sha256=sha(b"MZ engine"))
+        ctx, _, failed, printed = self.install([engine])
+        self.assertEqual(failed, [], printed)
+        home = ctx.prefix / "engines" / "test-1.0"
+        self.assertEqual(sorted(p.name for p in home.iterdir()), ["engine.exe", "engine.nn"])
+        self.assertEqual((home / "engine.nn").read_bytes(), b"network")
+        self.assertTrue(ladder_install.is_installed(ctx, engine))
+
+    def test_plain_http_is_allowed_only_for_a_pin_that_says_why(self):
+        url, digest = self.serve("bare", b"ELF bare")
+        self.install([self.engine(url=url, sha256=digest)])
+        self.install([self.engine("Old 1", url=url, sha256=digest,
+                                  http_reason="the project's site serves only HTTP")])
+        self.assertEqual(self.http_allowed, [False, True])
+
     # --- builds -------------------------------------------------------------
 
     def source_engine(self, **fields) -> dict:
@@ -179,6 +210,35 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(ctx.installed_entry("engine:Test 1.0")["command"],
                          engine["build"]["command"])
 
+    def test_a_build_from_a_zip_source_archive(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("proj-1.0/src/main.c", b"zipped source")
+            bundle.writestr("proj-1.0/readme.txt", b"read me")
+        url, digest = self.serve("src.zip", buffer.getvalue())
+        engine = self.source_engine(url=url, sha256=digest, archive="zip")
+        with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
+            ctx, _, failed, printed = self.install([engine])
+        self.assertEqual(failed, [], printed)
+        program = ctx.prefix / "engines" / "test-1.0" / "engine"
+        self.assertEqual(program.read_bytes(), b"built zipped source")
+
+    def test_a_zip_source_archive_may_not_escape(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as bundle:
+            bundle.writestr("proj-1.0/src/main.c", b"source")
+            bundle.writestr("../outside.c", b"evil")
+        url, digest = self.serve("bad.zip", buffer.getvalue())
+        engine = self.source_engine(url=url, sha256=digest, archive="zip")
+        with mock.patch.object(shutil, "which", lambda tool: "/usr/bin/" + tool):
+            ctx, _, failed, printed = self.install([engine])
+        # The zip/build path goes through the shared extractor, which refuses
+        # the archive; that nothing lands outside its target is checked by
+        # test_unsafe_archive_paths_are_refused in test_windows_tools.py.
+        self.assertEqual(failed, ["Test 1.0"])
+        self.assertIn("unsafe path in archive", printed)
+        self.assertFalse((ctx.prefix / "engines" / "test-1.0").exists())
+
     def test_an_engine_without_a_digest_is_refused(self):
         url, _ = self.serve("bare", b"ELF")
         _, present, failed, printed = self.install([self.engine(url=url, sha256=None)])
@@ -192,10 +252,10 @@ class LadderInstallTest(unittest.TestCase):
         good = self.engine("Good 2", url=good_url, sha256=digest)
         real = self.fake_download
 
-        def flaky(url, dest, sha256):
+        def flaky(url, dest, sha256, allow_http=False):
             if url.endswith("/gone"):
                 raise OSError("server answered 404")
-            return real(url, dest, sha256)
+            return real(url, dest, sha256, allow_http)
 
         with mock.patch.object(install_tools, "download", flaky):
             ctx, present, failed, printed = self.install([gone, good])
@@ -350,19 +410,20 @@ class LadderInstallTest(unittest.TestCase):
             self.install(engines, only=["Gamma 3"])
 
     def test_an_unknown_or_uninstallable_name_is_explained(self):
+        ctx = self.ctx()
         out = io.StringIO()
         with redirect_stderr(out), self.assertRaises(SystemExit):
-            ladder_install.select(["Stockfish 18"])
+            ladder_install.select(ctx, ["Stockfish 18"])
         self.assertIn("no engine named 'Stockfish 18'", out.getvalue())
         self.assertIn("Stockfish 19", out.getvalue())
         out = io.StringIO()
         with redirect_stderr(out), self.assertRaises(SystemExit):
-            ladder_install.select(["Orion 1.1"])
-        self.assertIn("Orion 1.1 cannot be installed", out.getvalue())
+            ladder_install.select(ctx, ["Orion 1.1"])
+        self.assertIn("Orion 1.1 cannot be installed on linux", out.getvalue())
         # The real table: every name of the ladder selects one of its engines.
         for name in ladder_engines.ladder_names():
-            self.assertEqual(len(ladder_install.select([name])), 1, name)
-        self.assertEqual(len(ladder_install.select(None)), len(ladder_engines.ENGINES))
+            self.assertEqual(len(ladder_install.select(ctx, [name])), 1, name)
+        self.assertEqual(len(ladder_install.select(ctx, None)), len(ladder_engines.pins("linux")))
 
     def test_a_dry_run_changes_nothing(self):
         url, digest = self.serve("bare", b"ELF")
@@ -413,25 +474,55 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(by_name["Plain 2"]["options"], [{"name": "Hash", "value": 64}])
         self.assertEqual(by_name["Bare 3"]["options"], [])
 
+    def test_a_pins_fixed_options_go_into_every_entry(self):
+        ctx = self.ctx()
+        engine = self.engine("Booked 2", options=[("OwnBook", False), ("Move Overhead [ms]", 30)],
+                             limit=(1000, 2500), variants=[1200])
+        entries = ladder_install.engine_entries(ctx, engine)
+        self.assertEqual([entry["name"] for entry in entries], ["Booked 2", "Booked 2-1200"])
+        self.assertEqual(
+            [(o["name"], o["value"]) for o in entries[1]["options"]],
+            [("Hash", 64), ("Threads", 1), ("OwnBook", False), ("Move Overhead [ms]", 30),
+             ("UCI_LimitStrength", True), ("UCI_Elo", 1200)])
+        self.assertEqual(entries[0]["options"][2:4], entries[1]["options"][2:4])
+
     def test_the_real_ladder_gives_the_baselines_names_and_values(self):
         ctx = self.ctx()
         entries = []
-        for engine in ladder_engines.ENGINES:
+        for engine in ladder_engines.pins("linux"):
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
-        self.assertEqual(len(entries), 23)
+        self.assertEqual(len(entries), 27)
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
-                         {"Hash": 64, "Threads": 1, "UCI_LimitStrength": True, "UCI_Elo": 1320})
+                         {"Hash": 64, "Threads": 1, "Move Overhead": 30,
+                          "UCI_LimitStrength": True, "UCI_Elo": 1320})
         self.assertEqual(by_name["Arasan 26.1-1800"]["UCI_Elo"], 1800)
         self.assertEqual(by_name["Rodent IV-1600"]["UCI_Elo"], 1600)
         # Rodent IV limits itself unless told not to.
         self.assertIs(by_name["Rodent IV"]["UCI_LimitStrength"], False)
         self.assertNotIn("UCI_Elo", by_name["Rodent IV"])
         self.assertEqual(by_name["Rustic Alpha 1.5"], {})
-        self.assertEqual(by_name["Vice 1.1"], {"Hash": 64})
+        self.assertEqual(by_name["Vice 1.1"], {"Hash": 64, "Book": False})
         self.assertEqual(by_name["Viridithas 20"], {"Hash": 64, "Threads": 1})
+        # Ladder Baseline 2's settings under each engine's own option names:
+        # books off and 30 ms of move overhead.
+        self.assertEqual(by_name["Arasan 26.1-1500"]["OwnBook"], False)
+        self.assertEqual(by_name["Arasan 26.1"]["Move overhead"], 30)
+        self.assertEqual(by_name["Reckless 0.9.0"]["MoveOverhead"], 30)
+        self.assertEqual(by_name["Stash 37.0"]["MoveOverhead"], 30)
+        self.assertEqual(by_name["Rodent IV-2000"]["TimeBuffer"], 30)
+        self.assertIs(by_name["Rodent IV-2000"]["UseBook"], False)
+        self.assertIs(by_name["Fruit 2.1"]["OwnBook"], False)
+        self.assertIs(by_name["Weiss 2.0"]["NoobBook"], False)
+        # CT800 as in Ladder Baseline 2: no Threads option, book off, the
+        # hash cleared between games, 30 ms of move overhead.
+        ct800 = {"Hash": 64, "OwnBook": False, "Keep Hash Tables": False,
+                 "Move Overhead [ms]": 30}
+        self.assertEqual(by_name["CT800 1.46"], dict(ct800, UCI_LimitStrength=False))
+        self.assertEqual(by_name["CT800 1.46-1200"],
+                         dict(ct800, UCI_LimitStrength=True, UCI_Elo=1200))
 
     def test_a_dry_run_writes_no_engine_list(self):
         ctx = self.ctx(dry_run=True)

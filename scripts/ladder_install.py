@@ -30,6 +30,22 @@ import ladder_engines
 BUILD_TIMEOUT = 3600  # seconds; the largest build is a Rust engine with its dependencies
 
 
+def system_of(ctx) -> str:
+    """The system whose pins apply: "linux" or "windows" (set on the run's
+    context; Linux when it says nothing)."""
+    return getattr(ctx, "system", None) or "linux"
+
+
+def build_of(ctx) -> str:
+    """The build of engines to install: "avx2" (the default) or "pext"."""
+    return getattr(ctx, "engine_build", None) or "avx2"
+
+
+def active_pins(ctx) -> list[dict]:
+    """The pins of every engine installable for this run's system and build."""
+    return ladder_engines.pins(system_of(ctx), build_of(ctx))
+
+
 def slug(name: str) -> str:
     """A directory name for an engine: "Rustic Alpha 3.0.6" -> "rustic-alpha-3.0.6"."""
     return re.sub(r"[^a-z0-9.]+", "-", name.lower()).strip("-")
@@ -65,6 +81,10 @@ def is_installed(ctx, engine: dict) -> bool:
         entry.get("url") == engine["url"]
         and entry.get("sha256") == engine["sha256"]
         and entry.get("command") == engine.get("build", {}).get("command")
+        # The same program: another build may come from the same archive.
+        and entry.get("binary") == str(installed_binary(ctx, engine))
+        and entry.get("binary_sha256", engine.get("member_sha256"))
+        == engine.get("member_sha256", entry.get("binary_sha256"))
         and installed_binary(ctx, engine).is_file()
         # What the engine needs beside it (a network, a book, personalities).
         and all((home / Path(extra).name).exists() for extra in engine.get("beside", []))
@@ -76,23 +96,26 @@ def missing_tools(engine: dict) -> list[str]:
     return [tool for tool in engine.get("build", {}).get("tools", []) if not shutil.which(tool)]
 
 
-def select(only: list[str] | None) -> list[dict]:
-    """The engines to install: all of them, or those named with --only.
+def select(ctx, only: list[str] | None) -> list[dict]:
+    """The pins to install: all of this system's, or those named with --only.
 
     A limited entry ("Stockfish 19-1500") selects its engine, since it is the
     same program. An unknown name ends the run with the names that exist.
     """
+    available = active_pins(ctx)
     if not only:
-        return list(ladder_engines.ENGINES)
+        return available
+    system = system_of(ctx)
+    names = ladder_engines.ladder_names(system)
+    unavailable = ladder_engines.NOT_INSTALLABLE[system]
     chosen = []
     for name in only:
-        base = re.sub(r"-\d+$", "", name) if name in ladder_engines.ladder_names() else name
-        try:
-            engine = ladder_engines.by_name(base)
-        except KeyError:
-            if name in ladder_engines.NOT_INSTALLABLE:
-                tools.die(f"{name} cannot be installed: {ladder_engines.NOT_INSTALLABLE[name]}")
-            known = ", ".join(engine["name"] for engine in ladder_engines.ENGINES)
+        base = re.sub(r"-\d+$", "", name) if name in names else name
+        engine = next((p for p in available if p["name"] == base), None)
+        if engine is None:
+            if name in unavailable:
+                tools.die(f"{name} cannot be installed on {system}: {unavailable[name]}")
+            known = ", ".join(p["name"] for p in available)
             tools.die(f"no engine named '{name}' in the ladder. Known: {known}")
         if engine not in chosen:
             chosen.append(engine)
@@ -190,7 +213,9 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
     try:
         if engine["url"] not in fetched:
             download = work / "download"
-            tools.download(engine["url"], download, engine["sha256"])
+            # Plain HTTP only for a pin that says why; the digest is checked.
+            tools.download(engine["url"], download, engine["sha256"],
+                           allow_http=bool(engine.get("http_reason")))
             kept = Path(fetched["dir"]) / hashlib.sha256(engine["url"].encode()).hexdigest()
             shutil.move(str(download), kept)
             fetched[engine["url"]] = kept
@@ -201,11 +226,22 @@ def install_engine(ctx, engine: dict, fetched: dict) -> dict | None:
         program = stage / Path(engine["binary"]).name
         if engine["archive"] == "none":
             shutil.copyfile(archive, program)
-        elif engine["archive"] == "zip":
+        elif engine["archive"] == "zip" and engine["method"] == "download":
+            # An archive of ready binaries: only the named members are read,
+            # the program and the files it needs beside it.
             extract_zip_member(archive, engine["binary"], program)
+            for extra in engine.get("beside", []):
+                extract_zip_member(archive, extra, stage / Path(extra).name)
         else:
+            # A source archive (tar.gz or zip), or a tar.gz or 7z of binaries:
+            # the whole tree is unpacked, with the same checks for each kind.
             tree_root = work / "tree"
-            tools.safe_extract(archive, tree_root)
+            if engine["archive"] == "zip":
+                tools.safe_extract_zip(archive, tree_root)
+            elif engine["archive"] == "7z":
+                tools.safe_extract_7z(archive, tree_root)
+            else:
+                tools.safe_extract(archive, tree_root)
             tree = tools.single_subdir(tree_root)
             if engine["method"] == "build":
                 run_build(engine, tree, work / "build.log")
@@ -252,7 +288,7 @@ def install_engines(ctx, only: list[str] | None, force: bool) -> tuple[list[dict
     earlier install of the same engine is left as it was, on disk and in the
     record: a failure happens before anything is swapped into place.
     """
-    chosen = select(only)
+    chosen = select(ctx, only)
     fetched = {"dir": tempfile.mkdtemp(prefix="vyvrael-fetched-")}
     present, failed = [], []
     try:
@@ -286,10 +322,11 @@ def engine_entries(ctx, engine: dict) -> list[dict]:
     one per limited variant, named as in the ladder.
 
     Every entry gets the baseline's settings where the engine has the
-    option: Hash 64 and one thread. An engine that can be limited is told
-    so explicitly in every entry, because at least one (Rodent IV) limits
-    its strength unless told not to. Pondering is not an engine option
-    here: the match scripts never switch it on.
+    option: Hash 64 and one thread. Then come the pin's own fixed options
+    (`options`), such as a book switched off. An engine that can be limited
+    is told so explicitly in every entry, because at least one (Rodent IV)
+    limits its strength unless told not to. Pondering is not an engine
+    option here: the match scripts never switch it on.
     """
     program = installed_binary(ctx, engine)
 
@@ -299,6 +336,8 @@ def engine_entries(ctx, engine: dict) -> list[dict]:
             options.append({"name": "Hash", "value": ladder_engines.HASH_MB})
         if engine["threads"]:
             options.append({"name": "Threads", "value": 1})
+        for option_name, value in engine.get("options", []):
+            options.append({"name": option_name, "value": value})
         if engine["limit"] is not None:
             options.append({"name": "UCI_LimitStrength", "value": elo is not None})
             if elo is not None:
@@ -330,7 +369,7 @@ def write_engines_json(ctx) -> Path | None:
     """
     path = engines_json_path(ctx)
     entries = []
-    for engine in ladder_engines.ENGINES:
+    for engine in active_pins(ctx):
         if is_installed(ctx, engine):
             entries.extend(engine_entries(ctx, engine))
     if ctx.dry:

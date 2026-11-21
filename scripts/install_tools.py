@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
 """Vyvræl tooling installer: Cute Chess, Ordo, lichess-bot and the ladder's
-opponent engines on Linux; Cute Chess and Ordo on Windows.
+opponent engines on Linux; Cute Chess, Ordo and the ladder's opponent
+engines on Windows.
 
 Installs the three external programs the project uses for strength testing
 and for playing on Lichess. They are separate programs: nothing is vendored
@@ -41,6 +42,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 # What gets installed. Change these only in a reviewed commit, and record the
@@ -114,21 +116,40 @@ def https_opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(HttpsOnlyRedirects)
 
 
-def download(url: str, dest: Path, sha256: str | None) -> str:
+class WebOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follows a redirect only to an HTTP or HTTPS address (never ftp: or
+    file:). Used only for a pinned file that its project serves over plain
+    HTTP, whose digest is checked."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith(("https://", "http://")):
+            die(f"refusing a redirect away from the web: {req.full_url} -> {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def download(url: str, dest: Path, sha256: str | None, allow_http: bool = False) -> str:
     """Downloads `url` to `dest` and returns its SHA-256.
 
     Only HTTPS is used, for the address given and for every redirect. With
     `sha256` given, a mismatch deletes the file and aborts. Without it the
     digest is printed so it can be pinned.
+
+    `allow_http` also accepts plain HTTP, for a file whose project serves it
+    no other way; it needs `sha256`, so what arrives is still checked byte
+    for byte.
     """
-    if not url.startswith("https://"):
+    if allow_http and sha256 is None:
+        die(f"refusing to download over plain HTTP without a pinned digest: {url}")
+    schemes = ("https://", "http://") if allow_http else ("https://",)
+    if not url.lower().startswith(schemes):
         die(f"refusing to download over anything but HTTPS: {url}")
     say(f"  downloading {url}")
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": "install-tools"})
-    with https_opener().open(request, timeout=60) as response:
+    opener = urllib.request.build_opener(WebOnlyRedirects) if allow_http else https_opener()
+    with opener.open(request, timeout=60) as response:
         # Belt and braces: the address the bytes really come from.
-        if not response.geturl().lower().startswith("https://"):
+        if not response.geturl().lower().startswith(schemes):
             die(f"refusing to download over anything but HTTPS: {response.geturl()}")
         with open(dest, "wb") as out:
             for chunk in iter(lambda: response.read(1 << 20), b""):
@@ -200,6 +221,65 @@ def safe_extract(archive: Path, dest: Path) -> None:
             tar.extractall(dest)
 
 
+def safe_extract_zip(archive: Path, dest: Path) -> None:
+    """Extracts a zip archive, refusing entries that would land outside
+    `dest` and entries that are links."""
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as bundle:
+        for info in bundle.infolist():
+            if info.filename.startswith(("/", "\\")) or ":" in info.filename:
+                die(f"unsafe path in archive: {info.filename}")
+            target = (dest / info.filename).resolve()
+            if target != dest and dest not in target.parents:
+                die(f"unsafe path in archive: {info.filename}")
+            if stat.S_ISLNK(info.external_attr >> 16):
+                die(f"link in archive: {info.filename}")
+        bundle.extractall(dest)
+
+
+def windows_tar() -> Path | None:
+    """Windows' own tar (bsdtar, from Windows 10 1803 on), which reads 7-Zip
+    archives. Not the tar of Git for Windows, which cannot."""
+    root = os.environ.get("SystemRoot") or r"C:\Windows"
+    program = Path(root) / "System32" / "tar.exe"
+    return program if program.is_file() else None
+
+
+def safe_extract_7z(archive: Path, dest: Path, tar: Path | None = None) -> None:
+    """Extracts a 7-Zip archive with Windows' tar, after refusing entries that
+    would land outside `dest` and entries that are links or special files."""
+    tar = tar or windows_tar()
+    if tar is None:
+        die("a 7-Zip archive needs Windows' own tar (System32\\tar.exe, Windows 10 or"
+            " later); it is not there")
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    def run(*words: str) -> str:
+        result = subprocess.run([str(tar), *words, str(archive)], capture_output=True,
+                                text=True, encoding="utf-8", errors="replace", check=False)
+        if result.returncode != 0:
+            die(f"tar could not read {archive.name}: {result.stderr.strip()}")
+        return result.stdout
+
+    for line in run("-tvf").splitlines():
+        if line and line[0] not in "-d":
+            die(f"link or special file in archive: {line}")
+    for name in run("-tf").splitlines():
+        if not name:
+            continue
+        if name.startswith(("/", "\\")) or ":" in name:
+            die(f"unsafe path in archive: {name}")
+        target = (dest / name).resolve()
+        if target != dest and dest not in target.parents:
+            die(f"unsafe path in archive: {name}")
+    result = subprocess.run([str(tar), "-xf", str(archive), "-C", str(dest)],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        die(f"tar could not unpack {archive.name}: {result.stderr.strip()}")
+
+
 def single_subdir(path: Path) -> Path:
     """The only directory inside `path`, or `path` itself."""
     kids = list(path.iterdir())
@@ -259,6 +339,58 @@ def replace_dir(new: Path, dest: Path) -> None:
 
 
 # ---------------------------------------------------------------- paths
+def local_env_path() -> Path:
+    """The settings file shared with the match and rating scripts:
+    VYVRAEL_LOCAL_ENV if set, else scripts/local.env (git-ignored)."""
+    return Path(os.environ.get("VYVRAEL_LOCAL_ENV")
+                or Path(__file__).resolve().parent / "local.env")
+
+# The builds of the ladder's engines: AVX2 by default, PEXT where an engine
+# offers a build of its own for it (see scripts/ladder_engines.py).
+ENGINE_BUILDS = ("avx2", "pext")
+
+
+def local_setting(key: str, path: Path | None = None) -> str | None:
+    """The value of `key` in scripts/local.env, read as the match scripts
+    read it: KEY=VALUE lines, "#" comments and blank lines skipped, nothing
+    expanded or executed. None if the file or the key is not there.
+
+    Like match.ps1 (which reads it with ReadAllLines) the text may be UTF-8
+    with or without a byte-order mark, or UTF-16 with one, as Windows
+    PowerShell 5.1 often writes it; match.sh also drops a UTF-8 mark.
+    """
+    file = path or local_env_path()
+    try:
+        data = file.read_bytes()
+    except OSError:
+        return None
+    encoding = "utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        lines = data.decode(encoding).splitlines()
+    except UnicodeDecodeError:
+        die(f"{file} is not UTF-8 or UTF-16 text; save it as UTF-8")
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() == key:
+            return value
+    return None
+
+
+def engine_build(args, path: Path | None = None) -> str:
+    """Which build of the ladder's engines to install: --engine-build, then
+    VYVRAEL_ENGINE_BUILD, then ENGINE_BUILD in scripts/local.env, then avx2."""
+    value = (getattr(args, "engine_build", None)
+             or os.environ.get("VYVRAEL_ENGINE_BUILD")
+             or local_setting("ENGINE_BUILD", path)
+             or "avx2")
+    value = value.strip().lower()
+    if value not in ENGINE_BUILDS:
+        die(f"unknown engine build '{value}': use {' or '.join(ENGINE_BUILDS)}")
+    return value
+
+
 class Ctx:
     """Where things go, worked out once from the command line."""
 
@@ -279,6 +411,9 @@ class Ctx:
             self.bin = Path.home() / ".local/bin"
         self.dry = args.dry_run
         self.manifest = self.prefix / "manifest.json"
+        # Which pins of the ladder's engines apply (scripts/ladder_engines.py).
+        self.system = "windows" if sys.platform == "win32" else "linux"
+        self.engine_build = engine_build(args)
 
     def _read_manifest(self) -> dict:
         try:
@@ -797,22 +932,83 @@ def build_parser() -> argparse.ArgumentParser:
         " report PASS or FAIL for each; nothing is installed. --engines also runs"
         " this check after installing",
     )
+    parser.add_argument(
+        "--engine-build",
+        choices=ENGINE_BUILDS,
+        help="which build of the ladder's engines: avx2 (the default) or pext, for"
+        " engines that offer a PEXT build (default from VYVRAEL_ENGINE_BUILD or"
+        " ENGINE_BUILD in scripts/local.env)",
+    )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")
     parser.add_argument("--dry-run", action="store_true", help="show what would be done")
     return parser
 
 
+def list_engines(ctx) -> None:
+    """Prints the ladder's engines for this system and build, and whether
+    each is installed."""
+    import ladder_install
+
+    say(f"ladder engines for {ctx.system}, {ctx.engine_build} build:")
+    for engine in ladder_install.active_pins(ctx):
+        have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
+        say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
+
+
+def install_ladder_engines(ctx, args) -> tuple[list[str], list[str]]:
+    """Installs the ladder's engines for this system and build (all, or those
+    of --only), writes the engine list and checks them. Returns the engines
+    that could not be installed and the names that failed the check."""
+    import ladder_install
+    import ladder_verify
+
+    say(f"ladder engines for {ctx.system}, {ctx.engine_build} build")
+    _, failed = ladder_install.install_engines(ctx, args.only, args.force)
+    ladder_install.write_engines_json(ctx)
+    broken = []
+    if not args.dry_run:
+        say("checking the installed engines (uci, isready, go depth 6):")
+        broken = ladder_verify.verify_engines(ctx, args.only)
+    return failed, broken
+
+
+def report_engines(failed: list[str], broken: list[str]) -> None:
+    """Ends the run with an error if an engine was not installed or failed
+    the check."""
+    if failed:
+        die(
+            f"not installed: {', '.join(failed)} (see above). Nothing was changed"
+            " for them; the other engines are unaffected."
+        )
+    if broken:
+        die(
+            f"installed but failing the check: {', '.join(broken)} (see above)."
+            " They are still listed in engines.json; do not use them until they pass."
+        )
+
+
+def verify_only(ctx, args) -> None:
+    """--verify without --engines: check what is there and change nothing."""
+    import ladder_verify
+
+    broken = ladder_verify.verify_engines(ctx, args.only)
+    if broken:
+        die(f"the check failed for: {', '.join(broken)}")
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     ctx = Ctx(args)
+    engines_wanted = args.engines or bool(args.only)
     if args.list and sys.platform == "win32":
         import windows_tools
 
         for tool, pin in windows_tools.PINS.items():
             have = "installed" if windows_tools.is_installed(ctx, tool) else "not installed"
             say(f"{tool:12} pinned {pin['version']:14} {have}")
-        say("lichess-bot and the ladder's engines are installed on Linux only")
+        list_engines(ctx)
+        say("lichess-bot is installed on Linux only")
         say(f"prefix {ctx.prefix}")
         return
     if args.list:
@@ -820,44 +1016,35 @@ def main(argv: list[str] | None = None) -> None:
             pin = PINS[tool]
             have = ctx.installed_version(tool) or "not installed"
             say(f"{tool:12} pinned {pin['version']:14} installed: {have}  ({pin['licence']})")
-        import ladder_engines
-        import ladder_install
-
-        for engine in ladder_engines.ENGINES:
-            have = "installed" if ladder_install.is_installed(ctx, engine) else "not installed"
-            say(f"{engine['name']:20} {engine['version']:42} {have}  ({engine['licence']})")
+        list_engines(ctx)
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")
         return
     if sys.platform == "win32":
-        # Windows: the two tools only, from their official zip archives.
+        # Windows: Cute Chess and Ordo from their official zip archives, and
+        # the ladder's engines from their official Windows releases.
         import windows_tools
 
-        if args.engines or args.only or args.verify:
-            die(
-                "the ladder's engines are installed by this script on Linux only; on"
-                " Windows take each one from its project's own release"
-            )
-        wanted = args.tool or DEFAULT_TOOLS
+        if args.verify and not args.engines:
+            verify_only(ctx, args)
+            return
+        wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
         if "all" in wanted:
             wanted = list(windows_tools.PINS)
-        failed = windows_tools.install_tools_windows(ctx, wanted, args.force)
+        failed = windows_tools.install_tools_windows(ctx, wanted, args.force) if wanted else []
+        engines_failed, engines_broken = (
+            install_ladder_engines(ctx, args) if engines_wanted else ([], []))
         if failed:
             die(f"the check failed for {', '.join(failed)} (see above)")
+        report_engines(engines_failed, engines_broken)
         return
     if not sys.platform.startswith("linux") and not args.dry_run:
         die("this installer supports Linux and Windows only; see docs/TESTING.md")
 
     if args.verify and not args.engines:
-        # Check what is there and change nothing.
-        import ladder_verify
-
-        broken = ladder_verify.verify_engines(ctx, args.only)
-        if broken:
-            die(f"the check failed for: {', '.join(broken)}")
+        verify_only(ctx, args)
         return
 
     # --engines (or --only) installs engines; tools then only if asked for.
-    engines_wanted = args.engines or bool(args.only)
     wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
     if "all" in wanted:
         wanted = TOOLS
@@ -879,17 +1066,8 @@ def main(argv: list[str] | None = None) -> None:
         else:
             ctx.forget(tool)
             failed.append(tool)
-    engines_failed, engines_broken = [], []
-    if engines_wanted:
-        import ladder_install
-
-        _, engines_failed = ladder_install.install_engines(ctx, args.only, args.force)
-        ladder_install.write_engines_json(ctx)
-        if not args.dry_run:
-            import ladder_verify
-
-            say("checking the installed engines (uci, isready, go depth 6):")
-            engines_broken = ladder_verify.verify_engines(ctx, args.only)
+    engines_failed, engines_broken = (
+        install_ladder_engines(ctx, args) if engines_wanted else ([], []))
     if not args.dry_run and wanted:
         path_hint(ctx)
         if "lichess-bot" in wanted:
@@ -899,16 +1077,7 @@ def main(argv: list[str] | None = None) -> None:
             f"the check failed for {', '.join(failed)} (see above). The files are in place under"
             f" {ctx.prefix} but not recorded as installed, so the next run installs again."
         )
-    if engines_failed:
-        die(
-            f"not installed: {', '.join(engines_failed)} (see above). Nothing was changed"
-            " for them; the other engines are unaffected."
-        )
-    if engines_broken:
-        die(
-            f"installed but failing the check: {', '.join(engines_broken)} (see above)."
-            " They are still listed in engines.json; do not use them until they pass."
-        )
+    report_engines(engines_failed, engines_broken)
 
 
 if __name__ == "__main__":

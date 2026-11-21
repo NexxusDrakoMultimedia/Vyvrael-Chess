@@ -32,21 +32,34 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   1.2.6 from their official zip archives, checked by SHA-256, without
   administrator rights, and prints the two lines to put in
   `scripts/local.env`. It reports a missing Visual C++ runtime and never
-  installs it. lichess-bot and the ladder's engines are not installed on
-  Windows.
-- `scripts/ladder_engines.py`: the Linux sources of the ladder's opponent
-  engines, pinned (13 binaries for 23 of the ladder's 25 names). Orion 1.1
-  is left out because it exists for Windows only, and Ethereal 12.75
-  because its source crashes when built with a current compiler.
-- `scripts/install_tools.py --engines` installs those engines on Linux
-  under `<prefix>/engines`, each in a directory of its own: an official
-  binary where there is one, otherwise a build from the official source.
+  installs it. lichess-bot is not installed on Windows.
+- `scripts/ladder_engines.py`: the sources of the opponent engines of
+  Ladder Baseline 2, the reference ladder, pinned for Linux and Windows.
+  On Windows 17 official programs cover all 30 names, each the file of
+  Ladder Baseline 2 by SHA-256 in the `pext` build (Stash aside). On Linux
+  14 programs cover 27 names: Orion 1.1 exists for Windows only, Ethereal
+  12.75's source crashes when built with a current compiler, and
+  Nostradamus 0.4 is a Python program with a PyTorch model, which the
+  installer does not set up.
+- Two builds of the ladder's engines: `avx2` by default and `pext` with
+  `--engine-build pext`, `VYVRAEL_ENGINE_BUILD` or `ENGINE_BUILD` in
+  `scripts/local.env`, for the engines that offer a PEXT build (Arasan,
+  Stash, Weiss, and Ethereal on Windows).
+- `scripts/install_tools.py --engines` installs those engines on Linux and
+  Windows under `<prefix>/engines`, each in a directory of its own: an
+  official binary where there is one, otherwise (Linux only) a build from
+  the official source (a tar.gz or zip archive). On Windows it also reads
+  Rodent IV's 7-Zip archive with Windows' own `tar`, and fetches that one
+  file over plain HTTP, which is all the author's site serves, with its
+  digest checked.
   `--only "<name>"` installs one. It never uses sudo, names a missing build
   tool and carries on with the other engines, and leaves nothing behind of
   an engine whose download or build failed. It then writes
   `<prefix>/engines/engines.json`, the list of what is installed under the
   ladder's names, the limited entries (such as "Stockfish 19-1500")
-  included, with Hash 64, one thread and the strength settings. Last, it
+  included, with Hash 64, one thread, the strength settings and the rest
+  of Ladder Baseline 2's settings (books and tablebases off, 30 ms of move
+  overhead where the engine has the option). Last, it
   starts every installed engine under each of its names, sends `uci`, its
   options, `isready` and `go depth 6`, and prints PASS or FAIL; every wait
   has a time limit. `--verify` runs that check alone.

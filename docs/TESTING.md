@@ -163,12 +163,12 @@ Integration tests live in `tests/` and use only the public API.
 
 | File | What is checked |
 | --- | --- |
-| `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included; archive extraction refuses paths and symlinks that escape, chained links included; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the unit restarts only on failure and gives up after three failed starts in ten minutes; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
+| `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included, except plain HTTP for a download that is allowed it, which then needs a digest, is still checked and may only be redirected to HTTP or HTTPS; archive extraction refuses paths and symlinks that escape, chained links included; a 7-Zip archive is listed and refused for escaping paths, links or special files before Windows' tar unpacks it, refused without that tar, and unpacked for real where it exists; the build of the ladder's engines comes from the argument, then the environment, then `local.env` (found through `VYVRAEL_LOCAL_ENV` too, read with or without a byte-order mark or as UTF-16), then `avx2`, and an unknown build is refused; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the unit restarts only on failure and gives up after three failed starts in ten minutes; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
 | `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also: an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it; plain ASCII build names are accepted, and an accented one refused, under five locales. |
-| `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines: the names provided plus the names left out are exactly the 25 of the baseline's ratings file, with no engine invented; no generated name carries a stray space; the two names left out are Orion 1.1 and Ethereal 12.75; the limited entries are variants of 3 binaries, 10 in all, each inside its engine's `UCI_Elo` range; every address is HTTPS with a SHA-256; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none). |
-| `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a build from source; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown or uninstallable names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them; from the real table, the 23 names in order with the baseline's values, and Rodent IV told not to limit itself. |
+| `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines, for each system and build: on Linux the names provided plus the names left out are exactly the 30 of Ladder Baseline 2's ratings file, with no engine invented, and the three left out are Orion 1.1, Ethereal 12.75 and Nostradamus 0.4; on Windows all 30 are provided, by 17 downloads and no builds; an engine missing on a system has a reason there; no generated name carries a stray space; the limited entries are variants of 4 binaries, 13 in all, each inside its engine's `UCI_Elo` range; every address is HTTPS with a SHA-256, or plain HTTP only for a pin that says why; a closed-source engine's notes state its terms; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none); no `avx2` pin mentions PEXT or BMI2, and on Linux exactly Arasan, Stash and Weiss differ in the `pext` build; a pin resolves per system and build without one system's fields leaking into the other's; fixed options never repeat Hash, Threads or the strength settings. |
+| `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a zip member with the files it needs beside it, and nothing else from the zip; plain HTTP allowed only for a pin that says why; a build from source, from a tar.gz or a zip, and a zip source archive that escapes refused; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown or uninstallable names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them, and a pin's fixed options in every entry; from the real Linux table, the 27 names in order with Ladder Baseline 2's values (books off, 30 ms of move overhead under each engine's own option name, CT800's settings), and Rodent IV told not to limit itself. |
 | `scripts/tests/test_ladder_verify.py` | Python, offline, with small UCI engines written by the tests. A working engine passes and is sent `uci`, its options, `isready`, `ucinewgame`, `position startpos`, `go depth 6` and `quit` in that order; an engine that says nothing, exits, never becomes ready, thinks for ever or names no move fails with a message naming the step, and none of them holds the check up; one that ignores `quit` is killed; a program that is not there is reported; every name of an installed engine is checked with its own options and reported as PASS, FAIL or SKIP. |
-| `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot and the ladder's engines are refused on Windows; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
+| `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot is refused on Windows; `--engines` there takes the Windows pins of the chosen build (the `avx2` or `pext` file of Ethereal) and installs no tool, and its dry run downloads nothing; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
 | `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_match_sh.py`, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
 | `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
@@ -353,7 +353,7 @@ lichess-bot part has one known fault: see KI-11 in
 The match and rating scripts that use these tools are described under
 "Strength matches, SPRT and ratings" below.
 
-### The ladder's opponent engines (Linux)
+### The ladder's opponent engines (Linux and Windows)
 
 ```sh
 python3 scripts/install_tools.py --engines --dry-run   # show what would be done
@@ -363,27 +363,49 @@ python3 scripts/install_tools.py --verify              # check what is installed
 python3 scripts/install_tools.py --list                # pins and what is installed
 ```
 
-`--engines` installs the opponents of Ladder Baseline 1 under
+On Windows the commands are the same with `python` for `python3`.
+
+`--engines` installs the opponents of Ladder Baseline 2 under
 `<prefix>/engines`, each in a directory of its own, outside the repository.
 **Vyvræl itself is not part of the installer**: build it with
 `cargo build --release` and keep released builds somewhere of your own.
 
 - **What is installed** is fixed by `scripts/ladder_engines.py`; the table
   of engines, versions, sources, licences and methods is in
-  [DEPENDENCIES.md](DEPENDENCIES.md). There are 13 programs for 23 of the
-  ladder's 25 names: an entry such as "Stockfish 19-1500" is Stockfish 19
-  with `UCI_LimitStrength` on. Two are left out: Orion 1.1, which exists for
-  Windows only, and Ethereal 12.75, whose source crashes when built with a
-  current compiler.
+  [DEPENDENCIES.md](DEPENDENCIES.md). An entry such as "Stockfish 19-1500"
+  is Stockfish 19 with `UCI_LimitStrength` on.
+  - **Windows: 17 programs for all 30 names**, every one an official
+    Windows binary (or, for Fruit 2.1, the distribution the maintainer
+    chose), and each the very file of Ladder Baseline 2 by SHA-256 in the
+    `pext` build, except Stash (see below). Nothing is compiled on Windows.
+  - **Linux: 14 programs for 27 of the 30 names.** Three are left out:
+    Orion 1.1, which exists for Windows only; Ethereal 12.75, whose source
+    crashes when built with a current compiler; and Nostradamus 0.4, a
+    Python program with a PyTorch model, which the installer does not set
+    up.
 - **Supported machines:** x86-64 Linux with AVX2 and BMI2 (any Intel
   processor from Haswell, 2013, or AMD from Excavator or Zen). No AVX-512
   build is used and nothing is compiled for "this machine"
   (`-march=native`); a compiled engine names `haswell` or `x86-64-v3`,
   except Vice 1.1, whose makefile names no architecture and so builds for
   plain x86-64.
-- **Downloads and builds.** Eight engines are official binaries, checked
-  by SHA-256. Five are built from source (Princhess, Weiss, Rodent IV, Vice,
-  Fruit) with the project's own build command and need `gcc`,
+- **Two builds, `avx2` (the default) and `pext`.** `--engine-build pext`,
+  `VYVRAEL_ENGINE_BUILD=pext` or `ENGINE_BUILD=pext` in `scripts/local.env`
+  installs the PEXT build of the engines that have one (Arasan, Stash,
+  Weiss, and Ethereal on Windows); the others have a single build. Stash
+  has no AVX2 build: its default is the popcnt file, and Ladder Baseline 2
+  used its generic file, which neither build installs. Use `pext` on Intel from Haswell
+  and AMD from Zen 3, where PEXT is fast; both of the maintainer's machines
+  do. Changing the build reinstalls those engines on the next run. See
+  [DEPENDENCIES.md](DEPENDENCIES.md).
+- **Downloads and builds.** Every file is checked by SHA-256. On Windows
+  all are downloads: bare programs or members of zip archives, and Rodent
+  IV's 7-Zip archive, which Windows' own `tar` unpacks (Windows 10 or
+  later). Rodent IV's site serves plain HTTP only, so that one download is
+  over HTTP, which its pin explains; its digest is checked like any other.
+  On Linux eight engines are official binaries. Six are built from source
+  (Princhess, Weiss, Rodent IV, Vice, Fruit, CT800) with the project's own
+  build command and need `gcc`,
   `g++` and `make` (`sudo apt install build-essential`); Princhess also
   needs `cargo` and `clang`. **The script never runs sudo.** A tool that is
   missing is named and that engine is skipped; the others are still
@@ -393,8 +415,11 @@ python3 scripts/install_tools.py --list                # pins and what is instal
   complete, so a failure leaves nothing half-installed.
 - **The engine list.** Afterwards the script writes
   `<prefix>/engines/engines.json` with every installed engine under its
-  ladder name, Hash 64 and one thread where the engine has the option, and
-  the strength settings of the limited entries. Put its path in
+  ladder name, Hash 64 and one thread where the engine has the option, the
+  strength settings of the limited entries, and the rest of Ladder
+  Baseline 2's settings under each engine's own option names: books and
+  tablebases off and 30 ms of move overhead where the engine has the option
+  (the list is in [DEPENDENCIES.md](DEPENDENCIES.md)). Put its path in
   `scripts/local.env` as `ENGINES_JSON` for `match.sh gauntlet`.
 - **The check.** Last, each engine is started under each of its names and
   sent `uci`, its options, `isready` and `go depth 6`. The script prints
@@ -415,8 +440,12 @@ once, by the maintainer on the Linux machine on 2026-11-21**:
 
 Every download matched its SHA-256, the shared Rustic Alpha archive was
 fetched once, a failing engine did not stop the others, and the engine list
-was written with the 22 names installed. All 13 engines the installer now
-provides have therefore been installed on Linux at least once. A real match
+was written with the 22 names installed. All 13 engines the installer then
+provided have therefore been installed on Linux at least once. What came
+later has not been run for real yet: CT800 1.46 on Linux, the `avx2` builds
+of Arasan, Stash and Weiss on Linux, and the whole Windows engine installer
+(only its files' digests were checked, by downloading each once on
+2026-11-21). A real match
 and a rating run with the bash scripts followed (see "Strength matches,
 SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
 installed.
@@ -439,9 +468,9 @@ by the script. A Cute Chess that is already installed works just as well:
 point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
 
 lichess-bot is not installed on Windows (it runs on the Linux machine
-only), and neither are the ladder's engines: take each from its project's
-own Windows release. Status: tested offline; the real archives have not
-been fetched by the script.
+only). The ladder's engines are: see "The ladder's opponent engines (Linux
+and Windows)" above. Status of the tools part: tested offline; the real
+archives have not been fetched by the script.
 
 ## Opponent ladder (Ladder Baseline 2)
 

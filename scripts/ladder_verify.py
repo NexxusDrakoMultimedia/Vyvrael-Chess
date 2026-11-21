@@ -135,7 +135,7 @@ def verify_engines(ctx, only: list[str] | None) -> list[str]:
     all its names, prints PASS or FAIL per name and returns the names that
     failed. An engine that is not installed is reported and skipped."""
     failed = []
-    for engine in ladder_install.select(only):
+    for engine in ladder_install.select(ctx, only):
         if not ladder_install.is_installed(ctx, engine):
             tools.say(f"SKIP  {engine['name']}: not installed")
             continue
