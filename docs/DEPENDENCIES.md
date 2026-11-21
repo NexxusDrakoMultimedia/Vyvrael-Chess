@@ -140,9 +140,10 @@ for another host name); the installer allows that for this one pin, which
 says why, and still checks the digest. The fruitchess.com beta of
 2005-11-03 is a possible later addition, not part of the ladder.
 
-Fruit 2.1 is the one engine not taken from its project's own page: the
-author's site is gone, so the source is the original tarball as Debian keeps
-it, which the maintainer accepted on 2026-11-21.
+On Linux, Fruit 2.1 is the one engine not taken from its project's own
+page: the author's site is gone, so the source is the original tarball as
+Debian keeps it, which the maintainer accepted on 2026-11-21. (On Windows
+its file comes from `github.com/Warpten/Fruit-2.1`, as said above.)
 
 The engine list gives every engine Ladder Baseline 2's settings under the
 engine's own option names, as read from each engine's `uci` answer on
@@ -150,8 +151,10 @@ engine's own option names, as read from each engine's `uci` answer on
 Rodent IV `UseBook`, Weiss `NoobBook`, CT800 `OwnBook`), tablebases off
 (Arasan `Use tablebases`, Weiss `OnlineSyzygy`), CT800's `Keep Hash Tables`
 off, and 30 ms of move overhead where there is the option (Stockfish `Move
-Overhead`, Arasan `Move overhead`, Reckless and Stash `MoveOverhead`,
-Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`). The book files that
+Overhead`, Arasan `Move overhead`, Reckless, Stash and Ethereal
+`MoveOverhead`, Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`). Orion,
+Viridithas, Princhess, Vice, Fruit, Rustic Alpha and Nostradamus have no
+move-overhead option. The book files that
 Arasan, Fruit and Rodent IV ship are still installed beside them, unused.
 
 CT800's zip also holds the Windows binary of Ladder Baseline 2, identical by
@@ -174,6 +177,8 @@ level (they contain no AVX-512).
 `scripts/local.env`). Only engines that offer a PEXT build of their own
 differ: on Linux Arasan (`arasanx-64-avx2` or `arasanx-64-avx2-bmi2` from the
 same archive), Stash (its popcnt or its bmi2 file; it has no AVX2 build) and
-Weiss (built without or with `-DUSE_PEXT`). Every other engine has one build
+Weiss (built without or with `-DUSE_PEXT`); on Windows Arasan and Weiss
+(two files of one archive each), Stash (its popcnt or bmi2 file) and
+Ethereal (`popcnt-avx2` or `pext-avx2`). Every other engine has one build
 for both. PEXT is fast on Intel from Haswell and on AMD from Zen 3, and slow
 on AMD Zen 1 and Zen 2.
