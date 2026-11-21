@@ -120,6 +120,15 @@ class LadderEnginesTest(unittest.TestCase):
             if engine["name"] != "Vice 1.1":
                 self.assertRegex(flags, r"haswell|x86-64-v3", engine["name"])
 
+    def test_fixed_options_do_not_repeat_the_ones_set_for_every_engine(self):
+        for engine in ladder_engines.ENGINES:
+            names = [name for name, _ in engine.get("options", [])]
+            self.assertEqual(len(set(names)), len(names), engine["name"])
+            for name, value in engine.get("options", []):
+                self.assertNotIn(name, ("Hash", "Threads", "UCI_LimitStrength", "UCI_Elo"),
+                                 engine["name"])
+                self.assertIsInstance(value, (bool, int, str), engine["name"])
+
     def test_lookup(self):
         self.assertEqual(ladder_engines.by_name("Vice 1.1")["version"], "1.1 (commit 7d4fe19)")
         with self.assertRaises(KeyError):

@@ -439,6 +439,18 @@ class LadderInstallTest(unittest.TestCase):
         self.assertEqual(by_name["Plain 2"]["options"], [{"name": "Hash", "value": 64}])
         self.assertEqual(by_name["Bare 3"]["options"], [])
 
+    def test_a_pins_fixed_options_go_into_every_entry(self):
+        ctx = self.ctx()
+        engine = self.engine("Booked 2", options=[("OwnBook", False), ("Move Overhead [ms]", 30)],
+                             limit=(1000, 2500), variants=[1200])
+        entries = ladder_install.engine_entries(ctx, engine)
+        self.assertEqual([entry["name"] for entry in entries], ["Booked 2", "Booked 2-1200"])
+        self.assertEqual(
+            [(o["name"], o["value"]) for o in entries[1]["options"]],
+            [("Hash", 64), ("Threads", 1), ("OwnBook", False), ("Move Overhead [ms]", 30),
+             ("UCI_LimitStrength", True), ("UCI_Elo", 1200)])
+        self.assertEqual(entries[0]["options"][2:4], entries[1]["options"][2:4])
+
     def test_the_real_ladder_gives_the_baselines_names_and_values(self):
         ctx = self.ctx()
         entries = []

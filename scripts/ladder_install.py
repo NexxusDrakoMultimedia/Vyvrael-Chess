@@ -292,10 +292,11 @@ def engine_entries(ctx, engine: dict) -> list[dict]:
     one per limited variant, named as in the ladder.
 
     Every entry gets the baseline's settings where the engine has the
-    option: Hash 64 and one thread. An engine that can be limited is told
-    so explicitly in every entry, because at least one (Rodent IV) limits
-    its strength unless told not to. Pondering is not an engine option
-    here: the match scripts never switch it on.
+    option: Hash 64 and one thread. Then come the pin's own fixed options
+    (`options`), such as a book switched off. An engine that can be limited
+    is told so explicitly in every entry, because at least one (Rodent IV)
+    limits its strength unless told not to. Pondering is not an engine
+    option here: the match scripts never switch it on.
     """
     program = installed_binary(ctx, engine)
 
@@ -305,6 +306,8 @@ def engine_entries(ctx, engine: dict) -> list[dict]:
             options.append({"name": "Hash", "value": ladder_engines.HASH_MB})
         if engine["threads"]:
             options.append({"name": "Threads", "value": 1})
+        for option_name, value in engine.get("options", []):
+            options.append({"name": option_name, "value": value})
         if engine["limit"] is not None:
             options.append({"name": "UCI_LimitStrength", "value": elo is not None})
             if elo is not None:

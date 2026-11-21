@@ -35,6 +35,8 @@ from __future__ import annotations
 #             list of arguments, no shell), extra environment, and the tools
 #             that must be on PATH
 #   hash, threads  whether the engine has those UCI options
+#   options   fixed UCI options for every entry of the engine, as (name, value)
+#             pairs, beside Hash, Threads and the strength settings
 #   limit     (lowest, highest) UCI_Elo if it has UCI_LimitStrength, else None
 #   variants  the UCI_Elo values the ladder uses: "<name>-<elo>" entries
 #   notes     what a reader should know before trusting the entry
