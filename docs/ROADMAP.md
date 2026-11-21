@@ -626,9 +626,10 @@ round robin of 30 other engines run by the maintainer on 2026-11-21; it
 replaced Ladder Baseline 1,
 [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md) (25
 engines), against which 0.1.0-alpha.1 was measured. Vyvræl is in neither.
-The reference ladder orders the opponents; Vyvræl's strength (KI-8) and the `UCI_Elo` calibration
-are measured by gauntlets against its lower rungs, in separate results
-files, with the same time control, hash, threads and openings.
+The reference ladder orders the opponents; Vyvræl's strength (KI-8) and
+the `UCI_Elo` calibration are measured by gauntlets against its lower
+rungs, in separate results files, with the same time control, hash,
+threads and openings.
 
 Matches are run with `cutechess-cli` (from Cute Chess) and ratings computed
 with Ordo. Neither tool is vendored into the repository or linked into the

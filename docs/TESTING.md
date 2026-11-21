@@ -473,8 +473,9 @@ file or inferred from it. A first snapshot of 0.1.0-alpha.1, from before
 milestone 6 and against Ladder Baseline 1, is in
 [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md).
 
-- **Fixed settings of Ladder Baseline 2:** round robin, two rounds, two
-  games per pairing with sides swapped (1,740 games, 116 per engine); time
+- **Fixed settings of Ladder Baseline 2:** round robin, two rounds of two
+  games per pairing with sides swapped (four games per pairing, 1,740 games,
+  116 per engine); time
   control 10+0.1, pondering off; openings from `UHO_Lichess_4852_v1.epd` in
   random order; Hash 64 MB and one thread per engine; `Move Overhead` 30 ms
   in every engine that has the option (Ladder Baseline 1 left each engine at
@@ -519,9 +520,9 @@ cutechess-cli \
 For games against other engines, add `-tournament gauntlet`, keep Vyvræl as
 the first engine, and replace the second with one `-engine conf="<name>"`
 per opponent, where the name is the one in Cute Chess's own `engines.json`
-(the names of the reference ladder, Ladder Baseline 2). `-rounds 4` then gives eight games against
-each. Every flag above was checked against `cutechess-cli --help` of
-version 1.5.1.
+(the names of the reference ladder, Ladder Baseline 2). `-rounds 4` then
+gives eight games against each. Every flag above was checked against
+`cutechess-cli --help` of version 1.5.1.
 
 How to read it: the PGN's last comment of each game says how it ended.
 "mates", a draw by rule, and "wins by adjudication" are complete games.
