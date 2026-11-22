@@ -42,7 +42,7 @@ maintainer.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
-(`perft`, `eval`, `search`, `help`), which are not part of UCI; see
+(`perft`, `eval`, `search`, `bench`, `help`), which are not part of UCI; see
 [TESTING.md](TESTING.md).
 
 ## Identity
@@ -62,14 +62,14 @@ package name needs one.
 | `uci` | implemented | Prints the `id` lines, the option list, then `uciok`. |
 | `isready` | implemented | Replies `readyok`, also while a search is running. The first one builds the attack tables (a few milliseconds), so the first search does not pay for them on the clock. |
 | `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
-| `position [startpos \| fen <fen>] [moves ...]` | implemented | Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
+| `position [startpos \| fen <fen>] [moves ...]` | implemented | Ends any running search first (it reports its `bestmove`). Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
 | `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is always finished first (see "The first depth" below). |
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
 Not offered: `debug`, `register`, `ponderhit`. They are answered with
-`info string unknown command`.
+`info string unknown command: <line>`, which echoes the line.
 
 ### `go` parameters
 
@@ -81,7 +81,7 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
 | `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
-| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. |
+| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
 
 Several limits may be combined; the search stops at whichever comes first.
 
@@ -143,7 +143,7 @@ search.
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **calibrated provisionally** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
-| `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to six measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7. |
+| `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7 and after queued task 2. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
@@ -175,11 +175,14 @@ breaks that in the opening:
 - The engine plays one of the choices at random, the best move included
   and the most likely, and says so in an `info string` when it is not the
   best: `info string variety: d7d6 instead of g8f6, 9 cp below it, one of 6
-  moves`. The `info` lines before it are those of the search.
+  moves`. The `info` lines before it are those of the search. After it
+  comes one more `info` line for the move played: its score from the check
+  and a `pv` of that move alone, so that a GUI records the move actually
+  played.
 - It draws from the same seeded generator as limited strength, so with a
   fixed `Seed` and `go depth` a varied game is reproducible.
 
-What "within 10 centipawns" means depends on the evaluation: at shallow
+What "within `Variety` centipawns" means depends on the evaluation: at shallow
 depths the hand-crafted evaluation rates many quiet opening moves within a
 few centipawns of each other, so a large `Variety` plays odd but legal
 openings. `Variety` weakens play on purpose, so it is exempt from the rule
@@ -198,7 +201,9 @@ is the number of milliseconds kept back for that.
   what is on the clock less the overhead. An ordinary share of the time is
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
-- There is always at least one millisecond to move in.
+- There is always at least one millisecond to move in. Without an
+  increment, a long game at a very short time control can still lose on
+  time; this is known issue KI-12 in [ROADMAP.md](ROADMAP.md).
 - It does not change which move is chosen at a fixed depth or node count,
   only how long a search on the clock may run.
 
