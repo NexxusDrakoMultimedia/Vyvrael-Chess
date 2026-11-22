@@ -1020,7 +1020,10 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
   attacking play.
 - Opening book support for match play.
 - Ladder Baseline 3: the round robin run again with Vyvræl builds in it.
-  (Ladder Baseline 2, run on 2026-11-21, has none.)
+  (Ladder Baseline 2, run on 2026-11-21, has none.) Vyvræl 0.1.0 goes
+  in once it is released, beside 0.1.0-alpha.1 and 0.1.0-alpha.2. Without
+  Arasan 26.1-1800, retired from the installer on 2026-11-22; Ladder
+  Baseline 2's record keeps it.
 - Submitting Vyvræl to rating lists. Blocked on the branding, like rated
   play.
 - Non-regression SPRT bounds for pure refactorings and speed work, beside
