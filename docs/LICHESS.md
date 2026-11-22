@@ -4,6 +4,10 @@ How Vyvræl is to be run as a Lichess bot, who does what, and the rules the
 bot keeps. The plan and the rules here were set by the maintainer on
 2026-11-20.
 
+**Status:** the maintainer upgraded the account to BOT after tagging
+`v0.1.0-alpha.1`, and the bot has played casual games through lichess-bot
+since 2026-11-20. [lichess-history.md](lichess-history.md) records them.
+
 **AI coding agents do not touch Lichess.** No agent requests, stores, logs
 or commits an API token, calls the Lichess API, runs the BOT upgrade,
 launches lichess-bot or adds it to CI. Every step in the checklist below is
@@ -19,9 +23,10 @@ agent stops and says so.
   2026-11-19; 0 games in every time control and 0 games on the Games tab; not
   yet a BOT; already a member of the "Lichess Bots" team; profile 66%
   complete.
-- **Until the upgrade, nobody plays a game on this account**: not against a
-  person, not against the Lichess AI, not by accepting a challenge. One game
-  makes the upgrade impossible for good. Puzzles are not games.
+- **Before the upgrade, nobody played a game on this account**: not against
+  a person, not against the Lichess AI, not by accepting a challenge. One
+  game would have made the upgrade impossible for good. The upgrade is done;
+  this rule stays here as the record of how it was done.
 - **The games the bot played, build by build,** are recorded in
   [lichess-history.md](lichess-history.md). Before stopping the bot to
   upgrade it to a new release, the maintainer exports its games as a
@@ -30,9 +35,9 @@ agent stops and says so.
 
 ## Policy
 
-- **Casual games only, from the first release.** After the maintainer tags
-  `v0.1.0-alpha.1`, the maintainer upgrades the account to BOT and runs it
-  with lichess-bot in casual mode only.
+- **Casual games only, from the first release.** After tagging
+  `v0.1.0-alpha.1`, the maintainer upgraded the account to BOT and has run
+  it with lichess-bot in casual mode only since 2026-11-20.
 - **Rated play stays off until the maintainer says so.** The earliest point
   is after 0.2.0 (milestone 7), when the engine's strength has been measured
   (milestone 6) and its search heuristics have each been accepted by SPRT,
@@ -98,6 +103,10 @@ ones above. They do say that:
 
 Do these in order, yourself. Do not hand any of them to an AI agent.
 
+Steps 1 to 5 were the one-time BOT upgrade, which is done. They stay here
+as the record of how it was done. Steps 6 to 14 apply again whenever
+lichess-bot is installed or set up afresh.
+
 1. **Re-check the account.** On the profile page, confirm it still shows
    zero games in every time control and on the Games tab, and no BOT title.
    If a game has been played, stop: this account cannot be upgraded.
@@ -123,6 +132,12 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
 7. **Copy `config.yml.default` to a local `config.yml`.** It is git-ignored
    here (`/config.yml`, `/lichess-bot/`) and must stay out of every
    repository. The installer already does this copy, with an empty token.
+   It also fills in `dir:` and `name:` under `engine:`: the binary given
+   with `--engine`, or else `<prefix>/engines/vyvrael`, a directory it
+   creates. With `--systemd` it writes a token file,
+   `~/.config/vyvrael/lichess-token.env`, holding a commented-out
+   `LICHESS_BOT_TOKEN=` line; a token put there stays out of `config.yml`
+   (see [TESTING.md](TESTING.md)).
 8. **Casual only.** Under `challenge:`, reduce `modes:` to the single entry
    `casual` (delete `rated`). Leave `matchmaking: allow_matchmaking: false`.
    If you ever switch matchmaking on, set `matchmaking: challenge_mode:` to
@@ -136,8 +151,9 @@ Do these in order, yourself. Do not hand any of them to an AI agent.
    may not play it and offers no such entry).
 10. **Challenge games only.** lichess-bot plays challenges; do not enter
     the account in tournaments or pools by any other means.
-11. **Point it at the engine.** Under `engine:`, set `dir:` and `name:` to
-    the release binary, keep `protocol: "uci"`, and set `ponder: false`
+11. **Point it at the engine.** Under `engine:`, check that `dir:` and
+    `name:` (set by the installer in step 7) lead to the release binary,
+    keep `protocol: "uci"`, and set `ponder: false`
     (Vyvræl does not ponder; the default is `true`).
 12. **Set the engine options.** Under `engine: uci_options:`, keep only
     options Vyvræl offers: `Move Overhead: 100`, `Threads: 1`, `Hash: 64`,
@@ -229,11 +245,13 @@ These follow the Terms of Service points above.
 ## Suggested profile bio
 
 Short and honest: the engine and its version, the tagline, casual only,
-strength not yet measured. For example:
+and that strength is measured only on the project's own engine ladder, not
+as a Lichess rating. For example:
 
 > Vyvræl 0.1.0-alpha.1: a dragon-flavoured UCI chess engine in Rust, built
-> with AI and playing for the attack. Casual games only; strength still
-> being measured. Source: github.com/NexxusDrakoMultimedia/Vyvrael-Chess
+> with AI and playing for the attack. Casual games only; strength measured
+> only against the project's own engine ladder.
+> Source: github.com/NexxusDrakoMultimedia/Vyvrael-Chess
 
 Update the version when the bot's binary changes. The profile's flag is
 Australia (see the branding section of [ROADMAP.md](ROADMAP.md)).

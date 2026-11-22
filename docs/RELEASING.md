@@ -56,6 +56,11 @@ On a branch `release/<version>` from `main`:
       toolchain, not the workflow's binary itself. Its search is the
       same, which the bench count shows; only its speed may differ
       slightly.
+      **Links:** the workflow publishes this file as the body of the
+      release (`gh release create --notes-file`), and relative links do
+      not resolve on a release page. Write every link to a file in the
+      repository as an absolute one, pinned to the tag:
+      `https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/blob/v<version>/<path>`.
 
 ## 2. Gates (agents, then the maintainer confirms)
 

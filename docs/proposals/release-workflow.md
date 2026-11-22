@@ -21,7 +21,8 @@ is in [RELEASING.md](../RELEASING.md).
 
 It runs only when a tag matching `v*.*.*` is pushed: never for a branch
 push or a pull request. The maintainer creates and pushes the tag. Four
-jobs, each starting only if the one before it passed:
+stages (seven jobs, since build runs four times), each starting only if the
+stages before it passed:
 
 1. **check-version** (Ubuntu): the tag without its `v` must equal the
    version in `Cargo.toml`'s `[workspace.package]`, `CHANGELOG.md` must have
@@ -113,11 +114,13 @@ jobs, each starting only if the one before it passed:
 ## Installing it
 
 1. Read [`release-workflow.yml`](release-workflow.yml).
-2. Copy it to `.github/workflows/release.yml`, unchanged, and commit that
-   on a branch of its own; merge it into `main`.
+2. Copy it to `.github/workflows/release.yml`, changing only its opening
+   comment, and commit that on a branch of its own; merge it into `main`.
 3. In the repository's settings, under Actions, keep "Workflow permissions"
    at read-only by default: the workflow asks for write access itself, on
    the one job that needs it.
+
+This was done on 2026-11-22 (see "Status" at the top).
 
 ## Trying it
 
@@ -127,7 +130,7 @@ Before relying on it for 0.1.0, run it once on a test tag:
    `Cargo.toml` (and `Cargo.lock`), add a dated `## [0.1.0-rc.0]` section to
    `CHANGELOG.md` and a `docs/releases/0.1.0-rc.0.md`.
 2. Tag that commit `v0.1.0-rc.0` and push the tag.
-3. Watch the run: the four jobs pass, and a **draft** pre-release appears
+3. Watch the run: all seven jobs pass, and a **draft** pre-release appears
    with eight files. Download one binary and check it against its
    `.sha256` file; run it once.
 4. Delete the draft release, the tag (locally and on GitHub) and the branch.
