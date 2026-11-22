@@ -370,7 +370,7 @@ class MatchPs1Test(Fixture, unittest.TestCase):
         )
 
     def test_build_names_must_be_plain_ascii(self):
-        for name in ("Vyvræl dev", "Vyvrael=dev", "Vyvrael 'dev'"):
+        for name in ("Vyvræl dev", "Vyvrael=dev", "Vyvrael 'dev'", "Vyvrael\ndev", "Vyvrael dev\n"):
             result = self.run_script(
                 "h2h", "-Test", str(self.test_build), "-TestName", name,
                 "-Base", str(self.base_build), "-BaseName", "Vyvrael base", "-Rounds", "5",

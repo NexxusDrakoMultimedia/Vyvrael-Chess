@@ -183,8 +183,9 @@ check_name() {
     # locale compares bytes; a range in a bash pattern or regular expression
     # follows the user's locale instead, and on Linux that refused plain
     # names such as "Vyvrael 0.1.0-a1".
-    other=$(printf '%s' "$name" | LC_ALL=C tr -d ' -~')
-    [[ -n $name && -z $other ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
+    # A "." after it keeps $(...) from dropping line breaks at the end.
+    other=$(printf '%s' "$name" | LC_ALL=C tr -d ' -~'; printf .)
+    [[ -n $name && $other == . ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
     [[ $name != *'"'* && $name != *"'"* && $name != *'='* ]] || die "$what '$name' may not contain quotes or '='"
     [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$name' may not start or end with a space"
 }

@@ -22,6 +22,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   unexpected input (random bytes, broken FENs, oversized and truncated
   lines, odd option values, commands during a search). It found no panic.
 
+### Fixed
+
+- **The match scripts refuse a build name with a line break.** The
+  plain-ASCII check let line breaks through (in `match.ps1` only one at
+  the end).
+
 ## [0.1.0-alpha.2] - 2026-11-22
 
 The second alpha: games that no longer repeat, a reproducible bench, and

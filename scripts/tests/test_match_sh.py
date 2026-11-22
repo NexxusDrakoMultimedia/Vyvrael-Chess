@@ -397,6 +397,20 @@ class MatchShTest(Fixture, unittest.TestCase):
                 "--rounds", "5", *self.common(),
             )
             self.refused(result, "--test-name")
+        # A line break, made inside bash: Git Bash on Windows would split
+        # its command line there.
+        for name in ("Vyvrael\\ndev", "Vyvrael dev\\n"):
+            with self.subTest(name=name):
+                driver = script_file(
+                    self.tmp / "driver.sh",
+                    f"exec \"$BASH\" '{SCRIPT.as_posix()}' \"$@\" --test-name $'{name}'\n",
+                )
+                result = self.run_script(
+                    "h2h", "--test", self.test_build.as_posix(),
+                    "--base", self.base_build.as_posix(), "--base-name", "Vyvrael base",
+                    "--rounds", "5", *self.common(), script=driver,
+                )
+                self.refused(result, "must be plain ASCII")
 
     def test_plain_names_are_accepted_whatever_the_locale(self):
         # On Linux a UTF-8 locale made the name check refuse plain ASCII.

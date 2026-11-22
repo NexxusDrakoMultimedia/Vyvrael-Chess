@@ -195,7 +195,8 @@ if ($Label -and $Label -notmatch '^[A-Za-z0-9._-]+$') {
 }
 
 function Test-BuildName([string] $What, [string] $Name) {
-    if ($Name -cnotmatch '^[ -~]+$') {
+    # \z, not $: in .NET, $ also matches before a line break at the end.
+    if ($Name -cnotmatch '^[ -~]+\z') {
         Die "$What '$Name' must be plain ASCII (for example `"Vyvrael 0.1.0-a1`")"
     }
     if ($Name -match '["''=]') { Die "$What '$Name' may not contain quotes or '='" }
