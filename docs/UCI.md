@@ -229,7 +229,7 @@ this means for a GUI:
   from a new logged entropy seed, so each game can be replayed by itself,
   given the same commands and limits that do not depend on the clock
   (`nodes`, or time that is never used up).
-- **The rating is calibrated provisionally.** Six settings of the
+- **The rating is calibrated provisionally.** Seven settings of the
   weakening were measured against the reference ladder in milestone 6, and
   `UCI_Elo` is mapped through them:
 
@@ -238,14 +238,15 @@ this means for a GUI:
   | 1110 | 2 | 300 |
   | 1150 | 2 | 230 |
   | 1220 | 2 | 171 |
+  | 1330 | 2 | 112 |
   | 1350 | 3 | 151 |
   | 1410 | 3 | 90 |
   | 1630 | 3 | 20 |
 
   Between two of these at the same depth the misjudgement is interpolated
-  in a straight line. From 1221 to 1349 the engine stays at two plies with
-  the misjudgement falling from 171 to 62: that stretch is extrapolated,
-  not measured. The default, 1360, plays exactly as the default did
+  in a straight line. From 1331 to 1349, where the depth changes, the
+  engine plays as 1330: up to 20 points weak for the number, never
+  stronger than a higher setting. The default, 1360, plays exactly as the default did
   before the calibration. Nothing below 1110 can be played: the weakest
   setting already beats the two lowest rungs of the ladder in most games.
   The measurement and its limits are in [TESTING.md](TESTING.md),

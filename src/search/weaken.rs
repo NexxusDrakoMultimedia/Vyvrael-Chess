@@ -41,16 +41,16 @@ struct Point {
     noise: Score,
 }
 
-/// The calibration of `UCI_Elo`, sorted by rating: the six weakenings
-/// measured on 2026-11-22 with 0.1.0-alpha.2 (`docs/TESTING.md`,
-/// "Calibration of `UCI_Elo`"), their ratings rounded to tens, and one
-/// point that is not measured.
+/// The calibration of `UCI_Elo`, sorted by rating: seven weakenings
+/// measured on 2026-11-22 (`docs/TESTING.md`, "Calibration of `UCI_Elo`"
+/// and "Check of the refit"), their ratings rounded to tens.
 ///
-/// The measured points jump from 1,220 at two plies to 1,350 at three. The
-/// point at 1,349 extends the line through the last two two-ply points
-/// (59 centipawns less misjudgement for every 70 points), so that ratings
-/// in the gap play at two plies with less and less misjudgement. That
-/// stretch is extrapolated, not measured.
+/// Six come from the calibration of 0.1.0-alpha.2. The point at 1,330 (two
+/// plies, 112 centipawns) is the one the check of the refit played as
+/// `UCI_Elo` 1290, placed on the calibration's scale by its distance from
+/// its measured neighbours. Between it and 1,350 (three plies) there is no
+/// point of the same depth, so 1,331 to 1,349 play as 1,330: a little weak
+/// for the number, never stronger than 1,350.
 ///
 /// **Provisional:** measured for one build, and measured again after
 /// milestone 7 and after queued task 2.
@@ -70,11 +70,11 @@ const CALIBRATION: [Point; 7] = [
         depth: 2,
         noise: 171,
     },
-    // Not measured: see above.
+    // Measured in the check of the refit: see above.
     Point {
-        elo: 1349,
+        elo: 1330,
         depth: 2,
-        noise: 62,
+        noise: 112,
     },
     Point {
         elo: 1350,
@@ -601,13 +601,14 @@ mod tests {
         assert_eq!(tiny.nodes, one.nodes);
     }
 
-    /// The settings measured in the calibration, as (rating, depth, noise):
-    /// written out here rather than read from the table, so that a change
-    /// to the table has to change this test too.
-    const MEASURED: [(u32, u32, Score); 6] = [
+    /// The settings measured in the calibration and its check, as (rating,
+    /// depth, noise): written out here rather than read from the table, so
+    /// that a change to the table has to change this test too.
+    const MEASURED: [(u32, u32, Score); 7] = [
         (1110, 2, 300),
         (1150, 2, 230),
         (1220, 2, 171),
+        (1330, 2, 112),
         (1350, 3, 151),
         (1410, 3, 90),
         (1630, 3, 20),
@@ -653,25 +654,40 @@ mod tests {
                 noise: 216
             }
         );
-        // The stretch that is not measured stays at two plies, down to the
-        // extrapolated 62 just below the first three-ply point.
-        assert_eq!(Weakening::for_elo(1300).depth, 2);
+        // 70 of the 110 points from 1,220 (171) to 1,330 (112): 133.45,
+        // rounded towards more noise.
         assert_eq!(
-            Weakening::for_elo(1349),
+            Weakening::for_elo(1290),
             Weakening {
                 depth: 2,
-                noise: 62
+                noise: 134
             }
         );
     }
 
     #[test]
+    fn below_the_step_to_three_plies_the_last_two_ply_point_holds() {
+        // No point of the same depth lies between 1,330 and 1,350, so the
+        // ratings in between play as 1,330 rather than as anything
+        // unmeasured.
+        for elo in 1331..1350 {
+            assert_eq!(
+                Weakening::for_elo(elo),
+                Weakening {
+                    depth: 2,
+                    noise: 112
+                },
+                "{elo}"
+            );
+        }
+    }
+
+    #[test]
     fn a_higher_rating_never_plays_weaker() {
         // Deeper, or as deep with no more misjudgement. The noise rises at
-        // the step to three plies, from 62 at 1,349 to 151 at 1,350; the
-        // 62 is extrapolated, so that rise is not measured. What was
-        // measured is the gain from two plies and 171 (1,217) to three
-        // plies and 151 (1,354).
+        // the step to three plies, from 112 at 1,349 to 151 at 1,350; both
+        // were measured, and the three-ply setting rated higher (1,350
+        // against 1,330 for two plies and 112).
         let mut previous = Weakening::for_elo(ELO_MIN);
         for elo in ELO_MIN..=ELO_MAX {
             let now = Weakening::for_elo(elo);

@@ -29,7 +29,7 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 ### Changed
 
 - **`UCI_Elo` is calibrated, provisionally.** Its numbers are now ratings
-  on the scale of the reference ladder, measured for six settings of the
+  on the scale of the reference ladder, measured for seven settings of the
   weakening: the range is 1110 to 1630 (was 400 to 1800, labels only), and
   the default 1360 (was 1200) plays exactly as the old default did.
   A GUI that sets a value outside the new range gets it refused, as for

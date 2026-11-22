@@ -76,7 +76,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` is 1360 by default, accepts 1110 to 1630, refuses the old ends 400 and 1800, and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 1110 and 1630 look 2 and 3 plies ahead, a rating out of range (3000, or the old lowest 400) is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
 | `rng` entropy and streams | The stream indices are 0, 1 and 2 and are never renumbered; the first three outputs of the strength stream of the default seed are pinned (computed with an independent implementation); every entropy seed is a valid `Seed`, from 1 to 2147483647 and never 0, and any 64 random bits map to such a seed, the same every time; no test relies on two entropy seeds differing, which chance could break. |
 | `search` variety | It applies only above 0 and up to the twelfth full move; never with a mate for or against; over three opening positions, three `Variety` values and eight seeds every choice is within `Variety` of the best and has the score an exact search of it gives; a move that leaves the queen to be taken is never chosen over twenty seeds, while other queen moves are; a rook move that allows a back-rank mate passes the cheap filter (checked) and the second check still never lets it be played, while other safe moves are; the same seed gives the same choice and twenty seeds play more than one move; the weight is largest for the best move and falls with every centipawn of loss; one number is drawn per choice; with `stop` already raised, or a budget of one node, only the best move is offered; the budget is split two thirds to the search, a depth limit stays with the search. |
-| `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); the six measured settings of the calibration give exactly their measured weakenings, the range is 1110 to 1630 and out-of-range ratings (the old 400 included) are clamped, the default 1360 gives three plies and 141 centipawns; between points the misjudgement is interpolated, rounded towards more noise, and the unmeasured stretch from 1221 to 1349 stays at two plies down to 62 centipawns; a higher rating never looks less far, and at the same depth never errs more, over the whole range. |
+| `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); the seven measured settings of the calibration and its check give exactly their measured weakenings, the range is 1110 to 1630 and out-of-range ratings (the old 400 included) are clamped, the default 1360 gives three plies and 141 centipawns; between points of the same depth the misjudgement is interpolated, rounded towards more noise, and 1331 to 1349, where the depth changes, play as 1330 (two plies, 112 centipawns); a higher rating never looks less far, and at the same depth never errs more, over the whole range. |
 
 Rows are added as modules land.
 
@@ -1009,15 +1009,17 @@ What it shows:
   often than Baseline 2's engines suggested. As with KI-8, compare within
   this one table.
 
-**The refit.** `search::Weakening::for_elo` maps `UCI_Elo` through the six
-measured points, their ratings rounded to tens (1110, 1150, 1220, 1350,
-1410, 1630), interpolating the misjudgement between points of the same
-depth. The range is 1110 to 1630. Between 1220 and 1350 there is no
-measurement: the line through the last two two-ply points is extended to
-1349 (62 centipawns), so that stretch stays at two plies. The default is
+**The first refit (`a874077`).** `search::Weakening::for_elo` mapped
+`UCI_Elo` through the six measured points, their ratings rounded to tens
+(1110, 1150, 1220, 1350, 1410, 1630), interpolating the misjudgement
+between points of the same depth. The range became 1110 to 1630. Between
+1220 and 1350 there was no measurement: the line through the last two
+two-ply points was extended to 1349 (62 centipawns), so that stretch
+stayed at two plies; the second refit below replaces that. The default is
 1360 (three plies, 141 centipawns), exactly the weakening the old default
-(1200) gave. The table is in `docs/UCI.md`, "Limited strength". Full-strength
-play is unchanged: the bench node count is the same before and after.
+(1200) gave. The current table is in `docs/UCI.md`, "Limited strength".
+Full-strength play is unchanged: the bench node count is the same before
+and after.
 
 **Check of the refit.** The refitted build (commit `a874077`,
 `vyvrael-dev-a874077.exe`, SHA-256
@@ -1033,11 +1035,11 @@ copied unchanged). No illegal move, crash, stall or time loss;
 `cutechess-cli` ended two Vyvræl processes itself between games, with no
 result affected.
 
-| `UCI_Elo` | Stretch | Ordo rating | On the scale | Off target |
-| --: | --- | --: | --: | --: |
-| 1180 | two plies, interpolated | -2,348.4 | 1,152 | -28 |
-| 1290 | two plies, extrapolated | -2,189.2 | 1,311 | +21 |
-| 1520 | three plies, interpolated | -2,020.4 | 1,480 | -40 |
+| `UCI_Elo` | Stretch | Plies, misjudgement (cp) | Ordo rating | On the scale | Off target |
+| --: | --- | --- | --: | --: | --: |
+| 1180 | two plies, interpolated | 2, 205 | -2,348.4 | 1,152 | -28 |
+| 1290 | two plies, extrapolated | 2, 112 | -2,189.2 | 1,311 | +21 |
+| 1520 | three plies, interpolated | 3, 55 | -2,020.4 | 1,480 | -40 |
 
 PGN SHA-256: E1180
 `93a63e54f6777fff3e39e0d251788e552d75c7efa3cf52d9fcfaf4c20fc1d896`,
@@ -1047,12 +1049,34 @@ E1520 `eb3aaebe99d4646942d0322ec8c316413e18004ab6dfd04a3d83ec2c2c21d939`
 
 Every setting landed within 40 points of its number, in the right order,
 which is about the error of 320 games. The merged run also moves the six
-calibration settings 20 to 30 points down (L400 at 1,080, L1800 at 1,621
-in this table), so part of each offset is the scale shifting, not the
-fit. Against this table's own calibration points, 1180 lands exactly
-where the interpolation puts it (1,153), and 1520 is 25 points below the
-midpoint of its neighbours. The extrapolated stretch plays a little
-stronger than its number, not weaker. The fit is kept as it is.
+calibration settings 9 to 27 points down (L400 by 26, L1800 by 9; L400 at
+1,080 and L1800 at 1,621 in this table), so part of each offset is the
+scale shifting, not the fit. Against this table's own calibration
+points, 1180 lands exactly where the interpolation puts it (1,153), and
+1520 is 25 points below the midpoint of its neighbours, whose own shift
+there is only 9 to 17 points.
+
+**The extrapolated stretch was wrong, and is replaced.** Against its
+measured neighbours in the same table, 1290 (two plies, 112 cp) plays
+118 points above L1050 (two plies, 171 cp) and only 23 below L1150 (three
+plies, 151 cp): two plies gains about 2 points for every centipawn of
+misjudgement taken away. Continuing the line down to 62 cp at 1349, as the
+first refit did, would most likely have made 1349 play stronger than 1350
+to 1410, so a higher setting would have played weaker. This was found by
+the end-of-milestone review. The second refit (below) drops the
+extrapolated point.
+
+**The second refit.** The check's 1290 setting (two plies, 112 cp) is
+itself a measured weakening. Placed on the calibration's scale by its
+distance from its neighbours in the check table (22.6 below L1150, 118.0
+above L1050, which give 1,331 and 1,335 on the calibration's scale), it is
+about 1,333, rounded to 1330. `for_elo` now maps `UCI_Elo` through seven
+measured points (1110, 1150, 1220, 1330, 1350, 1410, 1630) with nothing
+extrapolated. Between 1330 and 1350 the depth changes, so 1331 to 1349
+play as 1330: up to 20 points weak for the number, but never stronger than
+a higher setting. Range, default and full-strength play are unchanged (the
+bench node count is the same). The second refit is not checked by games
+of its own: every weakening it uses was measured.
 
 ### Soak test (Windows workstation, 2026-11-22)
 
