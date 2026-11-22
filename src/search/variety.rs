@@ -249,7 +249,7 @@ mod tests {
     fn vary(pos: &Position, depth: u32, variety: u32, seed: u32) -> (Outcome, Option<Varied>) {
         let best = Search::new(&HandCrafted).fixed_depth(pos, depth);
         let stop = AtomicBool::new(false);
-        let mut rng = Rng::new(seed);
+        let mut rng = crate::rng::test_stream(u64::from(seed));
         let varied = varied_move(
             pos,
             &[],
@@ -453,7 +453,7 @@ mod tests {
             let pos = fen(text);
             let best = Search::new(&HandCrafted).fixed_depth(&pos, depth);
             let stop = AtomicBool::new(false);
-            let mut rng = Rng::new(9);
+            let mut rng = crate::rng::test_stream(9);
             let _ = varied_move(
                 &pos,
                 &[],
@@ -465,7 +465,7 @@ mod tests {
                 &stop,
                 &mut rng,
             );
-            let mut expected = Rng::new(9);
+            let mut expected = crate::rng::test_stream(9);
             let _ = expected.next_u64();
             assert_eq!(rng.next_u64(), expected.next_u64(), "{text}");
         }
@@ -478,8 +478,8 @@ mod tests {
         let pos = Position::startpos();
         let best = Search::new(&HandCrafted).fixed_depth(&pos, 3);
         let stop = AtomicBool::new(true);
-        for seed in 1..=10 {
-            let mut rng = Rng::new(seed);
+        for case in 1..=10 {
+            let mut rng = crate::rng::test_stream(case);
             let varied = varied_move(
                 &pos,
                 &[],
@@ -496,7 +496,7 @@ mod tests {
             assert_eq!(varied.choices, 1);
         }
         // A node budget that runs out also stops the checks.
-        let mut rng = Rng::new(1);
+        let mut rng = crate::rng::test_stream(1);
         let free = AtomicBool::new(false);
         let varied = varied_move(
             &pos,
