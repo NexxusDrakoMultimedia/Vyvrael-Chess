@@ -1019,6 +1019,41 @@ measurement: the line through the last two two-ply points is extended to
 (1200) gave. The table is in `docs/UCI.md`, "Limited strength". Full-strength
 play is unchanged: the bench node count is the same before and after.
 
+**Check of the refit.** The refitted build (commit `a874077`,
+`vyvrael-dev-a874077.exe`, SHA-256
+`8682cac2711dc703ca9ecc19f1b9499a4b0c4a4c69be1fe5e3ef9e573ce26019`) was
+played at three new settings, one in each kind of stretch, against the
+same eight opponents, 40 games each (`-Seed 20261125`). The maintainer ran
+it from the clean commit `7a36db0`, whose engine code is that of
+`a874077`, 11:56 to 12:25 UTC. It was rated in one Ordo run with
+Baseline 2, the KI-8 gauntlet and the calibration's games (5,820 games;
+table:
+[`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt),
+copied unchanged). No illegal move, crash, stall or time loss;
+`cutechess-cli` ended two Vyvræl processes itself between games, with no
+result affected.
+
+| `UCI_Elo` | Stretch | Ordo rating | On the scale | Off target |
+| --: | --- | --: | --: | --: |
+| 1180 | two plies, interpolated | -2,348.4 | 1,152 | -28 |
+| 1290 | two plies, extrapolated | -2,189.2 | 1,311 | +21 |
+| 1520 | three plies, interpolated | -2,020.4 | 1,480 | -40 |
+
+PGN SHA-256: E1180
+`93a63e54f6777fff3e39e0d251788e552d75c7efa3cf52d9fcfaf4c20fc1d896`,
+E1290 `c98c99bf7b8bbcdb3941e54c472ff6207763f3a087e29140e08042c8a85fff08`,
+E1520 `eb3aaebe99d4646942d0322ec8c316413e18004ab6dfd04a3d83ec2c2c21d939`
+(320 games each, not committed).
+
+Every setting landed within 40 points of its number, in the right order,
+which is about the error of 320 games. The merged run also moves the six
+calibration settings 20 to 30 points down (L400 at 1,080, L1800 at 1,621
+in this table), so part of each offset is the scale shifting, not the
+fit. Against this table's own calibration points, 1180 lands exactly
+where the interpolation puts it (1,153), and 1520 is 25 points below the
+midpoint of its neighbours. The extrapolated stretch plays a little
+stronger than its number, not weaker. The fit is kept as it is.
+
 ### Smoke test of the scripts (Windows workstation, 2026-11-22)
 
 `match.ps1` and `rate.ps1` were run for real once in each mode, at the
