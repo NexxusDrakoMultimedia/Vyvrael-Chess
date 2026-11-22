@@ -2,8 +2,8 @@
 # Copyright (C) 2026 Nexxus Drako Multimedia
 #
 # Installed from docs/proposals/release-workflow.yml with the maintainer's
-# approval (2026-11-22). It has not run yet: do not rely on it until it has
-# run once on a test tag. What it does and why:
+# approval (2026-11-22). It passed its trial on the test tag v0.1.0-rc.0 the
+# same day (run 44980221187). What it does and why:
 # docs/proposals/release-workflow.md.
 #
 # Builds the release binaries for a pushed version tag and creates a DRAFT
