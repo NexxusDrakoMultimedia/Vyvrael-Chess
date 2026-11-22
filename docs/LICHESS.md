@@ -22,6 +22,11 @@ agent stops and says so.
 - **Until the upgrade, nobody plays a game on this account**: not against a
   person, not against the Lichess AI, not by accepting a challenge. One game
   makes the upgrade impossible for good. Puzzles are not games.
+- **The games the bot played, build by build,** are recorded in
+  [lichess-history.md](lichess-history.md). Before stopping the bot to
+  upgrade it to a new release, the maintainer exports its games as a
+  pre-release PGN by hand on the Lichess website; that export closes the
+  old build's section.
 
 ## Policy
 
