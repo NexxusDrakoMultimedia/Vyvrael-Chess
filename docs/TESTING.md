@@ -484,7 +484,10 @@ provided have therefore been installed on Linux at least once. What came
 later has not been run for real yet: CT800 1.46 on Linux, the `avx2` builds
 of Arasan, Stash and Weiss on Linux, and the whole Windows engine installer
 (only its files' digests were checked, by downloading each once on
-2026-11-21). A real match
+2026-11-21). On the Windows workstation the maintainer installed Cute
+Chess, Ordo and the ladder's engines by hand (confirmed 2026-11-23); the
+matches of milestone 6 ran with those, not with copies this script
+installed. A real match
 and a rating run with the bash scripts followed (see "Strength matches,
 SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
 installed.
@@ -509,7 +512,9 @@ point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
 lichess-bot is not installed on Windows (it runs on the Linux machine
 only). The ladder's engines are: see "The ladder's opponent engines (Linux
 and Windows)" above. Status of the tools part: tested offline; the real
-archives have not been fetched by the script.
+archives have not been fetched by the script. The Cute Chess and Ordo on
+the Windows workstation were installed by hand by the maintainer
+(confirmed 2026-11-23).
 
 ## Opponent ladder (Ladder Baseline 2)
 
