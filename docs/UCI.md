@@ -13,7 +13,7 @@ times differ from run to run):
 ```text
 $ vyvrael
 uci
-id name Vyvræl 0.1.0-alpha.1
+id name Vyvræl 0.1.0-alpha.2
 id author Nexxus Drako Multimedia
 option name Hash type spin default 16 min 1 max 65536
 option name Threads type spin default 1 min 1 max 1
