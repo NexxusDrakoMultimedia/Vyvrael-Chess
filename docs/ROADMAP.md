@@ -122,6 +122,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
 | KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 (the current build) on Ladder Baseline 2: between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
+| KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine keeps spending at least about a millisecond a move however little is left, so a long enough game at a tiny time control loses on time. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | Not scheduled: the maintainer decides. A fix would keep a reserve that grows with the moves played, or play instantly from a shallow search once the clock is below the overhead. |
 
 ## Milestone 2: move generation
 
@@ -294,7 +295,7 @@ that milestone starts, and must include the known issues due in it:
 - Milestone 6: calibration of `UCI_Elo` (KI-8 was measured for
   0.1.0-alpha.2).
 - Milestone 7: KI-9, KI-10; KI-8 measured again.
-- Not yet scheduled: KI-2, KI-11.
+- Not yet scheduled: KI-2, KI-11, KI-12.
 
 ## Planned features
 

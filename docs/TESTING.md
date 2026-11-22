@@ -1054,6 +1054,49 @@ where the interpolation puts it (1,153), and 1520 is 25 points below the
 midpoint of its neighbours. The extrapolated stretch plays a little
 stronger than its number, not weaker. The fit is kept as it is.
 
+### Soak test (Windows workstation, 2026-11-22)
+
+A check that games run cleanly at very different speeds: no illegal move,
+crash, stall or loss on time by Vyvræl. It is not a strength match, and
+its scores are not quoted.
+
+- **Time controls in seconds,** as `cutechess-cli` counts them: 1+0 (one
+  second a side), 3+2 (three seconds a side plus two a move) and 60+0 (one
+  minute a side).
+- **Build:** the current one, `vyvrael-dev-a874077.exe` (engine code of
+  `a874077`), run by the maintainer with `match.ps1` from the clean commit
+  `a39ecf3`, 12:37 to 13:29 UTC. Set up as the Lichess bot runs it:
+  `Variety=10`, with `Seed=20261126` fixed so that the `Variety` choices
+  repeat (the games themselves are not exactly reproducible: the depth
+  each move reaches depends on the clock); `Move Overhead` left at its default of 30 ms, harsher than the
+  bot's 100.
+- **Opponents:** Stockfish 19-1800, Rodent IV-2000 and `Vyvrael 0.1.0-a2`,
+  Hash 64, one thread, `UHO_Lichess_4852_v1.epd` (`-Seed 20261126`).
+
+| Time control | Games | PGN SHA-256 (not committed) | Vyvræl: illegal moves, crashes, stalls | Vyvræl: lost on time | Others: lost on time |
+| --- | --: | --- | --: | --: | --: |
+| 1+0 | 204 | `03d0db8331e2bc14191b97bc2aa9e63dd4eb4383d458d1b361a3860a1cc384a5` | 0 | **1** | 14 (all Rodent IV-2000) |
+| 3+2 | 60 | `c5a81e52b298b216eae901717a3808974e4033506a3821ca2b7e5265b7fc2cee` | 0 | 0 | 0 |
+| 60+0 | 60 | `ffdfc5c83a1c66f108a4f05bb4907f6713f7a475c8808a3443dbcc6cc54052f3` | 0 | 0 | 0 |
+
+`cutechess-cli` ended no engine process by force in these runs.
+
+**The one time loss** (1+0, Stockfish 19-1800 against Vyvræl, which
+played Black) came in a 124-move game that never reached a draw
+adjudication: Vyvræl's score was within the rule's 20 cp only on isolated
+moves after move 34, never ten in a row, and +0.3 or more for its last
+45 moves. Vyvræl spent its whole second over its 123 moves, the last
+dozen at about a millisecond each (depth 2 or 3), and ran out. It is not
+known issue KI-10: no move was slow. It is the time allocation: without an
+increment the engine keeps spending at least a millisecond a move, so a
+long enough game at a tiny time control runs the clock out. This is
+recorded as known issue KI-12. The Lichess bot is not exposed to it: its
+games all have an increment of at least two seconds (see LICHESS.md).
+
+**Result:** no illegal move, crash or stall at any time control. One loss
+on time at 1+0, explained above and recorded as KI-12, none at 3+2 or
+60+0.
+
 ### Smoke test of the scripts (Windows workstation, 2026-11-22)
 
 `match.ps1` and `rate.ps1` were run for real once in each mode, at the
