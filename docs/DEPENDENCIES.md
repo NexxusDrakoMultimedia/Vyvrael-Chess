@@ -84,7 +84,7 @@ none is linked into Vyvræl, vendored or redistributed by this project. The
 full pins (addresses, complete SHA-256 digests, build commands and notes)
 are in `scripts/ladder_engines.py`, which is the place to change them.
 Sources and licences were read on each project's own page or repository on
-2026-11-21, and for the nine engines new in Ladder Baseline 3 (the last
+2026-11-21, and for the ten engines new in Ladder Baseline 3 (the last
 rows of each table) on 2026-11-22. The limited entries of the ladder (for example "Stockfish
 19-1500") are the same binary with `UCI_LimitStrength` on.
 
@@ -113,11 +113,16 @@ rows of each table) on 2026-11-22. The limited entries of the ladder (for exampl
 | MinimalChess 0.6 | v0.6 | MIT | official binary (zip, self-contained .NET) | <https://github.com/lithander/MinimalChessEngine> | `b1dacf326ae50eb3...` |
 | Velvet 1.0.0 | v1.0.0 | GPL-3.0-or-later | official binary (`modern`) | <https://github.com/mhonert/velvet-chess> | `712440e9103f2091...` |
 | Inanis 1.0.1 | v1.0.1 | GPL-3.0 | official binary (zip; popcnt, popcnt_bmi2 for `pext`) | <https://github.com/Tearth/Inanis> | `e29d2e0ffad2dad4...` (`pext`: `397b2c76f5774b11...`) |
+| Tantabus 1.0.2 | v1.0.2 | MPL-2.0 | official binary (x86-64-v3) | <https://github.com/analog-hors/tantabus> | `01ba05307ea56175...` |
 
 Licences are as each repository's licence file states them. Arasan's is the
 MIT licence with further terms for its GUI, which is not used here. All of
 them, and Fruit's GPL-2.0, permit downloading the program or building it
-from source for private testing.
+from source for private testing. Tantabus's MPL-2.0 is compatible with the
+GPL through its section 3.3 ("Secondary License"), as no file of its
+source carries the notice that would rule that out (checked at v1.0.2 on
+2026-11-22); the maintainer accepts GPL-3.0-compatible licences for
+opponents (2026-11-22).
 
 Left out on Linux, with the reason:
 
@@ -154,6 +159,7 @@ publishes no digest, the recorded one is what it served that day.
 | MinimalChess 0.4.1, 0.5, 0.6 | `MinimalChessEngine.exe` in `MinimalChess.<version>.Windows.zip` | MIT | GitHub releases | `55147a2a...`, `bf1e8a54...`, `99623e8f...` |
 | Velvet 1.0.0 | `velvet-v1.0.0-x86_64-modern.exe` | GPL-3.0-or-later | GitHub release v1.0.0 | `338d7d0606dc4009...` |
 | Inanis 1.0.1 | `inanis.exe` in the popcnt zip; in the popcnt_bmi2 zip | GPL-3.0 | GitHub release v1.0.1 | `3be5b6cecebb64df...`; `4e3ed4dafd1c39a6...` |
+| Tantabus 1.0.2 | `tantabus-windows-2019-x86-64-v3.exe` | MPL-2.0 | GitHub release v1.0.2 | `5da552a4459e52e0...` |
 
 Fruit 2.1 has no official Windows download (the author's site is gone);
 its file is taken from `github.com/Warpten/Fruit-2.1` at a fixed commit, as
@@ -178,7 +184,8 @@ Overhead`, Arasan `Move overhead`, Reckless, Stash and Ethereal
 `MoveOverhead`, Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`, Inanis
 `Move Overhead`). Orion, Viridithas, Princhess, Vice, Fruit, Rustic Alpha
 and Nostradamus have no move-overhead option, nor do Blunder, MinimalChess
-and Velvet of Ladder Baseline 3; Blunder 7.6.0's `UseBook` is set off. Of
+Velvet and Tantabus of Ladder Baseline 3; Blunder 7.6.0's `UseBook` is
+set off. Of
 the new engines only Inanis has a Threads option. The book files that
 Arasan, Fruit and Rodent IV ship are still installed beside them, unused.
 
@@ -199,7 +206,7 @@ level (they contain no AVX-512). Of Ladder Baseline 3's engines, Blunder's
 Go programs name no processor level either; MinimalChess's are
 self-contained .NET programs, which compile for the processor when they
 run; Velvet 1.0.0 has no AVX2 file, so its `modern` build (popcnt, lzcnt,
-BMI1) is used.
+BMI1) is used; Tantabus 1.0.2's files are its x86-64-v3 builds.
 
 **Two builds.** The installer takes the `avx2` build by default and the
 `pext` build with `--engine-build pext`, or else with

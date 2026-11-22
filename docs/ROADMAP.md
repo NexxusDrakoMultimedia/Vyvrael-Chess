@@ -1023,10 +1023,10 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
   (Ladder Baseline 2, run on 2026-11-21, has none.) Vyvræl 0.1.0 goes
   in once it is released, beside 0.1.0-alpha.1 and 0.1.0-alpha.2. Without
   Arasan 26.1-1800, retired from the installer on 2026-11-22; Ladder
-  Baseline 2's record keeps it. With nine new engines, in the installer
+  Baseline 2's record keeps it. With ten new engines, in the installer
   since 2026-11-22 (`NEW_IN_BASELINE_3` in `scripts/ladder_engines.py`):
   Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
-  Velvet 1.0.0 and Inanis 1.0.1. Of them only Inanis has a move-overhead
+  Velvet 1.0.0, Inanis 1.0.1 and Tantabus 1.0.2. Of them only Inanis has a move-overhead
   option, so the others play with their own margin; the run's notes must
   say so.
 - Submitting Vyvræl to rating lists. Blocked on the branding, like rated

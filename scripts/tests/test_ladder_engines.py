@@ -47,7 +47,7 @@ class LadderEnginesTest(unittest.TestCase):
         # with a reason or retired with a reason; besides them only the
         # engines new in Ladder Baseline 3 are provided: no invented engines.
         self.assertEqual(sorted(provided + left_out + retired), sorted(baseline + new))
-        self.assertEqual(len(new), 9)
+        self.assertEqual(len(new), 10)
         self.assertFalse(set(new) & set(baseline))
         self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75", "Nostradamus 0.4"])
         self.assertEqual(retired, ["Arasan 26.1-1800"])
@@ -64,7 +64,7 @@ class LadderEnginesTest(unittest.TestCase):
         self.assertEqual(sorted(provided + list(ladder_engines.RETIRED)),
                          sorted(baseline_names() + ladder_engines.NEW_IN_BASELINE_3))
         self.assertEqual(ladder_engines.NOT_INSTALLABLE["windows"], {})
-        self.assertEqual(len(ladder_engines.pins("windows")), 26)
+        self.assertEqual(len(ladder_engines.pins("windows")), 27)
         # Windows takes official programs only; nothing is built there.
         for engine in ladder_engines.pins("windows"):
             self.assertEqual(engine["method"], "download", engine["name"])
@@ -82,7 +82,7 @@ class LadderEnginesTest(unittest.TestCase):
 
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.pins("linux")]
-        self.assertEqual(len(binaries), 23)
+        self.assertEqual(len(binaries), 24)
         for name in binaries:
             self.assertIsNone(re.search(r"-\d{4}$", name), name)
         variants = {
@@ -119,7 +119,7 @@ class LadderEnginesTest(unittest.TestCase):
             self.assertIn(engine["method"], ("download", "build"), name)
             self.assertIn(engine["archive"], ("none", "tar.gz", "zip", "7z"), name)
             self.assertRegex(engine["licence"],
-                             r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT|Freeware)$", name)
+                             r"^(GPL-[23]\.0(-or-later)?|AGPL-3\.0|MIT|MPL-2\.0|Freeware)$", name)
             if engine["licence"] == "Freeware":
                 # Closed source: the notes must say what its terms allow.
                 self.assertIn("redistribution", engine["notes"], name)

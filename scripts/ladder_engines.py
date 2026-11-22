@@ -816,6 +816,36 @@ ENGINES = [
         "text and Cargo.toml says GPL-3.0, with no 'or later'. GitHub publishes no digest; "
         "these are what it served on 2026-11-22.",
     },
+    {
+        "name": "Tantabus 1.0.2",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/analog-hors/tantabus/releases/download/"
+            "v1.0.2/tantabus-windows-2019-x86-64-v3.exe",
+            "sha256": "5da552a4459e52e0df37186cf0f7298e8f1bab936be2a1dcf5bf8c129074cfd0",
+            "archive": "none",
+            "binary": "tantabus-windows-2019-x86-64-v3.exe",
+        },
+        "version": "v1.0.2",
+        "source": "https://github.com/analog-hors/tantabus",
+        "licence": "MPL-2.0",
+        "method": "download",
+        "url": "https://github.com/analog-hors/tantabus/releases/download/"
+        "v1.0.2/tantabus-ubuntu-20.04-x86-64-v3",
+        "sha256": "01ba05307ea561755c3594b8edf52f46bf24736798fcb6765f440fd5da1df012",
+        "archive": "none",
+        "binary": "tantabus-ubuntu-20.04-x86-64-v3",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "New in Ladder Baseline 3. A Rust engine. The x86-64-v3 (AVX2) files of "
+        "the release are used for both builds. MPL-2.0 is compatible with the GPL: no "
+        "source file carries the 'Incompatible With Secondary Licenses' notice (checked "
+        "at the tag on 2026-11-22). Single-threaded, Hash only of the ladder's settings; "
+        "its own time options (PercentTimePerMove, MinimumTimeUsedPerMove) keep their "
+        "defaults and it has no move-overhead option, no book and no strength limit. "
+        "GitHub publishes no digest; these are what it served on 2026-11-22.",
+    },
     # Engines with a Windows program only; NOT_INSTALLABLE["linux"] says why.
     {
         "name": "Ethereal 12.75",
@@ -919,7 +949,7 @@ NOT_INSTALLABLE = {"linux": {
 NEW_IN_BASELINE_3 = [
     "Blunder 4.0.0", "Blunder 5.0.0", "Blunder 7.1.0", "Blunder 7.6.0",
     "MinimalChess 0.4.1", "MinimalChess 0.5", "MinimalChess 0.6",
-    "Velvet 1.0.0", "Inanis 1.0.1",
+    "Velvet 1.0.0", "Inanis 1.0.1", "Tantabus 1.0.2",
 ]
 
 # Names of Ladder Baseline 2 that the installer no longer provides, and why.
