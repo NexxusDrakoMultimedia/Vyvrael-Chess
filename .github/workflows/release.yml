@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Nexxus Drako Multimedia
+#
+# Installed from docs/proposals/release-workflow.yml with the maintainer's
+# approval (2026-11-22). It has not run yet: do not rely on it until it has
+# run once on a test tag. What it does and why:
+# docs/proposals/release-workflow.md.
+#
+# Builds the release binaries for a pushed version tag and creates a DRAFT
+# GitHub release with them. It never publishes; the maintainer does.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Read-only by default. Only the job that creates the draft release gets
+# write access, and only to the repository's contents (releases).
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # No incremental artefacts and no cache: every release build starts clean.
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  # The tag must name the version in Cargo.toml, and the changelog and the
+  # release notes must have it, before anything is built.
+  check-version:
+    name: tag, version, changelog
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare the tag with Cargo.toml, CHANGELOG.md and the notes
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          manifest=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"$/\1/p' Cargo.toml)
+          echo "tag $TAG, version in Cargo.toml $manifest"
+          if [ "$version" != "$manifest" ]; then
+            echo "::error::tag $TAG does not match the version $manifest in Cargo.toml"
+            exit 1
+          fi
+          if ! grep -Eq "^## \[$(printf '%s' "$version" | sed 's/[.]/\\./g')\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no dated section for $version"
+            exit 1
+          fi
+          if [ ! -f "docs/releases/$version.md" ]; then
+            echo "::error::docs/releases/$version.md is missing"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # The same gates as ci.yml. Nothing is built for release unless they pass.
+  gates:
+    name: fmt, clippy, test, script tests
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: rustup show
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace --release
+      - name: Script tests
+        run: python3 -m unittest discover -s scripts/tests
+
+  # One job per system and build. Never target-cpu=native, never AVX-512.
+  build:
+    name: ${{ matrix.os }} ${{ matrix.build }}
+    needs: [check-version, gates]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        build: [avx2, plain]
+        # The pext build goes here in milestone 7 (0.2.0), once the engine
+        # has sliding-piece attacks by PEXT behind a feature: add `pext` to
+        # `build`, with target-cpu=x86-64-v3 and `--features pext` (the
+        # feature's name is decided in milestone 7), named
+        # vyvrael-<version>-pext(.exe).
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Choose the flags and the file name
+        run: |
+          set -euo pipefail
+          flags=""
+          suffix=""
+          if [ "${{ matrix.build }}" = "avx2" ]; then
+            # x86-64-v3: AVX2 and BMI2, Intel from Haswell, AMD from Excavator.
+            flags="-C target-cpu=x86-64-v3"
+            suffix="-avx2"
+          fi
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # Link the C runtime statically, so the program starts on a
+            # machine without the Visual C++ runtime.
+            flags="$flags -C target-feature=+crt-static"
+            ext=".exe"
+          fi
+          echo "RUSTFLAGS=$flags" >> "$GITHUB_ENV"
+          echo "SOURCE=target/release/vyvrael$ext" >> "$GITHUB_ENV"
+          echo "FILE=vyvrael-$VERSION$suffix$ext" >> "$GITHUB_ENV"
+      - name: Show toolchain
+        run: rustup show
+      - name: Build
+        run: |
+          echo "RUSTFLAGS='$RUSTFLAGS'"
+          cargo build --release --locked -p vyvrael
+      - name: Name the binary
+        run: |
+          set -euo pipefail
+          mkdir dist
+          cp "$SOURCE" "dist/$FILE"
+      - name: Smoke test (uci, isready, go depth 6, quit)
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          out=$( { printf 'uci\nisready\nposition startpos\ngo depth 6\n'; sleep 10; printf 'quit\n'; } | "./$FILE" )
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q "^id name Vyvr.*l $VERSION$" || { echo "::error::wrong id name"; exit 1; }
+          printf '%s\n' "$out" | grep -q '^uciok$' || { echo "::error::no uciok"; exit 1; }
+          printf '%s\n' "$out" | grep -q '^readyok$' || { echo "::error::no readyok"; exit 1; }
+          printf '%s\n' "$out" | grep -q '^info depth 6 ' || { echo "::error::depth 6 not reached"; exit 1; }
+          printf '%s\n' "$out" | grep -Eq '^bestmove [a-h][1-8][a-h][1-8][qrbn]?$' || { echo "::error::no bestmove"; exit 1; }
+      - name: SHA-256 file, in sha256sum format
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum "$FILE" | sed 's/ \*/  /' > "$FILE.sha256"
+          cat "$FILE.sha256"
+          sha256sum -c "$FILE.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.FILE }}
+          path: |
+            dist/${{ env.FILE }}
+            dist/${{ env.FILE }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  # The only job with write access: it creates the draft release.
+  draft-release:
+    name: draft release
+    needs: [check-version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Check the files
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          ls -l
+          for f in *.sha256; do sha256sum -c "$f"; done
+          test "$(ls | grep -cv '\.sha256$')" -eq 4
+      - name: Create the draft release (never published here)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft $prerelease --verify-tag \
+            --title "Vyvræl $VERSION" \
+            --notes-file "docs/releases/$VERSION.md"
