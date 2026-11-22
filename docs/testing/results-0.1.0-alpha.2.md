@@ -15,10 +15,10 @@ measured again after milestone 7.
 
 - **Build:** `Vyvrael 0.1.0-a2` in the games: the 0.1.0-alpha.2 release
   binary, `vyvrael-0.1.0-alpha.2.exe`, SHA-256
-  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`. It is
-  also the current build of milestone 6: no file under `src/` has changed
-  since the tag `v0.1.0-alpha.2`, and a build of the branch is byte for byte
-  the same binary.
+  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`. It was
+  also the current build of milestone 6 when measured: no file under `src/`
+  had changed since the tag `v0.1.0-alpha.2`. The later `UCI_Elo` refits
+  changed only limited-strength play; the bench node count is unchanged.
 - **Date / host:** 2026-11-22, 05:25 to 06:23 UTC (58 minutes), the
   Windows workstation; `scripts/windows/match.ps1` from the clean commit
   `269a1f5`

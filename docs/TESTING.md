@@ -15,7 +15,9 @@ cargo test --workspace --release
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these, and then the offline
-tests of the tool installer (see "Installing the external tools" below).
+tests of the helper scripts in `scripts/tests/`: the installer, the
+ladder's engines, and the match and rating scripts (see "Integration tests"
+below).
 
 ## Unit tests
 
@@ -110,11 +112,12 @@ detection: an edit to move generation order, to the evaluation or to the
 search that alters behaviour at fixed depth fails this test, including edits
 that were not meant to alter anything.
 
-This is the "fixed-depth node-count check" that search changes need while
-SPRT is not yet available. When a deliberate change makes a pin fail:
+This is the "fixed-depth node-count check": change detection that sits
+alongside the SPRT, not in place of it. When a deliberate change makes a
+pin fail:
 
 1. Confirm the new behaviour is intended. For a search or evaluation change
-   that means an SPRT result once the match script exists.
+   that means an SPRT result (see "Strength matches, SPRT and ratings").
 2. Update the numbers in the same commit and say so in its message.
 
 Never update a pin just to get a green run.
@@ -191,22 +194,24 @@ milestone 7 makes deeper searches cheap.
 
 ## Integration tests
 
-Integration tests live in `tests/` and use only the public API.
+Integration tests live in `tests/` and use only the public API. The table
+also lists the Python tests of the helper scripts in `scripts/tests/`, run
+with `python3 -m unittest discover -s scripts/tests`.
 
 | File | What is checked |
 | --- | --- |
 | `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included, except plain HTTP for a download that is allowed it, which then needs a digest, is still checked and may only be redirected to HTTP or HTTPS; archive extraction refuses paths and symlinks that escape, chained links included; a 7-Zip archive is listed and refused for escaping paths, links or special files before Windows' tar unpacks it, refused without that tar, and unpacked for real where it exists; the build of the ladder's engines comes from the argument, then the environment, then `local.env` (found through `VYVRAEL_LOCAL_ENV` too, read with or without a byte-order mark or as UTF-16), then `avx2`, and an unknown build is refused; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the unit restarts only on failure and gives up after three failed starts in ten minutes; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
-| `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also: an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it; plain ASCII build names are accepted, and an accented one refused, under five locales. |
+| `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also, for bash only: the default games at once are the physical cores minus two, and a core count given in `PHYSICAL_CORES` is used; an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it; plain ASCII build names are accepted, and an accented one refused, under five locales. |
 | `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines, for each system and build: on Linux the names provided plus the names left out are exactly the 30 of Ladder Baseline 2's ratings file, with no engine invented, and the three left out are Orion 1.1, Ethereal 12.75 and Nostradamus 0.4; on Windows all 30 are provided, by 17 downloads and no builds; an engine missing on a system has a reason there; no generated name carries a stray space; the limited entries are variants of 4 binaries, 13 in all, each inside its engine's `UCI_Elo` range; every address is HTTPS with a SHA-256, or plain HTTP only for a pin that says why; a closed-source engine's notes state its terms; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none); no `avx2` pin mentions PEXT or BMI2, and on Linux exactly Arasan, Stash and Weiss differ in the `pext` build; a pin resolves per system and build without one system's fields leaking into the other's; fixed options never repeat Hash, Threads or the strength settings. |
 | `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a zip member with the files it needs beside it, and nothing else from the zip; plain HTTP allowed only for a pin that says why; a build from source, from a tar.gz or a zip, and a zip source archive that escapes refused; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown or uninstallable names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them, and a pin's fixed options in every entry; from the real Linux table, the 27 names in order with Ladder Baseline 2's values (books off, 30 ms of move overhead under each engine's own option name, CT800's settings), and Rodent IV told not to limit itself. |
 | `scripts/tests/test_ladder_verify.py` | Python, offline, with small UCI engines written by the tests. A working engine passes and is sent `uci`, its options, `isready`, `ucinewgame`, `position startpos`, `go depth 6` and `quit` in that order; an engine that says nothing, exits, never becomes ready, thinks for ever or names no move fails with a message naming the step, and none of them holds the check up; one that ignores `quit` is killed; a program that is not there is reported; every name of an installed engine is checked with its own options and reported as PASS, FAIL or SKIP. |
 | `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot is refused on Windows; `--engines` there takes the Windows pins of the chosen build (the `avx2` or `pext` file of Ethereal) and installs no tool, and its dry run downloads nothing; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
-| `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_match_sh.py`, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
+| `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The cases of `test_match_sh.py` except those it lists as bash only, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
 | `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
-| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; thirteen lines of bad input, two of them not valid UTF-8, produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
-| `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 250 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. |
+| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; twelve lines of bad input (one blank, two not valid UTF-8, one `go` with no usable limit) and a `stop` produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 300 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. |
 | `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (16,611,416 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
@@ -561,10 +566,28 @@ milestone 6 measurement of 0.1.0-alpha.2, against Ladder Baseline 2, is in
 ## Complete games in cutechess-cli (release check)
 
 Before a release the engine must play complete games in `cutechess-cli`
-with no illegal move, crash, stall or loss on time. Until the match scripts
-exist this is a plain command, run from the repository root after
-`cargo build --release`. The settings are those of Ladder Baseline 1. Give
-the opening file's location in `BOOK`; the output folder `matches/` is
+with no illegal move, crash, stall or loss on time. Run them with the
+match scripts (see "Strength matches, SPRT and ratings") after
+`cargo build --release`: `h2h` with the build on both sides under two
+names for self-play, and `gauntlet` against opponents of the reference
+ladder, Ladder Baseline 2. For example, twenty games of self-play and eight
+against each of two opponents:
+
+```sh
+scripts/linux/match.sh h2h \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --base target/release/vyvrael --base-name "Vyvrael dev-1a2b3c4 (2)" \
+  --rounds 10 --dry-run
+scripts/linux/match.sh gauntlet \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --opponent "Stockfish 19-1320" --opponent "Rodent IV-2000" \
+  --rounds 4 --dry-run
+```
+
+0.1.0-alpha.1 was checked before the scripts existed, with a plain
+`cutechess-cli` command at the settings of Ladder Baseline 1, run from the
+repository root. It still works where the scripts cannot run. Give the
+opening file's location in `BOOK`; the output folder `matches/` is
 git-ignored.
 
 ```sh
@@ -627,7 +650,8 @@ Without `Variety`, three of ten pairs repeated in the self-play of
 
 **These are checks that games complete, not measurements of strength.**
 Forty or forty-eight games against five or six opponents say nothing
-reliable about a rating; that is milestone 6 (known issue KI-8).
+reliable about a rating; that is the KI-8 measurement (see
+[results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)).
 
 ## Strength matches, SPRT and ratings
 
@@ -641,7 +665,9 @@ search heuristic of milestone 7 gets its own SPRT.
 
 Four scripts do the work. The two for each system behave alike; only the
 spelling of the options differs (`--rounds` in bash, `-Rounds` in
-PowerShell).
+PowerShell), and PowerShell takes several opponents or options as one
+comma- or semicolon-separated list where bash repeats the flag (see
+"Pitfalls").
 
 | Task | Linux | Windows |
 | --- | --- | --- |
@@ -649,17 +675,18 @@ PowerShell).
 | Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
 
 They need `cutechess-cli` and Ordo, which are separate programs (see
-"Installing the external tools"). Each script reads the tool's own help
-before using it and stops with a clear message if the tool, or an option it
-needs, is missing. `--help` (`-Help`) prints every option. **Start every
-run with `--dry-run` (`-DryRun`)**: it prints the exact command and runs
-nothing.
+"Installing the external tools"). In gauntlet mode `match.sh` also needs
+`python3` (or the program named in `VYVRAEL_PYTHON`) to read the engine list.
+Each script reads the tool's own help before using it and stops with a clear
+message if the tool, or an option it needs, is missing. `--help` (`-Help`)
+prints every option. **Start every run with `--dry-run` (`-DryRun`)**: it
+prints the exact command and runs nothing.
 
-**Status:** the scripts are covered by offline tests with stand-in tools,
-and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
-The maintainer has run the tooling on the Windows workstation with
-0.1.0-a1 and confirmed that it works (2026-11-21); which scripts and modes
-that covered is not recorded. The maintainer has also run the bash scripts on the
+**Status:** the scripts are covered by offline tests with stand-in tools.
+On the Windows workstation `match.ps1` and `rate.ps1` have been run for
+real in every mode (see "Smoke test of the scripts", 2026-11-22), and
+`match.ps1` played the KI-8 gauntlet, the `UCI_Elo` calibration and the
+soak test. The maintainer has also run the bash scripts on the
 Linux machine (2026-11-21): a dry run, a real gauntlet with `match.sh` and
 a rating with `rate.sh` all completed, after a fault in `match.sh`'s name
 check that the first attempt met was fixed.
@@ -670,14 +697,17 @@ Paths and machine sizes are not in the repository. Copy
 `scripts/local.env.example` to `scripts/local.env` (git-ignored) and set
 what applies: where `cutechess-cli` and Ordo are if not on `PATH`, the
 opening file, the engine list, the output folder, the number of games at
-once and whether to run at low priority. Each setting can also be an
+once, whether to run at low priority, and the physical core count where
+the scripts cannot detect it (`PHYSICAL_CORES`). Each setting can also be an
 environment variable with the prefix `VYVRAEL_`, and most an argument. The
-order is argument, environment, local file, built-in default.
+order is argument, environment, local file, built-in default. Set
+`VYVRAEL_LOCAL_ENV` to read another file in place of `scripts/local.env`.
 
-Games at once (`CONCURRENCY`) defaults to the physical cores minus two and
-may never exceed the physical cores: engines sharing a core steal each
-other's time and lose games on the clock. On the maintainer's machines it is
-6 on the Windows workstation and 3, at low priority, on the Linux machine.
+Games at once (`CONCURRENCY`) defaults to the physical cores minus two (at
+least one) and may never exceed the physical cores: engines sharing a core
+steal each other's time and lose games on the clock. On the maintainer's
+machines it is 6 on the Windows workstation and 3, at low priority, on the
+Linux machine.
 
 ### The three kinds of match
 
@@ -751,17 +781,18 @@ different machines or settings are not comparable.
 
 Each run leaves three files in the output folder (`matches/`, git-ignored),
 named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
-`.notes.txt` with the exact command, each engine's name, file and SHA-256,
-the `cutechess-cli` version, the start and end times and the outcome. The
-notes also give the repository the script ran from (its commit, and whether
-the working tree was clean or dirty, read with `git --no-optional-locks`,
-which writes nothing in the repository, before the run writes any file;
-set `VYVRAEL_GIT` to use another `git`), and at the end the number of games in
-the PGN and the PGN's SHA-256. A gauntlet also leaves a fourth file,
-`.engines.json`: a copy of the engine list it read, since that list carries
-the opponents' options and may change later. Keep the notes (and that copy)
-with any result you record. A script refuses to add games to a
-PGN that already exists; use `--label` for a second run on one day.
+`.notes.txt` with the exact command, each engine's name, file and SHA-256, the
+`cutechess-cli` version, the start and end times and the outcome. The notes
+also give the repository the script ran from (its commit, and whether the
+working tree was clean or dirty, read with `git --no-optional-locks`, which
+writes nothing in the repository, before the run writes any file; set
+`VYVRAEL_GIT` to use another `git`), and at the end the number of games in the
+PGN and the PGN's SHA-256. `VYVRAEL_MATCH_DATE` replaces the date in the file
+names. A gauntlet also leaves a fourth file, `.engines.json`: a copy of the
+engine list it read, since that list carries the opponents' options and may
+change later. Keep the notes (and that copy) with any result you record. A
+script refuses to add games to a PGN that already exists; use `--label` for a
+second run on one day.
 
 ### Rating lists with Ordo
 
@@ -918,10 +949,10 @@ The settings were labels until the calibration below; since its refit
 after milestone 7 and after queued task 2.
 
 - **Build:** the 0.1.0-alpha.2 release binary (SHA-256
-  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`), the
-  same as the current build of milestone 6, with `UCI_LimitStrength=true`
-  and six settings of the uncalibrated `UCI_Elo`. `-Deterministic` fixed
-  `Seed` at 822286742, so each game can be replayed.
+  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`), then
+  the same as the current build of milestone 6, with
+  `UCI_LimitStrength=true` and six settings of the uncalibrated `UCI_Elo`.
+  `-Deterministic` fixed `Seed` at 822286742, so each game can be replayed.
 - **Games, played by the maintainer on the Windows workstation** with
   `match.ps1` from the clean commit `c16c466`, 06:49 to 07:55 UTC:
   - one gauntlet per setting, 20 rounds (40 games) against each of
@@ -1087,8 +1118,8 @@ its scores are not quoted.
 - **Time controls in seconds,** as `cutechess-cli` counts them: 1+0 (one
   second a side), 3+2 (three seconds a side plus two a move) and 60+0 (one
   minute a side).
-- **Build:** the current one, `vyvrael-dev-a874077.exe` (engine code of
-  `a874077`), run by the maintainer with `match.ps1` from the clean commit
+- **Build:** the then-current build, `vyvrael-dev-a874077.exe` (engine code
+  of `a874077`), run by the maintainer with `match.ps1` from the clean commit
   `a39ecf3`, 12:37 to 13:29 UTC. Set up as the Lichess bot runs it:
   `Variety=10`, with `Seed=20261126` fixed so that the `Variety` choices
   repeat (the games themselves are not exactly reproducible: the depth
