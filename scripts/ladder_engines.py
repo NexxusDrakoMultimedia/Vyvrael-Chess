@@ -846,6 +846,31 @@ ENGINES = [
         "defaults and it has no move-overhead option, no book and no strength limit. "
         "GitHub publishes no digest; these are what it served on 2026-11-22.",
     },
+    {
+        "name": "Tantabus 2.0.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/analog-hors/tantabus/releases/download/"
+            "v2.0.0/tantabus-windows-2019-x86-64-v3.exe",
+            "sha256": "8c343ed1797c923b34870fb0b52d1f88699a68e329c38135b211782fa20f864e",
+            "archive": "none",
+            "binary": "tantabus-windows-2019-x86-64-v3.exe",
+        },
+        "version": "v2.0.0",
+        "source": "https://github.com/analog-hors/tantabus",
+        "licence": "MPL-2.0",
+        "method": "download",
+        "url": "https://github.com/analog-hors/tantabus/releases/download/"
+        "v2.0.0/tantabus-ubuntu-20.04-x86-64-v3",
+        "sha256": "3ef81dfde621b47f483aa7a402c42e9406ea6fd1fabf63e86a34b6ee2b92d522",
+        "archive": "none",
+        "binary": "tantabus-ubuntu-20.04-x86-64-v3",
+        "hash": True,
+        "threads": True,
+        "limit": None,
+        "notes": "See Tantabus 1.0.2 (licence checked the same way at v2.0.0). Its Threads "
+        "option runs from 1 to 1 and does nothing; the ladder sends 1 as for every engine.",
+    },
     # Engines with a Windows program only; NOT_INSTALLABLE["linux"] says why.
     {
         "name": "Ethereal 12.75",
@@ -949,7 +974,7 @@ NOT_INSTALLABLE = {"linux": {
 NEW_IN_BASELINE_3 = [
     "Blunder 4.0.0", "Blunder 5.0.0", "Blunder 7.1.0", "Blunder 7.6.0",
     "MinimalChess 0.4.1", "MinimalChess 0.5", "MinimalChess 0.6",
-    "Velvet 1.0.0", "Inanis 1.0.1", "Tantabus 1.0.2",
+    "Velvet 1.0.0", "Inanis 1.0.1", "Tantabus 1.0.2", "Tantabus 2.0.0",
 ]
 
 # Names of Ladder Baseline 2 that the installer no longer provides, and why.
