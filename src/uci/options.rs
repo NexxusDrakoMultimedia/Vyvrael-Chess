@@ -38,7 +38,8 @@ pub struct Options {
     pub threads: u32,
     /// `Seed`: the seed of strength-affecting randomness, from 1 to
     /// [`SEED_MAX`], or 0 (the default) to take a new one from system
-    /// entropy when the engine starts and at every `ucinewgame`.
+    /// entropy when the engine starts, when `Seed` is set back to 0, and at
+    /// every `ucinewgame`.
     pub seed: u32,
     /// `Variety`: in the first 12 full moves, how many centipawns below the
     /// best a move may be and still be played, chosen at random; 0 (the

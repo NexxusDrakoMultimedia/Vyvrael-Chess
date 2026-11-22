@@ -88,8 +88,6 @@ mod tests {
         assert_eq!(relative_to(Color::White, 0), relative_to(Color::Black, 0));
     }
 
-    /// Search will hold the evaluator as a trait object so it can be swapped
-    /// at run time (hand-crafted or network).
     /// The evaluator is created on one thread and used on another, and can
     /// be shared by several at once.
     #[test]
@@ -114,6 +112,8 @@ mod tests {
         }
     }
 
+    /// Search holds the evaluator as a trait object so it can be swapped at
+    /// run time (hand-crafted or network).
     #[test]
     fn evaluators_can_be_used_as_trait_objects() {
         let evaluator: Box<dyn Evaluator> = Box::new(WhiteIsAPawnUp);

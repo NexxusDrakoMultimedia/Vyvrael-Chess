@@ -8,9 +8,10 @@
 //! position to a shallow depth, as a weaker player sees less far, then
 //! misjudges each move's value by a random amount and plays the one that
 //! looks best to it. Every move is scored to the same depth, in passes of
-//! increasing depth, so this holds however little time there is. A small misjudgement picks the second-best move now
-//! and then; it never prefers a move that loses a queen to one that does
-//! not, unless the noise is as large as a queen.
+//! increasing depth, so this holds however little time there is. A small
+//! misjudgement picks the second-best move now and then; it never prefers a
+//! move that loses a queen to one that does not, unless twice the noise is
+//! as large as a queen.
 //!
 //! This is **strength-affecting randomness**: the generator is handed in by
 //! the caller, which seeds it according to the UCI option `Seed`.
@@ -53,7 +54,8 @@ struct Point {
 /// for the number, never stronger than 1,350.
 ///
 /// **Provisional:** measured for one build, and measured again after
-/// milestone 7 and after queued task 2.
+/// milestone 7 and after queued task 2 (benchmark and speed-up; see
+/// `docs/ROADMAP.md`).
 const CALIBRATION: [Point; 7] = [
     Point {
         elo: 1110,

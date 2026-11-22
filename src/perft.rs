@@ -36,7 +36,8 @@ pub fn perft(pos: &mut Position, depth: u32) -> u64 {
 /// of being made and unmade in place.
 ///
 /// This exists to measure the two designs against each other (see
-/// `docs/TESTING.md`). The engine itself uses make/unmake.
+/// `docs/TESTING.md`). The search uses copy-make (it measured faster);
+/// perft, `legal_moves` and `find_legal_move` use make/unmake.
 #[must_use]
 pub fn perft_copy_make(pos: &Position, depth: u32) -> u64 {
     if depth == 0 {

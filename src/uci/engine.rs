@@ -67,8 +67,9 @@ pub struct Engine {
     /// one from system entropy while `Seed` is 0.
     seed: u32,
     /// The generator of strength-affecting randomness, started from `seed`.
-    /// It stays on the command thread: each weakened search is given a
-    /// generator of its own, seeded from this one.
+    /// It stays on the command thread: each weakened search, and each varied
+    /// choice when `Variety` applies, is given a generator of its own,
+    /// seeded from this one.
     rng: Rng,
 }
 
@@ -276,9 +277,10 @@ impl Engine {
         let stop = Arc::clone(&self.stop);
         let position = self.position.clone();
         let history = self.history.clone();
-        // Full strength never touches the generator. A weakened search gets
-        // its own, seeded by one draw here on the command thread, so the
-        // sequence of games does not depend on how far each search got.
+        // Full strength touches the generator only when `Variety` applies
+        // (below). A weakened search gets its own generator, seeded by one
+        // draw here on the command thread, so the sequence of games does not
+        // depend on how far each search got.
         let weakened = self.options.limit_strength.then(|| {
             (
                 Weakening::for_elo(self.options.elo),

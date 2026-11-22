@@ -4,8 +4,9 @@
 //! The engine's only source of randomness.
 //!
 //! Everything random in Vyvræl (Zobrist keys, magic-number search, test
-//! fixtures, and later any randomised play) draws from the generator in this
-//! module, so that results are reproducible from a seed on every platform.
+//! fixtures, weakened play and the `Variety` choice) draws from the generator
+//! in this module, so that results are reproducible from a seed on every
+//! platform.
 //! The rules are in `AGENTS.md` ("Randomness") and the design is in
 //! `docs/ARCHITECTURE.md` ("RNG design").
 //!
@@ -30,9 +31,10 @@ pub mod stream {
     /// Magic-number search for slider attack tables (`attacks::sliders`).
     pub const MAGICS: u64 = 1;
     /// Randomness that changes how strongly the engine plays: weakened move
-    /// choice under `UCI_LimitStrength` (`uci`). Unlike the others, this
-    /// stream is taken from the seed the UCI options select, which is not
-    /// the default seed unless `Seed` says so.
+    /// choice under `UCI_LimitStrength` and the varied opening move under
+    /// `Variety` (`uci`). Unlike the others, this stream is taken from the
+    /// seed the UCI options select, which is not the default seed unless
+    /// `Seed` says so.
     pub const STRENGTH: u64 = 2;
 }
 
