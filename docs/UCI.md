@@ -231,6 +231,19 @@ this means for a GUI:
   rating looks further and errs less) but nothing has been measured yet.
   Calibration is milestone 6.
 
+**What scale `UCI_Elo` is on.** Its numbers are ratings on the scale of the
+reference ladder, Ladder Baseline 2, as computed by Ordo with Stockfish 19
+as the anchor, shifted by a fixed 3,500 points so that Stockfish 19 is
+3,500 and every setting is a positive number. They are not Lichess, CCRL or
+FIDE ratings and cannot be converted to them. The scale is stretched by
+lopsided results, most visibly at the low end: the limited engines of the
+ladder rate far below the numbers in their names (Stockfish 19-1320 is
+about 1,530 on this scale). A setting of 1,200 means about as strong as an
+engine rated 1,200 on this ladder, not a 1,200 player. The calibration of
+milestone 6 maps the settings onto this scale; until it is done, the
+numbers are labels (see [TESTING.md](TESTING.md), "The scale of
+`UCI_Elo`").
+
 The seed in use is always logged, so any run can be replayed:
 
 ```text

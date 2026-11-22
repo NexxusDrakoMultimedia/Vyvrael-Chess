@@ -868,6 +868,35 @@ but the engine is the same:
   as time losses and weaker play; run long matches on an otherwise idle
   machine.
 
+### The scale of `UCI_Elo`
+
+Decided by the maintainer on 2026-11-22, in this wording: `UCI_Elo`'s
+numbers are ratings on the scale of the reference ladder, Ladder Baseline
+2, as computed by Ordo with Stockfish 19 as the anchor, shifted by a fixed
+3,500 points so that Stockfish 19 is 3,500 and every setting is a positive
+number. They are not Lichess, CCRL or FIDE ratings and cannot be converted
+to them. The scale is stretched by lopsided results, most visibly at the
+low end: the limited engines of the ladder rate far below the numbers in
+their names (Stockfish 19-1320 is about 1,530 on this scale). A setting of
+1,200 means about as strong as an engine rated 1,200 on this ladder, not a
+1,200 player.
+
+In practice: a Vyvræl build at a given `UCI_Elo` is rated in one Ordo run
+with Baseline 2's games, anchored at Stockfish 19 = 0 as always, and 3,500
+is added to its rating. Some points of the ladder on this scale:
+
+| Engine (Ladder Baseline 2) | Ordo rating | On the `UCI_Elo` scale |
+| --- | --: | --: |
+| Stockfish 19 | 0.0 | 3,500 |
+| Stockfish 19-1800 | -1,493.5 | 2,007 |
+| Rodent IV-2000 | -1,757.3 | 1,743 |
+| Stockfish 19-1320 | -1,969.6 | 1,530 |
+| CT800 1.46-1800 | -2,139.1 | 1,361 |
+| CT800 1.46-1200 | -2,486.5 | 1,014 |
+
+The current settings (400 to 1800) are not on this scale yet: they are
+uncalibrated labels until the calibration of milestone 6 refits them.
+
 ### Results from different machines
 
 Results from the Windows workstation and the Linux machine are **never

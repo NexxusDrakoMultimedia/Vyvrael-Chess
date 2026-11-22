@@ -342,8 +342,10 @@ then, and the release notes of 0.2.0 say so.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
 of the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1 is
-kept as history), and its Ordo anchor (Stockfish 19 = 0), not to
-Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
+kept as history), and its Ordo anchor (Stockfish 19 = 0), shifted by a
+fixed 3,500 points so that every setting is positive (Stockfish 19 =
+3,500; the maintainer's decision of 2026-11-22, worded in `TESTING.md`,
+"The scale of `UCI_Elo`"), not to Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
 most visibly at the low end: the limited-strength engines of the baseline
 rate far below the numbers in their names. So documentation and the bot's profile must say which scale a number
 refers to, and must not state a Lichess rating that the measurements do not
@@ -740,7 +742,7 @@ Part A, documents, tools and tests:
 - [x] `TESTING.md`: how to read Ordo output.
 - [x] `TESTING.md`: what a sound Elo comparison needs (same machine, same
   settings, enough games) and the limits of results from different machines.
-- [ ] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
+- [x] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
   the maintainer approved (2026-11-22): Ordo ratings on the scale of
   Ladder Baseline 2 with Stockfish 19 as the anchor, **shifted by a fixed
   3,500 points** so that Stockfish 19 is 3,500 and every setting is
