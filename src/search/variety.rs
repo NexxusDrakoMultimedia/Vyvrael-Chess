@@ -245,11 +245,11 @@ mod tests {
     }
 
     /// The ordinary search to `depth`, then the varied choice with no
-    /// limits and the generator of `seed`.
-    fn vary(pos: &Position, depth: u32, variety: u32, seed: u32) -> (Outcome, Option<Varied>) {
+    /// limits and the generator of test case `case`.
+    fn vary(pos: &Position, depth: u32, variety: u32, case: u32) -> (Outcome, Option<Varied>) {
         let best = Search::new(&HandCrafted).fixed_depth(pos, depth);
         let stop = AtomicBool::new(false);
-        let mut rng = crate::rng::test_stream(u64::from(seed));
+        let mut rng = crate::rng::test_stream(u64::from(case));
         let varied = varied_move(
             pos,
             &[],

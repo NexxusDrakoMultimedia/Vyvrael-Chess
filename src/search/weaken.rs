@@ -292,9 +292,9 @@ mod tests {
         Position::from_fen(text).unwrap()
     }
 
-    fn choose(text: &str, weakening: Weakening, seed: u32) -> Weakened {
+    fn choose(text: &str, weakening: Weakening, case: u32) -> Weakened {
         let stop = AtomicBool::new(false);
-        let mut rng = crate::rng::test_stream(u64::from(seed));
+        let mut rng = crate::rng::test_stream(u64::from(case));
         weakened_move(
             &fen(text),
             &[],
@@ -518,10 +518,10 @@ mod tests {
         weakening: Weakening,
         limits: Limits,
         stopped: bool,
-        seed: u32,
+        case: u32,
     ) -> Weakened {
         let stop = AtomicBool::new(stopped);
-        let mut rng = crate::rng::test_stream(u64::from(seed));
+        let mut rng = crate::rng::test_stream(u64::from(case));
         weakened_move(
             &fen(text),
             &[],
