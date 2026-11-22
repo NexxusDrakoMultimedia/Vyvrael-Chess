@@ -749,8 +749,9 @@ named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
 `.notes.txt` with the exact command, each engine's name, file and SHA-256,
 the `cutechess-cli` version, the start and end times and the outcome. The
 notes also give the repository the script ran from (its commit, and whether
-the working tree was clean or dirty, read with `git` and nothing else; set
-`VYVRAEL_GIT` to use another `git`), and at the end the number of games in
+the working tree was clean or dirty, read with `git --no-optional-locks`,
+which writes nothing in the repository, before the run writes any file;
+set `VYVRAEL_GIT` to use another `git`), and at the end the number of games in
 the PGN and the PGN's SHA-256. A gauntlet also leaves a fourth file,
 `.engines.json`: a copy of the engine list it read, since that list carries
 the opponents' options and may change later. Keep the notes (and that copy)

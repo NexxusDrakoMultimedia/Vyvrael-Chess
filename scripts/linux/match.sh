@@ -395,6 +395,23 @@ if [[ $dry_run == true ]]; then
     exit 0
 fi
 
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes. Read-only: --no-optional-locks keeps git status
+# from refreshing (rewriting) the index. Read before anything is written
+# here, so that the run's own files cannot make the tree look dirty.
+repo_dir=$(cd "$script_dir/../.." && pwd)
+git_program=${VYVRAEL_GIT:-git}
+repo_state() {
+    local commit changes
+    if commit=$("$git_program" --no-optional-locks -C "$repo_dir" rev-parse HEAD 2>/dev/null) &&
+        changes=$("$git_program" --no-optional-locks -C "$repo_dir" status --porcelain 2>/dev/null); then
+        if [[ -n $changes ]]; then echo "$commit (dirty)"; else echo "$commit (clean)"; fi
+    else
+        echo "unknown (no git, or not a git repository)"
+    fi
+}
+repository=$(repo_state)
+
 mkdir -p "$out_dir" || die "cannot create the output folder $out_dir"
 [[ ! -e $pgn ]] || die "$pgn already exists; games would be mixed. Move it away or give another --label"
 
@@ -420,20 +437,6 @@ option_list() {
     echo "${list%; }"
 }
 
-# The commit of the repository this script belongs to, and whether its
-# working tree has changes: read-only git, nothing written.
-repo_dir=$(cd "$script_dir/../.." && pwd)
-git_program=${VYVRAEL_GIT:-git}
-repo_state() {
-    local commit changes
-    if commit=$("$git_program" -C "$repo_dir" rev-parse HEAD 2>/dev/null) &&
-        changes=$("$git_program" -C "$repo_dir" status --porcelain 2>/dev/null); then
-        if [[ -n $changes ]]; then echo "$commit (dirty)"; else echo "$commit (clean)"; fi
-    else
-        echo "unknown (no git, or not a git repository)"
-    fi
-}
-
 # The engine list a gauntlet used, copied beside the notes, so the
 # opponents' options stay on record even if the list changes later.
 engines_copy=""
@@ -446,7 +449,7 @@ fi
     echo "Vyvrael match run notes"
     echo "mode:       $mode"
     echo "started:    $(now)"
-    echo "repository: $(repo_state)"
+    echo "repository: $repository"
     if [[ -n $engines_copy ]]; then
         echo "engines:    $engines_json (copied to $engines_copy)"
     else

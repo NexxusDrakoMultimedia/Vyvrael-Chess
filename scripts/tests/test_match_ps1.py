@@ -521,6 +521,27 @@ class MatchPs1RunTest(Fixture, unittest.TestCase):
         self.assertIn("games:      0 (no PGN was written)\n", notes)
         self.assertIn("pgn sha256: none\n", notes)
 
+    def test_the_repository_is_clean_or_dirty_as_git_says(self):
+        # A stand-in git that answers only when told not to take the
+        # optional locks, so that a run never rewrites the index.
+        fake_git = self.tmp / "fake-git.ps1"
+        fake_git.write_text(
+            "if ($args -notcontains '--no-optional-locks') { exit 9 }\n"
+            "if ($args -contains 'rev-parse') { '0123456789abcdef0123456789abcdef01234567'; exit 0 }\n"
+            "if ($args -contains 'status') { if ($env:FAKE_STATUS) { $env:FAKE_STATUS }; exit 0 }\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        for status, state in (("", "clean"), (" M src/lib.rs", "dirty")):
+            with self.subTest(state=state):
+                shutil.rmtree(self.tmp / "matches", ignore_errors=True)
+                result = self.sprt_run("'nothing'", env={
+                    "VYVRAEL_GIT": str(fake_git), "FAKE_STATUS": status,
+                })
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f"repository: {commit} ({state})\n", self.read(".notes.txt"))
+
     def test_notes_record_the_options_given(self):
         result = self.play(
             "'nothing'", "sprt", *self.builds(), *self.BOUNDS,

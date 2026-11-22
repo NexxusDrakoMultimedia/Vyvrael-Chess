@@ -404,6 +404,32 @@ if ($DryRun) {
     exit 0
 }
 
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes. Read-only: --no-optional-locks keeps git status
+# from refreshing (rewriting) the index. Read before anything is written
+# here, so that the run's own files cannot make the tree look dirty.
+function Get-RepoState {
+    $repoDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $git = $env:VYVRAEL_GIT
+    if (-not $git) { $git = 'git' }
+    $unknown = 'unknown (no git, or not a git repository)'
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $commit = & $git --no-optional-locks -C $repoDir rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $commit) { return $unknown }
+        $changes = & $git --no-optional-locks -C $repoDir status --porcelain 2>$null
+        if ($LASTEXITCODE -ne 0) { return $unknown }
+        if ($changes) { return "$commit (dirty)" }
+        return "$commit (clean)"
+    } catch {
+        return $unknown
+    } finally {
+        $ErrorActionPreference = $saved
+    }
+}
+$repository = Get-RepoState
+
 try {
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 } catch {
@@ -429,29 +455,6 @@ function Get-Digest([string] $Path) {
 }
 function Get-Now { return [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
-# The commit of the repository this script belongs to, and whether its
-# working tree has changes: read-only git, nothing written.
-function Get-RepoState {
-    $repoDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $git = $env:VYVRAEL_GIT
-    if (-not $git) { $git = 'git' }
-    $unknown = 'unknown (no git, or not a git repository)'
-    $saved = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $commit = & $git -C $repoDir rev-parse HEAD 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $commit) { return $unknown }
-        $changes = & $git -C $repoDir status --porcelain 2>$null
-        if ($LASTEXITCODE -ne 0) { return $unknown }
-        if ($changes) { return "$commit (dirty)" }
-        return "$commit (clean)"
-    } catch {
-        return $unknown
-    } finally {
-        $ErrorActionPreference = $saved
-    }
-}
-
 # The engine list a gauntlet used, copied beside the notes, so the
 # opponents' options stay on record even if the list changes later.
 $enginesCopy = ''
@@ -471,7 +474,7 @@ $lines = @(
     'Vyvrael match run notes',
     "mode:       $Mode",
     "started:    $(Get-Now)",
-    "repository: $(Get-RepoState)",
+    "repository: $repository",
     $enginesLine,
     "host cores: $cores physical, $Concurrency games at once",
     "cutechess:  $version",

@@ -590,6 +590,27 @@ class MatchShRunTest(Fixture, unittest.TestCase):
         self.assertIn("games:      0 (no PGN was written)\n", notes)
         self.assertIn("pgn sha256: none\n", notes)
 
+    def test_the_repository_is_clean_or_dirty_as_git_says(self):
+        # A stand-in git that answers only when told not to take the
+        # optional locks, so that a run never rewrites the index.
+        fake_git = script_file(
+            self.tmp / "fake-git",
+            'case " $* " in *" --no-optional-locks "*) ;; *) exit 9 ;; esac\n'
+            'case " $* " in\n'
+            '*" rev-parse "*) echo 0123456789abcdef0123456789abcdef01234567 ;;\n'
+            '*" status "*) printf \'%s\' "$FAKE_STATUS" ;;\n'
+            "esac\n",
+        )
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        for status, state in (("", "clean"), (" M src/lib.rs\n", "dirty")):
+            with self.subTest(state=state):
+                shutil.rmtree(self.tmp / "matches", ignore_errors=True)
+                result = self.sprt_run("echo 'nothing'\n", env={
+                    "VYVRAEL_GIT": fake_git.as_posix(), "FAKE_STATUS": status,
+                })
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"repository: {commit} ({state})\n", self.read(".notes.txt"))
+
     def test_notes_record_the_options_given(self):
         result = self.play(
             "echo 'nothing'\n", "sprt", *self.builds(),
