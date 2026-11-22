@@ -112,15 +112,17 @@ What milestone 1 leaves open is recorded under "Known issues" below.
 ## Known issues
 
 Limitations in the code as it stands, each with what it affects and when it
-is due to be fixed. An entry is removed in the commit that fixes it. The
-design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
+is due to be fixed. An entry is removed in the commit that fixes it. Where
+the design behind an issue is explained elsewhere, it is in
+[ARCHITECTURE.md](ARCHITECTURE.md) (KI-2, KI-8), [UCI.md](UCI.md) (KI-10) or
+[TESTING.md](TESTING.md) (KI-8, KI-9, KI-11, KI-12, KI-13).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 (the current build) on Ladder Baseline 2: between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play has not changed since: the bench still counts 16,611,416 nodes): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 | KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine keeps spending at least about a millisecond a move however little is left, so a long enough game at a tiny time control loses on time. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | Deferred by the maintainer (2026-11-22), not scheduled. A fix would keep a reserve that grows with the moves played, or play instantly from a shallow search once the clock is below the overhead. |
 | KI-13 | **A failed rating leaves Ordo's empty output files behind.** When Ordo fails (for example on games that are not connected), `rate.ps1` and `rate.sh` stop with Ordo's status, but the text and CSV files Ordo had already created stay in place, empty. | A stray pair of empty `-ratings.txt` and `.csv` files next to the PGNs after a failed rating; the next run with the same `-Out` overwrites them. Seen in the smoke test (TESTING.md). | Not scheduled: the maintainer decides. A fix would remove the two files when Ordo fails, if the script created them. |
@@ -288,11 +290,6 @@ Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: none left.
-- After the first release (0.1.0-alpha.1): a casual-only Lichess bot, run
-  by the maintainer. Rated play only later, after milestone 7 and the
-  branding (see "Playing on Lichess with lichess-bot").
-- Milestone 5: none left (KI-3 and KI-7 were fixed in it).
 - Milestone 6: calibration of `UCI_Elo` (KI-8 was measured for
   0.1.0-alpha.2).
 - Milestone 7: KI-9, KI-10; KI-8 measured again.
@@ -317,11 +314,13 @@ Plan:
 
 - **Milestone 5 (UCI), done:** both options exist and are wired to the
   weakening mechanism (`search::weakened_move`), uncalibrated.
-- **Milestone 6 (strength testing):** calibrate. Play the limited engine at
-  several `UCI_Elo` settings against opponents of known rating with the match
-  script, fit the mapping from setting to measured Elo, and record the method,
-  the opponents and the results in `TESTING.md`. Until this is done the
-  options are documented as uncalibrated.
+- **Milestone 6 (strength testing), done (provisional):** calibrated. The
+  limited engine played at several `UCI_Elo` settings against opponents of
+  known rating, the mapping from setting to measured Elo was fitted, and
+  `UCI_Elo` now runs from 1110 to 1630 with a default of 1360. The method,
+  the opponents and the results are in `TESTING.md` ("Calibration of
+  `UCI_Elo`"). The calibration holds for the build measured, on the
+  ladder's scale.
 
 Constraints that already apply:
 
@@ -409,7 +408,9 @@ Decided by the maintainer (all but the first point on 2026-11-21):
 - The binaries are built by a workflow, not by hand. The maintainer owns
   that workflow, because `.github/workflows` is a protected path that agents
   do not edit: an agent may propose its contents in a document for the
-  maintainer to put in place.
+  maintainer to put in place. The workflow was installed on 2026-11-22 and
+  passed a trial on the test tag `v0.1.0-rc.0`; see
+  [RELEASING.md](RELEASING.md).
 - **0.1.0 is the first release with workflow-built binaries**, in the
   `avx2` and plain builds; **the `pext` build joins in 0.2.0**, when
   milestone 7 adds sliding-piece attacks by PEXT. (Amended by the
@@ -526,6 +527,12 @@ Results recorded so far:
 - [`results-0.1.0-alpha.2.md`](testing/results-0.1.0-alpha.2.md): the
   milestone 6 measurement (KI-8), 1,000 games against Ladder Baseline 2's
   rungs, rated with Baseline 2.
+- The `UCI_Elo` calibration and its check are recorded in TESTING.md
+  ("Calibration of `UCI_Elo`") rather than in a results file, with Ordo's
+  output in
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt)
+  and
+  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt).
 
 ## Queued work (requested 2026-11-21)
 
@@ -706,9 +713,9 @@ Taken into the chunk checklist below:
 
 Notes for whoever starts it:
 
-- `scripts/install_tools.py` installs pinned versions of both tools (and
-  lichess-bot) on Linux, and Cute Chess and Ordo on Windows; see
-  TESTING.md. The maintainer has installed both tools with it on the Linux
+- `scripts/install_tools.py` installs pinned versions of Cute Chess, Ordo
+  and the ladder's opponent engines on Linux and Windows, and lichess-bot on
+  Linux; see TESTING.md. The maintainer has installed both tools with it on the Linux
   machine and used them for a real match and rating (2026-11-21).
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
@@ -966,24 +973,27 @@ What it needs:
 Plan, as amended by the maintainer on 2026-11-20. It replaces the earlier
 plan of a private test first and a public bot only after milestone 7:
 
-- **After the maintainer tags 0.1.0-alpha.1: a casual-only bot.** The
-  maintainer upgrades the account `Vyvrael-Chess` to BOT and runs
-  lichess-bot, on the Linux machine only, accepting casual challenges only. Casual games cost nobody
-  rating points, and they show whether the engine plays complete games over
-  the real protocol without losing on time, crashing or making illegal
-  moves.
+- **After the maintainer tagged 0.1.0-alpha.1: a casual-only bot.** The
+  maintainer upgraded the account `Vyvrael-Chess` to BOT and ran
+  lichess-bot on the Linux machine, accepting casual challenges only.
+  Casual games cost nobody rating points, and they show whether the engine
+  plays complete games over the real protocol without losing on time,
+  crashing or making illegal moves.
 - **Rated play: not before 0.2.0 (milestone 7)**, which follows milestone
   6, **and not before the branding above is done**, so a bot that plays for
   rating has a measured strength and SPRT-accepted search. The maintainer
   decides when, and re-reads the Lichess Terms of Service and Bot API
   documentation first.
-- Until the upgrade nobody plays a game on the account: one game makes the
-  upgrade impossible.
+- Before the upgrade nobody played a game on the account, because one game
+  would have made the upgrade impossible.
 - A bot that loses on time is worse than no bot: the option `Move Overhead`
   exists for this, and LICHESS.md gives a starting value.
 - `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play
-  once they are calibrated; on a rated account that would have to be said
-  in the profile.
+  now that they are calibrated (provisionally, on the ladder's scale); on a
+  rated account that would have to be said in the profile.
+
+What the bot has played with each build is recorded in
+[lichess-history.md](lichess-history.md).
 
 **KI-10 applies to the casual bot**, because the bot starts before milestone
 7, which fixes it. The first search depth cannot be interrupted, so in a
