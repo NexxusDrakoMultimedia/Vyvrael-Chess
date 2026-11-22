@@ -362,8 +362,8 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | --- | --- | --- |
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
 | 0.1.0-alpha.2 | after queued task 1 | The options `Seed` and `Variety` and the `bench` command, with their tests and docs; the three gates green; complete games in `cutechess-cli` as for alpha.1. Still an alpha: `UCI_Elo` is not calibrated, and the only measurement is the snapshot of alpha.1, which its notes may cite as such because full-strength play is unchanged. Plain builds made by hand. |
-| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the `avx2` primary build, the optional `pext` and plain builds, and binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
+| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. The first release with binaries built by a workflow, in the `avx2` primary build and the plain build (see "Release artifacts" and [RELEASING.md](RELEASING.md)). |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the optional `pext` build beside `avx2` and plain (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
@@ -399,14 +399,17 @@ Decided by the maintainer (all but the first point on 2026-11-21):
   older machines.
 - The files of 0.1.0-alpha.1 were named before this was decided and keep
   their names (`...-windows-x86_64.exe`, `...-linux-x86_64`); they are plain
-  builds.
+  builds. 0.1.0-alpha.2 shipped plain builds under the names above.
 - The binaries are built by a workflow, not by hand. The maintainer owns
   that workflow, because `.github/workflows` is a protected path that agents
   do not edit: an agent may propose its contents in a document for the
   maintainer to put in place.
-- **The release of milestone 7 (0.2.0) is the first with these builds and
-  with workflow-built binaries.** Until then a release ships plain builds
-  made by hand, as 0.1.0-alpha.1 did.
+- **0.1.0 is the first release with workflow-built binaries**, in the
+  `avx2` and plain builds; **the `pext` build joins in 0.2.0**, when
+  milestone 7 adds sliding-piece attacks by PEXT. (Amended by the
+  maintainer on 2026-11-21; first planned as "0.2.0 for all of it".)
+  0.1.0-alpha.1 and 0.1.0-alpha.2 were the last releases with plain builds
+  made by hand. The procedure is in [RELEASING.md](RELEASING.md).
 - Agents prepare a release; the maintainer tags and publishes it.
 - Binaries are attached to the release and never committed.
 
@@ -717,19 +720,19 @@ Results from different machines are not compared.
 
 Part A, documents, tools and tests:
 
-- [ ] `ROADMAP.md`: the release plan as amended by the maintainer
+- [x] `ROADMAP.md`: the release plan as amended by the maintainer
   (2026-11-21): 0.1.0, not 0.2.0, is the first release with binaries built
   by a workflow, in the `avx2` and plain builds; the `pext` build joins in
   0.2.0, when milestone 7 adds PEXT attacks. The "Releases" table and
   "Release artifacts" change; the three-build design, the file names and
   "never `target-cpu=native`" do not.
-- [ ] `docs/proposals/release-workflow.yml` and `release-workflow.md`: the
+- [x] `docs/proposals/release-workflow.yml` and `release-workflow.md`: the
   proposed release workflow (tag-triggered, gates first, Windows and Linux
   `avx2` and plain builds, SHA-256 files, a smoke test, a **draft** release;
   `contents: write` on one job only; actions pinned by SHA). A proposal: the
   maintainer installs it under `.github/workflows/`, and it is not called
   working until it has run once on a test tag.
-- [ ] `docs/RELEASING.md`: the release procedure from 0.1.0 on, as a
+- [x] `docs/RELEASING.md`: the release procedure from 0.1.0 on, as a
   checklist (prepare, gates, merge and tag by the maintainer, the workflow's
   draft, checks and publishing, the results file). `docs/prompts/release.md`
   and `AGENTS.md` "Releases" point to it instead of holding the steps.
