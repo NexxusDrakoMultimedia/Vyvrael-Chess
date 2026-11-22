@@ -42,10 +42,13 @@ class LadderEnginesTest(unittest.TestCase):
         left_out = list(ladder_engines.NOT_INSTALLABLE["linux"])
         retired = list(ladder_engines.RETIRED)
         self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
+        new = list(ladder_engines.NEW_IN_BASELINE_3)
         # Every name of the baseline is either provided, listed as left out
-        # with a reason or retired with a reason, and nothing else is: no
-        # invented engines.
-        self.assertEqual(sorted(provided + left_out + retired), sorted(baseline))
+        # with a reason or retired with a reason; besides them only the
+        # engines new in Ladder Baseline 3 are provided: no invented engines.
+        self.assertEqual(sorted(provided + left_out + retired), sorted(baseline + new))
+        self.assertEqual(len(new), 9)
+        self.assertFalse(set(new) & set(baseline))
         self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75", "Nostradamus 0.4"])
         self.assertEqual(retired, ["Arasan 26.1-1800"])
         for reason in [*ladder_engines.NOT_INSTALLABLE["linux"].values(),
@@ -55,13 +58,13 @@ class LadderEnginesTest(unittest.TestCase):
         for name in provided:
             self.assertEqual(name, name.strip())
 
-    def test_windows_provides_every_name_of_the_baseline_not_retired(self):
+    def test_windows_provides_every_name_not_retired(self):
         provided = ladder_engines.ladder_names("windows")
         self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
         self.assertEqual(sorted(provided + list(ladder_engines.RETIRED)),
-                         sorted(baseline_names()))
+                         sorted(baseline_names() + ladder_engines.NEW_IN_BASELINE_3))
         self.assertEqual(ladder_engines.NOT_INSTALLABLE["windows"], {})
-        self.assertEqual(len(ladder_engines.pins("windows")), 17)
+        self.assertEqual(len(ladder_engines.pins("windows")), 26)
         # Windows takes official programs only; nothing is built there.
         for engine in ladder_engines.pins("windows"):
             self.assertEqual(engine["method"], "download", engine["name"])
@@ -79,7 +82,7 @@ class LadderEnginesTest(unittest.TestCase):
 
     def test_the_limited_entries_are_variants_not_binaries(self):
         binaries = [engine["name"] for engine in ladder_engines.pins("linux")]
-        self.assertEqual(len(binaries), 14)
+        self.assertEqual(len(binaries), 23)
         for name in binaries:
             self.assertIsNone(re.search(r"-\d{4}$", name), name)
         variants = {
@@ -186,10 +189,11 @@ class LadderEnginesTest(unittest.TestCase):
         linux_avx2 = {p["name"]: p for p in ladder_engines.pins("linux", "avx2")}
         linux_pext = {p["name"]: p for p in ladder_engines.pins("linux", "pext")}
         changed = sorted(n for n in linux_avx2 if linux_avx2[n] != linux_pext[n])
-        self.assertEqual(changed, ["Arasan 26.1", "Stash 37.0", "Weiss 2.0"])
+        self.assertEqual(changed, ["Arasan 26.1", "Inanis 1.0.1", "Stash 37.0", "Weiss 2.0"])
         self.assertEqual(linux_pext["Arasan 26.1"]["binary"], "arasanx-64-avx2-bmi2")
         self.assertIn("-DUSE_PEXT", " ".join(linux_pext["Weiss 2.0"]["build"]["command"]))
         self.assertTrue(linux_pext["Stash 37.0"]["binary"].endswith("-bmi2"))
+        self.assertTrue(linux_pext["Inanis 1.0.1"]["url"].endswith("_popcnt_bmi2.zip"))
 
     def test_a_pin_is_resolved_per_system_and_build(self):
         engine = {

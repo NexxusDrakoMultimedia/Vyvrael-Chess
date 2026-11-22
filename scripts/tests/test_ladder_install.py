@@ -496,7 +496,7 @@ class LadderInstallTest(unittest.TestCase):
         for engine in ladder_engines.pins("linux"):
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
-        self.assertEqual(len(entries), 26)
+        self.assertEqual(len(entries), 35)
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
@@ -510,6 +510,14 @@ class LadderInstallTest(unittest.TestCase):
         self.assertNotIn("UCI_Elo", by_name["Rodent IV"])
         self.assertEqual(by_name["Rustic Alpha 1.5"], {})
         self.assertEqual(by_name["Vice 1.1"], {"Hash": 64, "Book": False})
+        # Engines new in Ladder Baseline 3, with the same settings.
+        self.assertEqual(by_name["Blunder 4.0.0"], {})
+        self.assertEqual(by_name["Blunder 7.6.0"], {"Hash": 64, "UseBook": False})
+        self.assertEqual(by_name["MinimalChess 0.4.1"], {})
+        self.assertEqual(by_name["MinimalChess 0.6"], {"Hash": 64})
+        self.assertEqual(by_name["Velvet 1.0.0"], {"Hash": 64})
+        self.assertEqual(by_name["Inanis 1.0.1"],
+                         {"Hash": 64, "Threads": 1, "Move Overhead": 30})
         self.assertEqual(by_name["Viridithas 20"], {"Hash": 64, "Threads": 1})
         # Ladder Baseline 2's settings under each engine's own option names:
         # books off and 30 ms of move overhead.
