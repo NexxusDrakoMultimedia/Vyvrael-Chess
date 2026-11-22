@@ -82,13 +82,13 @@ fixed depth or node count.
 
 The protocol is tested by driving the binary over pipes (`tests/uci.rs`)
 and by complete games under `cutechess-cli` (see
-[docs/TESTING.md](docs/TESTING.md)). It has **not yet been tried in a GUI
-or with lichess-bot**, so these instructions are unconfirmed.
+[docs/TESTING.md](docs/TESTING.md)). 0.1.0-alpha.1 has also played in the
+Cute Chess GUI and runs under lichess-bot, both set up by the maintainer.
 
-The plan for Lichess is a bot account, `Vyvrael-Chess`, that plays **casual
-games only** once the first alpha is released. Rated games wait until the
-engine's strength has been measured and its search heuristics tested (after
-0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
+On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
+maintainer upgraded it to a bot on 2026-11-21 and runs it with
+0.1.0-alpha.1. Rated games wait until the engine's strength has been
+measured and its search heuristics tested (after 0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
 are in [docs/LICHESS.md](docs/LICHESS.md).
 
 ## Documentation

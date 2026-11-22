@@ -622,9 +622,9 @@ the first move after the opening position, the others at moves 3 and 7.
 Without `Variety`, three of ten pairs repeated in the self-play of
 0.1.0-alpha.1. The games were not kept in the repository.
 
-**This is a check that games complete, not a measurement of strength.**
-Forty games against five opponents say nothing reliable about a rating;
-that is milestone 6 (known issue KI-8).
+**These are checks that games complete, not measurements of strength.**
+Forty or forty-eight games against five or six opponents say nothing
+reliable about a rating; that is milestone 6 (known issue KI-8).
 
 ## Strength matches, SPRT and ratings
 
