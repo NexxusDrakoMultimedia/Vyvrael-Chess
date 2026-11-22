@@ -22,13 +22,18 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Alpha (0.1.0-alpha.2): milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged; queued task 1 (the options `Seed` and `Variety`, and `bench`) is complete and merged.** The engine plays chess: it speaks UCI, so it can be used in a
-GUI and in match tools. It is still weak and slow, because the search has no
-move ordering or transposition table yet (milestone 7). Its strength on the
-project's own opponent ladder, an ordering rather than an Elo, is in
+**Alpha (0.1.0-alpha.2): milestones 1 to 5 (board representation, move
+generation, hand-crafted evaluation, search core, UCI) and queued task 1 (the
+options `Seed` and `Variety`, and `bench`) are complete and merged.
+Milestone 6 (strength testing) is in progress: the ladder measurement and the
+provisional `UCI_Elo` calibration are done.** The engine plays chess: it
+speaks UCI, so it can be used in a GUI and in match tools. It is still weak
+and slow, because the main search has no move ordering or transposition table
+yet (milestone 7). Its strength on the project's own opponent ladder, an
+ordering rather than an Elo, is in
 [docs/testing/results-0.1.0-alpha.2.md](docs/testing/results-0.1.0-alpha.2.md)
-(milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
-milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
+(milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
+and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
 
@@ -98,8 +103,11 @@ are in [docs/LICHESS.md](docs/LICHESS.md).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): design and module layout
 - [docs/UCI.md](docs/UCI.md): supported commands and options
 - [docs/TESTING.md](docs/TESTING.md): tests, perft, strength testing
+- [docs/testing/](docs/testing/): measured results, ladder baselines
 - [docs/ROADMAP.md](docs/ROADMAP.md): milestones, status and known issues
 - [docs/LICHESS.md](docs/LICHESS.md): the Lichess bot, its policy and rules
+- [docs/lichess-history.md](docs/lichess-history.md): what the bot played
+  with each build
 - [docs/RELEASING.md](docs/RELEASING.md): how a release is made
 - [docs/releases/](docs/releases/): release notes
 - [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md): dependencies and licences

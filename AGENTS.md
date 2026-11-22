@@ -1,48 +1,41 @@
 # AGENTS.md
 
-Canonical instructions for AI coding agents working on Vyvræl. `CLAUDE.md`
-imports this file; keep this the single source of truth and under about 200
-lines.
+Canonical instructions for AI coding agents working on Vyvræl, imported by
+`CLAUDE.md`. Keep this the single source of truth, under about 200 lines.
 
 ## Project overview
 
 Vyvræl is a UCI-compatible chess engine written in Rust by Nexxus Drako
-Multimedia. It is licensed GPL-3.0-or-later.
-
-The official tagline is "A dragon-flavoured UCI chess engine in Rust, built
-with AI and playing for the attack." Use it word for word wherever the
-project is described in one line. "Playing for the attack" is a style goal,
-not a strength claim: never call Vyvræl strong or give it a rating that has
-not been measured (milestone 6).
+Multimedia, licensed GPL-3.0-or-later. The official tagline is "A
+dragon-flavoured UCI chess engine in Rust, built with AI and playing for the
+attack." Use it word for word wherever the project is described in one line.
+"Playing for the attack" is a style goal, not a strength claim: never call
+Vyvræl strong or give it a rating that has not been measured (milestone 6).
 
 The project is labelled **X** on the [0rwx scale](https://0rwx.com/): the
-maintainer curates agent output rather than reading every line. Tests,
-documentation and a clean commit history are therefore the source of trust.
-Treat them as part of the product.
+maintainer curates agent output rather than reading every line, so tests, docs
+and a clean commit history are the source of trust, and part of the product.
 
 Layout:
 
 - `src/lib.rs`, `src/main.rs`: the engine crate `vyvrael` (library + binary).
-  It has no dependencies and must never depend on the tool crates.
-  - `src/rng.rs`: the only source of randomness.
-  - `src/attacks/`: attack tables per piece type.
-  - `src/movegen/`: move generation.
-  - `src/eval/`: static evaluation.
-  - `src/search/`: search.
-  - `src/perft.rs`: perft node counting.
-  - `src/uci/`: the UCI protocol (parsing, options, time, engine loop).
-  - `src/bench.rs`: the bench, a fixed search workload.
-  - `src/cli.rs`: the binary's other commands (`perft`, `eval`, `search`,
-    `bench`).
-  - `src/board/`: board representation (types, position, FEN, Zobrist
-    hashing, make/unmake, move parsing).
+  It has no dependencies and must never depend on the tool crates. Under
+  `src/`: `rng.rs` (the only source of randomness), `board/` (types, position,
+  FEN, Zobrist hashing, make/unmake, move parsing), `attacks/` (attack tables
+  per piece type), `movegen/` (move generation), `perft.rs` (perft node
+  counting), `eval/` (static evaluation), `search/`, `uci/` (parsing, options,
+  time, engine loop), `bench.rs` (a fixed search workload) and `cli.rs` (the
+  binary's other commands: `perft`, `eval`, `search`, `bench`, `help`).
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
-- `scripts/`: helper scripts and their tests (the external-tool installer).
+- `scripts/`: the tool and ladder-engine installer, the match and rating
+  scripts (`linux/`, `windows/`), `local.env.example`, and their tests.
 - `branding/`: brand assets, all rights reserved, not under the GPL.
-- `docs/`: architecture, UCI, testing, roadmap, dependencies, data, NNUE,
-  Lichess.
+- `docs/`: architecture, UCI, testing, roadmap, releasing, dependencies,
+  data, NNUE, Lichess and the bot's build history. `docs/prompts/` holds the
+  default agent prompts (run through `.claude/skills/`), `docs/testing/` the
+  measured results and `docs/releases/` the release notes.
 
 ## Commands
 
@@ -51,37 +44,31 @@ Layout:
 | Format check | `cargo fmt --all --check` |
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
-| Script tests | `python3 -m unittest discover -s scripts/tests` |
-| Install Cute Chess and Ordo (Windows) | `python scripts/install_tools.py --dry-run` first |
-| Install external tools (Linux) | `python3 scripts/install_tools.py --dry-run` first; see `docs/TESTING.md` |
+| Script tests | `python3 -m unittest discover -s scripts/tests` (`python` on Windows; takes several minutes) |
+| Install Cute Chess and Ordo (Linux, Windows; lichess-bot on Linux only) | `python3 scripts/install_tools.py --dry-run` first (`python` on Windows); see `docs/TESTING.md` |
 | Install the ladder's engines (Linux, Windows) | `python3 scripts/install_tools.py --engines --dry-run` first (`python` on Windows); `--only "<name>"` for one; `--verify` to check them; `--engine-build pext` or `ENGINE_BUILD=pext` in `scripts/local.env` for PEXT builds |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
-| Evaluate a position | `cargo run --release -- eval [FEN]` |
-| Search a position | `cargo run --release -- search <depth> [FEN]` |
+| Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [FEN]` |
 | Bench (node count and speed) | `cargo run --release -- bench [depth]` |
-| Run as a UCI engine | `cargo run --release` (no arguments; see `docs/UCI.md`) |
-| Run a match (Linux) | `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first; see `--help` |
-| Rate PGN files (Linux) | `scripts/linux/rate.sh [options] FILE.pgn ...`; see `--help` |
-| Run a match (Windows) | `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first; see `-Help` |
-| Rate PGN files (Windows) | `scripts/windows/rate.ps1 [options] FILE.pgn ...`; see `-Help` |
-| Data tools | `cargo run --release -p vyvrael-data` (stub until milestone 8) |
-| Training | `cargo run --release -p vyvrael-train` (stub until milestone 9) |
+| Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
+| Run a match | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first, see `-Help` |
+| Rate PGN files | Linux: `scripts/linux/rate.sh [options] FILE.pgn ...`, see `--help`; Windows: `scripts/windows/rate.ps1 [options] FILE.pgn ...`, see `-Help` |
+| Data tools; training | `cargo run --release -p vyvrael-data` (stub until milestone 8); `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
 Update this table in the same commit that adds or changes a command.
 
 ## Conventions
 
 - Rust edition 2024, stable toolchain (see `rust-toolchain.toml`).
-- Every source file starts with:
-  `// SPDX-License-Identifier: GPL-3.0-or-later` and
-  `// Copyright (C) <year> Nexxus Drako Multimedia`.
+- Every source file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`
+  and `// Copyright (C) <year> Nexxus Drako Multimedia`.
 - Public items have `///` doc comments.
 - No `unsafe` unless it measurably helps; comment every use.
 - UCI stdout carries protocol output only. Debug output goes to stderr or
   `info string`. Flush stdout after every line.
-- The UCI `id name` is `Vyvræl` (`Vyvrael` is the ASCII fallback and the crate
-  name).
+- The UCI `id name` is `Vyvræl <version>` (`Vyvrael` is the ASCII fallback
+  and the crate name).
 - British spelling in prose is fine; identifiers follow Rust conventions.
 
 ## Rules
@@ -90,12 +77,12 @@ Update this table in the same commit that adds or changes a command.
 - Every commit is green (`fmt`, `clippy -D warnings`, `test --release`) and
   does one thing.
 - Commit locally. At the end of a milestone, review it independently, fix
-  what the review confirms, then merge its branch into `main` locally.
+  what the review confirms, then merge its branch into `main` locally. Then
+  stop and report before starting the next milestone.
 - Never push, force-push, tag or release on your own. Ask the maintainer when
   it is the right moment (for example after a merge into `main`) and act only
   on an explicit yes, each time. Do not rewrite history unless the maintainer
   asks.
-- Stop and report at the end of each milestone before starting the next.
 - Training and data work must be reproducible: fixed seeds, recorded
   parameters, and a manifest committed with any net's documentation (not the
   net itself unless it is small and the maintainer approves).
@@ -131,14 +118,13 @@ shared in the tool crates).
   one RNG across threads.
 - **Strength-affecting randomness** (move-choice randomisation, opening
   variety, eval noise, skill weakening, random book choice) is
-  non-deterministic by default with an opt-in:
-  - UCI spin option `Seed` (0 to 2147483647, default `0`);
-  - `Seed = 0`: seed from system entropy at startup and at every
-    `ucinewgame` (the one allowed use), from 1 to 2147483647, and log the
-    seed with `info string`;
-  - any other `Seed`: that seed.
-  - Determinism means one thread, a fixed `Seed`, `Variety` 0 and a fixed
-    depth or node count.
+  non-deterministic by default, with an opt-in: the UCI spin option `Seed` (0
+  to 2147483647, default `0`). `Seed` 0 takes a seed from 1 to 2147483647 from
+  system entropy at startup and at every `ucinewgame` (the one allowed use)
+  and logs it with `info string`; any other `Seed` is that seed. Determinism
+  means one thread (multithreaded search is not bit-for-bit reproducible; see
+  `docs/TESTING.md`), a fixed `Seed`, `Variety` 0 and a fixed depth or node
+  count. Detail: `docs/ARCHITECTURE.md`, `docs/UCI.md`.
 - **Non-strength-affecting randomness** (Zobrist keys, magic search, test
   fixtures, property tests, datagen openings, shuffles) is always
   deterministic from the default seed or a derived stream. Tools may take
@@ -146,7 +132,6 @@ shared in the tool crates).
 - Classify every use in the table in `docs/ARCHITECTURE.md` with a one-line
   justification. If unsure, treat it as strength-affecting and tell the
   maintainer.
-- Multithreaded search is not bit-for-bit reproducible; see `docs/TESTING.md`.
 
 ## Chunk-and-commit workflow
 
@@ -154,8 +139,7 @@ shared in the tool crates).
   reverted on its own. If it needs "and" to describe it, split it.
 - Aim for diffs reviewable in a few minutes; avoid commits over about 300
   changed lines. If unavoidable (generated tables), say why in the message.
-- Tests land in the same commit as the code they cover.
-- Docs travel with the code (see "Documentation upkeep").
+- Tests and docs land in the commit of the code they cover (see below).
 - Conventional Commits: `feat(board): add FEN parsing`,
   `test(movegen): add Kiwipete perft`, `docs: ...`, `chore: ...`, `fix: ...`,
   `refactor: ...`. Short subject, then a body explaining what and why when it
@@ -167,11 +151,9 @@ shared in the tool crates).
   commits that complete them.
 - Branching: one branch per milestone (`milestone/1-board`,
   `milestone/2-movegen`, ...), each started from `main` once the previous
-  milestone is merged. The agent reviews and merges it into `main` (see
-  "Rules").
-  Release preparation (`release/<version>`) and tooling
-  (`tooling/<name>`) get branches of their own; the maintainer reviews a
-  release branch and does the tagging.
+  one is merged; the agent reviews and merges it (see "Rules"). Release
+  preparation (`release/<version>`) and tooling (`tooling/<name>`) get
+  branches of their own; the maintainer reviews a release branch and tags.
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 
@@ -208,19 +190,16 @@ behaviour must also:
   (chunk status), and the README status line;
 - update this file if a command, convention or the build order changed;
 - record any limitation you knowingly leave behind in the "Known issues"
-  table in `docs/ROADMAP.md`, and remove the entry in the commit that fixes
-  it;
-- keep `///` doc comments on public items.
+  table in `docs/ROADMAP.md`; remove it in the commit that fixes it.
 
-At the end of each milestone, re-read the docs against the code and fix any
-drift in a separate `docs:` commit before reporting. If a doc and the code
-disagree, say so explicitly in the report.
-
-For that re-read, or any full documentation pass, use the default prompt in
+At the end of each milestone, re-read the docs against the code, fix any drift
+in a separate `docs:` commit before reporting, and say explicitly in the
+report where a doc and the code disagree. For that re-read, or any full
+documentation pass, use the default prompt in
 `docs/prompts/documentation-pass.md` (`/docs-pass` in Claude Code).
 
 ## Releases
 
-Prepare a release only when the maintainer asks. The procedure is in
-`docs/RELEASING.md`; the default prompt in `docs/prompts/release.md`
-(`/release-prep` in Claude Code) points to it. Never tag, push or publish.
+Prepare a release only when the maintainer asks, following `docs/RELEASING.md`
+(default prompt: `docs/prompts/release.md`, `/release-prep` in Claude Code).
+Never tag, push or publish.
