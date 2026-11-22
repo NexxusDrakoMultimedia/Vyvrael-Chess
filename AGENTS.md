@@ -60,7 +60,8 @@ Update this table in the same commit that adds or changes a command.
 
 ## Conventions
 
-- Rust edition 2024, stable toolchain (see `rust-toolchain.toml`).
+- Rust edition 2024, stable toolchain pinned to a version in
+  `rust-toolchain.toml`; move the pin in a commit of its own.
 - Every source file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`
   and `// Copyright (C) <year> Nexxus Drako Multimedia`.
 - Public items have `///` doc comments.

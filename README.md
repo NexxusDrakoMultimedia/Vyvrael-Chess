@@ -37,8 +37,8 @@ and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
 
-You need a stable Rust toolchain (installed automatically by `rustup` from
-`rust-toolchain.toml`).
+You need the Rust toolchain that `rust-toolchain.toml` pins (a stable
+release; `rustup` installs it automatically on first use).
 
 ```sh
 cargo build --release        # binary at target/release/vyvrael
