@@ -757,7 +757,7 @@ Part A, documents, tools and tests:
   existing PGN is still refused. (`rate.ps1` and
   `rate.sh` are left alone; a bug found in them is reported, not fixed
   silently.)
-- [ ] Match scripts: `--test-option NAME=VALUE` (`-TestOption`), and
+- [x] Match scripts: `--test-option NAME=VALUE` (`-TestOption`), and
   `--base-option` (`-BaseOption`) for `sprt` and `h2h`, repeatable, giving
   that build `option.NAME=VALUE` and recorded in the run notes (the
   maintainer's choice, 2026-11-22), so that limited Vyvræl builds

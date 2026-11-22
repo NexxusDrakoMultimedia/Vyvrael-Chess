@@ -14,6 +14,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   record the repository's commit and whether its working tree was clean or
   dirty, the number of games in the PGN and its SHA-256; a gauntlet also
   keeps a copy of the engine list it read beside the notes.
+- **The match scripts can give a build UCI options:** `--test-option
+  NAME=VALUE` and `--base-option` in `match.sh`, `-TestOption` and
+  `-BaseOption` in `match.ps1`, recorded in the run notes. Limited Vyvræl
+  builds (`UCI_LimitStrength`, `UCI_Elo`) can now be measured.
 
 ## [0.1.0-alpha.2] - 2026-11-22
 

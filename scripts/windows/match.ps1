@@ -28,6 +28,8 @@ param(
     [string] $Label,
     [string] $Seed,
     [switch] $Deterministic,
+    [string[]] $TestOption = @(),
+    [string[]] $BaseOption = @(),
     [switch] $LowPriority,
     [switch] $NoLowPriority,
     [switch] $DryRun,
@@ -67,13 +69,19 @@ Options:
   -Label TEXT         added to the output file names
   -Seed N             seed for the opening order (default: random)
   -Deterministic      set Seed=822286742 and Variety=0 on the Vyvrael builds
-  -LowPriority        run at low priority (BelowNormal)
+  -TestOption NAME=VALUE[,NAME=VALUE ...]
+                      UCI options for the test build, for example
+                      UCI_Elo=1500 (not Threads or Hash)
+  -BaseOption NAME=VALUE[,NAME=VALUE ...]
+                      the same for the base build (sprt and h2h)
+  -LowPriority       run at low priority (BelowNormal)
   -NoLowPriority      do not, whatever the local settings say
   -DryRun             print the cutechess-cli command and stop
   -Help               show this text
 
 Several opponents: -Opponent "Stockfish 19-1320","Vice 1.1" (or one string
-with the names separated by semicolons).
+with the names separated by semicolons); several options likewise:
+-TestOption "UCI_LimitStrength=true","UCI_Elo=1500".
 
 Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
@@ -161,6 +169,8 @@ if ($LowPriority) { $low = 'true' }
 if ($NoLowPriority) { $low = 'false' }
 if ($low -cnotin @('true', 'false')) { Die "LOW_PRIORITY must be true or false, got '$low'" }
 $opponents = @($Opponent | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
+$testOptions = @($TestOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
+$baseOptions = @($BaseOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 
 # --- what every mode needs -------------------------------------------------
 
@@ -194,8 +204,36 @@ function Test-BuildName([string] $What, [string] $Name) {
 function Test-EngineFile([string] $What, [string] $Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Die "$What not found: $Path" }
 }
+# The UCI options given to one build, each NAME=VALUE.
+function Test-Options([string] $What, [string[]] $Options) {
+    $seen = @{}
+    foreach ($option in $Options) {
+        if ($option -cnotmatch '^[^=]+=[^=]+$') {
+            if ($option -match '^[^=]+=[^=]*=') { Die "$What '$option' may hold only one '='" }
+            Die "$What '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
+        }
+        if ($option -cnotmatch '^[ -~]+$') { Die "$What '$option' must be plain ASCII" }
+        if ($option -match '["'';]') { Die "$What '$option' may not contain quotes or ';'" }
+        $name = $option.Substring(0, $option.IndexOf('='))
+        if ($name -ne $name.Trim(' ')) {
+            Die "$What '$option': the name may not start or end with a space"
+        }
+        # UCI option names are not case-sensitive.
+        $lower = $name.ToLowerInvariant()
+        if ($lower -in @('threads', 'hash')) {
+            Die "$What '$option': the script sets $name (one thread; -Hash for the hash size)"
+        }
+        if ($Deterministic -and $lower -in @('seed', 'variety')) {
+            Die "$What '$option': -Deterministic already sets $name"
+        }
+        if ($seen.ContainsKey($lower)) { Die "${What}: the option $name is given twice" }
+        $seen[$lower] = $true
+    }
+}
+
 Test-BuildName '-TestName' $TestName
 Test-EngineFile 'the test build (-Test)' $Test
+Test-Options '-TestOption' $testOptions
 
 # --- what each mode needs --------------------------------------------------
 
@@ -208,9 +246,13 @@ if ($Mode -in @('sprt', 'h2h')) {
         Die "the two builds have the same name '$TestName'; the results could not be told apart"
     }
     if ($opponents.Count -gt 0) { Die '-Opponent is for gauntlet mode' }
+    Test-Options '-BaseOption' $baseOptions
 } else {
     if ($opponents.Count -eq 0) { Die 'gauntlet mode needs at least one -Opponent' }
     if ($Base -or $BaseName) { Die '-Base and -BaseName are for sprt and h2h modes' }
+    if ($baseOptions.Count -gt 0) {
+        Die "-BaseOption is for sprt and h2h modes; an opponent's options are in the engine list"
+    }
     if (-not $EnginesJson) {
         Die 'gauntlet mode needs the engine list: -EnginesJson, or ENGINES_JSON in scripts/local.env'
     }
@@ -327,11 +369,13 @@ if ($Deterministic) { $buildOptions += @('option.Seed=822286742', 'option.Variet
 
 $arguments = @()
 if ($Mode -eq 'gauntlet') { $arguments += @('-tournament', 'gauntlet', '-seeds', '1') }
-$arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions
+$testExtra = @($testOptions | ForEach-Object { "option.$_" })
+$baseExtra = @($baseOptions | ForEach-Object { "option.$_" })
+$arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions + $testExtra
 if ($Mode -eq 'gauntlet') {
     $arguments += $opponentArgs
 } else {
-    $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions
+    $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions + $baseExtra
 }
 $arguments += @('-each', "tc=$Tc", "option.Hash=$Hash",
     '-openings', "file=$Openings", 'format=epd', 'order=random',
@@ -439,6 +483,13 @@ if ($Mode -eq 'gauntlet') {
 } else {
     $lines += @("  $BaseName", "    $Base", "    $(Get-Digest $Base)")
 }
+# The options given to a build, "; " between them, or "none".
+function Format-Options([string[]] $Options) {
+    if ($Options.Count -eq 0) { return 'none' }
+    return ($Options -join '; ')
+}
+$lines += @('', 'options given (-TestOption, -BaseOption):', "  ${TestName}: $(Format-Options $testOptions)")
+if ($Mode -ne 'gauntlet') { $lines += "  ${BaseName}: $(Format-Options $baseOptions)" }
 $lines += @('', 'command:', "  $commandLine")
 [IO.File]::WriteAllLines($notes, [string[]] $lines, $utf8)
 

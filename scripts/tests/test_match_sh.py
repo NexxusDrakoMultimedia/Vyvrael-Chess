@@ -233,6 +233,68 @@ class MatchShTest(Fixture, unittest.TestCase):
         self.assertNotIn("DeterministicRNG", joined)
         self.assertEqual(words[-1], "out dir/2026-01-02-sprt-Vyvrael-dev-abc1234-run2.pgn")
 
+    def engines(self, words: list[str]) -> list[list[str]]:
+        """The arguments of each -engine, up to the next flag."""
+        starts = [index for index, word in enumerate(words) if word == "-engine"]
+        groups = []
+        for start in starts:
+            end = start + 1
+            while end < len(words) and not words[end].startswith("-"):
+                end += 1
+            groups.append(words[start + 1 : end])
+        return groups
+
+    def test_options_go_to_their_own_build(self):
+        words = self.command(self.sprt(
+            "--test-option", "UCI_LimitStrength=true", "--test-option", "UCI_Elo=1500",
+            "--base-option", "Move Overhead=50",
+        ))
+        test, base = self.engines(words)
+        # After the script's own settings, in the order given.
+        self.assertEqual(test[3:], ["option.Threads=1", "option.UCI_LimitStrength=true",
+                                    "option.UCI_Elo=1500"])
+        self.assertEqual(base[3:], ["option.Threads=1", "option.Move Overhead=50"])
+
+    def test_a_gauntlet_gives_options_to_the_build_under_test_only(self):
+        words = self.command(self.gauntlet(
+            "--opponent", "Vice 1.1", "--test-option", "Seed=5",
+        ))
+        test, opponent = self.engines(words)
+        self.assertIn("option.Seed=5", test)
+        self.assertNotIn("option.Seed=5", opponent)
+        self.refused(
+            self.gauntlet("--opponent", "Vice 1.1", "--base-option", "Seed=5"),
+            "--base-option is for sprt and h2h modes",
+        )
+
+    def test_bad_options_are_refused(self):
+        for given, message in (
+            ("UCI_Elo", "must be NAME=VALUE"),
+            ("=1500", "must be NAME=VALUE"),
+            ("UCI_Elo=", "must be NAME=VALUE"),
+            ("UCI_Elo=15=00", "may hold only one '='"),
+            ("UCI_Elo=1500;Seed=1", "may not contain quotes or ';'"),
+            (" UCI_Elo=1500", "may not start or end with a space"),
+            ("Threads=4", "the script sets Threads"),
+            ("hash=128", "the script sets hash"),
+            # Git Bash on Windows strips quotes from its command line before
+            # the script runs, so a quote can only be passed elsewhere.
+            *([] if sys.platform == "win32"
+              else [("UCI_Elo='1500'", "may not contain quotes or ';'")]),
+        ):
+            with self.subTest(given=given):
+                self.refused(self.sprt("--test-option", given), f"--test-option '{given}'", message)
+        # Windows may re-encode a non-ASCII argument, so only the reason is checked.
+        self.refused(self.sprt("--test-option", "UCI_Elo=1500é"), "must be plain ASCII")
+        self.refused(
+            self.sprt("--base-option", "UCI_Elo=1500", "--base-option", "uci_elo=1600"),
+            "--base-option: the option uci_elo is given twice",
+        )
+        self.refused(
+            self.sprt("--deterministic", "--test-option", "Seed=5"),
+            "--deterministic already sets Seed",
+        )
+
     # --- settings from the environment and the local file -------------------
 
     def test_default_concurrency_is_physical_cores_minus_two(self):
@@ -493,6 +555,20 @@ class MatchShRunTest(Fixture, unittest.TestCase):
         self.assertIn("repository: unknown (no git, or not a git repository)\n", notes)
         self.assertIn("games:      0 (no PGN was written)\n", notes)
         self.assertIn("pgn sha256: none\n", notes)
+
+    def test_notes_record_the_options_given(self):
+        result = self.play(
+            "echo 'nothing'\n", "sprt", *self.builds(),
+            "--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05",
+            "--test-option", "UCI_LimitStrength=true", "--test-option", "UCI_Elo=1500",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "options given (--test-option, --base-option):\n"
+            "  Vyvrael dev-abc1234: UCI_LimitStrength=true; UCI_Elo=1500\n"
+            "  Vyvrael 0.1.0-a1: none\n",
+            self.read(".notes.txt"),
+        )
 
     def sprt_run(self, script: str, env: dict | None = None):
         bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]

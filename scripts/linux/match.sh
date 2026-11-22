@@ -41,7 +41,12 @@ Options:
   --label TEXT         added to the output file names
   --seed N             seed for the opening order (default: random)
   --deterministic      set Seed=822286742 and Variety=0 on the Vyvræl builds
-  --low-priority       run at low priority (nice)
+  --test-option NAME=VALUE
+                       a UCI option for the test build, for example
+                       UCI_Elo=1500; repeat it for more (not Threads or Hash)
+  --base-option NAME=VALUE
+                       the same for the base build (sprt and h2h)
+  --low-priority      run at low priority (nice)
   --no-low-priority    do not, whatever the local settings say
   --dry-run            print the cutechess-cli command and stop
   --help               show this text
@@ -118,7 +123,7 @@ engines_json=$(setting ENGINES_JSON)
 cutechess=$(setting CUTECHESS_CLI)
 out_dir=$(setting MATCH_DIR)
 low_priority=$(setting LOW_PRIORITY)
-opponents=()
+opponents=() test_options=() base_options=()
 
 need() { [[ $# -ge 2 ]] || die "$1 needs a value"; }
 while [[ $# -gt 0 ]]; do
@@ -143,6 +148,8 @@ while [[ $# -gt 0 ]]; do
         --label) need "$@"; label=$2; shift 2 ;;
         --seed) need "$@"; seed=$2; shift 2 ;;
         --deterministic) deterministic=true; shift ;;
+        --test-option) need "$@"; test_options+=("$2"); shift 2 ;;
+        --base-option) need "$@"; base_options+=("$2"); shift 2 ;;
         --low-priority) low_priority=true; shift ;;
         --no-low-priority) low_priority=false; shift ;;
         --dry-run) dry_run=true; shift ;;
@@ -184,8 +191,32 @@ check_engine_file() {
     [[ -f $path ]] || die "$what not found: $path"
     [[ -x $path ]] || die "$what is not executable: $path"
 }
+# The UCI options given to one build, each NAME=VALUE.
+check_options() {
+    local what=$1 seen=$'\n' option name value lower other
+    shift
+    for option in "$@"; do
+        [[ $option == ?*=?* ]] || die "$what '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
+        name=${option%%=*} value=${option#*=}
+        other=$(printf '%s' "$option" | LC_ALL=C tr -d ' -~')
+        [[ -z $other ]] || die "$what '$option' must be plain ASCII"
+        [[ $option != *'"'* && $option != *"'"* && $option != *';'* ]] || die "$what '$option' may not contain quotes or ';'"
+        [[ $value != *=* ]] || die "$what '$option' may hold only one '='"
+        [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$option': the name may not start or end with a space"
+        # UCI option names are not case-sensitive.
+        lower=$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')
+        case $lower in
+            threads | hash) die "$what '$option': the script sets $name (one thread; --hash for the hash size)" ;;
+            seed | variety) [[ $deterministic == false ]] || die "$what '$option': --deterministic already sets $name" ;;
+        esac
+        [[ $seen != *$'\n'"$lower"$'\n'* ]] || die "$what: the option $name is given twice"
+        seen+="$lower"$'\n'
+    done
+}
+
 check_name "--test-name" "$test_name"
 check_engine_file "the test build (--test)" "$test_path"
+check_options "--test-option" "${test_options[@]}"
 
 # --- what each mode needs --------------------------------------------------
 
@@ -197,10 +228,12 @@ case $mode in
         check_engine_file "the base build (--base)" "$base_path"
         [[ $test_name != "$base_name" ]] || die "the two builds have the same name '$test_name'; the results could not be told apart"
         ((${#opponents[@]} == 0)) || die "--opponent is for gauntlet mode"
+        check_options "--base-option" "${base_options[@]}"
         ;;
     gauntlet)
         ((${#opponents[@]} > 0)) || die "gauntlet mode needs at least one --opponent"
         [[ -z $base_path && -z $base_name ]] || die "--base and --base-name are for sprt and h2h modes"
+        ((${#base_options[@]} == 0)) || die "--base-option is for sprt and h2h modes; an opponent's options are in the engine list"
         [[ -n $engines_json ]] || die "gauntlet mode needs the engine list: --engines-json, or ENGINES_JSON in scripts/local.env"
         [[ -f $engines_json ]] || die "engine list not found: $engines_json"
         ;;
@@ -320,14 +353,17 @@ pgn="$stem.pgn"
 build_options=(proto=uci option.Threads=1)
 # A fixed seed (the project's default, 0x31031996) and no variety.
 [[ $deterministic == true ]] && build_options+=(option.Seed=822286742 option.Variety=0)
+test_extra=() base_extra=()
+for option in "${test_options[@]}"; do test_extra+=("option.$option"); done
+for option in "${base_options[@]}"; do base_extra+=("option.$option"); done
 
 cmd=("$cutechess")
 [[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)
-cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}")
+cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" "${test_extra[@]}")
 if [[ $mode == gauntlet ]]; then
     cmd+=("${opponent_args[@]}")
 else
-    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}")
+    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}" "${base_extra[@]}")
 fi
 cmd+=(-each "tc=$tc" "option.Hash=$hash"
     -openings "file=$openings" format=epd order=random
@@ -363,6 +399,13 @@ digest() {
 }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 engine_note() { printf '  %s\n    %s\n    %s\n' "$1" "$2" "$(digest "$2")"; }
+# The options given to a build, "; " between them, or "none".
+option_list() {
+    (($# > 0)) || { echo none; return; }
+    local list
+    list=$(printf '%s; ' "$@")
+    echo "${list%; }"
+}
 
 # The commit of the repository this script belongs to, and whether its
 # working tree has changes: read-only git, nothing written.
@@ -410,6 +453,10 @@ fi
     else
         engine_note "$base_name" "$base_path"
     fi
+    echo
+    echo "options given (--test-option, --base-option):"
+    echo "  $test_name: $(option_list "${test_options[@]}")"
+    [[ $mode == gauntlet ]] || echo "  $base_name: $(option_list "${base_options[@]}")"
     echo
     echo "command:"
     printf '  '

@@ -932,11 +932,19 @@ counts, test results, and whether games complete without failures.
   project's default seed, `0x31031996`) and `Variety=0` on the Vyvræl
   builds. Both are already what a match needs: `Variety` is 0 by default and
   full-strength play then draws no random numbers, so the switch only
-  writes that down in the command. The scripts cannot yet give a build other
-  options, `UCI_LimitStrength` among them. Calibrating `UCI_Elo` (milestone
-  6) needs limited Vyvræl entries in the engine list, each with its own
-  options. Never run a strength match with `Variety` above 0. (`--seed N`
-  is a different thing: the seed of the opening order, `-srand`.)
+  writes that down in the command. Never run a strength match with
+  `Variety` above 0. (`--seed N` is a different thing: the seed of the
+  opening order, `-srand`.)
+- **`--test-option NAME=VALUE` (`-TestOption`)** gives the build under
+  test a UCI option, `option.NAME=VALUE` in the command; repeat it for more
+  (in PowerShell: `-TestOption "UCI_LimitStrength=true","UCI_Elo=1500"`).
+  `--base-option` (`-BaseOption`) does the same for the base build in
+  `sprt` and `h2h`; a gauntlet opponent's options come from the engine
+  list. This is how a limited Vyvræl is measured, for example when
+  calibrating `UCI_Elo`. `Threads` and `Hash` are refused (the script sets
+  one thread and `--hash`), as are `Seed` and `Variety` next to
+  `--deterministic`, an option given twice, quotes and `;`. The notes list
+  each build's options.
 
 ## Tactical test suites (planned, milestone 8)
 
