@@ -292,9 +292,9 @@ mod tests {
         Position::from_fen(text).unwrap()
     }
 
-    fn choose(text: &str, weakening: Weakening, seed: u32) -> Weakened {
+    fn choose(text: &str, weakening: Weakening, case: u32) -> Weakened {
         let stop = AtomicBool::new(false);
-        let mut rng = Rng::new(seed);
+        let mut rng = crate::rng::test_stream(u64::from(case));
         weakened_move(
             &fen(text),
             &[],
@@ -450,7 +450,7 @@ mod tests {
             KIWIPETE,
         ] {
             let pos = fen(text);
-            let mut rng = Rng::new(7);
+            let mut rng = crate::rng::test_stream(7);
             weakened_move(
                 &pos,
                 &[],
@@ -460,7 +460,7 @@ mod tests {
                 &stop,
                 &mut rng,
             );
-            let mut expected = Rng::new(7);
+            let mut expected = crate::rng::test_stream(7);
             for _ in 0..legal_moves(&pos).len() {
                 error(500, &mut expected);
             }
@@ -518,10 +518,10 @@ mod tests {
         weakening: Weakening,
         limits: Limits,
         stopped: bool,
-        seed: u32,
+        case: u32,
     ) -> Weakened {
         let stop = AtomicBool::new(stopped);
-        let mut rng = Rng::new(seed);
+        let mut rng = crate::rng::test_stream(u64::from(case));
         weakened_move(
             &fen(text),
             &[],

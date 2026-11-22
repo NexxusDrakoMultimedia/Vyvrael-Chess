@@ -88,3 +88,13 @@ What the games show:
 - **Too few games, against too few opponents,** to say anything about
   strength. Two opponents played three games each, and three games ended
   by move 11.
+
+## 0.1.0-alpha.2
+
+- **Build:** the 0.1.0-alpha.2 release, run on the Linux machine by
+  lichess-bot. Its settings are the maintainer's record; the checklist in
+  LICHESS.md suggests `Variety: 10` from this release on.
+- **Window:** from the upgrade after the alpha.1 pre-release export on
+  2026-11-22. Still open: it closes with the next pre-release export, when
+  the bot is stopped to run a newer build.
+- **Games:** recorded when the window closes.

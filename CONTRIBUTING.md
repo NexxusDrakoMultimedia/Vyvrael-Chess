@@ -17,7 +17,8 @@ CI runs the same commands.
 
 ## Code style
 
-- Rust edition 2024 on the stable toolchain; `rustfmt` defaults.
+- Rust edition 2024 on the stable toolchain pinned in `rust-toolchain.toml`
+  (`rustup` installs it on first use); `rustfmt` defaults.
 - No clippy warnings (`-D warnings`).
 - Every source file starts with the SPDX header and copyright line:
 

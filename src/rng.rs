@@ -156,6 +156,20 @@ impl Rng {
     }
 }
 
+/// The first stream index handed to unit-test fixtures by [`test_stream`],
+/// far above the engine's own indices in [`stream`], so a fixture never
+/// shares a sequence with the engine.
+#[cfg(test)]
+const TEST_STREAMS: u64 = 1 << 32;
+
+/// A generator for unit-test case `case`: a stream derived from
+/// [`DEFAULT_SEED`], as the project asks of test fixtures. Each case number
+/// gives its own sequence, the same on every run and platform.
+#[cfg(test)]
+pub(crate) const fn test_stream(case: u64) -> Rng {
+    Rng::stream(DEFAULT_SEED, TEST_STREAMS + case)
+}
+
 impl Default for Rng {
     /// A generator seeded with [`DEFAULT_SEED`].
     fn default() -> Self {

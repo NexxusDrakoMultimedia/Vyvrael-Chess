@@ -37,8 +37,8 @@ and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
 
-You need a stable Rust toolchain (installed automatically by `rustup` from
-`rust-toolchain.toml`).
+You need the Rust toolchain that `rust-toolchain.toml` pins (a stable
+release; `rustup` installs it automatically on first use).
 
 ```sh
 cargo build --release        # binary at target/release/vyvrael
@@ -90,13 +90,16 @@ fixed depth or node count.
 The protocol is tested by driving the binary over pipes (`tests/uci.rs`)
 and by complete games under `cutechess-cli` (see
 [docs/TESTING.md](docs/TESTING.md)). 0.1.0-alpha.1 has also played in the
-Cute Chess GUI and runs under lichess-bot, both set up by the maintainer.
+Cute Chess GUI, and the releases run under lichess-bot, both set up by the
+maintainer.
 
 On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
-maintainer upgraded it to a bot on 2026-11-21 and runs it with
-0.1.0-alpha.1. Rated games wait until the engine's strength has been
-measured and its search heuristics tested (after 0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
-are in [docs/LICHESS.md](docs/LICHESS.md).
+maintainer upgraded it to a bot on 2026-11-20 (UTC) and runs it with
+0.1.0-alpha.2 (0.1.0-alpha.1 until 2026-11-22). Rated games wait until the
+engine's strength has been measured and its search heuristics tested
+(after 0.2.0). The policy, the maintainer's checklist and the rules the bot
+keeps are in [docs/LICHESS.md](docs/LICHESS.md), and what it has played with
+each build in [docs/lichess-history.md](docs/lichess-history.md).
 
 ## Documentation
 

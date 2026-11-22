@@ -489,6 +489,11 @@ and a rating run with the bash scripts followed (see "Strength matches,
 SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
 installed.
 
+On the Windows workstation the maintainer installed Cute Chess, Ordo and
+the ladder's engines by hand (confirmed 2026-11-23). The Windows matches of
+milestone 6 (the KI-8 gauntlet, the `UCI_Elo` calibration and its check,
+and the soak test) ran with those, not with copies this script installed.
+
 ### Cute Chess and Ordo on Windows
 
 ```powershell
@@ -509,7 +514,9 @@ point `CUTECHESS_CLI` at its `cutechess-cli.exe`.
 lichess-bot is not installed on Windows (it runs on the Linux machine
 only). The ladder's engines are: see "The ladder's opponent engines (Linux
 and Windows)" above. Status of the tools part: tested offline; the real
-archives have not been fetched by the script.
+archives have not been fetched by the script. The Cute Chess and Ordo on
+the Windows workstation were installed by hand by the maintainer
+(confirmed 2026-11-23).
 
 ## Opponent ladder (Ladder Baseline 2)
 

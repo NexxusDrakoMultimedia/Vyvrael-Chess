@@ -35,6 +35,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   A GUI that sets a value outside the new range gets it refused, as for
   any out-of-range value. Ratings below 1110 cannot be played yet.
   Full-strength play is unchanged.
+- **The Rust toolchain is pinned to 1.100.0** in `rust-toolchain.toml`
+  (was the moving `stable`), so local builds, CI and release binaries use
+  the same compiler. CI and the release workflow install the pinned
+  version before building.
+- **CI pins `actions/checkout` to a commit** (v7.0.1, as the release
+  workflow does) instead of the moving tag `v4`.
 
 ### Fixed
 

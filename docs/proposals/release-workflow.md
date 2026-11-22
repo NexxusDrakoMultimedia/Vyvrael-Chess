@@ -87,7 +87,8 @@ stages before it passed:
   clean `target/`, with incremental compilation off, so nothing from an
   earlier run can reach a release build.
 - **Network:** the engine crate has no dependencies, so `cargo` fetches
-  nothing beyond the toolchain that `rust-toolchain.toml` names; the
+  nothing beyond the toolchain that `rust-toolchain.toml` names (pinned to
+  an exact version since 2026-11-23); the
   actions are fetched by GitHub. `cargo build --locked` refuses to change
   `Cargo.lock`.
 - **Binaries are never committed:** they exist only as workflow artifacts

@@ -178,9 +178,9 @@ The Lichess Bots team membership is already done.
   the pinned lichess-bot commit
   (`06f4f10b5a5a70549b9fc5f8f759a532723b5dab`). **If you install another
   version, read its `config.yml.default` and use its names.**
-- No one has yet run Vyvræl under lichess-bot. How lichess-bot reacts to an
-  option the engine refuses, and that the settings above are enough for a
-  clean first game, are unconfirmed until step 14.
+- The settings above have played clean games under lichess-bot since
+  2026-11-20 (see [lichess-history.md](lichess-history.md)). How
+  lichess-bot reacts to an option the engine refuses is still unconfirmed.
 - "10+0.1" is the time control of the project's own matches (ten seconds
   plus a tenth of a second per move). Lichess increments are whole seconds,
   so it cannot be set there; the values in step 9 (three minutes and two
@@ -248,7 +248,7 @@ Short and honest: the engine and its version, the tagline, casual only,
 and that strength is measured only on the project's own engine ladder, not
 as a Lichess rating. For example:
 
-> Vyvræl 0.1.0-alpha.1: a dragon-flavoured UCI chess engine in Rust, built
+> Vyvræl 0.1.0-alpha.2: a dragon-flavoured UCI chess engine in Rust, built
 > with AI and playing for the attack. Casual games only; strength measured
 > only against the project's own engine ladder.
 > Source: github.com/NexxusDrakoMultimedia/Vyvrael-Chess
