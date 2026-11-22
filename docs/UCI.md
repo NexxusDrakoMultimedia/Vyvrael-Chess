@@ -36,8 +36,9 @@ quit
 It has been tested by driving the binary over pipes (`tests/uci.rs`), by
 seeded streams of malformed input (`tests/uci_robustness.rs`) and by
 playing complete games under `cutechess-cli`; see "Complete games in
-cutechess-cli" in [TESTING.md](TESTING.md). It has not yet been tried in a
-GUI or with lichess-bot.
+cutechess-cli" in [TESTING.md](TESTING.md). 0.1.0-alpha.1 has also played
+in the Cute Chess GUI and runs under lichess-bot, both set up by the
+maintainer.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands

@@ -1,6 +1,6 @@
 ---
 name: release-prep
-description: Prepare the next release using the project's default release prompt (choose the SemVer bump, update versions and changelog, commit once, no tag or push).
+description: Prepare the next release using the project's default release prompt (steps 1 and 2 of docs/RELEASING.md on a release branch; no merge, tag or push).
 disable-model-invocation: true
 ---
 

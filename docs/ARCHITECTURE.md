@@ -751,7 +751,10 @@ which defaults to `DEFAULT_SEED`.
   64-bit state.
 - **Seed derivation:** independent streams (threads, self-play games,
   subsystems) are created with `Rng::stream(base_seed, index)`, never by
-  sharing one generator across threads. The stream's starting state is
+  sharing one generator across threads. Its indices are registered for the
+  engine's own uses (below); a test that needs several generators of its
+  own draws their states from `Rng::default()` instead, as
+  `tests/uci_robustness.rs` does. The stream's starting state is
   `mix64(k ^ mix64(index + 0x9E3779B97F4A7C15))`, where `k` is the first
   output of `Rng::new(base_seed)`. Because `mix64` is a bijection, distinct
   indices always give distinct starting states for the same base seed. Streams

@@ -85,7 +85,8 @@ On a branch `release/<version>` from `main`:
 ## 4. Build and publish (the workflow, then the maintainer)
 
 - [ ] The tag starts the release workflow. It checks that the tag matches
-      `Cargo.toml` and that the changelog and the notes have the version,
+      `Cargo.toml`, that the changelog has a dated section for the version
+      and that its notes file `docs/releases/<version>.md` exists,
       runs the gates, builds the `avx2` and plain binaries for Windows and
       Linux, smoke-tests each, and creates a **draft** release with the
       binaries, their `.sha256` files and the notes.

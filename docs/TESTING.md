@@ -739,8 +739,11 @@ without the four SPRT options, with the mode `h2h`.
 | Draw | from move 34, 10 moves within 20 centipawns | Ends dead games early. |
 | `-recover` | on | One crashed engine does not end a long run. |
 
-`--tc` and `--hash` can change the first two; the rest is fixed in the
-scripts. **Keep everything the same between two runs you mean to compare**,
+`--tc` and `--hash` can change the first two. The opening file is the one
+given with `--openings` (the table's is the one the ladder used), and its
+order is random unless `--seed` fixes it. A build's own UCI options come
+from `--test-option` and `--base-option` (an opponent's from the engine
+list). The rest is fixed in the scripts. **Keep everything the same between two runs you mean to compare**,
 on the same machine with the same number of games at once: results from
 different machines or settings are not comparable.
 
@@ -854,9 +857,11 @@ but the engine is the same:
   machine searches deeper at the same time control, and that changes the
   result.
 - **The same settings:** time control, hash, threads, `Move Overhead`, the
-  opening file and its order, adjudication. The scripts fix all of them but
-  the time control and hash, and the ladder's games were played with them.
-  Games played with other settings (Ladder Baseline 1's own `Move
+  opening file and its order, adjudication. The scripts fix threads and
+  adjudication; the time control, hash, opening file and any option given
+  with `--test-option` or `--base-option` (`Move Overhead` among them)
+  come from the command, so keep them as the ladder's games had them (see
+  "What every match uses"). Games played with other settings (Ladder Baseline 1's own `Move
   Overhead`, for example) are not merged into one rating.
 - **The same opponents**, or enough games against shared ones: a build that
   only met weak engines and one that only met strong ones cannot be

@@ -654,7 +654,7 @@ it will really be, not one that is slow mainly for lack of them.
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
 Scope as amended by the maintainer on 2026-11-20 and 2026-11-21. The chunk
-checklist is written when the milestone starts. Milestone 6 is the
+checklist below was written when the milestone started. Milestone 6 is the
 measuring: gauntlets against the ladder, the calibration of `UCI_Elo`, and
 known issue KI-8 (the evaluation's strength). The scripts and the installer
 it uses are built beforehand and described under "Testing tooling (before
@@ -683,7 +683,7 @@ engine: they run as separate programs and are installed by the user.
   shows to be a gain, and record the result in the commit message or in
   `docs/TESTING.md`.
 
-To go into the chunk checklist when it is written:
+Taken into the chunk checklist below:
 
 - Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
   on: the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1
@@ -708,9 +708,11 @@ Notes for whoever starts it:
 - The match settings rely on the UCI options `Hash` and `Threads`.
   Repeatable limited-strength runs also need a fixed seed: the option
   `Seed`.
-- Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
-  the engine list: the match scripts give a build under test no options of
-  its own.
+- Calibrating `UCI_Elo` needs limited Vyvræl entries: since milestone 6
+  the match scripts give a build its own options (`--test-option`,
+  `--base-option`), or the engine list can hold them.
+- Match output (PGN, logs, rating files) is not committed; `.gitignore`
+  already covers match output and `*.pgn`.
 
 ### Chunk checklist
 
@@ -792,8 +794,6 @@ Closing:
 - [ ] End-of-milestone review and doc drift pass, then the report.
 
 The release of 0.1.0 follows as its own step, with `docs/RELEASING.md`.
-- Match output (PGN, logs, rating files) is not committed; `.gitignore`
-  already covers match output and `*.pgn`.
 
 ## Milestone 7: search heuristics (order of work for captures)
 
