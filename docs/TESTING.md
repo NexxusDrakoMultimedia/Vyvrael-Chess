@@ -912,6 +912,106 @@ is added to its rating. Some points of the ladder on this scale:
 The current settings (400 to 1800) are not on this scale yet: they are
 uncalibrated labels until the calibration of milestone 6 refits them.
 
+### Calibration of `UCI_Elo` (0.1.0-alpha.2, 2026-11-22)
+
+**Provisional:** it holds for the build measured and is measured again
+after milestone 7 and after queued task 2.
+
+- **Build:** the 0.1.0-alpha.2 release binary (SHA-256
+  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`), the
+  same as the current build of milestone 6, with `UCI_LimitStrength=true`
+  and six settings of the uncalibrated `UCI_Elo`. `-Deterministic` fixed
+  `Seed` at 822286742, so each game can be replayed.
+- **Games, played by the maintainer on the Windows workstation** with
+  `match.ps1` from the clean commit `c16c466`, 06:49 to 07:55 UTC:
+  - one gauntlet per setting, 20 rounds (40 games) against each of
+    CT800 1.46-1200, Arasan 26.1-1500, CT800 1.46-1500, Nostradamus 0.4,
+    Stockfish 19-1320, Stockfish 19-1500, Rodent IV-2000 and
+    `Vyvrael 0.1.0-a2` at full strength (`-Seed 20261123`, the same
+    openings for every setting); 320 games each;
+  - five head-to-head runs of 40 games between neighbouring settings
+    (`-Seed 20261124`), so that Ordo can rate the settings even if one of
+    them lost every game to the ladder (none did);
+  - Baseline 2's fixed settings otherwise (10+0.1, Hash 64, one thread,
+    `UHO_Lichess_4852_v1.epd`). The seven ladder entries were the same as
+    Baseline 2's copy of the engine list, checked entry by entry.
+- **Rating:** one Ordo run (`rate.ps1`, Ordo 1.2.6, `-a 0 -A "Stockfish 19"
+  -W -s 500`) over `Baseline2.pgn`, the KI-8 gauntlet (which rates
+  `Vyvrael 0.1.0-a2` with 1,000 games) and the eleven calibration files,
+  4,860 games in all. Ordo's table:
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt),
+  copied unchanged.
+- **Failures:** no illegal move, crash, stall or time loss by any engine.
+  `cutechess-cli` ended three engine processes itself, once each for
+  Vyvræl L1150, CT800 1.46-1500 and Stockfish 19-1500, between games; no
+  result was affected. So the message seen once in the KI-8 gauntlet is not
+  particular to Vyvræl.
+- **SHA-256 of the PGNs** (not committed; kept locally with their notes):
+
+  | File (`2026-11-22-...-cal.pgn`) | Games | SHA-256 |
+  | --- | --: | --- |
+  | `gauntlet-Vyvrael-0.1.0-a2-L400` | 320 | `1d33066a6a37c7a5ed741048742267f9021ae0b924a946f14867abe9efb409ac` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L750` | 320 | `70728859fe0a721eebf92a7e742f46c1ab53935e79ac181a32ba38b4dbb3cb2c` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1050` | 320 | `d01004244e56f06d406dcac3da56f2ebd0821faea6c3bb555ac0be7072b11a77` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1150` | 320 | `52485058be958bbb742ad43e05226b92011a0eace5d5de6c7014b8ece16aa526` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1450` | 320 | `b5d3d2119214e93a63194cb8f8914998d4a5f54eddd37e1b5b69abc03703ddcf` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1800` | 320 | `25cb3651432caa62620c97d62634cb9d79611c402df611e3cd407de912934ee1` |
+  | `h2h-Vyvrael-0.1.0-a2-L400` (against L750) | 40 | `e5d298df4dfe1e64aa5090669388d3001910be7fad1f23603863c8e7ce357a32` |
+  | `h2h-Vyvrael-0.1.0-a2-L750` (against L1050) | 40 | `adeca5956f7ecbcdd793fa5f0cc17a4a44194ad772af531450dc700d2e237722` |
+  | `h2h-Vyvrael-0.1.0-a2-L1050` (against L1150) | 40 | `1e069780c8dc23586a75b6b6c1fad7bbf6dea77a2b6d272fea6527d05fb18820` |
+  | `h2h-Vyvrael-0.1.0-a2-L1150` (against L1450) | 40 | `af42c6fe8782caade4259553b140de637e3d765a6693db74a12bc8fcdccd64f1` |
+  | `h2h-Vyvrael-0.1.0-a2-L1450` (against L1800) | 40 | `b0a6f5d134ad4d1eb29fcd7f3bf429a134a23d58012ee6d723702dcbe315dcb8` |
+
+**Result.** What each old setting really plays at, on the `UCI_Elo`
+scale (Ordo rating + 3,500). The error against the anchor is about ±245
+for every row; what matters for the fit is the order and the gaps, which
+the head-to-head runs confirm (each higher setting won its link, 25.0 to
+35.0 of 40).
+
+| Old setting | Plies | Largest misjudgement (cp) | Ordo rating | On the scale |
+| --- | --: | --: | --: | --: |
+| 400 | 2 | 300 | -2,393.8 | 1,106 |
+| 750 | 2 | 230 | -2,351.0 | 1,149 |
+| 1050 | 2 | 171 | -2,282.7 | 1,217 |
+| 1150 | 3 | 151 | -2,146.4 | 1,354 |
+| 1450 | 3 | 90 | -2,095.4 | 1,405 |
+| 1800 | 3 | 20 | -1,870.4 | 1,630 |
+| Full strength | | | -1,660.6 | 1,839 |
+
+Scores against the ladder, out of 40 for each opponent:
+
+| Setting | CT800 1.46-1200 | Arasan 26.1-1500 | CT800 1.46-1500 | Nostradamus 0.4 | Stockfish 19-1320 | Stockfish 19-1500 | Rodent IV-2000 | Vyvrael 0.1.0-a2 |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: |
+| 400 | 32.0 | 35.0 | 12.5 | 13.5 | 9.0 | 2.0 | 0.0 | 1.0 |
+| 750 | 40.0 | 38.0 | 16.0 | 12.5 | 6.0 | 0.0 | 0.0 | 0.0 |
+| 1050 | 39.0 | 36.0 | 20.5 | 18.5 | 8.0 | 5.0 | 0.0 | 0.0 |
+| 1150 | 39.5 | 39.0 | 29.0 | 17.5 | 17.0 | 10.0 | 0.5 | 0.0 |
+| 1450 | 40.0 | 39.0 | 33.0 | 23.5 | 12.0 | 10.5 | 3.5 | 1.0 |
+| 1800 | 40.0 | 39.0 | 37.5 | 32.0 | 33.0 | 15.0 | 11.5 | 9.0 |
+
+What it shows:
+
+- **The settings span only about 525 points,** from 1,106 to 1,630. The
+  misjudgement costs less than it was meant to, and the weakest setting
+  still beats the two lowest rungs of the ladder (CT800 1.46-1200 and
+  Arasan 26.1-1500) in most games. Ratings below about 1,100 cannot be
+  played with the weakening as it is; reaching them needs a change to the
+  weakening itself, which is not part of this calibration.
+- **The step from two to three plies is worth about 137 points** (1,217 at
+  setting 1050 to 1,354 at 1150), more than the whole span of the
+  two-ply settings (111 points).
+- **The misjudgement matters most when it is small:** at three plies,
+  going from 90 to 20 centipawns gains 225 points; from 300 to 171 at two
+  plies gains 111.
+- **The ladder's lowest rungs move down** when rated with these games
+  (Arasan 26.1-1500 from -2,431.3 in Baseline 2 alone to -2,712.9,
+  CT800 1.46-1200 from -2,486.5 to -2,780.4), because the limited settings beat them far more
+  often than Baseline 2's engines suggested. As with KI-8, compare within
+  this one table.
+
+The refit of `search::Weakening::for_elo` and of the option's range is
+made from this table (see `docs/UCI.md`, "Limited strength").
+
 ### Smoke test of the scripts (Windows workstation, 2026-11-22)
 
 `match.ps1` and `rate.ps1` were run for real once in each mode, at the

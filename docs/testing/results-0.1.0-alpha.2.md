@@ -120,8 +120,11 @@ adjudication). The result was recorded normally and the other games ran as
 usual. The message says that cutechess-cli ended the engine's process
 itself, which it is expected to do when an engine does not exit after
 `quit` (an interpretation of the tool, not checked in its source). The log
-does not say why. The soak test of milestone 6 looks for the same thing at other time
-controls; nothing here has been changed for it.
+does not say why. In the `UCI_Elo` calibration runs the same message was
+logged once each for a limited Vyvræl, CT800 1.46-1500 and Stockfish
+19-1500, so it is not particular to Vyvræl (see "Calibration of `UCI_Elo`"
+in [TESTING.md](../TESTING.md)). The soak test of milestone 6 looks for it
+at other time controls.
 
 ## How to read this
 
