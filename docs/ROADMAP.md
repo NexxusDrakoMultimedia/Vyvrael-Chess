@@ -589,7 +589,7 @@ commit each with its tests and docs:
    randomness table, the changelog.
 9. `docs/testing/bench-history.md`: the first bench and perft figures.
 
-Design decisions taken for it (open to the maintainer's review):
+Design decisions taken for it, confirmed by the maintainer on 2026-11-22:
 
 - **Entropy seeds avoid 0.** `Seed` 0 means "take one from entropy", so an
   entropy seed is drawn from 1 to 2147483647: any logged seed can be typed
