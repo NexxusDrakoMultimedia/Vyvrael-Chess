@@ -15,7 +15,7 @@ them.
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
-| 6 | Strength testing | `milestone/6-strength-testing` | not started |
+| 6 | Strength testing | `milestone/6-strength-testing` | in progress (started 2026-11-22) |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -706,6 +706,79 @@ Notes for whoever starts it:
 - Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
   the engine list: the match scripts give a build under test no options of
   its own.
+
+### Chunk checklist
+
+Branch `milestone/6-strength-testing`, started 2026-11-22. One commit per
+item unless noted; tests and docs travel with each. Part A is the agent's;
+Part B is measuring, where the maintainer runs the long matches on the
+Windows workstation and sends the files, and the agent writes the records.
+Results from different machines are not compared.
+
+Part A, documents, tools and tests:
+
+- [ ] `ROADMAP.md`: the release plan as amended by the maintainer
+  (2026-11-21): 0.1.0, not 0.2.0, is the first release with binaries built
+  by a workflow, in the `avx2` and plain builds; the `pext` build joins in
+  0.2.0, when milestone 7 adds PEXT attacks. The "Releases" table and
+  "Release artifacts" change; the three-build design, the file names and
+  "never `target-cpu=native`" do not.
+- [ ] `docs/proposals/release-workflow.yml` and `release-workflow.md`: the
+  proposed release workflow (tag-triggered, gates first, Windows and Linux
+  `avx2` and plain builds, SHA-256 files, a smoke test, a **draft** release;
+  `contents: write` on one job only; actions pinned by SHA). A proposal: the
+  maintainer installs it under `.github/workflows/`, and it is not called
+  working until it has run once on a test tag.
+- [ ] `docs/RELEASING.md`: the release procedure from 0.1.0 on, as a
+  checklist (prepare, gates, merge and tag by the maintainer, the workflow's
+  draft, checks and publishing, the results file). `docs/prompts/release.md`
+  and `AGENTS.md` "Releases" point to it instead of holding the steps.
+- [ ] `TESTING.md`: how to read an SPRT result.
+- [ ] `TESTING.md`: how to read Ordo output.
+- [ ] `TESTING.md`: what a sound Elo comparison needs (same machine, same
+  settings, enough games) and the limits of results from different machines.
+- [ ] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
+  the maintainer approves.
+- [ ] Match scripts, run notes (`match.ps1` and `match.sh` alike, with
+  tests): at the start the git commit and whether the working tree is
+  clean or dirty, and a copy of the engine list beside the notes; at the end
+  the number of games in the PGN and its SHA-256. Nothing written outside
+  the output folder; an existing PGN is still refused. (`rate.ps1` and
+  `rate.sh` are left alone; a bug found in them is reported, not fixed
+  silently.)
+- [ ] Match scripts: a way to give the build under test options of its own
+  (`UCI_LimitStrength`, `UCI_Elo`, `Seed`), the mechanism the maintainer
+  chooses, so that limited Vyvræl builds can be measured.
+- [ ] Robustness: a test that feeds the UCI loop malformed and unexpected
+  input (random bytes, truncated and oversized commands, bad values, odd
+  orders, commands during a search) from a seeded generator and asserts
+  that it never panics and keeps answering `isready`. Any panic it finds is
+  fixed in its own commit.
+
+Part B, measuring (the maintainer plays, the agent records):
+
+- [ ] The scripts smoke-tested for real on the Windows workstation (a short
+  run of each mode and a rating) and the result recorded in `TESTING.md`.
+- [ ] KI-8: a gauntlet of the current build against the core opponents of
+  Ladder Baseline 2 ("Using the ladder for Vyvræl"), rated together with
+  Baseline 2's games in one Ordo run anchored on Stockfish 19, recorded in
+  `docs/testing/results-<build>.md` with Ordo's output. KI-8 is updated for
+  the build measured.
+- [ ] `UCI_Elo` calibration: gauntlets of limited builds at several
+  settings (for example 400, 800, 1200, 1500 and 1800) with a fixed `Seed`,
+  rated with Baseline 2; the mapping in `search::Weakening::for_elo` and the
+  option's range and default refitted to the measurements, on the approved
+  scale; method, opponents and results recorded in `TESTING.md`. Marked
+  provisional: it is measured again after milestone 7 and after queued
+  task 2.
+- [ ] Soak test through `cutechess-cli` at 1+0, 3+2 and 60+0: no illegal
+  move, crash, stall or time loss, recorded in `TESTING.md`.
+
+Closing:
+
+- [ ] End-of-milestone review and doc drift pass, then the report.
+
+The release of 0.1.0 follows as its own step, with `docs/RELEASING.md`.
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
   already covers match output and `*.pgn`.
 
