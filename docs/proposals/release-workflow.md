@@ -1,9 +1,9 @@
 # Proposal: the release workflow
 
-**Status: a proposal, not installed and not yet run.** Agents do not edit
-`.github/workflows`; the maintainer reviews this proposal and puts it in
-place. Do not call it working until it has run once on a test tag (see
-"Trying it" below).
+**Status: installed as `.github/workflows/release.yml` on 2026-11-22, with
+the maintainer's approval, and not yet run.** Agents do not edit
+`.github/workflows` without that approval. Do not call it working until it
+has run once on a test tag (see "Trying it" below).
 
 The workflow is [`release-workflow.yml`](release-workflow.yml). From 0.1.0
 it builds the release binaries that were built by hand up to 0.1.0-alpha.2,
@@ -126,5 +126,5 @@ Before relying on it for 0.1.0, run it once on a test tag:
    `.sha256` file; run it once.
 4. Delete the draft release, the tag (locally and on GitHub) and the branch.
 
-Until that has been done, this document stays marked as a proposal and
+Until that has been done, this document says the workflow has not run and
 `RELEASING.md` says so.

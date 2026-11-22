@@ -11,9 +11,9 @@ are in its "Release artifacts".
 merges it, creates and pushes the tag, checks the draft and publishes.
 Agents never create or push tags and never publish.
 
-**The release workflow** (`.github/workflows/release.yml`, proposed in
-[`proposals/release-workflow.md`](proposals/release-workflow.md)) is not
-installed yet and has not run. Until it has run once on a test tag, step 4
+**The release workflow** (`.github/workflows/release.yml`, described in
+[`proposals/release-workflow.md`](proposals/release-workflow.md)) is
+installed but has not run yet. Until it has run once on a test tag, step 4
 cannot be relied on.
 
 Copy the checklist below into the release's tracking note or pull request
