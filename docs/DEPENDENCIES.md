@@ -31,7 +31,7 @@ None.
 | Tool | Licence | Why |
 | --- | --- | --- |
 | Rust toolchain (rustc, cargo, rustfmt, clippy) | MIT OR Apache-2.0 | Build, format, lint, test. |
-| `actions/checkout` (GitHub Action, CI and release workflow) | MIT | Check out the repository. `ci.yml` uses the tag `v4`; `release.yml` uses v7.0.1, pinned to commit `3d3c42e5aac5ba805825da76410c181273ba90b1`. |
+| `actions/checkout` (GitHub Action, CI and release workflow) | MIT | Check out the repository. Both workflows use v7.0.1, pinned to commit `3d3c42e5aac5ba805825da76410c181273ba90b1`. |
 | `actions/upload-artifact` (GitHub Action, release workflow only) | MIT | Pass each build job's binary and its `.sha256` file to the release job. v7.0.2, pinned to commit `cf430e030ddbb5b0abf93d22962f4752f3646cd9`. |
 | `actions/download-artifact` (GitHub Action, release workflow only) | MIT | Collect those files in the release job. v8.0.2, pinned to commit `9000827ccba6bdab643e8b6fd33ac0654aef8333`. |
 | GitHub CLI `gh` (preinstalled on GitHub's runners, release workflow only) | MIT | Create the draft release (`gh release create`). Not pinned: the runner's copy is used. |
