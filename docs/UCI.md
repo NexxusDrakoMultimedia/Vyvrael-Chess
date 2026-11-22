@@ -20,7 +20,7 @@ option name Threads type spin default 1 min 1 max 1
 option name Seed type spin default 0 min 0 max 2147483647
 option name Variety type spin default 0 min 0 max 100
 option name UCI_LimitStrength type check default false
-option name UCI_Elo type spin default 1200 min 400 max 1800
+option name UCI_Elo type spin default 1360 min 1110 max 1630
 option name Move Overhead type spin default 30 min 0 max 5000
 info string rng seed 1463767669 (system entropy)
 uciok
@@ -33,14 +33,16 @@ bestmove d2d4
 quit
 ```
 
-It has been tested by driving the binary over pipes (`tests/uci.rs`) and by
+It has been tested by driving the binary over pipes (`tests/uci.rs`), by
+seeded streams of malformed input (`tests/uci_robustness.rs`) and by
 playing complete games under `cutechess-cli`; see "Complete games in
-cutechess-cli" in [TESTING.md](TESTING.md). It has not yet been tried in a
-GUI or with lichess-bot.
+cutechess-cli" in [TESTING.md](TESTING.md). 0.1.0-alpha.1 has also played
+in the Cute Chess GUI and runs under lichess-bot, both set up by the
+maintainer.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
-(`perft`, `eval`, `search`, `help`), which are not part of UCI; see
+(`perft`, `eval`, `search`, `bench`, `help`), which are not part of UCI; see
 [TESTING.md](TESTING.md).
 
 ## Identity
@@ -60,14 +62,14 @@ package name needs one.
 | `uci` | implemented | Prints the `id` lines, the option list, then `uciok`. |
 | `isready` | implemented | Replies `readyok`, also while a search is running. The first one builds the attack tables (a few milliseconds), so the first search does not pay for them on the clock. |
 | `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
-| `position [startpos \| fen <fen>] [moves ...]` | implemented | Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
+| `position [startpos \| fen <fen>] [moves ...]` | implemented | Ends any running search first (it reports its `bestmove`). Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
 | `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is always finished first (see "The first depth" below). |
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
 Not offered: `debug`, `register`, `ponderhit`. They are answered with
-`info string unknown command`.
+`info string unknown command: <line>`, which echoes the line.
 
 ### `go` parameters
 
@@ -79,7 +81,7 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
 | `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
-| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. |
+| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
 
 Several limits may be combined; the search stops at whichever comes first.
 
@@ -140,8 +142,8 @@ search.
 | `Variety` | spin | `0` (0 to 100) | implemented | Centipawns. In the first 12 full moves, at full strength, play at random among the best move and the moves a second search checks to be within this many centipawns of it, weighted towards the best. Never when the best score is a mate. `0` always plays the best move. It weakens play on purpose. See "Variety" below. |
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
-| `UCI_LimitStrength` | check | `false` | implemented, **uncalibrated** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
-| `UCI_Elo` | spin | `1200` (400 to 1800) | implemented, **uncalibrated** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A higher number looks further ahead (2 plies below 1100, 3 from there) and misjudges moves less (by up to 300 centipawns at 400, falling evenly to 20 at 1800). The range, the default and this mapping are provisional: they are replaced by measured values in milestone 6. |
+| `UCI_LimitStrength` | check | `false` | implemented, **calibrated provisionally** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
+| `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7 and after queued task 2. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
@@ -173,11 +175,14 @@ breaks that in the opening:
 - The engine plays one of the choices at random, the best move included
   and the most likely, and says so in an `info string` when it is not the
   best: `info string variety: d7d6 instead of g8f6, 9 cp below it, one of 6
-  moves`. The `info` lines before it are those of the search.
+  moves`. The `info` lines before it are those of the search. After it
+  comes one more `info` line for the move played: its score from the check
+  and a `pv` of that move alone, so that a GUI records the move actually
+  played.
 - It draws from the same seeded generator as limited strength, so with a
   fixed `Seed` and `go depth` a varied game is reproducible.
 
-What "within 10 centipawns" means depends on the evaluation: at shallow
+What "within `Variety` centipawns" means depends on the evaluation: at shallow
 depths the hand-crafted evaluation rates many quiet opening moves within a
 few centipawns of each other, so a large `Variety` plays odd but legal
 openings. `Variety` weakens play on purpose, so it is exempt from the rule
@@ -196,7 +201,9 @@ is the number of milliseconds kept back for that.
   what is on the clock less the overhead. An ordinary share of the time is
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
-- There is always at least one millisecond to move in.
+- There is always at least one millisecond to move in. Without an
+  increment, a long game at a very short time control can still lose on
+  time; this is known issue KI-12 in [ROADMAP.md](ROADMAP.md).
 - It does not change which move is chosen at a fixed depth or node count,
   only how long a search on the clock may run.
 
@@ -227,9 +234,41 @@ this means for a GUI:
   from a new logged entropy seed, so each game can be replayed by itself,
   given the same commands and limits that do not depend on the clock
   (`nodes`, or time that is never used up).
-- **The rating is not calibrated.** The settings are ordered (a higher
-  rating looks further and errs less) but nothing has been measured yet.
-  Calibration is milestone 6.
+- **The rating is calibrated provisionally.** Seven settings of the
+  weakening were measured against the reference ladder in milestone 6, and
+  `UCI_Elo` is mapped through them:
+
+  | `UCI_Elo` | Plies | Largest misjudgement (cp) |
+  | --: | --: | --: |
+  | 1110 | 2 | 300 |
+  | 1150 | 2 | 230 |
+  | 1220 | 2 | 171 |
+  | 1330 | 2 | 112 |
+  | 1350 | 3 | 151 |
+  | 1410 | 3 | 90 |
+  | 1630 | 3 | 20 |
+
+  Between two of these at the same depth the misjudgement is interpolated
+  in a straight line. From 1331 to 1349, where the depth changes, the
+  engine plays as 1330: up to 20 points weak for the number, never
+  stronger than a higher setting. The default, 1360, plays exactly as the default did
+  before the calibration. Nothing below 1110 can be played: the weakest
+  setting already beats the two lowest rungs of the ladder in most games.
+  The measurement and its limits are in [TESTING.md](TESTING.md),
+  "Calibration of `UCI_Elo`". It holds for the build measured and is
+  measured again after milestone 7 and after queued task 2.
+
+**What scale `UCI_Elo` is on.** Its numbers are ratings on the scale of the
+reference ladder, Ladder Baseline 2, as computed by Ordo with Stockfish 19
+as the anchor, shifted by a fixed 3,500 points so that Stockfish 19 is
+3,500 and every setting is a positive number. They are not Lichess, CCRL or
+FIDE ratings and cannot be converted to them. The scale is stretched by
+lopsided results, most visibly at the low end: the limited engines of the
+ladder rate far below the numbers in their names (Stockfish 19-1320 is
+about 1,530 on this scale). A setting of 1,200 means about as strong as an
+engine rated 1,200 on this ladder, not a 1,200 player. The calibration of
+milestone 6 maps the settings onto this scale (see [TESTING.md](TESTING.md),
+"The scale of `UCI_Elo`").
 
 The seed in use is always logged, so any run can be replayed:
 

@@ -8,6 +8,40 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **The match scripts' run notes say more.** `match.ps1` and `match.sh`
+  record the repository's commit and whether its working tree was clean or
+  dirty, the number of games in the PGN and its SHA-256; a gauntlet also
+  keeps a copy of the engine list it read beside the notes.
+- **The match scripts can give a build UCI options:** `--test-option
+  NAME=VALUE` and `--base-option` in `match.sh`, `-TestOption` and
+  `-BaseOption` in `match.ps1`, recorded in the run notes. Limited Vyvræl
+  builds (`UCI_LimitStrength`, `UCI_Elo`) can now be measured.
+- **A robustness test for the UCI loop:** seeded streams of malformed and
+  unexpected input (random bytes, broken FENs, oversized and truncated
+  lines, odd option values, commands during a search). It found no panic.
+- **A first measurement of strength** (known issue KI-8): 1,000 games of
+  0.1.0-alpha.2 against Ladder Baseline 2's rungs, rated with Baseline 2.
+  It places Vyvræl between Stockfish 19-1800 and Rodent IV-2000 on that
+  ladder's own scale, which is not an Elo (`docs/testing/results-0.1.0-alpha.2.md`).
+
+### Changed
+
+- **`UCI_Elo` is calibrated, provisionally.** Its numbers are now ratings
+  on the scale of the reference ladder, measured for seven settings of the
+  weakening: the range is 1110 to 1630 (was 400 to 1800, labels only), and
+  the default 1360 (was 1200) plays exactly as the old default did.
+  A GUI that sets a value outside the new range gets it refused, as for
+  any out-of-range value. Ratings below 1110 cannot be played yet.
+  Full-strength play is unchanged.
+
+### Fixed
+
+- **The match scripts refuse a build name with a line break.** The
+  plain-ASCII check let line breaks through (in `match.ps1` only one at
+  the end).
+
 ## [0.1.0-alpha.2] - 2026-11-22
 
 The second alpha: games that no longer repeat, a reproducible bench, and

@@ -31,7 +31,15 @@ None.
 | Tool | Licence | Why |
 | --- | --- | --- |
 | Rust toolchain (rustc, cargo, rustfmt, clippy) | MIT OR Apache-2.0 | Build, format, lint, test. |
-| `actions/checkout` (GitHub Action, CI only) | MIT | Check out the repository in CI. |
+| `actions/checkout` (GitHub Action, CI and release workflow) | MIT | Check out the repository. `ci.yml` uses the tag `v4`; `release.yml` uses v7.0.1, pinned to commit `3d3c42e5aac5ba805825da76410c181273ba90b1`. |
+| `actions/upload-artifact` (GitHub Action, release workflow only) | MIT | Pass each build job's binary and its `.sha256` file to the release job. v7.0.2, pinned to commit `cf430e030ddbb5b0abf93d22962f4752f3646cd9`. |
+| `actions/download-artifact` (GitHub Action, release workflow only) | MIT | Collect those files in the release job. v8.0.2, pinned to commit `9000827ccba6bdab643e8b6fd33ac0654aef8333`. |
+| GitHub CLI `gh` (preinstalled on GitHub's runners, release workflow only) | MIT | Create the draft release (`gh release create`). Not pinned: the runner's copy is used. |
+
+The licences of the three actions and of `gh` are as GitHub reports them
+from each repository's licence file (`actions/checkout`,
+`actions/upload-artifact`, `actions/download-artifact`, `cli/cli`),
+checked on 2026-11-23.
 
 ## External programs (run separately, never linked or vendored)
 
@@ -47,7 +55,7 @@ and Ordo from their official zip archives, pinned in
 | --- | --- | --- | --- |
 | Cute Chess (`cutechess-cli`) | v1.5.1, release file checked by SHA-256 | GPL-3.0 | Engine-against-engine matches and SPRT (milestone 6). |
 | Ordo | v1.2.6, commit `17eec774f2e4b9fdd2b1b38739f55ea221fb851a`, built from source | GPL-3.0 | Rating lists from match PGN (milestone 6). |
-| lichess-bot | 2026.11.16.2, commit `06f4f10b5a5a70549b9fc5f8f759a532723b5dab` | AGPL-3.0 | Connecting the engine to Lichess (planned feature). |
+| lichess-bot | 2026.11.16.2, commit `06f4f10b5a5a70549b9fc5f8f759a532723b5dab` | AGPL-3.0 | Running the casual Lichess bot on the Linux machine (since 0.1.0-alpha.1; see [LICHESS.md](LICHESS.md)). |
 
 Licences are as stated by the licence file in each project's own repository
 (`COPYING`, `LICENSE.txt` and `LICENSE` respectively), checked on 2026-11-20.
@@ -69,9 +77,9 @@ not pinned by this project.
 ## Opponent engines of the ladder (Linux and Windows)
 
 The engines of Ladder Baseline 2, the reference ladder, as
-`scripts/install_tools.py` is to install them on Linux and on Windows (the
-Windows table follows the Linux one). They are separate programs, run only
-as opponents in matches:
+`scripts/install_tools.py --engines` installs them on Linux and on Windows
+(the Windows table follows the Linux one). They are separate programs, run
+only as opponents in matches:
 none is linked into Vyvræl, vendored or redistributed by this project. The
 full pins (addresses, complete SHA-256 digests, build commands and notes)
 are in `scripts/ladder_engines.py`, which is the place to change them.
@@ -173,12 +181,14 @@ at run time, and the Rustic Alpha binaries do not state their processor
 level (they contain no AVX-512).
 
 **Two builds.** The installer takes the `avx2` build by default and the
-`pext` build with `--engine-build pext` (or `ENGINE_BUILD=pext` in
-`scripts/local.env`). Only engines that offer a PEXT build of their own
-differ: on Linux Arasan (`arasanx-64-avx2` or `arasanx-64-avx2-bmi2` from the
-same archive), Stash (its popcnt or its bmi2 file; it has no AVX2 build) and
-Weiss (built without or with `-DUSE_PEXT`); on Windows Arasan and Weiss
-(two files of one archive each), Stash (its popcnt or bmi2 file) and
-Ethereal (`popcnt-avx2` or `pext-avx2`). Every other engine has one build
-for both. PEXT is fast on Intel from Haswell and on AMD from Zen 3, and slow
-on AMD Zen 1 and Zen 2.
+`pext` build with `--engine-build pext`, or else with
+`VYVRAEL_ENGINE_BUILD=pext` in the environment, or else with
+`ENGINE_BUILD=pext` in `scripts/local.env`, in that order of precedence.
+Only engines that offer a PEXT build of their own differ: on Linux Arasan
+(`arasanx-64-avx2` or `arasanx-64-avx2-bmi2` from the same archive), Stash
+(its popcnt or its bmi2 file; it has no AVX2 build) and Weiss (built
+without or with `-DUSE_PEXT`); on Windows Arasan and Weiss (two files of
+one archive each), Stash (its popcnt or bmi2 file) and Ethereal
+(`popcnt-avx2` or `pext-avx2`). Every other engine has one build for both.
+PEXT is fast on Intel from Haswell and on AMD from Zen 3, and slow on AMD
+Zen 1 and Zen 2.

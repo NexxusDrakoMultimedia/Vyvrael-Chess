@@ -3,8 +3,11 @@
 """Offline tests for scripts/windows/match.ps1.
 
 No game is played and the real cutechess-cli is never run: the tests give
-the script a stand-in (a PowerShell script) that only answers `-help` and
-`-version`, and read the command the script would run from `-DryRun`.
+the script a stand-in (a PowerShell script) that answers `-help` and
+`-version` and, for a real run, prints a scripted result instead of
+playing; most tests read the command the script would run from `-DryRun`.
+One Windows-only test uses a small .cmd program instead, to check that
+warnings on stderr do not end a run under Windows PowerShell 5.1.
 Everything lives in a temporary directory. They are skipped where there is
 no PowerShell. The cases mirror scripts/tests/test_match_sh.py: the two
 scripts must behave alike.
@@ -241,6 +244,72 @@ class MatchPs1Test(Fixture, unittest.TestCase):
             Path(words[-1]).as_posix(), "out dir/2026-01-02-sprt-Vyvrael-dev-abc1234-run2.pgn"
         )
 
+    def engines(self, words: list[str]) -> list[list[str]]:
+        """The arguments of each -engine, up to the next flag."""
+        starts = [index for index, word in enumerate(words) if word == "-engine"]
+        groups = []
+        for start in starts:
+            end = start + 1
+            while end < len(words) and not words[end].startswith("-"):
+                end += 1
+            groups.append(words[start + 1 : end])
+        return groups
+
+    def test_options_go_to_their_own_build(self):
+        words = self.command(self.sprt(
+            "-TestOption", "UCI_LimitStrength=true;UCI_Elo=1500",
+            "-BaseOption", "Move Overhead=50",
+        ))
+        test, base = self.engines(words)
+        # After the script's own settings, in the order given.
+        self.assertEqual(test[3:], ["option.Threads=1", "option.UCI_LimitStrength=true",
+                                    "option.UCI_Elo=1500"])
+        self.assertEqual(base[3:], ["option.Threads=1", "option.Move Overhead=50"])
+
+    def test_a_gauntlet_gives_options_to_the_build_under_test_only(self):
+        words = self.command(self.gauntlet("-Opponent", "Vice 1.1", "-TestOption", "Seed=5"))
+        test, opponent = self.engines(words)
+        self.assertIn("option.Seed=5", test)
+        self.assertNotIn("option.Seed=5", opponent)
+        self.refused(
+            self.gauntlet("-Opponent", "Vice 1.1", "-BaseOption", "Seed=5"),
+            "-BaseOption is for sprt and h2h modes",
+        )
+
+    def test_bad_options_are_refused(self):
+        # A semicolon separates options here, as it does opponents.
+        for given, message in (
+            ("UCI_Elo", "must be NAME=VALUE"),
+            ("=1500", "must be NAME=VALUE"),
+            ("UCI_Elo=", "must be NAME=VALUE"),
+            ("UCI_Elo=15=00", "may hold only one '='"),
+            ("UCI_Elo='1500'", "may not contain quotes or ';'"),
+            (" UCI_Elo=1500", "may not start or end with a space"),
+            ("Threads=4", "the script sets Threads"),
+            ("hash=128", "the script sets hash"),
+        ):
+            with self.subTest(given=given):
+                self.refused(self.sprt("-TestOption", given), f"-TestOption '{given}'", message)
+        # Windows may re-encode a non-ASCII argument, so only the reason is checked.
+        self.refused(self.sprt("-TestOption", "UCI_Elo=1500\u00e9"), "must be plain ASCII")
+        # A line break, even at the end, would put a second command into the
+        # engine's input.
+        for given in ("UCI_Elo=1500\nquit", "UCI_Elo=1500\n"):
+            with self.subTest(given=given):
+                self.refused(self.sprt("-TestOption", given), "must be plain ASCII")
+        self.refused(
+            self.sprt("-TestOption", "SyzygyPath=C:\\tb dir\\"),
+            "may not end with a backslash",
+        )
+        self.refused(
+            self.sprt("-BaseOption", "UCI_Elo=1500;uci_elo=1600"),
+            "-BaseOption: the option uci_elo is given twice",
+        )
+        self.refused(
+            self.sprt("-Deterministic", "-TestOption", "Seed=5"),
+            "-Deterministic already sets Seed",
+        )
+
     def test_settings_come_from_the_local_file_then_environment_then_arguments(self):
         local = self.tmp / "local.env"
         local.write_text(
@@ -304,7 +373,7 @@ class MatchPs1Test(Fixture, unittest.TestCase):
         )
 
     def test_build_names_must_be_plain_ascii(self):
-        for name in ("Vyvræl dev", "Vyvrael=dev", "Vyvrael 'dev'"):
+        for name in ("Vyvræl dev", "Vyvrael=dev", "Vyvrael 'dev'", "Vyvrael\ndev", "Vyvrael dev\n"):
             result = self.run_script(
                 "h2h", "-Test", str(self.test_build), "-TestName", name,
                 "-Base", str(self.base_build), "-BaseName", "Vyvrael base", "-Rounds", "5",
@@ -408,15 +477,86 @@ class MatchPs1Test(Fixture, unittest.TestCase):
 class MatchPs1RunTest(Fixture, unittest.TestCase):
     """What a real run leaves behind, with a stand-in that plays no game."""
 
-    def play(self, script: str, *mode_args: str):
+    def play(self, script: str, *mode_args: str, env: dict | None = None):
         fake = self.fake_cutechess(HELP_FLAGS, "playing-cli.ps1", script)
         return self.run_script(
             *mode_args, "-Rounds", "5", "-Openings", str(self.openings),
-            "-Cutechess", str(fake),
+            "-Cutechess", str(fake), env=env,
         )
 
-    def sprt_run(self, script: str):
-        return self.play(script, "sprt", *self.builds(), *self.BOUNDS)
+    def sprt_run(self, script: str, env: dict | None = None):
+        return self.play(script, "sprt", *self.builds(), *self.BOUNDS, env=env)
+
+    # A stand-in's lines that write two games where -pgnout says.
+    WRITE_PGN = (
+        "$out = $args[[array]::IndexOf($args, '-pgnout') + 1]\n"
+        "[IO.File]::WriteAllText($out, \"[Event `\"one`\"]`n`n1. e4 *`n`n"
+        "[Event `\"two`\"]`n`n1. d4 *`n\")\n"
+    )
+
+    def test_notes_record_the_repository_the_games_and_the_pgn(self):
+        result = self.sprt_run(
+            self.WRITE_PGN
+            + "'SPRT: llr 2.97 (100.8%), lbound -2.94, ubound 2.94 - H1 was accepted'\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        notes = self.read(".notes.txt")
+        # The repository the script came from: its commit, clean or dirty.
+        self.assertRegex(notes, r"repository: [0-9a-f]{40} \((clean|dirty)\)\n")
+        self.assertIn("engines:    no engine list used", notes)
+        # At the end: the games in the PGN and its digest.
+        pgn = self.tmp / "matches" / "2026-01-02-sprt-Vyvrael-dev-abc1234.pgn"
+        self.assertIn("games:      2\n", notes)
+        self.assertIn(f"pgn sha256: {hashlib.sha256(pgn.read_bytes()).hexdigest()}\n", notes)
+        # Nothing but the run's own files was written in the output folder.
+        self.assertEqual(
+            sorted(p.name for p in (self.tmp / "matches").iterdir()),
+            [f"2026-01-02-sprt-Vyvrael-dev-abc1234{s}" for s in (".log", ".notes.txt", ".pgn")],
+        )
+
+    def test_without_git_the_repository_is_unknown_and_no_pgn_is_said(self):
+        result = self.sprt_run(
+            "'nothing'", env={"VYVRAEL_GIT": str(self.tmp / "no-git.exe")}
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        notes = self.read(".notes.txt")
+        self.assertIn("repository: unknown (no git, or not a git repository)\n", notes)
+        self.assertIn("games:      0 (no PGN was written)\n", notes)
+        self.assertIn("pgn sha256: none\n", notes)
+
+    def test_the_repository_is_clean_or_dirty_as_git_says(self):
+        # A stand-in git that answers only when told not to take the
+        # optional locks, so that a run never rewrites the index.
+        fake_git = self.tmp / "fake-git.ps1"
+        fake_git.write_text(
+            "if ($args -notcontains '--no-optional-locks') { exit 9 }\n"
+            "if ($args -contains 'rev-parse') { '0123456789abcdef0123456789abcdef01234567'; exit 0 }\n"
+            "if ($args -contains 'status') { if ($env:FAKE_STATUS) { $env:FAKE_STATUS }; exit 0 }\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        for status, state in (("", "clean"), (" M src/lib.rs", "dirty")):
+            with self.subTest(state=state):
+                shutil.rmtree(self.tmp / "matches", ignore_errors=True)
+                result = self.sprt_run("'nothing'", env={
+                    "VYVRAEL_GIT": str(fake_git), "FAKE_STATUS": status,
+                })
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f"repository: {commit} ({state})\n", self.read(".notes.txt"))
+
+    def test_notes_record_the_options_given(self):
+        result = self.play(
+            "'nothing'", "sprt", *self.builds(), *self.BOUNDS,
+            "-TestOption", "UCI_LimitStrength=true;UCI_Elo=1500",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(
+            "options given (-TestOption, -BaseOption):\n"
+            "  Vyvrael dev-abc1234: UCI_LimitStrength=true; UCI_Elo=1500\n"
+            "  Vyvrael 0.1.0-a1: none\n",
+            self.read(".notes.txt"),
+        )
 
     def read(self, suffix: str) -> str:
         stem = "2026-01-02-sprt-Vyvrael-dev-abc1234"
@@ -480,6 +620,10 @@ class MatchPs1RunTest(Fixture, unittest.TestCase):
         for expected in ("Stockfish 19-1500", "Vice 1.1", str(self.opponent),
                          hashlib.sha256(b"weak").hexdigest(), "outcome:    finished"):
             self.assertIn(expected, notes)
+        # A byte-for-byte copy of the engine list sits beside the notes.
+        copy = self.tmp / "matches" / "2026-01-02-gauntlet-Vyvrael-0.1.0-a1.engines.json"
+        self.assertEqual(copy.read_bytes(), self.engines_json.read_bytes())
+        self.assertIn(f"engines:    {self.engines_json} (copied to ", notes)
 
 
 WINDOWS_POWERSHELL = shutil.which("powershell") if sys.platform == "win32" else None

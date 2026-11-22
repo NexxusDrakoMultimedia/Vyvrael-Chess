@@ -3,8 +3,10 @@
 """Offline tests for scripts/linux/match.sh.
 
 No game is played and the real cutechess-cli is never run: the tests give
-the script a stand-in that only answers `-help`, and read the command the
-script would run from `--dry-run`. Everything lives in a temporary directory.
+the script a stand-in that answers `-help` and `-version` and, for a real
+run, prints a scripted result instead of playing; most tests read the
+command the script would run from `--dry-run`. Everything lives in a
+temporary directory.
 They are skipped where there is no bash.
 
     python3 -m unittest discover -s scripts/tests
@@ -106,7 +108,7 @@ class Fixture:
             f"-version) echo 'cutechess-cli 9.9.9'; echo 'more'; exit 0;;\nesac\n{play}",
         )
 
-    def run_script(self, *args: str, env: dict | None = None):
+    def run_script(self, *args: str, env: dict | None = None, script: Path = SCRIPT):
         environment = {
             key: value for key, value in os.environ.items() if not key.startswith("VYVRAEL_")
         }
@@ -116,7 +118,7 @@ class Fixture:
         environment["VYVRAEL_MATCH_DATE"] = "2026-01-02"
         environment.update(env or {})
         return subprocess.run(
-            [BASH, SCRIPT.as_posix(), *args],
+            [BASH, script.as_posix(), *args],
             capture_output=True, text=True, env=environment, cwd=self.tmp, timeout=120,
         )
 
@@ -233,6 +235,88 @@ class MatchShTest(Fixture, unittest.TestCase):
         self.assertNotIn("DeterministicRNG", joined)
         self.assertEqual(words[-1], "out dir/2026-01-02-sprt-Vyvrael-dev-abc1234-run2.pgn")
 
+    def engines(self, words: list[str]) -> list[list[str]]:
+        """The arguments of each -engine, up to the next flag."""
+        starts = [index for index, word in enumerate(words) if word == "-engine"]
+        groups = []
+        for start in starts:
+            end = start + 1
+            while end < len(words) and not words[end].startswith("-"):
+                end += 1
+            groups.append(words[start + 1 : end])
+        return groups
+
+    def test_options_go_to_their_own_build(self):
+        words = self.command(self.sprt(
+            "--test-option", "UCI_LimitStrength=true", "--test-option", "UCI_Elo=1500",
+            "--base-option", "Move Overhead=50",
+        ))
+        test, base = self.engines(words)
+        # After the script's own settings, in the order given.
+        self.assertEqual(test[3:], ["option.Threads=1", "option.UCI_LimitStrength=true",
+                                    "option.UCI_Elo=1500"])
+        self.assertEqual(base[3:], ["option.Threads=1", "option.Move Overhead=50"])
+
+    def test_a_gauntlet_gives_options_to_the_build_under_test_only(self):
+        words = self.command(self.gauntlet(
+            "--opponent", "Vice 1.1", "--test-option", "Seed=5",
+        ))
+        test, opponent = self.engines(words)
+        self.assertIn("option.Seed=5", test)
+        self.assertNotIn("option.Seed=5", opponent)
+        self.refused(
+            self.gauntlet("--opponent", "Vice 1.1", "--base-option", "Seed=5"),
+            "--base-option is for sprt and h2h modes",
+        )
+
+    def test_bad_options_are_refused(self):
+        for given, message in (
+            ("UCI_Elo", "must be NAME=VALUE"),
+            ("=1500", "must be NAME=VALUE"),
+            ("UCI_Elo=", "must be NAME=VALUE"),
+            ("UCI_Elo=15=00", "may hold only one '='"),
+            ("UCI_Elo=1500;Seed=1", "may not contain quotes or ';'"),
+            (" UCI_Elo=1500", "may not start or end with a space"),
+            ("Threads=4", "the script sets Threads"),
+            ("hash=128", "the script sets hash"),
+            # Git Bash on Windows strips quotes from its command line before
+            # the script runs, so a quote can only be passed elsewhere.
+            *([] if sys.platform == "win32"
+              else [("UCI_Elo='1500'", "may not contain quotes or ';'")]),
+        ):
+            with self.subTest(given=given):
+                self.refused(self.sprt("--test-option", given), f"--test-option '{given}'", message)
+        # Windows may re-encode a non-ASCII argument, so only the reason is checked.
+        self.refused(self.sprt("--test-option", "UCI_Elo=1500\u00e9"), "must be plain ASCII")
+        # A line break, even at the end, would put a second command into the
+        # engine's input.
+        # Git Bash on Windows splits its command line at line breaks, so the
+        # argument is made inside bash, by a driver that runs the script.
+        for given in ("UCI_Elo=1500\\nquit", "UCI_Elo=1500\\n"):
+            with self.subTest(given=given):
+                driver = script_file(
+                    self.tmp / "driver.sh",
+                    f"exec \"$BASH\" '{SCRIPT.as_posix()}' \"$@\" --test-option $'{given}'\n",
+                )
+                bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]
+                self.refused(
+                    self.run_script("sprt", *self.builds(), *bounds, "--rounds", "5",
+                                    *self.common(), script=driver),
+                    "must be plain ASCII",
+                )
+        self.refused(
+            self.sprt("--test-option", "SyzygyPath=C:\\tb dir\\"),
+            "may not end with a backslash",
+        )
+        self.refused(
+            self.sprt("--base-option", "UCI_Elo=1500", "--base-option", "uci_elo=1600"),
+            "--base-option: the option uci_elo is given twice",
+        )
+        self.refused(
+            self.sprt("--deterministic", "--test-option", "Seed=5"),
+            "--deterministic already sets Seed",
+        )
+
     # --- settings from the environment and the local file -------------------
 
     def test_default_concurrency_is_physical_cores_minus_two(self):
@@ -315,6 +399,20 @@ class MatchShTest(Fixture, unittest.TestCase):
                 "--rounds", "5", *self.common(),
             )
             self.refused(result, "--test-name")
+        # A line break, made inside bash: Git Bash on Windows would split
+        # its command line there.
+        for name in ("Vyvrael\\ndev", "Vyvrael dev\\n"):
+            with self.subTest(name=name):
+                driver = script_file(
+                    self.tmp / "driver.sh",
+                    f"exec \"$BASH\" '{SCRIPT.as_posix()}' \"$@\" --test-name $'{name}'\n",
+                )
+                result = self.run_script(
+                    "h2h", "--test", self.test_build.as_posix(),
+                    "--base", self.base_build.as_posix(), "--base-name", "Vyvrael base",
+                    "--rounds", "5", *self.common(), script=driver,
+                )
+                self.refused(result, "must be plain ASCII")
 
     def test_plain_names_are_accepted_whatever_the_locale(self):
         # On Linux a UTF-8 locale made the name check refuse plain ASCII.
@@ -451,16 +549,87 @@ class MatchShTest(Fixture, unittest.TestCase):
 class MatchShRunTest(Fixture, unittest.TestCase):
     """What a real run leaves behind, with a stand-in that plays no game."""
 
-    def play(self, script: str, *mode_args: str):
+    def play(self, script: str, *mode_args: str, env: dict | None = None):
         fake = self.fake_cutechess(HELP_FLAGS, "playing-cli", script)
         return self.run_script(
             *mode_args, "--rounds", "5", "--openings", self.openings.as_posix(),
-            "--cutechess", fake.as_posix(),
+            "--cutechess", fake.as_posix(), env=env,
         )
 
-    def sprt_run(self, script: str):
+    # A stand-in's lines that write two games where -pgnout says.
+    WRITE_PGN = (
+        'out=""; prev=""; for a in "$@"; do [ "$prev" = -pgnout ] && out=$a; prev=$a; done\n'
+        "printf '[Event \"one\"]\\n\\n1. e4 *\\n\\n[Event \"two\"]\\n\\n1. d4 *\\n' > \"$out\"\n"
+    )
+
+    def test_notes_record_the_repository_the_games_and_the_pgn(self):
+        result = self.sprt_run(
+            self.WRITE_PGN
+            + "echo 'SPRT: llr 2.97 (100.8%), lbound -2.94, ubound 2.94 - H1 was accepted'\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = self.read(".notes.txt")
+        # The repository the script came from: its commit, clean or dirty.
+        self.assertRegex(notes, r"repository: [0-9a-f]{40} \((clean|dirty)\)\n")
+        self.assertIn("engines:    no engine list used", notes)
+        # At the end: the games in the PGN and its digest.
+        pgn = self.tmp / "matches" / "2026-01-02-sprt-Vyvrael-dev-abc1234.pgn"
+        self.assertIn("games:      2\n", notes)
+        self.assertIn(f"pgn sha256: {hashlib.sha256(pgn.read_bytes()).hexdigest()}\n", notes)
+        # Nothing but the run's own files was written in the output folder.
+        self.assertEqual(
+            sorted(p.name for p in (self.tmp / "matches").iterdir()),
+            [f"2026-01-02-sprt-Vyvrael-dev-abc1234{s}" for s in (".log", ".notes.txt", ".pgn")],
+        )
+
+    def test_without_git_the_repository_is_unknown_and_no_pgn_is_said(self):
+        result = self.sprt_run(
+            "echo 'nothing'\n", env={"VYVRAEL_GIT": (self.tmp / "no-git").as_posix()}
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = self.read(".notes.txt")
+        self.assertIn("repository: unknown (no git, or not a git repository)\n", notes)
+        self.assertIn("games:      0 (no PGN was written)\n", notes)
+        self.assertIn("pgn sha256: none\n", notes)
+
+    def test_the_repository_is_clean_or_dirty_as_git_says(self):
+        # A stand-in git that answers only when told not to take the
+        # optional locks, so that a run never rewrites the index.
+        fake_git = script_file(
+            self.tmp / "fake-git",
+            'case " $* " in *" --no-optional-locks "*) ;; *) exit 9 ;; esac\n'
+            'case " $* " in\n'
+            '*" rev-parse "*) echo 0123456789abcdef0123456789abcdef01234567 ;;\n'
+            '*" status "*) printf \'%s\' "$FAKE_STATUS" ;;\n'
+            "esac\n",
+        )
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        for status, state in (("", "clean"), (" M src/lib.rs\n", "dirty")):
+            with self.subTest(state=state):
+                shutil.rmtree(self.tmp / "matches", ignore_errors=True)
+                result = self.sprt_run("echo 'nothing'\n", env={
+                    "VYVRAEL_GIT": fake_git.as_posix(), "FAKE_STATUS": status,
+                })
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"repository: {commit} ({state})\n", self.read(".notes.txt"))
+
+    def test_notes_record_the_options_given(self):
+        result = self.play(
+            "echo 'nothing'\n", "sprt", *self.builds(),
+            "--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05",
+            "--test-option", "UCI_LimitStrength=true", "--test-option", "UCI_Elo=1500",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "options given (--test-option, --base-option):\n"
+            "  Vyvrael dev-abc1234: UCI_LimitStrength=true; UCI_Elo=1500\n"
+            "  Vyvrael 0.1.0-a1: none\n",
+            self.read(".notes.txt"),
+        )
+
+    def sprt_run(self, script: str, env: dict | None = None):
         bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]
-        return self.play(script, "sprt", *self.builds(), *bounds)
+        return self.play(script, "sprt", *self.builds(), *bounds, env=env)
 
     def read(self, suffix: str) -> str:
         stem = "2026-01-02-sprt-Vyvrael-dev-abc1234"
@@ -527,6 +696,10 @@ class MatchShRunTest(Fixture, unittest.TestCase):
         for expected in ("Stockfish 19-1500", "Vice 1.1", self.opponent.as_posix(),
                          "outcome:    finished"):
             self.assertIn(expected, notes)
+        # A byte-for-byte copy of the engine list sits beside the notes.
+        copy = self.tmp / "matches" / "2026-01-02-gauntlet-Vyvrael-0.1.0-a1.engines.json"
+        self.assertEqual(copy.read_bytes(), self.engines_json.read_bytes())
+        self.assertIn(f"engines:    {self.engines_json.as_posix()} (copied to ", notes)
 
 
 if __name__ == "__main__":

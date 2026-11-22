@@ -9,7 +9,7 @@ gauntlets from 0.1.0-alpha.2 on. Vyvræl itself was **not** in this run.
 > relative to the anchor engine (Stockfish 19 = 0) and describe only those
 > 30 engines. Vyvræl's strength (milestone 6, known issue KI-8) is measured
 > by gauntlets against the lower rungs, in separate results files such as
-> [`results-0.1.0-alpha.1.md`](results-0.1.0-alpha.1.md). It must not be
+> [`results-0.1.0-alpha.2.md`](results-0.1.0-alpha.2.md). It must not be
 > inserted into this file or inferred from it.
 
 - **Date / host:** 2026-11-21, the Windows workstation (Windows 11, Ryzen 7 5700X), `cutechess-cli` run by `Baseline2.ps1`, 05:56-07:21 AEST (85 min)

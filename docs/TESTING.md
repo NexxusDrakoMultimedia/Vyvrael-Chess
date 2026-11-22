@@ -15,7 +15,9 @@ cargo test --workspace --release
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these, and then the offline
-tests of the tool installer (see "Installing the external tools" below).
+tests of the helper scripts in `scripts/tests/`: the installer, the
+ladder's engines, and the match and rating scripts (see "Integration tests"
+below).
 
 ## Unit tests
 
@@ -73,10 +75,10 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `uci` output | Scores as `cp` or as `mate` in the engine's own moves, negative when it is the one mated; `info` lines with depth, score, nodes, speed, time and line, without a `pv` word when there is no line, with no division by zero for an instant search, and with the speed taken from the full time; `bestmove` with a move and `0000` without one. |
 | `uci` time management | No clock and no move time means no time limit, also when only the other side's clock is sent; `movetime` is used less the overhead and takes precedence over a clock; the overhead is the one passed in (six values from 0 to 60 s, for a move time and for the last move before a time control), caps the time without shortening an ordinary share, and moves the deadline; each side uses its own clock and increment, and a clock sent without increments works and does not borrow the other side's; `movestogo` divides the time, and 1 or 0 allows all that is left less the overhead; the plan never exceeds the clock for 96 combinations of time, increment and moves to go, including a fallen flag and a large increment on an empty clock; limits combine the deadline with depth and nodes; `infinite` switches the clock off. |
 | `uci` engine | `uci` and `isready` are answered; `go depth` makes exactly the search a direct call makes (same nodes, line and best move), which is the check that the protocol layer changes nothing; a new engine is at the start position; `position` with moves equals the same position as a FEN; an illegal move (five kinds) or a bad FEN refuses the whole command and keeps the position; the game history reaches the search (a repetition found only with it); `ucinewgame` resets; no legal move gives `bestmove 0000`; mates are reported in moves; node and move-time limits end the search; an infinite search and a bare `go` answer only after `stop`, and `isready` is answered meanwhile; `stop` ends a long search within two seconds, and says nothing without a search; `position` and `ucinewgame` end a running search before they act; `go infinite depth 1` searches one depth and still waits for `stop`; `go` thinks on the clock of the side to move, for both sides; `Move Overhead` reaches the clock (five seconds kept back from a five-second move time answers at once, and none kept back lets the search past the first depth); limited strength is given the game's history and the limits of `go`; full strength draws no random numbers; weakened play draws from the strength stream of the seed, checked against the library for six seeds; a second `go` ends the first; `quit` ends the search and the loop; what is not understood is reported with `info string`; every output line is a protocol line; at the end of input a search is allowed to finish and an infinite one is stopped; lines that are not valid UTF-8 are reported and the commands after them still obeyed, with the running search still reporting; a read error ends the loop only after the search has reported. |
-| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` accepts 400 to 1800 and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 400 and 1800 look 2 and 3 plies ahead, a rating out of range is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
+| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` is 1360 by default, accepts 1110 to 1630, refuses the old ends 400 and 1800, and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 1110 and 1630 look 2 and 3 plies ahead, a rating out of range (3000, or the old lowest 400) is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
 | `rng` entropy and streams | The stream indices are 0, 1 and 2 and are never renumbered; the first three outputs of the strength stream of the default seed are pinned (computed with an independent implementation); every entropy seed is a valid `Seed`, from 1 to 2147483647 and never 0, and any 64 random bits map to such a seed, the same every time; no test relies on two entropy seeds differing, which chance could break. |
 | `search` variety | It applies only above 0 and up to the twelfth full move; never with a mate for or against; over three opening positions, three `Variety` values and eight seeds every choice is within `Variety` of the best and has the score an exact search of it gives; a move that leaves the queen to be taken is never chosen over twenty seeds, while other queen moves are; a rook move that allows a back-rank mate passes the cheap filter (checked) and the second check still never lets it be played, while other safe moves are; the same seed gives the same choice and twenty seeds play more than one move; the weight is largest for the best move and falls with every centipawn of loss; one number is drawn per choice; with `stop` already raised, or a budget of one node, only the best move is offered; the budget is split two thirds to the search, a depth limit stays with the search. |
-| `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); a higher rating never looks less far or errs more, over the whole range. |
+| `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); the seven measured settings of the calibration and its check give exactly their measured weakenings, the range is 1110 to 1630 and out-of-range ratings (the old 400 included) are clamped, the default 1360 gives three plies and 141 centipawns; between points of the same depth the misjudgement is interpolated, rounded towards more noise, and 1331 to 1349, where the depth changes, play as 1330 (two plies, 112 centipawns); a higher rating never looks less far, and at the same depth never errs more, over the whole range. |
 
 Rows are added as modules land.
 
@@ -110,11 +112,12 @@ detection: an edit to move generation order, to the evaluation or to the
 search that alters behaviour at fixed depth fails this test, including edits
 that were not meant to alter anything.
 
-This is the "fixed-depth node-count check" that search changes need while
-SPRT is not yet available. When a deliberate change makes a pin fail:
+This is the "fixed-depth node-count check": change detection that sits
+alongside the SPRT, not in place of it. When a deliberate change makes a
+pin fail:
 
 1. Confirm the new behaviour is intended. For a search or evaluation change
-   that means an SPRT result once the match script exists.
+   that means an SPRT result (see "Strength matches, SPRT and ratings").
 2. Update the numbers in the same commit and say so in its message.
 
 Never update a pin just to get a green run.
@@ -191,21 +194,24 @@ milestone 7 makes deeper searches cheap.
 
 ## Integration tests
 
-Integration tests live in `tests/` and use only the public API.
+Integration tests live in `tests/` and use only the public API. The table
+also lists the Python tests of the helper scripts in `scripts/tests/`, run
+with `python3 -m unittest discover -s scripts/tests`.
 
 | File | What is checked |
 | --- | --- |
 | `scripts/tests/test_install_tools.py` | Python, offline. The tool installer's helpers: every tool is pinned to an exact version; downloads must be HTTPS, redirects included, except plain HTTP for a download that is allowed it, which then needs a digest, is still checked and may only be redirected to HTTP or HTTPS; archive extraction refuses paths and symlinks that escape, chained links included; a 7-Zip archive is listed and refused for escaping paths, links or special files before Windows' tar unpacks it, refused without that tar, and unpacked for real where it exists; the build of the ladder's engines comes from the argument, then the environment, then `local.env` (found through `VYVRAEL_LOCAL_ENV` too, read with or without a byte-order mark or as UTF-16), then `avx2`, and an unknown build is refused; a failed reinstall leaves the old install alone and an interrupted one is recovered; `--prefix` keeps everything under it; launchers and the systemd unit quote paths with spaces; the unit restarts only on failure and gives up after three failed starts in ten minutes; the lichess-bot configuration gets the engine path and an empty token; token files are owner-only. |
-| `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also: an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it; plain ASCII build names are accepted, and an accented one refused, under five locales. |
+| `scripts/tests/test_match_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/match.sh` is given a stand-in `cutechess-cli` that only answers `-help`, and the command it would run is read from `--dry-run`. The exact command of each mode (`sprt`, `h2h`, `gauntlet`), with names containing spaces kept as one argument; gauntlet opponents taken from an engine list with their options; every optional setting; settings read from the local file, then the environment, then arguments; refusals for missing SPRT bounds, a missing or bad round cap, missing engine files, colliding or non-ASCII names, unknown or missing opponents, more games at once than physical cores, a missing opening file, a missing `cutechess-cli` (a warning only in a dry run), a `cutechess-cli` without a needed option, bad usage, and an existing PGN. With a stand-in that prints a result instead of playing: the progress is shown and logged; the run notes hold the command, names, files, digests, tool version, times, status and outcome, for a gauntlet with every opponent; the last SPRT line decides between H1 accepted, H0 accepted and undecided, and a log without one concludes nothing; a failing `cutechess-cli` fails the script with its status and is recorded. Also, for bash only: the default games at once are the physical cores minus two, and a core count given in `PHYSICAL_CORES` is used; an `lscpu` that fails means the cores are unknown, not an error; a byte-order mark and CRLF in the local file; numbers with a leading zero are decimal; a bad `LOW_PRIORITY` setting is refused unless an argument replaces it; plain ASCII build names are accepted, and an accented one refused, under five locales. |
 | `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines, for each system and build: on Linux the names provided plus the names left out are exactly the 30 of Ladder Baseline 2's ratings file, with no engine invented, and the three left out are Orion 1.1, Ethereal 12.75 and Nostradamus 0.4; on Windows all 30 are provided, by 17 downloads and no builds; an engine missing on a system has a reason there; no generated name carries a stray space; the limited entries are variants of 4 binaries, 13 in all, each inside its engine's `UCI_Elo` range; every address is HTTPS with a SHA-256, or plain HTTP only for a pin that says why; a closed-source engine's notes state its terms; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none); no `avx2` pin mentions PEXT or BMI2, and on Linux exactly Arasan, Stash and Weiss differ in the `pext` build; a pin resolves per system and build without one system's fields leaking into the other's; fixed options never repeat Hash, Threads or the strength settings. |
 | `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a zip member with the files it needs beside it, and nothing else from the zip; plain HTTP allowed only for a pin that says why; a build from source, from a tar.gz or a zip, and a zip source archive that escapes refused; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown or uninstallable names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them, and a pin's fixed options in every entry; from the real Linux table, the 27 names in order with Ladder Baseline 2's values (books off, 30 ms of move overhead under each engine's own option name, CT800's settings), and Rodent IV told not to limit itself. |
 | `scripts/tests/test_ladder_verify.py` | Python, offline, with small UCI engines written by the tests. A working engine passes and is sent `uci`, its options, `isready`, `ucinewgame`, `position startpos`, `go depth 6` and `quit` in that order; an engine that says nothing, exits, never becomes ready, thinks for ever or names no move fails with a message naming the step, and none of them holds the check up; one that ignores `quit` is killed; a program that is not there is reported; every name of an installed engine is checked with its own options and reported as PASS, FAIL or SKIP. |
 | `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot is refused on Windows; `--engines` there takes the Windows pins of the chosen build (the `avx2` or `pext` file of Ethereal) and installs no tool, and its dry run downloads nothing; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
-| `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_match_sh.py`, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
+| `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The cases of `test_match_sh.py` except those it lists as bash only, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
 | `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
-| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; thirteen lines of bad input, two of them not valid UTF-8, produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; twelve lines of bad input (one blank, two not valid UTF-8, one `go` with no usable limit) and a `stop` produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 300 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. |
 | `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (16,611,416 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
@@ -533,7 +539,9 @@ measured (milestone 6, known issue KI-8) by gauntlets against the lower
 rungs, with a separate results file; it must not be inserted into a baseline
 file or inferred from it. A first snapshot of 0.1.0-alpha.1, from before
 milestone 6 and against Ladder Baseline 1, is in
-[`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md).
+[`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md); the
+milestone 6 measurement of 0.1.0-alpha.2, against Ladder Baseline 2, is in
+[`results-0.1.0-alpha.2.md`](testing/results-0.1.0-alpha.2.md).
 
 - **Fixed settings of Ladder Baseline 2:** round robin, two rounds of two
   games per pairing with sides swapped (four games per pairing, 1,740 games,
@@ -558,10 +566,28 @@ milestone 6 and against Ladder Baseline 1, is in
 ## Complete games in cutechess-cli (release check)
 
 Before a release the engine must play complete games in `cutechess-cli`
-with no illegal move, crash, stall or loss on time. Until the match scripts
-exist this is a plain command, run from the repository root after
-`cargo build --release`. The settings are those of Ladder Baseline 1. Give
-the opening file's location in `BOOK`; the output folder `matches/` is
+with no illegal move, crash, stall or loss on time. Run them with the
+match scripts (see "Strength matches, SPRT and ratings") after
+`cargo build --release`: `h2h` with the build on both sides under two
+names for self-play, and `gauntlet` against opponents of the reference
+ladder, Ladder Baseline 2. For example, twenty games of self-play and eight
+against each of two opponents:
+
+```sh
+scripts/linux/match.sh h2h \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --base target/release/vyvrael --base-name "Vyvrael dev-1a2b3c4 (2)" \
+  --rounds 10 --dry-run
+scripts/linux/match.sh gauntlet \
+  --test target/release/vyvrael --test-name "Vyvrael dev-1a2b3c4" \
+  --opponent "Stockfish 19-1320" --opponent "Rodent IV-2000" \
+  --rounds 4 --dry-run
+```
+
+0.1.0-alpha.1 was checked before the scripts existed, with a plain
+`cutechess-cli` command at the settings of Ladder Baseline 1, run from the
+repository root. It still works where the scripts cannot run. Give the
+opening file's location in `BOOK`; the output folder `matches/` is
 git-ignored.
 
 ```sh
@@ -624,7 +650,8 @@ Without `Variety`, three of ten pairs repeated in the self-play of
 
 **These are checks that games complete, not measurements of strength.**
 Forty or forty-eight games against five or six opponents say nothing
-reliable about a rating; that is milestone 6 (known issue KI-8).
+reliable about a rating; that is the KI-8 measurement (see
+[results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)).
 
 ## Strength matches, SPRT and ratings
 
@@ -638,7 +665,9 @@ search heuristic of milestone 7 gets its own SPRT.
 
 Four scripts do the work. The two for each system behave alike; only the
 spelling of the options differs (`--rounds` in bash, `-Rounds` in
-PowerShell).
+PowerShell), and PowerShell takes several opponents or options as one
+comma- or semicolon-separated list where bash repeats the flag (see
+"Pitfalls").
 
 | Task | Linux | Windows |
 | --- | --- | --- |
@@ -646,17 +675,18 @@ PowerShell).
 | Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
 
 They need `cutechess-cli` and Ordo, which are separate programs (see
-"Installing the external tools"). Each script reads the tool's own help
-before using it and stops with a clear message if the tool, or an option it
-needs, is missing. `--help` (`-Help`) prints every option. **Start every
-run with `--dry-run` (`-DryRun`)**: it prints the exact command and runs
-nothing.
+"Installing the external tools"). In gauntlet mode `match.sh` also needs
+`python3` (or the program named in `VYVRAEL_PYTHON`) to read the engine list.
+Each script reads the tool's own help before using it and stops with a clear
+message if the tool, or an option it needs, is missing. `--help` (`-Help`)
+prints every option. **Start every run with `--dry-run` (`-DryRun`)**: it
+prints the exact command and runs nothing.
 
-**Status:** the scripts are covered by offline tests with stand-in tools,
-and `match.ps1` has been dry-run against the real `cutechess-cli` 1.5.1.
-The maintainer has run the tooling on the Windows workstation with
-0.1.0-a1 and confirmed that it works (2026-11-21); which scripts and modes
-that covered is not recorded. The maintainer has also run the bash scripts on the
+**Status:** the scripts are covered by offline tests with stand-in tools.
+On the Windows workstation `match.ps1` and `rate.ps1` have been run for
+real in every mode (see "Smoke test of the scripts", 2026-11-22), and
+`match.ps1` played the KI-8 gauntlet, the `UCI_Elo` calibration and the
+soak test. The maintainer has also run the bash scripts on the
 Linux machine (2026-11-21): a dry run, a real gauntlet with `match.sh` and
 a rating with `rate.sh` all completed, after a fault in `match.sh`'s name
 check that the first attempt met was fixed.
@@ -667,14 +697,17 @@ Paths and machine sizes are not in the repository. Copy
 `scripts/local.env.example` to `scripts/local.env` (git-ignored) and set
 what applies: where `cutechess-cli` and Ordo are if not on `PATH`, the
 opening file, the engine list, the output folder, the number of games at
-once and whether to run at low priority. Each setting can also be an
+once, whether to run at low priority, and the physical core count where
+the scripts cannot detect it (`PHYSICAL_CORES`). Each setting can also be an
 environment variable with the prefix `VYVRAEL_`, and most an argument. The
-order is argument, environment, local file, built-in default.
+order is argument, environment, local file, built-in default. Set
+`VYVRAEL_LOCAL_ENV` to read another file in place of `scripts/local.env`.
 
-Games at once (`CONCURRENCY`) defaults to the physical cores minus two and
-may never exceed the physical cores: engines sharing a core steal each
-other's time and lose games on the clock. On the maintainer's machines it is
-6 on the Windows workstation and 3, at low priority, on the Linux machine.
+Games at once (`CONCURRENCY`) defaults to the physical cores minus two (at
+least one) and may never exceed the physical cores: engines sharing a core
+steal each other's time and lose games on the clock. On the maintainer's
+machines it is 6 on the Windows workstation and 3, at low priority, on the
+Linux machine.
 
 ### The three kinds of match
 
@@ -738,17 +771,28 @@ without the four SPRT options, with the mode `h2h`.
 | Draw | from move 34, 10 moves within 20 centipawns | Ends dead games early. |
 | `-recover` | on | One crashed engine does not end a long run. |
 
-`--tc` and `--hash` can change the first two; the rest is fixed in the
-scripts. **Keep everything the same between two runs you mean to compare**,
+`--tc` and `--hash` can change the first two. The opening file is the one
+given with `--openings` (the table's is the one the ladder used), and its
+order is random unless `--seed` fixes it. A build's own UCI options come
+from `--test-option` and `--base-option` (an opponent's from the engine
+list). The rest is fixed in the scripts. **Keep everything the same between two runs you mean to compare**,
 on the same machine with the same number of games at once: results from
 different machines or settings are not comparable.
 
 Each run leaves three files in the output folder (`matches/`, git-ignored),
 named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
-`.notes.txt` with the exact command, each engine's name, file and SHA-256,
-the `cutechess-cli` version, the start and end times and the outcome. Keep
-the notes with any result you record. A script refuses to add games to a
-PGN that already exists; use `--label` for a second run on one day.
+`.notes.txt` with the exact command, each engine's name, file and SHA-256, the
+`cutechess-cli` version, the start and end times and the outcome. The notes
+also give the repository the script ran from (its commit, and whether the
+working tree was clean or dirty, read with `git --no-optional-locks`, which
+writes nothing in the repository, before the run writes any file; set
+`VYVRAEL_GIT` to use another `git`), and at the end the number of games in the
+PGN and the PGN's SHA-256. `VYVRAEL_MATCH_DATE` replaces the date in the file
+names. A gauntlet also leaves a fourth file, `.engines.json`: a copy of the
+engine list it read, since that list carries the opponents' options and may
+change later. Keep the notes (and that copy) with any result you record. A
+script refuses to add games to a PGN that already exists; use `--label` for a
+second run on one day.
 
 ### Rating lists with Ordo
 
@@ -764,17 +808,390 @@ games; for a gauntlet without Stockfish 19 give another, for example
 `--anchor "Vice 1.1" --anchor-rating -1436.2` to place it where the
 reference ladder, Ladder Baseline 2, has it.
 
-How to read the table:
+### Reading an SPRT result
 
-- **The order is the result.** The script prints it again on its own.
+While an SPRT runs, `cutechess-cli` prints after each game pair lines like
+these (the match script keeps them in the `.log`):
+
+```text
+Score of Vyvrael dev-1a2b3c4 vs Vyvrael 0.1.0-a2: 412 - 371 - 217  [0.521] 1000
+Elo difference: 14.3 +/- 19.0, LOS: 92.9 %, DrawRatio: 21.7 %
+SPRT: llr 1.83 (62.3%), lbound -2.94, ubound 2.94
+```
+
+- **`Score of A vs B: W - L - D [p] N`**: A's wins, losses and draws against
+  B, A's score as a fraction (0.521 is 52.1%) and the games played.
+- **`Elo difference: x +/- y`**: the difference that score implies, with a
+  95% margin. It is a running estimate, not the test's answer: early on
+  the margin is wide, and an SPRT does not stop when the margin excludes 0.
+  `LOS` is the likelihood that A is stronger at all; `DrawRatio` the share
+  of draws.
+- **`SPRT: llr L (P%), lbound a, ubound b`** is the test itself. LLR, the
+  log-likelihood ratio, weighs the evidence for H1 (the change gains at
+  least `elo1`) against H0 (it gains no more than `elo0`). It drifts up
+  when A does well, down when it does not, and the percentage says how far
+  it is towards the bound it is heading for. The bounds come from `alpha`
+  and `beta`: with 0.05 each, about ±2.94.
+- **The test ends when the LLR crosses a bound**, and the last `SPRT:` line
+  says which: `- H1 was accepted` (keep the change) or `- H0 was accepted`
+  (reject it). The script repeats it as "SPRT outcome". If the round cap
+  comes first the result is **undecided**: not an acceptance, whatever the
+  Elo line says.
+- **What an accepted H1 means:** with the chosen error rates, the change
+  is better by at least `elo0`, against this opponent, at this time
+  control, on this machine. It does not give the size of the gain: the Elo
+  line at the end is a rough estimate of that, with its margin.
+- Record the bounds, `alpha`, `beta`, the games, the final LLR and the
+  outcome in the commit message of the change (AGENTS.md).
+
+### Reading Ordo's output
+
+`rate.sh` and `rate.ps1` write Ordo's table as text and as CSV; the
+ladders' files under `docs/testing/` are examples:
+
+```text
+   # PLAYER                :   RATING  ERROR  POINTS  PLAYED   (%)
+   1 Stockfish 19          :      0.0   ----   111.5     116    96
+  13 Stockfish 19-2400     :  -1280.3  236.2    64.0     116    55
+White advantage = 4.03 +/- 3.16
+Draw rate (equal opponents) = 50.00 % +/- 0.00
+```
+
+- **`RATING`** is relative to the anchor (`-A`), whose rating is fixed
+  (`-a`, 0 by default): Stockfish 19 is 0 and everything weaker is negative.
+  The anchor has no error (`----`) because it is fixed, not measured.
+- **`ERROR`** is the margin, from Ordo's simulations (`-s 500`): roughly the
+  95% range either side of the rating. It changes a little between runs of
+  Ordo; the ratings do not. Two engines whose ranges overlap are not
+  separated.
+- **`POINTS`, `PLAYED` and `(%)`** are the raw results: a win is one point,
+  a draw half.
+- **`White advantage`** is estimated from the games (`-W`), so that the
+  colours do not bias the ratings. The **`Draw rate (equal opponents)`**
+  line shows 50% when Ordo did not estimate it; it is not a measurement.
+- **The order is the result.** The scripts print it again on its own.
 - **The distances are not.** When one engine wins nearly every game the
   scale stretches: Ladder Baseline 2 spans about 2,500 points, and Ladder
   Baseline 1 about 3,000, between engines that are not that far apart.
-- **The error column matters.** Two engines whose ranges overlap are not
-  separated. With 40 or 50 games each, the ranges are hundreds of points.
-- **Ratings are relative to the anchor**, on this machine, at this time
-  control. They are not CCRL or FIDE ratings.
-- A nominal `UCI_Elo` in an engine's name is a label, not its strength.
+- **Ratings belong to one Ordo run.** They exist only relative to the other
+  players and games of that run: a rating from one list cannot be put next
+  to a rating from another, unless both runs share the anchor and enough of
+  the same games. That is why a Vyvræl build is rated **together with
+  Baseline 2's games** in one run.
+- **Ratings are not CCRL, FIDE or Lichess ratings**, and a nominal
+  `UCI_Elo` in an engine's name is a label, not its strength.
+
+### What a sound Elo comparison needs
+
+Two builds, or a build and a ladder, can only be compared when everything
+but the engine is the same:
+
+- **The same machine**, and the same number of games at once. A faster
+  machine searches deeper at the same time control, and that changes the
+  result.
+- **The same settings:** time control, hash, threads, `Move Overhead`, the
+  opening file and its order, adjudication. The scripts fix threads and
+  adjudication; the time control, hash, opening file and any option given
+  with `--test-option` or `--base-option` (`Move Overhead` among them)
+  come from the command, so keep them as the ladder's games had them (see
+  "What every match uses"). Games played with other settings (Ladder Baseline 1's own `Move
+  Overhead`, for example) are not merged into one rating.
+- **The same opponents**, or enough games against shared ones: a build that
+  only met weak engines and one that only met strong ones cannot be
+  ranked against each other.
+- **Enough games.** The margin shrinks with the square root of the games.
+  For evenly matched engines the 95% margin is about ±140 Elo at 20
+  games, ±90 at 50, ±45 at 200 and ±23 at 800 (20 games of self-play gave
+  ±143.7 in `cutechess-cli`); when the results are lopsided it is far
+  wider, which is why the ladder's ratings carry ±180 to ±290 after 116
+  games each. A difference smaller
+  than the margins is no difference. For deciding a change, use an SPRT,
+  which runs as long as the evidence needs.
+- **Full-strength builds with `Variety` 0**, unless the point is to measure
+  a limited setting. With `UCI_LimitStrength`, a fixed `Seed` makes the run
+  repeatable.
+- **A quiet machine.** Other work steals time from the engines and shows up
+  as time losses and weaker play; run long matches on an otherwise idle
+  machine.
+
+### The scale of `UCI_Elo`
+
+Decided by the maintainer on 2026-11-22, in this wording: `UCI_Elo`'s
+numbers are ratings on the scale of the reference ladder, Ladder Baseline
+2, as computed by Ordo with Stockfish 19 as the anchor, shifted by a fixed
+3,500 points so that Stockfish 19 is 3,500 and every setting is a positive
+number. They are not Lichess, CCRL or FIDE ratings and cannot be converted
+to them. The scale is stretched by lopsided results, most visibly at the
+low end: the limited engines of the ladder rate far below the numbers in
+their names (Stockfish 19-1320 is about 1,530 on this scale). A setting of
+1,200 means about as strong as an engine rated 1,200 on this ladder, not a
+1,200 player.
+
+In practice: a Vyvræl build at a given `UCI_Elo` is rated in one Ordo run
+with Baseline 2's games, anchored at Stockfish 19 = 0 as always, and 3,500
+is added to its rating. Some points of the ladder on this scale:
+
+| Engine (Ladder Baseline 2) | Ordo rating | On the `UCI_Elo` scale |
+| --- | --: | --: |
+| Stockfish 19 | 0.0 | 3,500 |
+| Stockfish 19-1800 | -1,493.5 | 2,007 |
+| Rodent IV-2000 | -1,757.3 | 1,743 |
+| Stockfish 19-1320 | -1,969.6 | 1,530 |
+| CT800 1.46-1800 | -2,139.1 | 1,361 |
+| CT800 1.46-1200 | -2,486.5 | 1,014 |
+
+The settings were labels until the calibration below; since its refit
+`UCI_Elo` (1110 to 1630) is on this scale.
+
+### Calibration of `UCI_Elo` (0.1.0-alpha.2, 2026-11-22)
+
+**Provisional:** it holds for the build measured and is measured again
+after milestone 7 and after queued task 2.
+
+- **Build:** the 0.1.0-alpha.2 release binary (SHA-256
+  `1b0d518f26fcbb876f747449422c9d32ea249db0223f3ddec319ac4297c81ad3`), then
+  the same as the current build of milestone 6, with
+  `UCI_LimitStrength=true` and six settings of the uncalibrated `UCI_Elo`.
+  `-Deterministic` fixed `Seed` at 822286742, so each game can be replayed.
+- **Games, played by the maintainer on the Windows workstation** with
+  `match.ps1` from the clean commit `c16c466`, 06:49 to 07:55 UTC:
+  - one gauntlet per setting, 20 rounds (40 games) against each of
+    CT800 1.46-1200, Arasan 26.1-1500, CT800 1.46-1500, Nostradamus 0.4,
+    Stockfish 19-1320, Stockfish 19-1500, Rodent IV-2000 and
+    `Vyvrael 0.1.0-a2` at full strength (`-Seed 20261123`, the same
+    openings for every setting); 320 games each;
+  - five head-to-head runs of 40 games between neighbouring settings
+    (`-Seed 20261124`), so that Ordo can rate the settings even if one of
+    them lost every game to the ladder (none did);
+  - Baseline 2's fixed settings otherwise (10+0.1, Hash 64, one thread,
+    `UHO_Lichess_4852_v1.epd`). The seven ladder entries were the same as
+    Baseline 2's copy of the engine list, checked entry by entry.
+- **Rating:** one Ordo run (`rate.ps1`, Ordo 1.2.6, `-a 0 -A "Stockfish 19"
+  -W -s 500`) over `Baseline2.pgn`, the KI-8 gauntlet (which rates
+  `Vyvrael 0.1.0-a2` with 1,000 games) and the eleven calibration files,
+  4,860 games in all. Ordo's table:
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt),
+  copied unchanged.
+- **Failures:** no illegal move, crash, stall or time loss by any engine.
+  `cutechess-cli` ended three engine processes itself, once each for
+  Vyvræl L1150, CT800 1.46-1500 and Stockfish 19-1500, between games; no
+  result was affected. So the message seen once in the KI-8 gauntlet is not
+  particular to Vyvræl.
+- **SHA-256 of the PGNs** (not committed; kept locally with their notes):
+
+  | File (`2026-11-22-...-cal.pgn`) | Games | SHA-256 |
+  | --- | --: | --- |
+  | `gauntlet-Vyvrael-0.1.0-a2-L400` | 320 | `1d33066a6a37c7a5ed741048742267f9021ae0b924a946f14867abe9efb409ac` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L750` | 320 | `70728859fe0a721eebf92a7e742f46c1ab53935e79ac181a32ba38b4dbb3cb2c` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1050` | 320 | `d01004244e56f06d406dcac3da56f2ebd0821faea6c3bb555ac0be7072b11a77` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1150` | 320 | `52485058be958bbb742ad43e05226b92011a0eace5d5de6c7014b8ece16aa526` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1450` | 320 | `b5d3d2119214e93a63194cb8f8914998d4a5f54eddd37e1b5b69abc03703ddcf` |
+  | `gauntlet-Vyvrael-0.1.0-a2-L1800` | 320 | `25cb3651432caa62620c97d62634cb9d79611c402df611e3cd407de912934ee1` |
+  | `h2h-Vyvrael-0.1.0-a2-L400` (against L750) | 40 | `e5d298df4dfe1e64aa5090669388d3001910be7fad1f23603863c8e7ce357a32` |
+  | `h2h-Vyvrael-0.1.0-a2-L750` (against L1050) | 40 | `adeca5956f7ecbcdd793fa5f0cc17a4a44194ad772af531450dc700d2e237722` |
+  | `h2h-Vyvrael-0.1.0-a2-L1050` (against L1150) | 40 | `1e069780c8dc23586a75b6b6c1fad7bbf6dea77a2b6d272fea6527d05fb18820` |
+  | `h2h-Vyvrael-0.1.0-a2-L1150` (against L1450) | 40 | `af42c6fe8782caade4259553b140de637e3d765a6693db74a12bc8fcdccd64f1` |
+  | `h2h-Vyvrael-0.1.0-a2-L1450` (against L1800) | 40 | `b0a6f5d134ad4d1eb29fcd7f3bf429a134a23d58012ee6d723702dcbe315dcb8` |
+
+**Result.** What each old setting really plays at, on the `UCI_Elo`
+scale (Ordo rating + 3,500). The error against the anchor is about ±245
+for every row; what matters for the fit is the order and the gaps, which
+the head-to-head runs confirm (each higher setting won its link, 25.0 to
+35.0 of 40).
+
+| Old setting | Plies | Largest misjudgement (cp) | Ordo rating | On the scale |
+| --- | --: | --: | --: | --: |
+| 400 | 2 | 300 | -2,393.8 | 1,106 |
+| 750 | 2 | 230 | -2,351.0 | 1,149 |
+| 1050 | 2 | 171 | -2,282.7 | 1,217 |
+| 1150 | 3 | 151 | -2,146.4 | 1,354 |
+| 1450 | 3 | 90 | -2,095.4 | 1,405 |
+| 1800 | 3 | 20 | -1,870.4 | 1,630 |
+| Full strength | | | -1,660.6 | 1,839 |
+
+Scores against the ladder, out of 40 for each opponent:
+
+| Setting | CT800 1.46-1200 | Arasan 26.1-1500 | CT800 1.46-1500 | Nostradamus 0.4 | Stockfish 19-1320 | Stockfish 19-1500 | Rodent IV-2000 | Vyvrael 0.1.0-a2 |
+| --- | --: | --: | --: | --: | --: | --: | --: | --: |
+| 400 | 32.0 | 35.0 | 12.5 | 13.5 | 9.0 | 2.0 | 0.0 | 1.0 |
+| 750 | 40.0 | 38.0 | 16.0 | 12.5 | 6.0 | 0.0 | 0.0 | 0.0 |
+| 1050 | 39.0 | 36.0 | 20.5 | 18.5 | 8.0 | 5.0 | 0.0 | 0.0 |
+| 1150 | 39.5 | 39.0 | 29.0 | 17.5 | 17.0 | 10.0 | 0.5 | 0.0 |
+| 1450 | 40.0 | 39.0 | 33.0 | 23.5 | 12.0 | 10.5 | 3.5 | 1.0 |
+| 1800 | 40.0 | 39.0 | 37.5 | 32.0 | 33.0 | 15.0 | 11.5 | 9.0 |
+
+What it shows:
+
+- **The settings span only about 525 points,** from 1,106 to 1,630. The
+  misjudgement costs less than it was meant to, and the weakest setting
+  still beats the two lowest rungs of the ladder (CT800 1.46-1200 and
+  Arasan 26.1-1500) in most games. Ratings below about 1,100 cannot be
+  played with the weakening as it is; reaching them needs a change to the
+  weakening itself, which is not part of this calibration.
+- **The step from two to three plies is worth about 137 points** (1,217 at
+  setting 1050 to 1,354 at 1150), more than the whole span of the
+  two-ply settings (111 points).
+- **The misjudgement matters most when it is small:** at three plies,
+  going from 90 to 20 centipawns gains 225 points; from 300 to 171 at two
+  plies gains 111.
+- **The ladder's lowest rungs move down** when rated with these games
+  (Arasan 26.1-1500 from -2,431.3 in Baseline 2 alone to -2,712.9,
+  CT800 1.46-1200 from -2,486.5 to -2,780.4), because the limited settings beat them far more
+  often than Baseline 2's engines suggested. As with KI-8, compare within
+  this one table.
+
+**The first refit (`a874077`).** `search::Weakening::for_elo` mapped
+`UCI_Elo` through the six measured points, their ratings rounded to tens
+(1110, 1150, 1220, 1350, 1410, 1630), interpolating the misjudgement
+between points of the same depth. The range became 1110 to 1630. Between
+1220 and 1350 there was no measurement: the line through the last two
+two-ply points was extended to 1349 (62 centipawns), so that stretch
+stayed at two plies; the second refit below replaces that. The default is
+1360 (three plies, 141 centipawns), exactly the weakening the old default
+(1200) gave. The current table is in `docs/UCI.md`, "Limited strength".
+Full-strength play is unchanged: the bench node count is the same before
+and after.
+
+**Check of the refit.** The refitted build (commit `a874077`,
+`vyvrael-dev-a874077.exe`, SHA-256
+`8682cac2711dc703ca9ecc19f1b9499a4b0c4a4c69be1fe5e3ef9e573ce26019`) was
+played at three new settings, one in each kind of stretch, against the
+same eight opponents, 40 games each (`-Seed 20261125`). The maintainer ran
+it from the clean commit `7a36db0`, whose engine code is that of
+`a874077`, 11:56 to 12:25 UTC. It was rated in one Ordo run with
+Baseline 2, the KI-8 gauntlet and the calibration's games (5,820 games;
+table:
+[`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt),
+copied unchanged). No illegal move, crash, stall or time loss;
+`cutechess-cli` ended two Vyvræl processes itself between games, with no
+result affected.
+
+| `UCI_Elo` | Stretch | Plies, misjudgement (cp) | Ordo rating | On the scale | Off target |
+| --: | --- | --- | --: | --: | --: |
+| 1180 | two plies, interpolated | 2, 205 | -2,348.4 | 1,152 | -28 |
+| 1290 | two plies, extrapolated | 2, 112 | -2,189.2 | 1,311 | +21 |
+| 1520 | three plies, interpolated | 3, 55 | -2,020.4 | 1,480 | -40 |
+
+PGN SHA-256: E1180
+`93a63e54f6777fff3e39e0d251788e552d75c7efa3cf52d9fcfaf4c20fc1d896`,
+E1290 `c98c99bf7b8bbcdb3941e54c472ff6207763f3a087e29140e08042c8a85fff08`,
+E1520 `eb3aaebe99d4646942d0322ec8c316413e18004ab6dfd04a3d83ec2c2c21d939`
+(320 games each, not committed).
+
+Every setting landed within 40 points of its number, in the right order,
+which is about the error of 320 games. The merged run also moves the six
+calibration settings 9 to 27 points down (L400 by 26, L1800 by 9; L400 at
+1,080 and L1800 at 1,621 in this table), so part of each offset is the
+scale shifting, not the fit. Against this table's own calibration
+points, 1180 lands exactly where the interpolation puts it (1,153), and
+1520 is 25 points below the midpoint of its neighbours, whose own shift
+there is only 9 to 17 points.
+
+**The extrapolated stretch was wrong, and is replaced.** Against its
+measured neighbours in the same table, 1290 (two plies, 112 cp) plays
+118 points above L1050 (two plies, 171 cp) and only 23 below L1150 (three
+plies, 151 cp): two plies gains about 2 points for every centipawn of
+misjudgement taken away. Continuing the line down to 62 cp at 1349, as the
+first refit did, would most likely have made 1349 play stronger than 1350
+to 1410, so a higher setting would have played weaker. This was found by
+the end-of-milestone review. The second refit (below) drops the
+extrapolated point.
+
+**The second refit.** The check's 1290 setting (two plies, 112 cp) is
+itself a measured weakening. Placed on the calibration's scale by its
+distance from its neighbours in the check table (22.6 below L1150, 118.0
+above L1050, which give 1,331 and 1,335 on the calibration's scale), it is
+about 1,333, rounded to 1330. `for_elo` now maps `UCI_Elo` through seven
+measured points (1110, 1150, 1220, 1330, 1350, 1410, 1630) with nothing
+extrapolated. Between 1330 and 1350 the depth changes, so 1331 to 1349
+play as 1330: up to 20 points weak for the number, but never stronger than
+a higher setting. Range, default and full-strength play are unchanged (the
+bench node count is the same). The second refit is not checked by games
+of its own: every weakening it uses was measured.
+
+### Soak test (Windows workstation, 2026-11-22)
+
+A check that games run cleanly at very different speeds: no illegal move,
+crash, stall or loss on time by Vyvræl. It is not a strength match, and
+its scores are not quoted.
+
+- **Time controls in seconds,** as `cutechess-cli` counts them: 1+0 (one
+  second a side), 3+2 (three seconds a side plus two a move) and 60+0 (one
+  minute a side).
+- **Build:** the then-current build, `vyvrael-dev-a874077.exe` (engine code
+  of `a874077`), run by the maintainer with `match.ps1` from the clean commit
+  `a39ecf3`, 12:37 to 13:29 UTC. Set up as the Lichess bot runs it:
+  `Variety=10`, with `Seed=20261126` fixed so that the `Variety` choices
+  repeat (the games themselves are not exactly reproducible: the depth
+  each move reaches depends on the clock); `Move Overhead` left at its default of 30 ms, harsher than the
+  bot's 100.
+- **Opponents:** Stockfish 19-1800, Rodent IV-2000 and `Vyvrael 0.1.0-a2`,
+  Hash 64, one thread, `UHO_Lichess_4852_v1.epd` (`-Seed 20261126`).
+
+| Time control | Games | PGN SHA-256 (not committed) | Vyvræl: illegal moves, crashes, stalls | Vyvræl: lost on time | Others: lost on time |
+| --- | --: | --- | --: | --: | --: |
+| 1+0 | 204 | `03d0db8331e2bc14191b97bc2aa9e63dd4eb4383d458d1b361a3860a1cc384a5` | 0 | **1** | 14 (all Rodent IV-2000) |
+| 3+2 | 60 | `c5a81e52b298b216eae901717a3808974e4033506a3821ca2b7e5265b7fc2cee` | 0 | 0 | 0 |
+| 60+0 | 60 | `ffdfc5c83a1c66f108a4f05bb4907f6713f7a475c8808a3443dbcc6cc54052f3` | 0 | 0 | 0 |
+
+`cutechess-cli` ended no engine process by force in these runs.
+
+**The one time loss** (1+0, Stockfish 19-1800 against Vyvræl, which
+played Black) came in a 124-move game that never reached a draw
+adjudication: Vyvræl's score was within the rule's 20 cp only on isolated
+moves after move 34, never ten in a row, and +0.3 or more for its last
+45 moves. Vyvræl spent its whole second over its 123 moves, the last
+dozen at about a millisecond each (depth 2 or 3), and ran out. It is not
+known issue KI-10: no move was slow. It is the time allocation: without an
+increment the engine keeps spending at least a millisecond a move, so a
+long enough game at a tiny time control runs the clock out. This is
+recorded as known issue KI-12. The Lichess bot is not exposed to it: its
+games all have an increment of at least two seconds (see LICHESS.md).
+
+**Result:** no illegal move, crash or stall at any time control. One loss
+on time at 1+0, explained above and recorded as KI-12, none at 3+2 or
+60+0.
+
+### Smoke test of the scripts (Windows workstation, 2026-11-22)
+
+`match.ps1` and `rate.ps1` were run for real once in each mode, at the
+settings above with `-Seed 1` and `-Label smoke`, from the clean commit
+`d7f05b3`. The current build was byte for byte 0.1.0-alpha.2 (SHA-256
+`1b0d518f…c81ad3`, the release asset), since no engine code had changed
+since then, so the published exe stood in for it.
+
+| Run | Games | What it showed |
+| --- | --- | --- |
+| `sprt`, alpha.2 against alpha.1, 10 rounds | 20 | Ended undecided at the round cap (LLR −0.129), as 20 games must; the notes say so in words. |
+| `h2h`, alpha.2 with `-TestOption UCI_LimitStrength=true, UCI_Elo=1500, Seed=1` against alpha.1, 5 rounds | 10 | The options reached the limited build only, and the notes list them for each build. |
+| `gauntlet`, alpha.2 against Vice 1.1 and Rustic Alpha 1.5, 5 rounds | 20 | Opponents and their options came from the engine list, which was copied beside the notes byte for byte. |
+| `rate.ps1` over the `sprt` and `h2h` games, anchored on alpha.1 | 30 | A table, a CSV and the order. |
+
+Every run's notes had the commit marked clean, each engine's file and
+SHA-256, the right game count and the PGN's SHA-256. No game was lost on
+time or by a crash; every game ended by mate, adjudication or a drawing
+rule. The only warnings in the logs were cutechess-cli's "Rustic Alpha
+1.5 doesn't have option Hash", which is harmless: `-each` offers a hash
+size to every engine, and that version has none. These are too few games to say anything about
+strength, and no rating from them is quoted anywhere.
+
+Rating all three files together failed, and rightly: Vice 1.1 won all ten
+of its games, so Ordo found a group linked to the rest by wins only (see
+"Pitfalls"). `rate.ps1` stopped with Ordo's status. Ordo had already
+created the two output files, which stay behind empty; that is recorded as
+known issue KI-13 in `ROADMAP.md`.
+
+### Results from different machines
+
+Results from the Windows workstation and the Linux machine are **never
+compared**, and are never merged into one rating. The same build reaches
+different depths on them (the Linux machine is several times slower per
+core), so its rating would differ although the engine is the same, and
+the difference says nothing about the engine. Strength is measured on the
+Windows workstation, where the ladders were played; the Linux machine runs
+the Lichess bot and checks that builds work there. What does carry across
+machines: the bench node count (it must be equal everywhere), perft
+counts, test results, and whether games complete without failures.
 
 ### Pitfalls
 
@@ -782,6 +1199,12 @@ How to read the table:
   Micro-Max were dropped from the baseline for this reason: every game
   began from an EPD position they could not set up, so the run was invalid.
   Only UCI engines belong in a match that uses the opening file.
+- **Ordo cannot rate across one-way results.** If a player (or a group)
+  only won, or only lost, against the rest, Ordo reports "Database is not
+  well connected" and stops, whichever anchor is given, even after it
+  drops the player with a perfect score. `-g FILE` shows the groups. Give
+  such a pairing more games, choose opponents closer in strength, or
+  leave those games out of the rating; do not force it with `-G`.
 - **An undecided SPRT is not a pass.** Raise the round cap and run again,
   or treat the change as unproven.
 - **Do not compare across machines.** A build measured on the workstation
@@ -793,11 +1216,23 @@ How to read the table:
   project's default seed, `0x31031996`) and `Variety=0` on the Vyvræl
   builds. Both are already what a match needs: `Variety` is 0 by default and
   full-strength play then draws no random numbers, so the switch only
-  writes that down in the command. The scripts cannot yet give a build other
-  options, `UCI_LimitStrength` among them. Calibrating `UCI_Elo` (milestone
-  6) needs limited Vyvræl entries in the engine list, each with its own
-  options. Never run a strength match with `Variety` above 0. (`--seed N`
-  is a different thing: the seed of the opening order, `-srand`.)
+  writes that down in the command. Never run a strength match with
+  `Variety` above 0. (`--seed N` is a different thing: the seed of the
+  opening order, `-srand`.)
+- **`--test-option NAME=VALUE` (`-TestOption`)** gives the build under
+  test a UCI option, `option.NAME=VALUE` in the command; repeat it for more
+  (in PowerShell: `-TestOption "UCI_LimitStrength=true","UCI_Elo=1500"`).
+  `--base-option` (`-BaseOption`) does the same for the base build in
+  `sprt` and `h2h`; a gauntlet opponent's options come from the engine
+  list. This is how a limited Vyvræl is measured, for example when
+  calibrating `UCI_Elo`. `Threads` and `Hash` are refused (the script sets
+  one thread and `--hash`), as are `Seed` and `Variety` next to
+  `--deterministic`, an option given twice, anything but printable ASCII
+  (a line break would put a second command into the engine's input),
+  quotes, and a value ending with a backslash (Windows PowerShell 5.1
+  passes one on wrongly). `match.sh` refuses `;` in an option;
+  `match.ps1` splits a string at `;` into several options, as it does
+  opponents. The notes list each build's options.
 
 ## Tactical test suites (planned, milestone 8)
 

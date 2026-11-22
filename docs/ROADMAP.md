@@ -15,7 +15,7 @@ them.
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
-| 6 | Strength testing | `milestone/6-strength-testing` | not started |
+| 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -112,16 +112,20 @@ What milestone 1 leaves open is recorded under "Known issues" below.
 ## Known issues
 
 Limitations in the code as it stands, each with what it affects and when it
-is due to be fixed. An entry is removed in the commit that fixes it. The
-design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
+is due to be fixed. An entry is removed in the commit that fixes it. Where
+the design behind an issue is explained elsewhere, it is in
+[ARCHITECTURE.md](ARCHITECTURE.md) (KI-2, KI-8), [UCI.md](UCI.md) (KI-10) or
+[TESTING.md](TESTING.md) (KI-8, KI-9, KI-11, KI-12, KI-13).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Resolved in milestone 6 for the build measured, and re-measured after milestone 7. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play has not changed since: the bench still counts 16,611,416 nodes): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
+| KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine keeps spending at least about a millisecond a move however little is left, so a long enough game at a tiny time control loses on time. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | Deferred by the maintainer (2026-11-22), not scheduled. A fix would keep a reserve that grows with the moves played, or play instantly from a shallow search once the clock is below the overhead. |
+| KI-13 | **A failed rating leaves Ordo's empty output files behind.** When Ordo fails (for example on games that are not connected), `rate.ps1` and `rate.sh` stop with Ordo's status, but the text and CSV files Ordo had already created stay in place, empty. | A stray pair of empty `-ratings.txt` and `.csv` files next to the PGNs after a failed rating; the next run with the same `-Out` overwrites them. Seen in the smoke test (TESTING.md). | Not scheduled: the maintainer decides. A fix would remove the two files when Ordo fails, if the script created them. |
 
 ## Milestone 2: move generation
 
@@ -182,7 +186,8 @@ evaluation stays as fallback and baseline.
 Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
 the match scripts. Until then it is checked for correctness
 only (symmetry, known material balances, phase arithmetic), and its strength
-is recorded as unmeasured in known issue KI-8.
+was recorded as unmeasured in known issue KI-8 (first measured in
+milestone 6).
 
 The piece-square tables are written for this project from general chess
 principles (they are not copied from another engine), leaning towards the
@@ -285,14 +290,10 @@ Scope summaries live in the "Build order" section of
 [AGENTS.md](../AGENTS.md). Each milestone's chunk checklist is added here when
 that milestone starts, and must include the known issues due in it:
 
-- Milestone 2: none left.
-- After the first release (0.1.0-alpha.1): a casual-only Lichess bot, run
-  by the maintainer. Rated play only later, after milestone 7 and the
-  branding (see "Playing on Lichess with lichess-bot").
-- Milestone 5: none left (KI-3 and KI-7 were fixed in it).
-- Milestone 6: calibration of `UCI_Elo`; KI-8.
-- Milestone 7: KI-9, KI-10.
-- Not yet scheduled: KI-2, KI-11.
+- Milestone 6: calibration of `UCI_Elo` (KI-8 was measured for
+  0.1.0-alpha.2).
+- Milestone 7: KI-9, KI-10; KI-8 measured again.
+- Not yet scheduled: KI-2, KI-11, KI-12, KI-13.
 
 ## Planned features
 
@@ -313,11 +314,13 @@ Plan:
 
 - **Milestone 5 (UCI), done:** both options exist and are wired to the
   weakening mechanism (`search::weakened_move`), uncalibrated.
-- **Milestone 6 (strength testing):** calibrate. Play the limited engine at
-  several `UCI_Elo` settings against opponents of known rating with the match
-  script, fit the mapping from setting to measured Elo, and record the method,
-  the opponents and the results in `TESTING.md`. Until this is done the
-  options are documented as uncalibrated.
+- **Milestone 6 (strength testing), done (provisional):** calibrated. The
+  limited engine played at several `UCI_Elo` settings against opponents of
+  known rating, the mapping from setting to measured Elo was fitted, and
+  `UCI_Elo` now runs from 1110 to 1630 with a default of 1360. The method,
+  the opponents and the results are in `TESTING.md` ("Calibration of
+  `UCI_Elo`"). The calibration holds for the build measured, on the
+  ladder's scale.
 
 Constraints that already apply:
 
@@ -342,8 +345,10 @@ then, and the release notes of 0.2.0 say so.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
 of the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1 is
-kept as history), and its Ordo anchor (Stockfish 19 = 0), not to
-Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
+kept as history), and its Ordo anchor (Stockfish 19 = 0), shifted by a
+fixed 3,500 points so that every setting is positive (Stockfish 19 =
+3,500; the maintainer's decision of 2026-11-22, worded in `TESTING.md`,
+"The scale of `UCI_Elo`"), not to Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
 most visibly at the low end: the limited-strength engines of the baseline
 rate far below the numbers in their names. So documentation and the bot's profile must say which scale a number
 refers to, and must not state a Lichess rating that the measurements do not
@@ -360,10 +365,10 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 
 | Version | When | What it needs |
 | --- | --- | --- |
-| 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. |
-| 0.1.0-alpha.2 | after queued task 1 | The options `Seed` and `Variety` and the `bench` command, with their tests and docs; the three gates green; complete games in `cutechess-cli` as for alpha.1. Still an alpha: `UCI_Elo` is not calibrated, and the only measurement is the snapshot of alpha.1, which its notes may cite as such because full-strength play is unchanged. Plain builds made by hand. |
-| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 resolved; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the `avx2` primary build, the optional `pext` and plain builds, and binaries built by a workflow (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
+| 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. **Released 2026-11-21.** |
+| 0.1.0-alpha.2 | after queued task 1 | The options `Seed` and `Variety` and the `bench` command, with their tests and docs; the three gates green; complete games in `cutechess-cli` as for alpha.1. Still an alpha: `UCI_Elo` is not calibrated, and the only measurement is the snapshot of alpha.1, which its notes may cite as such because full-strength play is unchanged. Plain builds made by hand. **Released 2026-11-22.** |
+| 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 measured for the build released; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. The first release with binaries built by a workflow, in the `avx2` primary build and the plain build (see "Release artifacts" and [RELEASING.md](RELEASING.md)). |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the optional `pext` build beside `avx2` and plain (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
@@ -399,14 +404,19 @@ Decided by the maintainer (all but the first point on 2026-11-21):
   older machines.
 - The files of 0.1.0-alpha.1 were named before this was decided and keep
   their names (`...-windows-x86_64.exe`, `...-linux-x86_64`); they are plain
-  builds.
+  builds. 0.1.0-alpha.2 shipped plain builds under the names above.
 - The binaries are built by a workflow, not by hand. The maintainer owns
   that workflow, because `.github/workflows` is a protected path that agents
   do not edit: an agent may propose its contents in a document for the
-  maintainer to put in place.
-- **The release of milestone 7 (0.2.0) is the first with these builds and
-  with workflow-built binaries.** Until then a release ships plain builds
-  made by hand, as 0.1.0-alpha.1 did.
+  maintainer to put in place. The workflow was installed on 2026-11-22 and
+  passed a trial on the test tag `v0.1.0-rc.0`; see
+  [RELEASING.md](RELEASING.md).
+- **0.1.0 is the first release with workflow-built binaries**, in the
+  `avx2` and plain builds; **the `pext` build joins in 0.2.0**, when
+  milestone 7 adds sliding-piece attacks by PEXT. (Amended by the
+  maintainer on 2026-11-21; first planned as "0.2.0 for all of it".)
+  0.1.0-alpha.1 and 0.1.0-alpha.2 were the last releases with plain builds
+  made by hand. The procedure is in [RELEASING.md](RELEASING.md).
 - Agents prepare a release; the maintainer tags and publishes it.
 - Binaries are attached to the release and never committed.
 
@@ -514,6 +524,15 @@ Results recorded so far:
 - [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md): the first
   alpha against the lower rungs of the ladder, a snapshot from before
   milestone 6.
+- [`results-0.1.0-alpha.2.md`](testing/results-0.1.0-alpha.2.md): the
+  milestone 6 measurement (KI-8), 1,000 games against Ladder Baseline 2's
+  rungs, rated with Baseline 2.
+- The `UCI_Elo` calibration and its check are recorded in TESTING.md
+  ("Calibration of `UCI_Elo`") rather than in a results file, with Ordo's
+  output in
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt)
+  and
+  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt).
 
 ## Queued work (requested 2026-11-21)
 
@@ -649,7 +668,7 @@ it will really be, not one that is slow mainly for lack of them.
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
 Scope as amended by the maintainer on 2026-11-20 and 2026-11-21. The chunk
-checklist is written when the milestone starts. Milestone 6 is the
+checklist below was written when the milestone started. Milestone 6 is the
 measuring: gauntlets against the ladder, the calibration of `UCI_Elo`, and
 known issue KI-8 (the evaluation's strength). The scripts and the installer
 it uses are built beforehand and described under "Testing tooling (before
@@ -678,7 +697,7 @@ engine: they run as separate programs and are installed by the user.
   shows to be a gain, and record the result in the commit message or in
   `docs/TESTING.md`.
 
-To go into the chunk checklist when it is written:
+Taken into the chunk checklist below:
 
 - Record in `docs/TESTING.md` and `docs/UCI.md` which scale `UCI_Elo` is
   on: the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1
@@ -694,20 +713,103 @@ To go into the chunk checklist when it is written:
 
 Notes for whoever starts it:
 
-- `scripts/install_tools.py` installs pinned versions of both tools (and
-  lichess-bot) on Linux, and Cute Chess and Ordo on Windows; see
-  TESTING.md. The maintainer has installed both tools with it on the Linux
+- `scripts/install_tools.py` installs pinned versions of Cute Chess, Ordo
+  and the ladder's opponent engines on Linux and Windows, and lichess-bot on
+  Linux; see TESTING.md. The maintainer has installed both tools with it on the Linux
   machine and used them for a real match and rating (2026-11-21).
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
 - The match settings rely on the UCI options `Hash` and `Threads`.
   Repeatable limited-strength runs also need a fixed seed: the option
   `Seed`.
-- Calibrating `UCI_Elo` needs Vyvræl entries with `UCI_LimitStrength` on in
-  the engine list: the match scripts give a build under test no options of
-  its own.
+- Calibrating `UCI_Elo` needs limited Vyvræl entries: since milestone 6
+  the match scripts give a build its own options (`--test-option`,
+  `--base-option`), or the engine list can hold them.
 - Match output (PGN, logs, rating files) is not committed; `.gitignore`
   already covers match output and `*.pgn`.
+
+### Chunk checklist
+
+Branch `milestone/6-strength-testing`, started 2026-11-22. One commit per
+item unless noted; tests and docs travel with each. Part A is the agent's;
+Part B is measuring, where the maintainer runs the long matches on the
+Windows workstation and sends the files, and the agent writes the records.
+Results from different machines are not compared.
+
+Part A, documents, tools and tests:
+
+- [x] `ROADMAP.md`: the release plan as amended by the maintainer
+  (2026-11-21): 0.1.0, not 0.2.0, is the first release with binaries built
+  by a workflow, in the `avx2` and plain builds; the `pext` build joins in
+  0.2.0, when milestone 7 adds PEXT attacks. The "Releases" table and
+  "Release artifacts" change; the three-build design, the file names and
+  "never `target-cpu=native`" do not.
+- [x] `docs/proposals/release-workflow.yml` and `release-workflow.md`: the
+  proposed release workflow (tag-triggered, gates first, Windows and Linux
+  `avx2` and plain builds, SHA-256 files, a smoke test, a **draft** release;
+  `contents: write` on one job only; actions pinned by SHA). A proposal: the
+  maintainer installs it under `.github/workflows/`, and it is not called
+  working until it has run once on a test tag.
+- [x] `docs/RELEASING.md`: the release procedure from 0.1.0 on, as a
+  checklist (prepare, gates, merge and tag by the maintainer, the workflow's
+  draft, checks and publishing, the results file). `docs/prompts/release.md`
+  and `AGENTS.md` "Releases" point to it instead of holding the steps.
+- [x] `TESTING.md`: how to read an SPRT result.
+- [x] `TESTING.md`: how to read Ordo output.
+- [x] `TESTING.md`: what a sound Elo comparison needs (same machine, same
+  settings, enough games) and the limits of results from different machines.
+- [x] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
+  the maintainer approved (2026-11-22): Ordo ratings on the scale of
+  Ladder Baseline 2 with Stockfish 19 as the anchor, **shifted by a fixed
+  3,500 points** so that Stockfish 19 is 3,500 and every setting is
+  positive; not Lichess, CCRL or FIDE ratings; stretched by lopsided
+  results, most visibly at the low end (Stockfish 19-1320 is about 1,530).
+- [x] Match scripts, run notes (`match.ps1` and `match.sh` alike, with
+  tests): at the start the git commit and whether the working tree is
+  clean or dirty (read-only `git` in the repository, as the maintainer
+  allowed on 2026-11-22; "unknown" without git or a repository), and a copy
+  of the engine list beside the notes; at the end the number of games in
+  the PGN and its SHA-256. Nothing written outside the output folder; an
+  existing PGN is still refused. (`rate.ps1` and
+  `rate.sh` are left alone; a bug found in them is reported, not fixed
+  silently.)
+- [x] Match scripts: `--test-option NAME=VALUE` (`-TestOption`), and
+  `--base-option` (`-BaseOption`) for `sprt` and `h2h`, repeatable, giving
+  that build `option.NAME=VALUE` and recorded in the run notes (the
+  maintainer's choice, 2026-11-22), so that limited Vyvræl builds
+  (`UCI_LimitStrength`, `UCI_Elo`, `Seed`) can be measured.
+- [x] Robustness: a test that feeds the UCI loop malformed and unexpected
+  input (random bytes, truncated and oversized commands, bad values, odd
+  orders, commands during a search) from a seeded generator and asserts
+  that it never panics and keeps answering `isready`. Any panic it finds is
+  fixed in its own commit.
+
+Part B, measuring (the maintainer plays, the agent records):
+
+- [x] The scripts smoke-tested for real on the Windows workstation (a short
+  run of each mode and a rating) and the result recorded in `TESTING.md`.
+- [x] KI-8: a gauntlet of the current build against the core opponents of
+  Ladder Baseline 2 ("Using the ladder for Vyvræl"), rated together with
+  Baseline 2's games in one Ordo run anchored on Stockfish 19, recorded in
+  `docs/testing/results-<build>.md` with Ordo's output. KI-8 is updated for
+  the build measured.
+- [x] `UCI_Elo` calibration: gauntlets of limited builds at several
+  settings (for example 400, 800, 1200, 1500 and 1800) with a fixed `Seed`,
+  rated with Baseline 2; the mapping in `search::Weakening::for_elo` and the
+  option's range and default refitted to the measurements, on the approved
+  scale; method, opponents and results recorded in `TESTING.md`. Marked
+  provisional: it is measured again after milestone 7 and after queued
+  task 2.
+- [x] Soak test through `cutechess-cli` at 1+0, 3+2 and 60+0: no illegal
+  move, crash, stall or time loss, recorded in `TESTING.md`. One time
+  loss at 1+0 seconds, accepted by the maintainer as known issue KI-12,
+  deferred (2026-11-22).
+
+Closing:
+
+- [x] End-of-milestone review and doc drift pass, then the report.
+
+The release of 0.1.0 follows as its own step, with `docs/RELEASING.md`.
 
 ## Milestone 7: search heuristics (order of work for captures)
 
@@ -871,24 +973,27 @@ What it needs:
 Plan, as amended by the maintainer on 2026-11-20. It replaces the earlier
 plan of a private test first and a public bot only after milestone 7:
 
-- **After the maintainer tags 0.1.0-alpha.1: a casual-only bot.** The
-  maintainer upgrades the account `Vyvrael-Chess` to BOT and runs
-  lichess-bot, on the Linux machine only, accepting casual challenges only. Casual games cost nobody
-  rating points, and they show whether the engine plays complete games over
-  the real protocol without losing on time, crashing or making illegal
-  moves.
+- **After the maintainer tagged 0.1.0-alpha.1: a casual-only bot.** The
+  maintainer upgraded the account `Vyvrael-Chess` to BOT and ran
+  lichess-bot on the Linux machine, accepting casual challenges only.
+  Casual games cost nobody rating points, and they show whether the engine
+  plays complete games over the real protocol without losing on time,
+  crashing or making illegal moves.
 - **Rated play: not before 0.2.0 (milestone 7)**, which follows milestone
   6, **and not before the branding above is done**, so a bot that plays for
   rating has a measured strength and SPRT-accepted search. The maintainer
   decides when, and re-reads the Lichess Terms of Service and Bot API
   documentation first.
-- Until the upgrade nobody plays a game on the account: one game makes the
-  upgrade impossible.
+- Before the upgrade nobody played a game on the account, because one game
+  would have made the upgrade impossible.
 - A bot that loses on time is worse than no bot: the option `Move Overhead`
   exists for this, and LICHESS.md gives a starting value.
 - `UCI_LimitStrength` and `UCI_Elo` (above) let the bot offer weaker play
-  once they are calibrated; on a rated account that would have to be said
-  in the profile.
+  now that they are calibrated (provisionally, on the ladder's scale); on a
+  rated account that would have to be said in the profile.
+
+What the bot has played with each build is recorded in
+[lichess-history.md](lichess-history.md).
 
 **KI-10 applies to the casual bot**, because the bot starts before milestone
 7, which fixes it. The first search depth cannot be interrupted, so in a

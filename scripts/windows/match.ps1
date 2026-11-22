@@ -28,6 +28,8 @@ param(
     [string] $Label,
     [string] $Seed,
     [switch] $Deterministic,
+    [string[]] $TestOption = @(),
+    [string[]] $BaseOption = @(),
     [switch] $LowPriority,
     [switch] $NoLowPriority,
     [switch] $DryRun,
@@ -59,26 +61,40 @@ Options:
                       stops undecided (required)
   -Tc TC              time control (default 10+0.1)
   -Hash MB            hash size for every engine (default 64)
-  -Concurrency N      games at once (default: physical cores minus two)
+  -Concurrency N      games at once (or CONCURRENCY; default: physical
+                      cores minus two, at least one)
   -Openings FILE      opening file in EPD format (required, or OPENINGS)
   -EnginesJson FILE   engine list for gauntlet opponents (or ENGINES_JSON)
-  -Cutechess PATH     cutechess-cli to use (default: from PATH)
-  -OutDir DIR         where the PGN, log and notes go (default: matches)
+  -Cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
+                      PATH)
+  -OutDir DIR         where the PGN, log and notes go (or MATCH_DIR;
+                      default: matches in the current directory)
   -Label TEXT         added to the output file names
   -Seed N             seed for the opening order (default: random)
   -Deterministic      set Seed=822286742 and Variety=0 on the Vyvrael builds
+  -TestOption NAME=VALUE[,NAME=VALUE ...]
+                      UCI options for the test build, for example
+                      UCI_Elo=1500 (not Threads or Hash)
+  -BaseOption NAME=VALUE[,NAME=VALUE ...]
+                      the same for the base build (sprt and h2h)
   -LowPriority        run at low priority (BelowNormal)
   -NoLowPriority      do not, whatever the local settings say
   -DryRun             print the cutechess-cli command and stop
   -Help               show this text
 
 Several opponents: -Opponent "Stockfish 19-1320","Vice 1.1" (or one string
-with the names separated by semicolons).
+with the names separated by semicolons); several options likewise:
+-TestOption "UCI_LimitStrength=true","UCI_Elo=1500".
 
 Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
 (VYVRAEL_CONCURRENCY, ...) or scripts/local.env; see
 scripts/local.env.example.
+
+Beside the PGN a run leaves a .log and .notes.txt (the command, the git
+commit and whether the repository had changes, each engine's file and
+SHA-256, the times, the outcome, the number of games and the PGN's
+SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
 '@
 
 function Die([string] $Message) {
@@ -156,6 +172,8 @@ if ($LowPriority) { $low = 'true' }
 if ($NoLowPriority) { $low = 'false' }
 if ($low -cnotin @('true', 'false')) { Die "LOW_PRIORITY must be true or false, got '$low'" }
 $opponents = @($Opponent | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
+$testOptions = @($TestOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
+$baseOptions = @($BaseOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 
 # --- what every mode needs -------------------------------------------------
 
@@ -180,7 +198,8 @@ if ($Label -and $Label -notmatch '^[A-Za-z0-9._-]+$') {
 }
 
 function Test-BuildName([string] $What, [string] $Name) {
-    if ($Name -cnotmatch '^[ -~]+$') {
+    # \z, not $: in .NET, $ also matches before a line break at the end.
+    if ($Name -cnotmatch '^[ -~]+\z') {
         Die "$What '$Name' must be plain ASCII (for example `"Vyvrael 0.1.0-a1`")"
     }
     if ($Name -match '["''=]') { Die "$What '$Name' may not contain quotes or '='" }
@@ -189,8 +208,40 @@ function Test-BuildName([string] $What, [string] $Name) {
 function Test-EngineFile([string] $What, [string] $Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Die "$What not found: $Path" }
 }
+# The UCI options given to one build, each NAME=VALUE.
+function Test-Options([string] $What, [string[]] $Options) {
+    $seen = @{}
+    foreach ($option in $Options) {
+        if ($option -cnotmatch '^[^=]+=[^=]+$') {
+            if ($option -match '^[^=]+=[^=]*=') { Die "$What '$option' may hold only one '='" }
+            Die "$What '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
+        }
+        # \z, not $: in .NET, $ also matches before a line break at the end.
+        if ($option -cnotmatch '^[ -~]+\z') { Die "$What '$option' must be plain ASCII" }
+        if ($option -match '["'';]') { Die "$What '$option' may not contain quotes or ';'" }
+        # Windows PowerShell 5.1 passes an argument that holds a space and
+        # ends with a backslash on wrongly, swallowing the ones after it.
+        if ($option.EndsWith('\')) { Die "$What '$option' may not end with a backslash" }
+        $name = $option.Substring(0, $option.IndexOf('='))
+        if ($name -ne $name.Trim(' ')) {
+            Die "$What '$option': the name may not start or end with a space"
+        }
+        # UCI option names are not case-sensitive.
+        $lower = $name.ToLowerInvariant()
+        if ($lower -in @('threads', 'hash')) {
+            Die "$What '$option': the script sets $name (one thread; -Hash for the hash size)"
+        }
+        if ($Deterministic -and $lower -in @('seed', 'variety')) {
+            Die "$What '$option': -Deterministic already sets $name"
+        }
+        if ($seen.ContainsKey($lower)) { Die "${What}: the option $name is given twice" }
+        $seen[$lower] = $true
+    }
+}
+
 Test-BuildName '-TestName' $TestName
 Test-EngineFile 'the test build (-Test)' $Test
+Test-Options '-TestOption' $testOptions
 
 # --- what each mode needs --------------------------------------------------
 
@@ -203,9 +254,13 @@ if ($Mode -in @('sprt', 'h2h')) {
         Die "the two builds have the same name '$TestName'; the results could not be told apart"
     }
     if ($opponents.Count -gt 0) { Die '-Opponent is for gauntlet mode' }
+    Test-Options '-BaseOption' $baseOptions
 } else {
     if ($opponents.Count -eq 0) { Die 'gauntlet mode needs at least one -Opponent' }
     if ($Base -or $BaseName) { Die '-Base and -BaseName are for sprt and h2h modes' }
+    if ($baseOptions.Count -gt 0) {
+        Die "-BaseOption is for sprt and h2h modes; an opponent's options are in the engine list"
+    }
     if (-not $EnginesJson) {
         Die 'gauntlet mode needs the engine list: -EnginesJson, or ENGINES_JSON in scripts/local.env'
     }
@@ -308,6 +363,8 @@ if ($tool) {
 
 # --- the command -----------------------------------------------------------
 
+# VYVRAEL_MATCH_DATE replaces today's date in the file names; it is a hook
+# for the tests, which need names they can predict.
 $date = $env:VYVRAEL_MATCH_DATE
 if (-not $date) { $date = Get-Date -Format 'yyyy-MM-dd' }
 $slug = $TestName -replace '[^A-Za-z0-9._-]', '-'
@@ -322,11 +379,13 @@ if ($Deterministic) { $buildOptions += @('option.Seed=822286742', 'option.Variet
 
 $arguments = @()
 if ($Mode -eq 'gauntlet') { $arguments += @('-tournament', 'gauntlet', '-seeds', '1') }
-$arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions
+$testExtra = @($testOptions | ForEach-Object { "option.$_" })
+$baseExtra = @($baseOptions | ForEach-Object { "option.$_" })
+$arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions + $testExtra
 if ($Mode -eq 'gauntlet') {
     $arguments += $opponentArgs
 } else {
-    $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions
+    $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions + $baseExtra
 }
 $arguments += @('-each', "tc=$Tc", "option.Hash=$Hash",
     '-openings', "file=$Openings", 'format=epd', 'order=random',
@@ -349,6 +408,32 @@ if ($DryRun) {
     Write-Output $commandLine
     exit 0
 }
+
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes. Read-only: --no-optional-locks keeps git status
+# from refreshing (rewriting) the index. Read before anything is written
+# here, so that the run's own files cannot make the tree look dirty.
+function Get-RepoState {
+    $repoDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $git = $env:VYVRAEL_GIT
+    if (-not $git) { $git = 'git' }
+    $unknown = 'unknown (no git, or not a git repository)'
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $commit = & $git --no-optional-locks -C $repoDir rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $commit) { return $unknown }
+        $changes = & $git --no-optional-locks -C $repoDir status --porcelain 2>$null
+        if ($LASTEXITCODE -ne 0) { return $unknown }
+        if ($changes) { return "$commit (dirty)" }
+        return "$commit (clean)"
+    } catch {
+        return $unknown
+    } finally {
+        $ErrorActionPreference = $saved
+    }
+}
+$repository = Get-RepoState
 
 try {
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -375,11 +460,27 @@ function Get-Digest([string] $Path) {
 }
 function Get-Now { return [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
+# The engine list a gauntlet used, copied beside the notes, so the
+# opponents' options stay on record even if the list changes later.
+$enginesCopy = ''
+if ($Mode -eq 'gauntlet') {
+    $enginesCopy = Get-FullPath "$stem.engines.json"
+    try {
+        Copy-Item -LiteralPath $EnginesJson -Destination $enginesCopy -Force
+    } catch {
+        Die "cannot copy the engine list to $enginesCopy"
+    }
+}
+$enginesLine = 'engines:    no engine list used'
+if ($enginesCopy) { $enginesLine = "engines:    $EnginesJson (copied to $enginesCopy)" }
+
 $version = (Invoke-Tool $Cutechess @('-version') | Select-Object -First 1)
 $lines = @(
     'Vyvrael match run notes',
     "mode:       $Mode",
     "started:    $(Get-Now)",
+    "repository: $repository",
+    $enginesLine,
     "host cores: $cores physical, $Concurrency games at once",
     "cutechess:  $version",
     "openings:   $Openings",
@@ -395,6 +496,13 @@ if ($Mode -eq 'gauntlet') {
 } else {
     $lines += @("  $BaseName", "    $Base", "    $(Get-Digest $Base)")
 }
+# The options given to a build, "; " between them, or "none".
+function Format-Options([string[]] $Options) {
+    if ($Options.Count -eq 0) { return 'none' }
+    return ($Options -join '; ')
+}
+$lines += @('', 'options given (-TestOption, -BaseOption):', "  ${TestName}: $(Format-Options $testOptions)")
+if ($Mode -ne 'gauntlet') { $lines += "  ${BaseName}: $(Format-Options $baseOptions)" }
 $lines += @('', 'command:', "  $commandLine")
 [IO.File]::WriteAllLines($notes, [string[]] $lines, $utf8)
 
@@ -445,6 +553,14 @@ if ($Mode -eq 'sprt') {
     Write-Output "SPRT outcome: $outcome"
 }
 if ($status -ne 0) { $outcome = "cutechess-cli failed with status $status; $outcome" }
+$pgnPath = Get-FullPath $pgn
+if (Test-Path -LiteralPath $pgnPath -PathType Leaf) {
+    $games = @([IO.File]::ReadAllLines($pgnPath) | Where-Object { $_ -cmatch '^\[Event ' }).Count
+    $pgnDigest = Get-Digest $pgnPath
+} else {
+    $games = '0 (no PGN was written)'
+    $pgnDigest = 'none'
+}
 [IO.File]::AppendAllLines($notes, [string[]] @('', "ended:      $(Get-Now)", "status:     $status",
-        "outcome:    $outcome"), $utf8)
+        "outcome:    $outcome", "games:      $games", "pgn sha256: $pgnDigest"), $utf8)
 exit $status

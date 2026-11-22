@@ -2,10 +2,10 @@
 # Copyright (C) 2026 Nexxus Drako Multimedia
 """Offline tests for scripts/install_tools.py.
 
-They exercise the pure helpers only: nothing is downloaded, built or
-installed, and every file they touch lives in a temporary directory. The
-installer targets Linux, so tests that check generated text build their paths
-with PurePosixPath and pass on any system.
+They test the helpers and drive main() with stubbed installers. Nothing is
+downloaded or built, and everything they write goes to a temporary
+directory. The Linux parts check generated text with PurePosixPath, so those
+tests pass on any system.
 
     python3 -m unittest discover -s scripts/tests
 """

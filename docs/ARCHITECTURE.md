@@ -12,6 +12,9 @@ src/lib.rs              engine library (all engine logic lives here)
 src/main.rs             engine binary (thin wrapper over the library)
 tools/vyvrael-data/     data and database tooling (stub; milestone 8)
 tools/vyvrael-train/    NNUE training (stub; milestone 9)
+tests/                  integration tests (public API only)
+scripts/                tool installer, match and rating scripts, their tests
+branding/               brand assets (all rights reserved, not under the GPL)
 docs/                   documentation
 ```
 
@@ -29,14 +32,15 @@ dependencies, so the engine binary stays small and builds fast.
 | Module | Status | Responsibility |
 | --- | --- | --- |
 | crate root (`lib.rs`) | implemented | Engine identity constants (`ENGINE_NAME`, `ENGINE_NAME_ASCII`, `ENGINE_AUTHOR`, `ENGINE_VERSION`). |
-| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `next_u64`, `next_u32`, `next_below` and `Rng::stream`; `DEFAULT_SEED`; `mix64`. |
+| `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `Rng::new`, `Rng::from_state`, `Rng::stream`, `next_u64`, `next_u32` and `next_below`; `DEFAULT_SEED`; the stream indices in `rng::stream`; `entropy_seed` and `SEED_MAX`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake and coordinate-notation move parsing. |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `bench`, `help`. |
+| `bench` | implemented | `bench(depth)`, `BenchResult`, `BENCH_POSITIONS`, `BENCH_DEPTH`: a fixed full-strength search workload whose node count is pinned. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`. |
-| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures. |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). |
 | `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
@@ -102,21 +106,20 @@ from `board`.
   digits that fit in 16 bits (any value `0..=65535` is accepted, including a
   fullmove number of 0, which some tools emit). Errors are reported as a
   `FenError` variant naming the problem.
-- **FEN validation** (`fen.rs`): after parsing, a position is accepted only
-  if each side has exactly one king, no pawn is on the first or eighth rank,
-  no side has more material than a game can produce (pawns plus pieces beyond
-  the starting set must not exceed eight),
-  every claimed castling right has its king and rook on their home squares,
-  the side not to move is not in check, and any en passant square is consistent with a double push by the side that
-  just moved (correct rank, target square and the pawn's starting square
-  empty, that side's pawn directly beyond the target). These are the
-  invariants make/unmake relies on. Rejecting rather than repairing means a
-  bad input is noticed instead of silently changed; an opt-in repair mode is
-  planned for later (known issue KI-2). A position where the side not to
-  move is in check is rejected too (`FenError::OpponentInCheck`), since the
-  side to move could capture the king and no legal game reaches that. An en passant
-  square is kept whenever a double push happened, whether or not a capture is
-  actually possible.
+- **FEN validation** (`fen.rs`): after parsing, a position is accepted only if
+  each side has exactly one king, no pawn is on the first or eighth rank, no
+  side has more material than a game can produce (pawns plus pieces beyond the
+  starting set must not exceed eight), every claimed castling right has its
+  king and rook on their home squares, and any en passant square is consistent
+  with a double push by the side that just moved (correct rank, target square
+  and the pawn's starting square empty, that side's pawn directly beyond the
+  target). These are the invariants make/unmake relies on. Rejecting rather
+  than repairing means a bad input is noticed instead of silently changed; an
+  opt-in repair mode is planned for later (known issue KI-2). A position where
+  the side not to move is in check is rejected too
+  (`FenError::OpponentInCheck`), since the side to move could capture the king
+  and no legal game reaches that. An en passant square is kept whenever a
+  double push happened, whether or not a capture is actually possible.
 - **FEN serialisation** (`fen.rs`): `Position::to_fen` and `Display` write
   the canonical six-field form (single spaces, castling letters in `KQkq`
   order). A canonical FEN round-trips byte for byte. For any position that
@@ -335,24 +338,6 @@ on this square attack?".
   uses; the two were measured against each other (see
   [TESTING.md](TESTING.md)).
 
-- **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
-  binary's commands against any pair of writers, so tests run it on in-memory
-  buffers and `main.rs` is only a few lines. With no arguments the binary
-  does not call it at all: `main.rs` starts the UCI loop instead (see
-  "UCI" below). `perft <depth> [--divide | --copy-make] [FEN]` prints node counts on stdout and
-  timing on stderr. `eval [FEN]` prints the hand-crafted evaluation and its
-  parts. `search <depth> [FEN]` runs iterative deepening to a fixed depth and
-  prints one line per depth and the best move, with timing on stderr so that
-  stdout is identical on every run. `bench [depth]` runs `bench::bench` and
-  prints `<nodes> nodes <nps> nps`. Exit status 2 means the command line was not understood.
-
-- **Bench** (`bench.rs`): `bench(depth)` searches the fixed positions of
-  `BENCH_POSITIONS` to `depth` at full strength, each as a new search with
-  iterative deepening and no time limit, and returns the nodes visited and
-  the time taken. Nothing random is involved, so the node count is a
-  function of the search alone; `tests/bench.rs` pins it at
-  `BENCH_DEPTH`.
-
 ## Evaluation
 
 `src/eval/` gives a position a score without searching. Milestone 3 covers
@@ -361,7 +346,7 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
 
 - **Scores** are `eval::Score`, an `i32` in centipawns (100 is about one
   pawn).
-- **`Evaluator`** (`eval/mod.rs`) is the trait search will call:
+- **`Evaluator`** (`eval/mod.rs`) is the trait search calls:
   `evaluate(&self, pos) -> Score` returns the score **from the side to move's
   point of view**, which is what negamax needs, and `name()` identifies the
   evaluator. Search holds it as a trait object, so the hand-crafted evaluation
@@ -507,7 +492,7 @@ transposition table, pruning) come in milestone 7, one at a time.
 - **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
   depth, node count and deadline; the search stops at whichever comes first.
   A stop flag (an `AtomicBool` given with `with_stop_flag`) lets another
-  thread end a running search, which is how UCI `stop` will work.
+  thread end a running search, which is how UCI `stop` works.
   - The node limit is exact: the search stops at the first node beyond it.
     The flag and the clock are read once every 1,024 nodes, because reading
     them at every node would cost more than the search.
@@ -603,12 +588,17 @@ happen: the engine may prefer the second-best quiet move, but it does not
 leave a queen hanging unless the noise is that large. Forced mates are
 judged exactly, for and against.
 
-`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (400) to `ELO_MAX`
-(1800) to a depth (2 below the middle of the range, 3 above) and a noise
-(300 centipawns at the bottom, falling evenly to 20 at the top). **These
-numbers are provisional.** They only order the settings. What rating each
-setting really plays at is measured in milestone 6 and the mapping is
-refitted then; until that is done the rating is a label.
+`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (1110) to
+`ELO_MAX` (1630) to a depth and a noise through a table of seven
+weakenings measured in milestone 6 (`CALIBRATION` in `search/weaken.rs`):
+two plies from 1110 to 1349, three from 1350, with the noise interpolated
+in a straight line between points of the same depth and held at the last
+two-ply point (112 centipawns) from 1331 to 1349. `ELO_MIN` and `ELO_MAX`
+are read from the table. The ratings are on the reference ladder's scale
+(see [UCI.md](UCI.md), "Limited strength"). **The calibration is
+provisional:** measured for one build, and measured again after milestone
+7 and after queued task 2 (benchmark and speed-up; see
+[ROADMAP.md](ROADMAP.md)).
 
 The generator is handed in by the caller and advanced once per root move
 before any searching, so the errors are a function of the position and the
@@ -716,6 +706,27 @@ and option is listed in [UCI.md](UCI.md).
   - **End of input** without `quit` lets a running search finish and report,
     so a script that pipes commands in gets its answer.
 
+## Command line and bench
+
+- **Command line** (`cli.rs`): `cli::run(args, out, err)` implements the
+  binary's commands against any pair of writers, so tests run it on in-memory
+  buffers and `main.rs` is only a few lines. With no arguments the binary
+  does not call it at all: `main.rs` starts the UCI loop instead (see "UCI"
+  above). `perft <depth> [--divide | --copy-make] [FEN]` prints node counts
+  on stdout and timing on stderr. `eval [FEN]` prints the hand-crafted
+  evaluation and its parts. `search <depth> [FEN]` runs iterative deepening
+  to a fixed depth and prints one line per depth and the best move, with
+  timing on stderr so that stdout is identical on every run. `bench [depth]`
+  runs `bench::bench` and prints `<nodes> nodes <nps> nps`. Exit status 2
+  means the command line was not understood.
+
+- **Bench** (`bench.rs`): `bench(depth)` searches the fixed positions of
+  `BENCH_POSITIONS` to `depth` at full strength, each as a new search with
+  iterative deepening and no time limit, and returns the nodes visited and
+  the time taken. Nothing random is involved, so the node count is a
+  function of the search alone; `tests/bench.rs` pins it at
+  `BENCH_DEPTH`.
+
 ## How search, evaluation and UCI fit together
 
 The UCI layer owns the current position and the option values. On `go` it
@@ -751,7 +762,10 @@ which defaults to `DEFAULT_SEED`.
   64-bit state.
 - **Seed derivation:** independent streams (threads, self-play games,
   subsystems) are created with `Rng::stream(base_seed, index)`, never by
-  sharing one generator across threads. The stream's starting state is
+  sharing one generator across threads. Its indices are registered for the
+  engine's own uses (below); a test that needs several generators of its
+  own draws their states from `Rng::default()` instead, as
+  `tests/uci_robustness.rs` does. The stream's starting state is
   `mix64(k ^ mix64(index + 0x9E3779B97F4A7C15))`, where `k` is the first
   output of `Rng::new(base_seed)`. Because `mix64` is a bijection, distinct
   indices always give distinct starting states for the same base seed. Streams
@@ -792,9 +806,11 @@ plays; such uses are non-deterministic by default (`Seed` 0), with a fixed
 | Zobrist keys (`board::zobrist`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::ZOBRIST)`, stream 0, at compile time | The keys only label positions. Any well-mixed set works equally well, and fixed keys keep hashes, tests and transposition-table behaviour reproducible. |
 | Magic-number search (`attacks::sliders`, test code; the engine uses the numbers it found, embedded in `attacks/magics.rs`) | implemented | No | `Rng::stream(DEFAULT_SEED, stream::MAGICS)`, stream 1, in the test that checks the embedded numbers | Any valid magic number gives exactly the same attack sets, so the choice cannot affect play. A fixed stream makes the tables identical in every run. |
 | Randomised test inputs (`attacks::sliders` tests: 20,000 random occupancies and squares) | implemented | No | `Rng::default()`, the default seed | The samples only choose which cases a test compares against the scanning reference; a fixed seed makes the test reproducible. |
-| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` (1 to 2147483647) when the engine starts and again at every `ucinewgame` while `Seed` is 0, or the `Seed` given; logged with `info string` at start and at every `ucinewgame` | This seed decides weakened play, which changes how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
+| Malformed UCI input (`tests/uci_robustness.rs`) | implemented | No | `Rng::default()`, the default seed; each of the eight input streams gets a generator whose state is the next draw from it | The input only exercises the protocol loop; a fixed seed makes a failure replayable from its stream number. |
+| Seed of strength-affecting randomness (`uci::Engine`) | implemented | **Yes** | `rng::entropy_seed()` (1 to 2147483647) when the engine starts, at every `ucinewgame` while `Seed` is 0, and when `Seed` is set back to 0; or the `Seed` given. Logged with `info string` in reply to `uci`, at every `ucinewgame` and whenever `setoption` changes the seed | This seed decides weakened play and the `Variety` choice, which change how the engine plays, so by the project's rule it is not reproducible unless the user asks. Logging it keeps every run replayable. |
 | Weakened move choice (`search::weakened_move`, used when `UCI_LimitStrength` is on) | implemented | **Yes** | A generator handed in by the caller: the UCI layer's, from the seed above and `stream::STRENGTH` | The random error decides which move is played, so it changes playing strength by design. |
 | Varied opening move (`search::varied_move`, used when `Variety` is above 0, at full strength, in the first 12 full moves) | implemented | **Yes** | The same as weakened play: one draw from the UCI layer's `stream::STRENGTH` generator per `go` where it applies, giving the choice its own generator | It decides which of the checked moves is played, so it changes how the engine plays by design. With `Variety` 0 nothing is drawn. |
+| Weakened-play and `Variety` tests (`search::weaken`, `search::variety` and `uci::engine` tests) | implemented | No | Fixed seeds written in the tests: `Rng::new(n)` with small literals or `DEFAULT_SEED`, `Rng::default()`, and `Rng::stream(1..=6, stream::STRENGTH)` | The tests only need a known, repeatable generator to compare against; fixed seeds make every run give the same result. |
 | Test fixtures (golden values in `rng` and `zobrist` tests) | implemented | No | `DEFAULT_SEED` and its streams | Tests must give the same result on every run. |
 
 Stream indices of the default seed are registered in `rng::stream` so that

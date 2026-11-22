@@ -67,8 +67,9 @@ pub struct Engine {
     /// one from system entropy while `Seed` is 0.
     seed: u32,
     /// The generator of strength-affecting randomness, started from `seed`.
-    /// It stays on the command thread: each weakened search is given a
-    /// generator of its own, seeded from this one.
+    /// It stays on the command thread: each weakened search, and each varied
+    /// choice when `Variety` applies, is given a generator of its own,
+    /// seeded from this one.
     rng: Rng,
 }
 
@@ -276,9 +277,10 @@ impl Engine {
         let stop = Arc::clone(&self.stop);
         let position = self.position.clone();
         let history = self.history.clone();
-        // Full strength never touches the generator. A weakened search gets
-        // its own, seeded by one draw here on the command thread, so the
-        // sequence of games does not depend on how far each search got.
+        // Full strength touches the generator only when `Variety` applies
+        // (below). A weakened search gets its own generator, seeded by one
+        // draw here on the command thread, so the sequence of games does not
+        // depend on how far each search got.
         let weakened = self.options.limit_strength.then(|| {
             (
                 Weakening::for_elo(self.options.elo),
@@ -446,7 +448,7 @@ pub fn run(mut input: impl BufRead, out: Box<dyn Write + Send>) -> io::Result<()
 mod tests {
     use super::*;
     use crate::eval::HandCrafted;
-    use crate::search::Outcome;
+    use crate::search::{ELO_MAX, ELO_MIN, Outcome};
 
     /// An output the test can read back.
     #[derive(Clone, Default)]
@@ -665,14 +667,8 @@ mod tests {
     fn limited_strength_gets_the_history_and_the_limits() {
         // The repetition is found only with the history: a draw, where the
         // same position as a bare FEN is lost.
-        let with_history = weakened(
-            2,
-            &[
-                "setoption name UCI_Elo value 1800",
-                QUEEN_ENDING_AFTER_MOVES,
-                GO,
-            ],
-        );
+        let strongest = format!("setoption name UCI_Elo value {ELO_MAX}");
+        let with_history = weakened(2, &[&strongest, QUEEN_ENDING_AFTER_MOVES, GO]);
         assert!(
             with_history[with_history.len() - 2].contains(" score cp 0 "),
             "{with_history:?}"
@@ -681,22 +677,23 @@ mod tests {
         let bare = weakened(
             2,
             &[
-                "setoption name UCI_Elo value 1800",
+                &strongest,
                 "position fen 6k1/8/8/8/8/2K5/8/1Q6 b - - 13 31",
                 GO,
             ],
         );
         assert!(!bare[bare.len() - 2].contains(" score cp 0 "), "{bare:?}");
 
-        // A node limit cuts the passes short: one ply, where the same
-        // setting unhurried looks three.
+        // A node limit cuts the passes short: one ply, where the weakest
+        // setting unhurried looks two.
         let kiwipete = format!("position fen {KIWIPETE}");
-        let hurried = weakened(2, &[&kiwipete, "go nodes 1"]);
+        let weakest = format!("setoption name UCI_Elo value {ELO_MIN}");
+        let hurried = weakened(2, &[&weakest, &kiwipete, "go nodes 1"]);
         assert!(
             hurried[hurried.len() - 2].starts_with("info depth 1 "),
             "{hurried:?}"
         );
-        let calm = weakened(2, &["setoption name UCI_Elo value 400", &kiwipete, GO]);
+        let calm = weakened(2, &[&weakest, &kiwipete, GO]);
         assert!(
             calm[calm.len() - 2].starts_with("info depth 2 "),
             "{calm:?}"
@@ -902,27 +899,31 @@ mod tests {
     fn the_rating_sets_how_weakly_it_plays() {
         // The two ends of the range differ in how far they look, which the
         // `info` line shows.
-        let low = weakened(3, &["setoption name UCI_Elo value 400", GO]);
+        let weakest = format!("setoption name UCI_Elo value {ELO_MIN}");
+        let low = weakened(3, &[&weakest, GO]);
         assert!(low[1].starts_with("info depth 2 "), "{}", low[1]);
-        let high = weakened(3, &["setoption name UCI_Elo value 1800", GO]);
+        let strongest = format!("setoption name UCI_Elo value {ELO_MAX}");
+        let high = weakened(3, &[&strongest, GO]);
         assert!(high[1].starts_with("info depth 3 "), "{}", high[1]);
-        // A rating out of range is refused and the old one kept.
-        let refused = weakened(3, &["setoption name UCI_Elo value 3000", GO]);
-        assert_eq!(
-            refused[1],
-            "info string UCI_Elo: expected a whole number from 400 to 1800, got `3000`"
-        );
-        assert_eq!(
-            refused[2..],
-            weakened(3, &[GO])[1..],
-            "still the default rating"
-        );
+        // A rating out of range is refused and the old one kept, the old
+        // lowest setting included.
+        for out in ["3000", "400"] {
+            let refused = weakened(3, &[&format!("setoption name UCI_Elo value {out}"), GO]);
+            assert_eq!(
+                refused[1],
+                format!(
+                    "info string UCI_Elo: expected a whole number from 1110 to 1630, got `{out}`"
+                )
+            );
+            assert_eq!(
+                refused[2..],
+                weakened(3, &[GO])[1..],
+                "still the default rating"
+            );
+        }
         // Without `UCI_LimitStrength` the rating changes nothing.
         assert_eq!(
-            stable(&session(&[
-                "setoption name UCI_Elo value 400",
-                "go depth 3"
-            ])),
+            stable(&session(&[&weakest, "go depth 3"])),
             stable(&session(&["go depth 3"]))
         );
     }

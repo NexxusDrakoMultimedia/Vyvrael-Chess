@@ -24,7 +24,8 @@ Modes:
             the base build. The bounds, alpha and beta have no defaults.
   h2h       a fixed number of rounds between two builds.
   gauntlet  the test build against each opponent, named as in the engine
-            list (--engines-json).
+            list (--engines-json). It needs python3 (or the program in
+            VYVRAEL_PYTHON) to read the list.
 
 A round is two games: each opening is played twice with colours swapped.
 
@@ -33,14 +34,22 @@ Options:
                        stops undecided (required)
   --tc TC              time control (default 10+0.1)
   --hash MB            hash size for every engine (default 64)
-  --concurrency N      games at once (default: physical cores minus two)
+  --concurrency N      games at once (or CONCURRENCY; default: physical
+                       cores minus two, at least one)
   --openings FILE      opening file in EPD format (required, or OPENINGS)
   --engines-json FILE  engine list for gauntlet opponents (or ENGINES_JSON)
-  --cutechess PATH     cutechess-cli to use (default: from PATH)
-  --out-dir DIR        where the PGN, log and notes go (default: matches)
+  --cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
+                       PATH)
+  --out-dir DIR        where the PGN, log and notes go (or MATCH_DIR;
+                       default: matches in the current directory)
   --label TEXT         added to the output file names
   --seed N             seed for the opening order (default: random)
   --deterministic      set Seed=822286742 and Variety=0 on the Vyvræl builds
+  --test-option NAME=VALUE
+                       a UCI option for the test build, for example
+                       UCI_Elo=1500; repeat it for more (not Threads or Hash)
+  --base-option NAME=VALUE
+                       the same for the base build (sprt and h2h)
   --low-priority       run at low priority (nice)
   --no-low-priority    do not, whatever the local settings say
   --dry-run            print the cutechess-cli command and stop
@@ -50,6 +59,11 @@ Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
 (VYVRAEL_CONCURRENCY, ...) or scripts/local.env; see
 scripts/local.env.example.
+
+Beside the PGN a run leaves a .log and .notes.txt (the command, the git
+commit and whether the repository had changes, each engine's file and
+SHA-256, the times, the outcome, the number of games and the PGN's
+SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
 EOF
 }
 
@@ -113,7 +127,9 @@ engines_json=$(setting ENGINES_JSON)
 cutechess=$(setting CUTECHESS_CLI)
 out_dir=$(setting MATCH_DIR)
 low_priority=$(setting LOW_PRIORITY)
-opponents=()
+opponents=() test_options=() base_options=()
+# The option arrays are often empty. Under set -u, bash before 4.4 calls an
+# empty "${array[@]}" unbound, so they are written ${array[@]+"${array[@]}"}.
 
 need() { [[ $# -ge 2 ]] || die "$1 needs a value"; }
 while [[ $# -gt 0 ]]; do
@@ -138,6 +154,8 @@ while [[ $# -gt 0 ]]; do
         --label) need "$@"; label=$2; shift 2 ;;
         --seed) need "$@"; seed=$2; shift 2 ;;
         --deterministic) deterministic=true; shift ;;
+        --test-option) need "$@"; test_options+=("$2"); shift 2 ;;
+        --base-option) need "$@"; base_options+=("$2"); shift 2 ;;
         --low-priority) low_priority=true; shift ;;
         --no-low-priority) low_priority=false; shift ;;
         --dry-run) dry_run=true; shift ;;
@@ -169,8 +187,9 @@ check_name() {
     # locale compares bytes; a range in a bash pattern or regular expression
     # follows the user's locale instead, and on Linux that refused plain
     # names such as "Vyvrael 0.1.0-a1".
-    other=$(printf '%s' "$name" | LC_ALL=C tr -d ' -~')
-    [[ -n $name && -z $other ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
+    # A "." after it keeps $(...) from dropping line breaks at the end.
+    other=$(printf '%s' "$name" | LC_ALL=C tr -d ' -~'; printf .)
+    [[ -n $name && $other == . ]] || die "$what '$name' must be plain ASCII (for example \"Vyvrael 0.1.0-a1\")"
     [[ $name != *'"'* && $name != *"'"* && $name != *'='* ]] || die "$what '$name' may not contain quotes or '='"
     [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$name' may not start or end with a space"
 }
@@ -179,8 +198,42 @@ check_engine_file() {
     [[ -f $path ]] || die "$what not found: $path"
     [[ -x $path ]] || die "$what is not executable: $path"
 }
+# Whether every byte of $1 is printable ASCII, space to "~". tr in the C
+# locale compares bytes (see check_name); the "." after it keeps $(...)
+# from dropping line breaks at the end, which would otherwise pass.
+is_plain() {
+    local rest
+    rest=$(printf '%s' "$1" | LC_ALL=C tr -d ' -~'; printf .)
+    [[ $rest == . ]]
+}
+# The UCI options given to one build, each NAME=VALUE.
+check_options() {
+    local what=$1 seen=$'\n' option name value lower
+    shift
+    for option in "$@"; do
+        [[ $option == ?*=?* ]] || die "$what '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
+        name=${option%%=*} value=${option#*=}
+        is_plain "$option" || die "$what '$option' must be plain ASCII"
+        [[ $option != *'"'* && $option != *"'"* && $option != *';'* ]] || die "$what '$option' may not contain quotes or ';'"
+        # Windows PowerShell 5.1 passes such an argument on wrongly when it
+        # also holds a space; refused in both scripts alike.
+        [[ $option != *'\' ]] || die "$what '$option' may not end with a backslash"
+        [[ $value != *=* ]] || die "$what '$option' may hold only one '='"
+        [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$option': the name may not start or end with a space"
+        # UCI option names are not case-sensitive.
+        lower=$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')
+        case $lower in
+            threads | hash) die "$what '$option': the script sets $name (one thread; --hash for the hash size)" ;;
+            seed | variety) [[ $deterministic == false ]] || die "$what '$option': --deterministic already sets $name" ;;
+        esac
+        [[ $seen != *$'\n'"$lower"$'\n'* ]] || die "$what: the option $name is given twice"
+        seen+="$lower"$'\n'
+    done
+}
+
 check_name "--test-name" "$test_name"
 check_engine_file "the test build (--test)" "$test_path"
+check_options "--test-option" ${test_options[@]+"${test_options[@]}"}
 
 # --- what each mode needs --------------------------------------------------
 
@@ -192,10 +245,12 @@ case $mode in
         check_engine_file "the base build (--base)" "$base_path"
         [[ $test_name != "$base_name" ]] || die "the two builds have the same name '$test_name'; the results could not be told apart"
         ((${#opponents[@]} == 0)) || die "--opponent is for gauntlet mode"
+        check_options "--base-option" ${base_options[@]+"${base_options[@]}"}
         ;;
     gauntlet)
         ((${#opponents[@]} > 0)) || die "gauntlet mode needs at least one --opponent"
         [[ -z $base_path && -z $base_name ]] || die "--base and --base-name are for sprt and h2h modes"
+        ((${#base_options[@]} == 0)) || die "--base-option is for sprt and h2h modes; an opponent's options are in the engine list"
         [[ -n $engines_json ]] || die "gauntlet mode needs the engine list: --engines-json, or ENGINES_JSON in scripts/local.env"
         [[ -f $engines_json ]] || die "engine list not found: $engines_json"
         ;;
@@ -309,20 +364,25 @@ fi
 # --- the command -----------------------------------------------------------
 
 slug=$(printf '%s' "$test_name" | tr -c 'A-Za-z0-9._-' '-')
+# VYVRAEL_MATCH_DATE replaces today's date in the file names; it is a hook
+# for the tests, which need names they can predict.
 stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode-$slug${label:+-$label}"
 pgn="$stem.pgn"
 
 build_options=(proto=uci option.Threads=1)
 # A fixed seed (the project's default, 0x31031996) and no variety.
 [[ $deterministic == true ]] && build_options+=(option.Seed=822286742 option.Variety=0)
+test_extra=() base_extra=()
+for option in ${test_options[@]+"${test_options[@]}"}; do test_extra+=("option.$option"); done
+for option in ${base_options[@]+"${base_options[@]}"}; do base_extra+=("option.$option"); done
 
 cmd=("$cutechess")
 [[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)
-cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}")
+cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" ${test_extra[@]+"${test_extra[@]}"})
 if [[ $mode == gauntlet ]]; then
     cmd+=("${opponent_args[@]}")
 else
-    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}")
+    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}" ${base_extra[@]+"${base_extra[@]}"})
 fi
 cmd+=(-each "tc=$tc" "option.Hash=$hash"
     -openings "file=$openings" format=epd order=random
@@ -341,6 +401,23 @@ if [[ $dry_run == true ]]; then
     exit 0
 fi
 
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes. Read-only: --no-optional-locks keeps git status
+# from refreshing (rewriting) the index. Read before anything is written
+# here, so that the run's own files cannot make the tree look dirty.
+repo_dir=$(cd "$script_dir/../.." && pwd)
+git_program=${VYVRAEL_GIT:-git}
+repo_state() {
+    local commit changes
+    if commit=$("$git_program" --no-optional-locks -C "$repo_dir" rev-parse HEAD 2>/dev/null) &&
+        changes=$("$git_program" --no-optional-locks -C "$repo_dir" status --porcelain 2>/dev/null); then
+        if [[ -n $changes ]]; then echo "$commit (dirty)"; else echo "$commit (clean)"; fi
+    else
+        echo "unknown (no git, or not a git repository)"
+    fi
+}
+repository=$(repo_state)
+
 mkdir -p "$out_dir" || die "cannot create the output folder $out_dir"
 [[ ! -e $pgn ]] || die "$pgn already exists; games would be mixed. Move it away or give another --label"
 
@@ -358,11 +435,32 @@ digest() {
 }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 engine_note() { printf '  %s\n    %s\n    %s\n' "$1" "$2" "$(digest "$2")"; }
+# The options given to a build, "; " between them, or "none".
+option_list() {
+    (($# > 0)) || { echo none; return; }
+    local list
+    list=$(printf '%s; ' "$@")
+    echo "${list%; }"
+}
+
+# The engine list a gauntlet used, copied beside the notes, so the
+# opponents' options stay on record even if the list changes later.
+engines_copy=""
+if [[ $mode == gauntlet ]]; then
+    engines_copy="$stem.engines.json"
+    cp -- "$engines_json" "$engines_copy" || die "cannot copy the engine list to $engines_copy"
+fi
 
 {
     echo "Vyvrael match run notes"
     echo "mode:       $mode"
     echo "started:    $(now)"
+    echo "repository: $repository"
+    if [[ -n $engines_copy ]]; then
+        echo "engines:    $engines_json (copied to $engines_copy)"
+    else
+        echo "engines:    no engine list used"
+    fi
     echo "host cores: $cores physical, $concurrency games at once"
     echo "cutechess:  $("$cutechess" -version 2>&1 | head -n 1)"
     echo "openings:   $openings"
@@ -377,6 +475,10 @@ engine_note() { printf '  %s\n    %s\n    %s\n' "$1" "$2" "$(digest "$2")"; }
     else
         engine_note "$base_name" "$base_path"
     fi
+    echo
+    echo "options given (--test-option, --base-option):"
+    echo "  $test_name: $(option_list ${test_options[@]+"${test_options[@]}"})"
+    [[ $mode == gauntlet ]] || echo "  $base_name: $(option_list ${base_options[@]+"${base_options[@]}"})"
     echo
     echo "command:"
     printf '  '
@@ -403,10 +505,19 @@ if [[ $mode == sprt ]]; then
     echo "SPRT outcome: $outcome"
 fi
 ((status == 0)) || outcome="cutechess-cli failed with status $status; $outcome"
+if [[ -f $pgn ]]; then
+    games=$(grep -c '^\[Event ' "$pgn" || true)
+    pgn_digest=$(digest "$pgn")
+else
+    games="0 (no PGN was written)"
+    pgn_digest="none"
+fi
 {
     echo
     echo "ended:      $(now)"
     echo "status:     $status"
     echo "outcome:    $outcome"
+    echo "games:      $games"
+    echo "pgn sha256: $pgn_digest"
 } >>"$notes"
 exit "$status"
