@@ -605,6 +605,23 @@ four times, "EngineProcess: Destroyed while process is still running"; each
 time between games, after one against Arasan, and no game was affected. The
 games were not kept in the repository.
 
+**Result for 0.1.0-alpha.2**, run on 2026-11-22 on the Windows workstation
+(six games at a time) with cutechess-cli 1.5.1 and the release's Windows
+binary, built from commit `105d8d5`. The gauntlet used `match.ps1` against
+the six core opponents of Ladder Baseline 2; the self-play gave both sides
+`Variety` 10 with `Seed` 0, as the Lichess bot will play.
+
+| Run | Games | Mate | Draw by rule | Adjudicated | Illegal moves, crashes, stalls, time losses |
+| --- | --- | --- | --- | --- | --- |
+| Gauntlet against Rodent IV-2000, Stockfish 19-1800, Stockfish 19-1320, CT800 1.46-1800, CT800 1.46-1500 and Nostradamus 0.4 | 48 | 20 | 4 | 24 | 0 |
+| Self-play with `Variety` 10 | 20 | 3 | 3 | 14 | 0 |
+
+`cutechess-cli` printed no warning in either log. In the self-play none of
+the ten opening pairs was played move for move twice: eight diverged at
+the first move after the opening position, the others at moves 3 and 7.
+Without `Variety`, three of ten pairs repeated in the self-play of
+0.1.0-alpha.1. The games were not kept in the repository.
+
 **This is a check that games complete, not a measurement of strength.**
 Forty games against five opponents say nothing reliable about a rating;
 that is milestone 6 (known issue KI-8).
