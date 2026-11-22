@@ -736,9 +736,9 @@ Part A, documents, tools and tests:
   checklist (prepare, gates, merge and tag by the maintainer, the workflow's
   draft, checks and publishing, the results file). `docs/prompts/release.md`
   and `AGENTS.md` "Releases" point to it instead of holding the steps.
-- [ ] `TESTING.md`: how to read an SPRT result.
-- [ ] `TESTING.md`: how to read Ordo output.
-- [ ] `TESTING.md`: what a sound Elo comparison needs (same machine, same
+- [x] `TESTING.md`: how to read an SPRT result.
+- [x] `TESTING.md`: how to read Ordo output.
+- [x] `TESTING.md`: what a sound Elo comparison needs (same machine, same
   settings, enough games) and the limits of results from different machines.
 - [ ] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
   the maintainer approved (2026-11-22): Ordo ratings on the scale of

@@ -764,17 +764,121 @@ games; for a gauntlet without Stockfish 19 give another, for example
 `--anchor "Vice 1.1" --anchor-rating -1436.2` to place it where the
 reference ladder, Ladder Baseline 2, has it.
 
-How to read the table:
+### Reading an SPRT result
 
-- **The order is the result.** The script prints it again on its own.
+While an SPRT runs, `cutechess-cli` prints after each game pair lines like
+these (the match script keeps them in the `.log`):
+
+```text
+Score of Vyvrael dev-1a2b3c4 vs Vyvrael 0.1.0-a2: 412 - 371 - 217  [0.521] 1000
+Elo difference: 14.3 +/- 19.0, LOS: 92.9 %, DrawRatio: 21.7 %
+SPRT: llr 1.83 (62.3%), lbound -2.94, ubound 2.94
+```
+
+- **`Score of A vs B: W - L - D [p] N`**: A's wins, losses and draws against
+  B, A's score as a fraction (0.521 is 52.1%) and the games played.
+- **`Elo difference: x +/- y`**: the difference that score implies, with a
+  95% margin. It is a running estimate, not the test's answer: early on
+  the margin is wide, and an SPRT does not stop when the margin excludes 0.
+  `LOS` is the likelihood that A is stronger at all; `DrawRatio` the share
+  of draws.
+- **`SPRT: llr L (P%), lbound a, ubound b`** is the test itself. LLR, the
+  log-likelihood ratio, weighs the evidence for H1 (the change gains at
+  least `elo1`) against H0 (it gains no more than `elo0`). It drifts up
+  when A does well, down when it does not, and the percentage says how far
+  it is towards the bound it is heading for. The bounds come from `alpha`
+  and `beta`: with 0.05 each, about ±2.94.
+- **The test ends when the LLR crosses a bound**, and the last `SPRT:` line
+  says which: `- H1 was accepted` (keep the change) or `- H0 was accepted`
+  (reject it). The script repeats it as "SPRT outcome". If the round cap
+  comes first the result is **undecided**: not an acceptance, whatever the
+  Elo line says.
+- **What an accepted H1 means:** with the chosen error rates, the change
+  is better by at least `elo0`, against this opponent, at this time
+  control, on this machine. It does not give the size of the gain: the Elo
+  line at the end is a rough estimate of that, with its margin.
+- Record the bounds, `alpha`, `beta`, the games, the final LLR and the
+  outcome in the commit message of the change (AGENTS.md).
+
+### Reading Ordo's output
+
+`rate.sh` and `rate.ps1` write Ordo's table as text and as CSV; the
+ladders' files under `docs/testing/` are examples:
+
+```text
+   # PLAYER                :   RATING  ERROR  POINTS  PLAYED   (%)
+   1 Stockfish 19          :      0.0   ----   111.5     116    96
+  13 Stockfish 19-2400     :  -1280.3  236.2    64.0     116    55
+White advantage = 4.03 +/- 3.16
+Draw rate (equal opponents) = 50.00 % +/- 0.00
+```
+
+- **`RATING`** is relative to the anchor (`-A`), whose rating is fixed
+  (`-a`, 0 by default): Stockfish 19 is 0 and everything weaker is negative.
+  The anchor has no error (`----`) because it is fixed, not measured.
+- **`ERROR`** is the margin, from Ordo's simulations (`-s 500`): roughly the
+  95% range either side of the rating. It changes a little between runs of
+  Ordo; the ratings do not. Two engines whose ranges overlap are not
+  separated.
+- **`POINTS`, `PLAYED` and `(%)`** are the raw results: a win is one point,
+  a draw half.
+- **`White advantage`** is estimated from the games (`-W`), so that the
+  colours do not bias the ratings. The **`Draw rate (equal opponents)`**
+  line shows 50% when Ordo did not estimate it; it is not a measurement.
+- **The order is the result.** The scripts print it again on its own.
 - **The distances are not.** When one engine wins nearly every game the
   scale stretches: Ladder Baseline 2 spans about 2,500 points, and Ladder
   Baseline 1 about 3,000, between engines that are not that far apart.
-- **The error column matters.** Two engines whose ranges overlap are not
-  separated. With 40 or 50 games each, the ranges are hundreds of points.
-- **Ratings are relative to the anchor**, on this machine, at this time
-  control. They are not CCRL or FIDE ratings.
-- A nominal `UCI_Elo` in an engine's name is a label, not its strength.
+- **Ratings belong to one Ordo run.** They exist only relative to the other
+  players and games of that run: a rating from one list cannot be put next
+  to a rating from another, unless both runs share the anchor and enough of
+  the same games. That is why a Vyvræl build is rated **together with
+  Baseline 2's games** in one run.
+- **Ratings are not CCRL, FIDE or Lichess ratings**, and a nominal
+  `UCI_Elo` in an engine's name is a label, not its strength.
+
+### What a sound Elo comparison needs
+
+Two builds, or a build and a ladder, can only be compared when everything
+but the engine is the same:
+
+- **The same machine**, and the same number of games at once. A faster
+  machine searches deeper at the same time control, and that changes the
+  result.
+- **The same settings:** time control, hash, threads, `Move Overhead`, the
+  opening file and its order, adjudication. The scripts fix all of them but
+  the time control and hash, and the ladder's games were played with them.
+  Games played with other settings (Ladder Baseline 1's own `Move
+  Overhead`, for example) are not merged into one rating.
+- **The same opponents**, or enough games against shared ones: a build that
+  only met weak engines and one that only met strong ones cannot be
+  ranked against each other.
+- **Enough games.** The margin shrinks with the square root of the games.
+  For evenly matched engines the 95% margin is about ±140 Elo at 20
+  games, ±90 at 50, ±45 at 200 and ±23 at 800 (20 games of self-play gave
+  ±143.7 in `cutechess-cli`); when the results are lopsided it is far
+  wider, which is why the ladder's ratings carry ±180 to ±290 after 116
+  games each. A difference smaller
+  than the margins is no difference. For deciding a change, use an SPRT,
+  which runs as long as the evidence needs.
+- **Full-strength builds with `Variety` 0**, unless the point is to measure
+  a limited setting. With `UCI_LimitStrength`, a fixed `Seed` makes the run
+  repeatable.
+- **A quiet machine.** Other work steals time from the engines and shows up
+  as time losses and weaker play; run long matches on an otherwise idle
+  machine.
+
+### Results from different machines
+
+Results from the Windows workstation and the Linux machine are **never
+compared**, and are never merged into one rating. The same build reaches
+different depths on them (the Linux machine is several times slower per
+core), so its rating would differ although the engine is the same, and
+the difference says nothing about the engine. Strength is measured on the
+Windows workstation, where the ladders were played; the Linux machine runs
+the Lichess bot and checks that builds work there. What does carry across
+machines: the bench node count (it must be equal everywhere), perft
+counts, test results, and whether games complete without failures.
 
 ### Pitfalls
 
