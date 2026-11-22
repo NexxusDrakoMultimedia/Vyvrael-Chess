@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
-"""The opponent engines of Ladder Baseline 2, pinned for Linux and Windows.
+"""The opponent engines of the ladder, pinned for Linux and Windows: Ladder
+Baseline 2's, less the names in RETIRED, and the engines new in Ladder
+Baseline 3 (NEW_IN_BASELINE_3).
 
 Which engines, versions and names: docs/testing/ladder-Baseline-2.md and its
 ratings files, which are the source of truth. This module records where each
 one comes from on Linux and how the names of the ladder map to binaries; the
 installer (install_tools.py) acts on it. Vyvræl itself is not in it.
 
-Every source was read on its project's own page or repository on 2026-11-21.
+Every source was read on its project's own page or repository on 2026-11-21,
+those new in Baseline 3 on 2026-11-22.
 Target: x86-64 with AVX2 and BMI2. Nothing here is built for AVX-512 or for
 "the machine it is built on" (-march=native): a build names its architecture.
 
@@ -103,7 +106,7 @@ ENGINES = [
         "threads": True,
         "limit": (1000, 3450),
         "options": [("OwnBook", False), ("Use tablebases", False), ("Move overhead", 30)],
-        "variants": [1500, 1800],
+        "variants": [1500],
         "notes": "One archive holds the avx2 build and the avx2-bmi2 build, whose sliding-"
         "piece attacks use PEXT (the project's Makefile: BUILD_TYPE=avx2-bmi2 adds -DBMI2), "
         "so the build only changes which file is installed. The avx2 file's name follows "
@@ -112,7 +115,8 @@ ENGINES = [
         "file must sit beside the binary. The engine's own book (book.bin) is installed "
         "beside it too, as in Ladder Baseline 1, but switched off with OwnBook, as in "
         "Ladder Baseline 2. UCI_Elo moves in steps of about 24.5: "
-        "1500 and 1800 play as 1490 and 1784 on the engine's own scale.",
+        "1500 plays as 1490 on the engine's own scale. Its 1800 entry of Ladder Baseline "
+        "2 is retired (see RETIRED).",
     },
     {
         "name": "Viridithas 20",
@@ -545,6 +549,333 @@ ENGINES = [
         "ladder's values are far below it. Its notes for 1.46 warn that the strength "
         "limit can play up to 50 Elo stronger, not weaker, at under 15 seconds a move.",
     },
+    {
+        "name": "Blunder 4.0.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/deanmchris/blunder/releases/download/"
+            "v4.0.0/blunder-4.0.0.zip",
+            "sha256": "2c3ad87d3ed70158388e803bef34a1ddefe9d9900ca6270b9d215e460c2eafe9",
+            "archive": "zip",
+            "binary": "blunder-4.0.0/windows/blunder.exe",
+            "member_sha256": "3af0456db698d937d9982770b6b1980671cddb60441705f3d7db62562b51b648",
+        },
+        "version": "v4.0.0",
+        "source": "https://github.com/deanmchris/blunder",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/deanmchris/blunder/releases/download/"
+        "v4.0.0/blunder-4.0.0.zip",
+        "sha256": "2c3ad87d3ed70158388e803bef34a1ddefe9d9900ca6270b9d215e460c2eafe9",
+        "archive": "zip",
+        "binary": "blunder-4.0.0/linux/blunder",
+        "member_sha256": "ddcd28173bd7412c217107c0b17c36ddb84e1ff3f3aa90cb8e7b838412b99834",
+        "hash": False,
+        "threads": False,
+        "limit": None,
+        "notes": "New in Ladder Baseline 3. Christian Dean's Go engine (the repository moved from "
+        "algerbrex/blunder to deanmchris/blunder; the old address redirects). One official "
+        "zip holds the Linux and the Windows program, both static x86-64 builds with no "
+        "processor level named and no AVX-512. Single-threaded, no move-overhead option, no "
+        "strength limit. GitHub publishes no digest for these 2021 files; these are what it "
+        "served on 2026-11-22. It has no UCI options at all.",
+    },
+    {
+        "name": "Blunder 5.0.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/deanmchris/blunder/releases/download/"
+            "v5.0.0/blunder-5.0.0.zip",
+            "sha256": "6d78c63bbc7eefa2a074c82321d79da52fd3b791ff2c0a5581c78f0356fa69e9",
+            "archive": "zip",
+            "binary": "blunder-5.0.0/windows/blunder.exe",
+            "member_sha256": "715d196e0bb1cb04be8693c97c3f1680a8b16a8e2e9e7a74cda16c008e0ae923",
+        },
+        "version": "v5.0.0",
+        "source": "https://github.com/deanmchris/blunder",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/deanmchris/blunder/releases/download/"
+        "v5.0.0/blunder-5.0.0.zip",
+        "sha256": "6d78c63bbc7eefa2a074c82321d79da52fd3b791ff2c0a5581c78f0356fa69e9",
+        "archive": "zip",
+        "binary": "blunder-5.0.0/linux/blunder",
+        "member_sha256": "e7e50b5d352ae5c6a1b10448dfb81dd4612980d3a95a77eadf2be2fd5d3cef2c",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "See Blunder 4.0.0. It advertises Hash (1 to 256 MB, default 32), but its "
+        "handler at v5.0.0 resizes the table only when the value fails to parse, so a valid "
+        "Hash is ignored and it keeps its built-in 64 MB, the ladder's value anyway.",
+    },
+    {
+        "name": "Blunder 7.1.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/deanmchris/blunder/releases/download/"
+            "v7.1.0/blunder-7.1.0.zip",
+            "sha256": "59670c5290e00e8ab89ef9413ceb3aa7e14665bb97e2df0c3b24da108133dd3e",
+            "archive": "zip",
+            "binary": "blunder-7.1.0/windows/blunder.exe",
+            "member_sha256": "f9ac2cf20040afb626d526e2e71683163abf1f1707e29ea7cb655115ff61fc23",
+        },
+        "version": "v7.1.0",
+        "source": "https://github.com/deanmchris/blunder",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/deanmchris/blunder/releases/download/"
+        "v7.1.0/blunder-7.1.0.zip",
+        "sha256": "59670c5290e00e8ab89ef9413ceb3aa7e14665bb97e2df0c3b24da108133dd3e",
+        "archive": "zip",
+        "binary": "blunder-7.1.0/linux/blunder",
+        "member_sha256": "06e85653d59a80baaf4cee418844932dd7887a8ffb369f61f5e8e167b5afb7bf",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "See Blunder 4.0.0.",
+    },
+    {
+        "name": "Blunder 7.6.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/deanmchris/blunder/releases/download/"
+            "v7.6.0/blunder-7.6.0.zip",
+            "sha256": "b6e7a29b09df81be2ad53b5acc378e3a431dcf21d91c98feb47b2e34b5388917",
+            "archive": "zip",
+            "binary": "blunder-7.6.0/windows/blunder-windows.exe",
+            "member_sha256": "15c76fe1bf16d1f35ce1173c74788588dcd01dac59b5bc5353c67de1c2c19ac6",
+        },
+        "version": "v7.6.0",
+        "source": "https://github.com/deanmchris/blunder",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/deanmchris/blunder/releases/download/"
+        "v7.6.0/blunder-7.6.0.zip",
+        "sha256": "b6e7a29b09df81be2ad53b5acc378e3a431dcf21d91c98feb47b2e34b5388917",
+        "archive": "zip",
+        "binary": "blunder-7.6.0/linux/blunder-linux",
+        "member_sha256": "5a955fe1e0b935db7551eaa5afa61d1a8dafa4a976f0d8a906d5dd358dbed1d9",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "options": [("UseBook", False)],
+        "notes": "See Blunder 4.0.0. It can read a Polyglot book (UseBook, off by default, and no "
+        "book ships with it); the ladder sets it off anyway, as for every engine. Its "
+        "contempt options keep their defaults.",
+    },
+    {
+        "name": "MinimalChess 0.4.1",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+            "v0.4/MinimalChess.0.4.1.Windows.zip",
+            "sha256": "fd5a85751525a21cf4da927b2ce13594e26fd9babbbad9624c2883b60675d16a",
+            "archive": "zip",
+            "binary": "MinimalChess 0.4.1 Windows/MinimalChessEngine.exe",
+            "member_sha256": "55147a2ae5c2e8d3dfe86e9d392740cc091c112b21f16b57329341a67e30bfc6",
+        },
+        "version": "v0.4 (the program reports 0.4.1; .NET Core 3.1)",
+        "source": "https://github.com/lithander/MinimalChessEngine",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+        "v0.4/MinimalChess.0.4.1.Linux.zip",
+        "sha256": "cf6ea66b0be29cec562d448218cb22bf5515320dc3c890cd1c807182ce838f20",
+        "archive": "zip",
+        "binary": "MinimalChess 0.4.1 Linux/MinimalChessEngine",
+        "member_sha256": "555c46a038e9e497fdbc41de8cf178ad1e9658ae973bee29b0343a361f17497e",
+        "hash": False,
+        "threads": False,
+        "limit": None,
+        "notes": "New in Ladder Baseline 3. Thomas Jahn's C# engine. Each official zip holds one "
+        "self-contained .NET single-file program: no .NET runtime needs to be installed. "
+        "As a .NET Core 3.1 bundle it unpacks itself to a temporary directory on its first "
+        "start. It offers no UCI option at all (a leftover PieceSquareTables routine in its "
+        "source is never called); single-threaded, no book, no strength limit. "
+        "GitHub publishes no digest; these are what it served on 2026-11-22.",
+    },
+    {
+        "name": "MinimalChess 0.5",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+            "v0.5/MinimalChess.0.5.Windows.zip",
+            "sha256": "a766db43e76e121a5335af4359dc35e808be62514cd8e5b95a02e6b9e8c10b84",
+            "archive": "zip",
+            "binary": "MinimalChess 0.5 Windows/MinimalChessEngine.exe",
+            "member_sha256": "bf1e8a542e1040771f72d0dc53d6ebe4198b3a9bce1af2f35640a63d18ac6496",
+        },
+        "version": "v0.5 (the program reports 0.5; .NET 5.0)",
+        "source": "https://github.com/lithander/MinimalChessEngine",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+        "v0.5/MinimalChess.0.5.Linux.zip",
+        "sha256": "367baea84b0630c2235da83092522cbb038f5e93df824341dc23a86f99e892c0",
+        "archive": "zip",
+        "binary": "MinimalChess 0.5 Linux/MinimalChessEngine",
+        "member_sha256": "4835312524ed1893eb0f40cd98aa76323f8a43f78e0599e504a8a1213e0b7549",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "See MinimalChess 0.4.1; a .NET 5 bundle, which does not unpack itself. "
+        "Its one UCI option is Hash, up to 2047 MB.",
+    },
+    {
+        "name": "MinimalChess 0.6",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+            "v0.6/MinimalChess.0.6.Windows.zip",
+            "sha256": "ca0cf1c04c26697e18be003aea35d151545379d27d96d68c4a97610ea5c8d86a",
+            "archive": "zip",
+            "binary": "MinimalChess 0.6 Windows/MinimalChessEngine.exe",
+            "member_sha256": "99623e8fbf07fe91586cd612b3dc3041dabf1652e8954a6dcf68eaa6ee58d4e2",
+        },
+        "version": "v0.6 (the program reports 0.6; .NET 5.0)",
+        "source": "https://github.com/lithander/MinimalChessEngine",
+        "licence": "MIT",
+        "method": "download",
+        "url": "https://github.com/lithander/MinimalChessEngine/releases/download/"
+        "v0.6/MinimalChess.0.6.Linux.zip",
+        "sha256": "b1dacf326ae50eb3ac76c5fdbb1f5dfd114ba1b787d35376f28bfa3e4ce2e6d7",
+        "archive": "zip",
+        "binary": "MinimalChess 0.6 Linux/MinimalChessEngine",
+        "member_sha256": "8e1b8c85b6318f980e0520d0ad45e9b0ed91c85a5dba9e10a4db4944d836165e",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "See MinimalChess 0.5. The project's latest release.",
+    },
+    {
+        "name": "Velvet 1.0.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/mhonert/velvet-chess/releases/download/"
+            "v1.0.0/velvet-v1.0.0-x86_64-modern.exe",
+            "sha256": "338d7d0606dc40097e373251e414f9d9b56c6ab9095367cd92f62ec18d41b163",
+            "archive": "none",
+            "binary": "velvet-v1.0.0-x86_64-modern.exe",
+        },
+        "version": "v1.0.0",
+        "source": "https://github.com/mhonert/velvet-chess",
+        "licence": "GPL-3.0-or-later",
+        "method": "download",
+        "url": "https://github.com/mhonert/velvet-chess/releases/download/"
+        "v1.0.0/velvet-v1.0.0-x86_64-modern",
+        "sha256": "712440e9103f2091e77c6a44115ee56477bcdb1790cd89499467b0d936bd518d",
+        "archive": "none",
+        "binary": "velvet-v1.0.0-x86_64-modern",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "New in Ladder Baseline 3. A Rust engine, its first release, "
+        "with a hand-crafted evaluation. The release has no AVX2 file; 'modern' (popcnt, "
+        "lzcnt, BMI1) is its fastest x86-64 build, used for both builds. Both digests are "
+        "the ones in the release's own checksums.txt. Single-threaded, Hash only, no "
+        "move-overhead option, no book, no strength limit.",
+    },
+    {
+        "name": "Inanis 1.0.1",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/Tearth/Inanis/releases/download/"
+            "v1.0.1/inanis_1.0.1_windows_64bit_x86-64_popcnt.zip",
+            "sha256": "b921ae857eef274f76a16e55382b04202397e8538dedef3581f462475fd6c3be",
+            "archive": "zip",
+            "binary": "inanis.exe",
+            "member_sha256": "3be5b6cecebb64df87cafc3daf1761360647a25efe8d2687a4db528faa37b681",
+            "pext": {
+                "url": "https://github.com/Tearth/Inanis/releases/download/"
+                "v1.0.1/inanis_1.0.1_windows_64bit_x86-64_popcnt_bmi2.zip",
+                "sha256": "01ea557322596abac6a56c2e60a92cbd5b2ef70a4ae835b60b4234c35d1fde0a",
+                "member_sha256": "4e3ed4dafd1c39a66f873f2a7f0ac7f4bb99f1fb0db7cb0aeeb8b33939493bda",
+            },
+        },
+        "version": "v1.0.1",
+        "source": "https://github.com/Tearth/Inanis",
+        "licence": "GPL-3.0",
+        "method": "download",
+        "url": "https://github.com/Tearth/Inanis/releases/download/"
+        "v1.0.1/inanis_1.0.1_linux_64bit_x86-64_popcnt.zip",
+        "sha256": "e29d2e0ffad2dad410f08554df2c798191992134c7a28a74bf79cda98612fbdc",
+        "archive": "zip",
+        "binary": "inanis",
+        "member_sha256": "f62a80b72be3ef11f82f8265de4678ff85f71e2e34e7b61e29445228ab50fd17",
+        "pext": {
+            "url": "https://github.com/Tearth/Inanis/releases/download/"
+            "v1.0.1/inanis_1.0.1_linux_64bit_x86-64_popcnt_bmi2.zip",
+            "sha256": "397b2c76f5774b11773bc4103645d7a71e9c8bb32ea1323abea0d619a9b81f11",
+            "member_sha256": "3d141db07dbcb72e71af151733b22955f21d88d5bf33da44dbd223c5e47f86bd",
+        },
+        "hash": True,
+        "threads": True,
+        "limit": None,
+        "options": [("Move Overhead", 30)],
+        "notes": "New in Ladder Baseline 3. A Rust engine with a hand-crafted "
+        "evaluation and no network file. Each official zip holds the program flat, beside "
+        "an icon and the licence. It has no AVX2 build: the popcnt file is the default "
+        "build and the popcnt_bmi2 file the pext build. Its licence file is the GPL v3 "
+        "text, and neither its README, its sources nor its Cargo.toml (which has no licence "
+        "field at v1.0.1) says 'or later'. GitHub publishes no digest; "
+        "these are what it served on 2026-11-22.",
+    },
+    {
+        "name": "Tantabus 1.0.2",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/analog-hors/tantabus/releases/download/"
+            "v1.0.2/tantabus-windows-2019-x86-64-v3.exe",
+            "sha256": "5da552a4459e52e0df37186cf0f7298e8f1bab936be2a1dcf5bf8c129074cfd0",
+            "archive": "none",
+            "binary": "tantabus-windows-2019-x86-64-v3.exe",
+        },
+        "version": "v1.0.2",
+        "source": "https://github.com/analog-hors/tantabus",
+        "licence": "MPL-2.0",
+        "method": "download",
+        "url": "https://github.com/analog-hors/tantabus/releases/download/"
+        "v1.0.2/tantabus-ubuntu-20.04-x86-64-v3",
+        "sha256": "01ba05307ea561755c3594b8edf52f46bf24736798fcb6765f440fd5da1df012",
+        "archive": "none",
+        "binary": "tantabus-ubuntu-20.04-x86-64-v3",
+        "hash": True,
+        "threads": False,
+        "limit": None,
+        "notes": "New in Ladder Baseline 3. A Rust engine. The x86-64-v3 (AVX2) files of "
+        "the release are used for both builds. MPL-2.0 is compatible with the GPL: no "
+        "source file carries the 'Incompatible With Secondary Licenses' notice (checked "
+        "at the tag on 2026-11-22). Single-threaded, Hash only of the ladder's settings; "
+        "its own time options (PercentTimePerMove, MinimumTimeUsedPerMove) keep their "
+        "defaults and it has no move-overhead option, no book and no strength limit. "
+        "GitHub publishes no digest; these are what it served on 2026-11-22.",
+    },
+    {
+        "name": "Tantabus 2.0.0",
+        "windows": {
+            "method": "download",
+            "url": "https://github.com/analog-hors/tantabus/releases/download/"
+            "v2.0.0/tantabus-windows-2019-x86-64-v3.exe",
+            "sha256": "8c343ed1797c923b34870fb0b52d1f88699a68e329c38135b211782fa20f864e",
+            "archive": "none",
+            "binary": "tantabus-windows-2019-x86-64-v3.exe",
+        },
+        "version": "v2.0.0",
+        "source": "https://github.com/analog-hors/tantabus",
+        "licence": "MPL-2.0",
+        "method": "download",
+        "url": "https://github.com/analog-hors/tantabus/releases/download/"
+        "v2.0.0/tantabus-ubuntu-20.04-x86-64-v3",
+        "sha256": "3ef81dfde621b47f483aa7a402c42e9406ea6fd1fabf63e86a34b6ee2b92d522",
+        "archive": "none",
+        "binary": "tantabus-ubuntu-20.04-x86-64-v3",
+        "hash": True,
+        "threads": True,
+        "limit": None,
+        "notes": "As Tantabus 1.0.2 (licence checked the same way at v2.0.0), with one "
+        "difference: it also offers Threads, a spin from 1 to 1 that does nothing, so it is "
+        "still single-threaded; the ladder sends 1 as for every engine with the option.",
+    },
     # Engines with a Windows program only; NOT_INSTALLABLE["linux"] says why.
     {
         "name": "Ethereal 12.75",
@@ -640,6 +971,28 @@ NOT_INSTALLABLE = {"linux": {
     "need a Python environment with PyTorch, which the installer does not set up (the "
     "maintainer's decision, 2026-11-21).",
 }, "windows": {}}
+
+# Engines added for Ladder Baseline 3, beside Ladder Baseline 2's: real
+# full-strength rungs, from about 1600 to 2700 on the CCRL Blitz list (read on
+# 2026-11-22; those are CCRL's ratings of these engines, not a scale Vyvrael
+# has been measured on). They give the ladder more full-strength rungs around
+# and above the entries 0.1.0-alpha.2 placed between on Ladder Baseline 2's
+# own scale, for when milestone 7 moves it. They are not in Baseline 2's record.
+NEW_IN_BASELINE_3 = [
+    "Blunder 4.0.0", "Blunder 5.0.0", "Blunder 7.1.0", "Blunder 7.6.0",
+    "MinimalChess 0.4.1", "MinimalChess 0.5", "MinimalChess 0.6",
+    "Velvet 1.0.0", "Inanis 1.0.1", "Tantabus 1.0.2", "Tantabus 2.0.0",
+]
+
+# Names of Ladder Baseline 2 that the installer no longer provides, and why.
+# They stay in the baseline's record; they are left out of the ladder from
+# Ladder Baseline 3 on.
+RETIRED = {
+    "Arasan 26.1-1800": "Too weak to tell Vyvrael builds apart: 13.5 points of 116 in Ladder "
+    "Baseline 2, and not an opponent in the UCI_Elo calibration, unlike CT800 1.46-1200 "
+    "and Arasan 26.1-1500, which are kept as its lowest rungs (the maintainer's decision, "
+    "2026-11-22).",
+}
 
 # What every engine of the ladder is given, as in the baselines. Each pin's
 # `options` add the rest of Ladder Baseline 2's settings: books and online
