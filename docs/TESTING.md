@@ -910,6 +910,35 @@ is added to its rating. Some points of the ladder on this scale:
 The current settings (400 to 1800) are not on this scale yet: they are
 uncalibrated labels until the calibration of milestone 6 refits them.
 
+### Smoke test of the scripts (Windows workstation, 2026-11-22)
+
+`match.ps1` and `rate.ps1` were run for real once in each mode, at the
+settings above with `-Seed 1` and `-Label smoke`, from the clean commit
+`d7f05b3`. The current build was byte for byte 0.1.0-alpha.2 (SHA-256
+`1b0d518f…c81ad3`, the release asset), since no engine code had changed
+since then, so the published exe stood in for it.
+
+| Run | Games | What it showed |
+| --- | --- | --- |
+| `sprt`, alpha.2 against alpha.1, 10 rounds | 20 | Ended undecided at the round cap (LLR −0.129), as 20 games must; the notes say so in words. |
+| `h2h`, alpha.2 with `-TestOption UCI_LimitStrength=true, UCI_Elo=1500, Seed=1` against alpha.1, 5 rounds | 10 | The options reached the limited build only, and the notes list them for each build. |
+| `gauntlet`, alpha.2 against Vice 1.1 and Rustic Alpha 1.5, 5 rounds | 20 | Opponents and their options came from the engine list, which was copied beside the notes byte for byte. |
+| `rate.ps1` over the `sprt` and `h2h` games, anchored on alpha.1 | 30 | A table, a CSV and the order. |
+
+Every run's notes had the commit marked clean, each engine's file and
+SHA-256, the right game count and the PGN's SHA-256. No game was lost on
+time or by a crash; every game ended by mate, adjudication or a drawing
+rule. The only warnings in the logs were cutechess-cli's "Rustic Alpha
+1.5 doesn't have option Hash", which is harmless: `-each` offers a hash
+size to every engine, and that version has none. These are too few games to say anything about
+strength, and no rating from them is quoted anywhere.
+
+Rating all three files together failed, and rightly: Vice 1.1 won all ten
+of its games, so Ordo found a group linked to the rest by wins only (see
+"Pitfalls"). `rate.ps1` stopped with Ordo's status. Ordo had already
+created the two output files, which stay behind empty; that is reported
+in the milestone 6 report and not changed here.
+
 ### Results from different machines
 
 Results from the Windows workstation and the Linux machine are **never
@@ -928,6 +957,12 @@ counts, test results, and whether games complete without failures.
   Micro-Max were dropped from the baseline for this reason: every game
   began from an EPD position they could not set up, so the run was invalid.
   Only UCI engines belong in a match that uses the opening file.
+- **Ordo cannot rate across one-way results.** If a player (or a group)
+  only won, or only lost, against the rest, Ordo reports "Database is not
+  well connected" and stops, whichever anchor is given, even after it
+  drops the player with a perfect score. `-g FILE` shows the groups. Give
+  such a pairing more games, choose opponents closer in strength, or
+  leave those games out of the rating; do not force it with `-G`.
 - **An undecided SPRT is not a pass.** Raise the round cap and run again,
   or treat the change as unproven.
 - **Do not compare across machines.** A build measured on the workstation

@@ -772,7 +772,7 @@ Part A, documents, tools and tests:
 
 Part B, measuring (the maintainer plays, the agent records):
 
-- [ ] The scripts smoke-tested for real on the Windows workstation (a short
+- [x] The scripts smoke-tested for real on the Windows workstation (a short
   run of each mode and a rating) and the result recorded in `TESTING.md`.
 - [ ] KI-8: a gauntlet of the current build against the core opponents of
   Ladder Baseline 2 ("Using the ladder for Vyvræl"), rated together with
