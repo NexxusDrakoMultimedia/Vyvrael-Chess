@@ -43,9 +43,18 @@ On a branch `release/<version>` from `main`:
       `pext` where PEXT is fast (Intel, and AMD from Zen 3), from 0.2.0 on;
       the plain file only for older machines. They say **what is measured
       and what is not**, and cite the results file under `docs/testing/`
-      and the Ordo rating **for the exact build released**. For 0.1.0 the
+      and the Ordo rating **for the release's source**. For 0.1.0 the
       `UCI_Elo` calibration and the rating are **provisional**; say so.
       No strength claim without a measurement behind it.
+      **Which build is measured:** the released binaries only exist once
+      the workflow has run (step 4), after the notes are fixed in the
+      tagged commit. So the rating is measured beforehand, on the Windows
+      workstation, with an `avx2` build (`-C target-cpu=x86-64-v3`) of
+      the release's source, and the notes say so: same source and build
+      level as the released `avx2` file, built by hand with the local
+      toolchain, not the workflow's binary itself. Its search is the
+      same, which the bench count shows; only its speed may differ
+      slightly.
 
 ## 2. Gates (agents, then the maintainer confirms)
 
