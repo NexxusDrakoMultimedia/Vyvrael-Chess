@@ -39,8 +39,10 @@ agent stops and says so.
   and after the branding in [ROADMAP.md](ROADMAP.md) is done. Before
   enabling it, the maintainer re-reads the Terms of Service and the Bot API
   documentation, because Lichess may change them.
-- **Strength is unmeasured.** Nothing in the bot's profile or anywhere else
-  says how strong it is until milestone 6 has measured it.
+- **Strength is measured only on the project's own ladder.** Milestone 6
+  measured 0.1.0-alpha.2 there ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)):
+  an ordering against other engines, not a Lichess, CCRL or FIDE rating.
+  Nothing in the bot's profile quotes it as one.
 - **lichess-bot only ever runs on the maintainer's Linux machine**, the one
   that is always on. It is not installed or started on the Windows
   workstation, which is for development and for watching games.

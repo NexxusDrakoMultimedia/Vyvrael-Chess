@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
 #
-# PROPOSAL, not active. Agents do not edit .github/workflows; the maintainer
-# copies this file to .github/workflows/release.yml after review. It has not
-# run yet: do not rely on it until it has run once on a test tag.
+# The reviewed proposal of the release workflow. It was installed as
+# .github/workflows/release.yml on 2026-11-22 with the maintainer's approval
+# and passed its trial on the test tag v0.1.0-rc.0 the same day. Agents do
+# not edit .github/workflows without the maintainer's approval.
 # What it does and why: docs/proposals/release-workflow.md.
 #
 # Builds the release binaries for a pushed version tag and creates a DRAFT

@@ -69,8 +69,8 @@ On a branch `release/<version>` from `main`:
       Recorded in `TESTING.md`.
 - [ ] For 0.1.0 and later, the milestone's own requirements from the
       "Releases" table (for 0.1.0: the scripts documented and
-      smoke-tested, `UCI_Elo` calibrated, KI-8 resolved, a measured Ordo
-      rating in the notes).
+      smoke-tested, `UCI_Elo` calibrated, KI-8 measured for the build
+      released, a measured Ordo rating in the notes).
 
 ## 3. Merge and tag (the maintainer)
 

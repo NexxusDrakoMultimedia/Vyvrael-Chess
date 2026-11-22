@@ -1147,8 +1147,8 @@ strength, and no rating from them is quoted anywhere.
 Rating all three files together failed, and rightly: Vice 1.1 won all ten
 of its games, so Ordo found a group linked to the rest by wins only (see
 "Pitfalls"). `rate.ps1` stopped with Ordo's status. Ordo had already
-created the two output files, which stay behind empty; that is reported
-in the milestone 6 report and not changed here.
+created the two output files, which stay behind empty; that is recorded as
+known issue KI-13 in `ROADMAP.md`.
 
 ### Results from different machines
 

@@ -123,8 +123,8 @@ itself, which it is expected to do when an engine does not exit after
 does not say why. In the `UCI_Elo` calibration runs the same message was
 logged once each for a limited Vyvræl, CT800 1.46-1500 and Stockfish
 19-1500, so it is not particular to Vyvræl (see "Calibration of `UCI_Elo`"
-in [TESTING.md](../TESTING.md)). The soak test of milestone 6 looks for it
-at other time controls.
+in [TESTING.md](../TESTING.md)). The soak test of milestone 6, at three
+other time controls, saw it no more (see "Soak test" in TESTING.md).
 
 ## How to read this
 
