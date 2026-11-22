@@ -534,7 +534,9 @@ measured (milestone 6, known issue KI-8) by gauntlets against the lower
 rungs, with a separate results file; it must not be inserted into a baseline
 file or inferred from it. A first snapshot of 0.1.0-alpha.1, from before
 milestone 6 and against Ladder Baseline 1, is in
-[`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md).
+[`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md); the
+milestone 6 measurement of 0.1.0-alpha.2, against Ladder Baseline 2, is in
+[`results-0.1.0-alpha.2.md`](testing/results-0.1.0-alpha.2.md).
 
 - **Fixed settings of Ladder Baseline 2:** round robin, two rounds of two
   games per pairing with sides swapped (four games per pairing, 1,740 games,

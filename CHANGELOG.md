@@ -21,6 +21,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 - **A robustness test for the UCI loop:** seeded streams of malformed and
   unexpected input (random bytes, broken FENs, oversized and truncated
   lines, odd option values, commands during a search). It found no panic.
+- **A first measurement of strength** (known issue KI-8): 1,000 games of
+  0.1.0-alpha.2 against Ladder Baseline 2's rungs, rated with Baseline 2.
+  It places Vyvræl between Stockfish 19-1800 and Rodent IV-2000 on that
+  ladder's own scale, which is not an Elo (`docs/testing/results-0.1.0-alpha.2.md`).
 
 ### Fixed
 

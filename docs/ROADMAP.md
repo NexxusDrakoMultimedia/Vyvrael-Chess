@@ -120,7 +120,7 @@ design behind each one is explained in [ARCHITECTURE.md](ARCHITECTURE.md).
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
 | KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation's strength is unmeasured.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic), but its values and tables have never been tested in play. | Unknown playing strength; the numbers are reasoned, not tuned. | Milestone 6: measure the engine against the opponent ladder with gauntlets and Ordo, and record the rating. Resolved in milestone 6 for the build measured, and re-measured after milestone 7. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 (the current build) on Ladder Baseline 2: between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 
 ## Milestone 2: move generation
@@ -182,7 +182,8 @@ evaluation stays as fallback and baseline.
 Evaluation cannot be judged by SPRT yet: that needs search (milestone 4) and
 the match scripts. Until then it is checked for correctness
 only (symmetry, known material balances, phase arithmetic), and its strength
-is recorded as unmeasured in known issue KI-8.
+was recorded as unmeasured in known issue KI-8 (first measured in
+milestone 6).
 
 The piece-square tables are written for this project from general chess
 principles (they are not copied from another engine), leaning towards the
@@ -290,8 +291,9 @@ that milestone starts, and must include the known issues due in it:
   by the maintainer. Rated play only later, after milestone 7 and the
   branding (see "Playing on Lichess with lichess-bot").
 - Milestone 5: none left (KI-3 and KI-7 were fixed in it).
-- Milestone 6: calibration of `UCI_Elo`; KI-8.
-- Milestone 7: KI-9, KI-10.
+- Milestone 6: calibration of `UCI_Elo` (KI-8 was measured for
+  0.1.0-alpha.2).
+- Milestone 7: KI-9, KI-10; KI-8 measured again.
 - Not yet scheduled: KI-2, KI-11.
 
 ## Planned features
@@ -519,6 +521,9 @@ Results recorded so far:
 - [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md): the first
   alpha against the lower rungs of the ladder, a snapshot from before
   milestone 6.
+- [`results-0.1.0-alpha.2.md`](testing/results-0.1.0-alpha.2.md): the
+  milestone 6 measurement (KI-8), 1,000 games against Ladder Baseline 2's
+  rungs, rated with Baseline 2.
 
 ## Queued work (requested 2026-11-21)
 
@@ -774,7 +779,7 @@ Part B, measuring (the maintainer plays, the agent records):
 
 - [x] The scripts smoke-tested for real on the Windows workstation (a short
   run of each mode and a rating) and the result recorded in `TESTING.md`.
-- [ ] KI-8: a gauntlet of the current build against the core opponents of
+- [x] KI-8: a gauntlet of the current build against the core opponents of
   Ladder Baseline 2 ("Using the ladder for Vyvræl"), rated together with
   Baseline 2's games in one Ordo run anchored on Stockfish 19, recorded in
   `docs/testing/results-<build>.md` with Ordo's output. KI-8 is updated for

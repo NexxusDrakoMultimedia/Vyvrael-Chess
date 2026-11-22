@@ -24,8 +24,10 @@ test suite, the documentation and a small-commit history. See
 
 **Alpha (0.1.0-alpha.2): milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged; queued task 1 (the options `Seed` and `Variety`, and `bench`) is complete and merged.** The engine plays chess: it speaks UCI, so it can be used in a
 GUI and in match tools. It is still weak and slow, because the search has no
-move ordering or transposition table yet (milestone 7), and its strength has
-not been measured (milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
+move ordering or transposition table yet (milestone 7). Its strength on the
+project's own opponent ladder, an ordering rather than an Elo, is in
+[docs/testing/results-0.1.0-alpha.2.md](docs/testing/results-0.1.0-alpha.2.md)
+(milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
 milestone plan and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
