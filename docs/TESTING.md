@@ -746,8 +746,14 @@ different machines or settings are not comparable.
 Each run leaves three files in the output folder (`matches/`, git-ignored),
 named `<date>-<mode>-<build>`: the `.pgn`, a `.log` of the progress, and
 `.notes.txt` with the exact command, each engine's name, file and SHA-256,
-the `cutechess-cli` version, the start and end times and the outcome. Keep
-the notes with any result you record. A script refuses to add games to a
+the `cutechess-cli` version, the start and end times and the outcome. The
+notes also give the repository the script ran from (its commit, and whether
+the working tree was clean or dirty, read with `git` and nothing else; set
+`VYVRAEL_GIT` to use another `git`), and at the end the number of games in
+the PGN and the PGN's SHA-256. A gauntlet also leaves a fourth file,
+`.engines.json`: a copy of the engine list it read, since that list carries
+the opponents' options and may change later. Keep the notes (and that copy)
+with any result you record. A script refuses to add games to a
 PGN that already exists; use `--label` for a second run on one day.
 
 ### Rating lists with Ordo

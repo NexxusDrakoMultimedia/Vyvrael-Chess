@@ -50,6 +50,11 @@ Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
 (VYVRAEL_CONCURRENCY, ...) or scripts/local.env; see
 scripts/local.env.example.
+
+Beside the PGN a run leaves a .log and .notes.txt (the command, the git
+commit and whether the repository had changes, each engine's file and
+SHA-256, the times, the outcome, the number of games and the PGN's
+SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
 EOF
 }
 
@@ -359,10 +364,38 @@ digest() {
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 engine_note() { printf '  %s\n    %s\n    %s\n' "$1" "$2" "$(digest "$2")"; }
 
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes: read-only git, nothing written.
+repo_dir=$(cd "$script_dir/../.." && pwd)
+git_program=${VYVRAEL_GIT:-git}
+repo_state() {
+    local commit changes
+    if commit=$("$git_program" -C "$repo_dir" rev-parse HEAD 2>/dev/null) &&
+        changes=$("$git_program" -C "$repo_dir" status --porcelain 2>/dev/null); then
+        if [[ -n $changes ]]; then echo "$commit (dirty)"; else echo "$commit (clean)"; fi
+    else
+        echo "unknown (no git, or not a git repository)"
+    fi
+}
+
+# The engine list a gauntlet used, copied beside the notes, so the
+# opponents' options stay on record even if the list changes later.
+engines_copy=""
+if [[ $mode == gauntlet ]]; then
+    engines_copy="$stem.engines.json"
+    cp -- "$engines_json" "$engines_copy" || die "cannot copy the engine list to $engines_copy"
+fi
+
 {
     echo "Vyvrael match run notes"
     echo "mode:       $mode"
     echo "started:    $(now)"
+    echo "repository: $(repo_state)"
+    if [[ -n $engines_copy ]]; then
+        echo "engines:    $engines_json (copied to $engines_copy)"
+    else
+        echo "engines:    no engine list used"
+    fi
     echo "host cores: $cores physical, $concurrency games at once"
     echo "cutechess:  $("$cutechess" -version 2>&1 | head -n 1)"
     echo "openings:   $openings"
@@ -403,10 +436,19 @@ if [[ $mode == sprt ]]; then
     echo "SPRT outcome: $outcome"
 fi
 ((status == 0)) || outcome="cutechess-cli failed with status $status; $outcome"
+if [[ -f $pgn ]]; then
+    games=$(grep -c '^\[Event ' "$pgn" || true)
+    pgn_digest=$(digest "$pgn")
+else
+    games="0 (no PGN was written)"
+    pgn_digest="none"
+fi
 {
     echo
     echo "ended:      $(now)"
     echo "status:     $status"
     echo "outcome:    $outcome"
+    echo "games:      $games"
+    echo "pgn sha256: $pgn_digest"
 } >>"$notes"
 exit "$status"

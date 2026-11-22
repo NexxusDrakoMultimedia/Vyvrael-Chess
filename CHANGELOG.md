@@ -8,6 +8,13 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **The match scripts' run notes say more.** `match.ps1` and `match.sh`
+  record the repository's commit and whether its working tree was clean or
+  dirty, the number of games in the PGN and its SHA-256; a gauntlet also
+  keeps a copy of the engine list it read beside the notes.
+
 ## [0.1.0-alpha.2] - 2026-11-22
 
 The second alpha: games that no longer repeat, a reproducible bench, and

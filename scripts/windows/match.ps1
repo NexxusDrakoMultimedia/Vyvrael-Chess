@@ -79,6 +79,11 @@ Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
 (VYVRAEL_CONCURRENCY, ...) or scripts/local.env; see
 scripts/local.env.example.
+
+Beside the PGN a run leaves a .log and .notes.txt (the command, the git
+commit and whether the repository had changes, each engine's file and
+SHA-256, the times, the outcome, the number of games and the PGN's
+SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
 '@
 
 function Die([string] $Message) {
@@ -375,11 +380,50 @@ function Get-Digest([string] $Path) {
 }
 function Get-Now { return [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
+# The commit of the repository this script belongs to, and whether its
+# working tree has changes: read-only git, nothing written.
+function Get-RepoState {
+    $repoDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $git = $env:VYVRAEL_GIT
+    if (-not $git) { $git = 'git' }
+    $unknown = 'unknown (no git, or not a git repository)'
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $commit = & $git -C $repoDir rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $commit) { return $unknown }
+        $changes = & $git -C $repoDir status --porcelain 2>$null
+        if ($LASTEXITCODE -ne 0) { return $unknown }
+        if ($changes) { return "$commit (dirty)" }
+        return "$commit (clean)"
+    } catch {
+        return $unknown
+    } finally {
+        $ErrorActionPreference = $saved
+    }
+}
+
+# The engine list a gauntlet used, copied beside the notes, so the
+# opponents' options stay on record even if the list changes later.
+$enginesCopy = ''
+if ($Mode -eq 'gauntlet') {
+    $enginesCopy = Get-FullPath "$stem.engines.json"
+    try {
+        Copy-Item -LiteralPath $EnginesJson -Destination $enginesCopy -Force
+    } catch {
+        Die "cannot copy the engine list to $enginesCopy"
+    }
+}
+$enginesLine = 'engines:    no engine list used'
+if ($enginesCopy) { $enginesLine = "engines:    $EnginesJson (copied to $enginesCopy)" }
+
 $version = (Invoke-Tool $Cutechess @('-version') | Select-Object -First 1)
 $lines = @(
     'Vyvrael match run notes',
     "mode:       $Mode",
     "started:    $(Get-Now)",
+    "repository: $(Get-RepoState)",
+    $enginesLine,
     "host cores: $cores physical, $Concurrency games at once",
     "cutechess:  $version",
     "openings:   $Openings",
@@ -445,6 +489,14 @@ if ($Mode -eq 'sprt') {
     Write-Output "SPRT outcome: $outcome"
 }
 if ($status -ne 0) { $outcome = "cutechess-cli failed with status $status; $outcome" }
+$pgnPath = Get-FullPath $pgn
+if (Test-Path -LiteralPath $pgnPath -PathType Leaf) {
+    $games = @([IO.File]::ReadAllLines($pgnPath) | Where-Object { $_ -cmatch '^\[Event ' }).Count
+    $pgnDigest = Get-Digest $pgnPath
+} else {
+    $games = '0 (no PGN was written)'
+    $pgnDigest = 'none'
+}
 [IO.File]::AppendAllLines($notes, [string[]] @('', "ended:      $(Get-Now)", "status:     $status",
-        "outcome:    $outcome"), $utf8)
+        "outcome:    $outcome", "games:      $games", "pgn sha256: $pgnDigest"), $utf8)
 exit $status

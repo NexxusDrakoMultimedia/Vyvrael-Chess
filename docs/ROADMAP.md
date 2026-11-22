@@ -748,7 +748,7 @@ Part A, documents, tools and tests:
   3,500 points** so that Stockfish 19 is 3,500 and every setting is
   positive; not Lichess, CCRL or FIDE ratings; stretched by lopsided
   results, most visibly at the low end (Stockfish 19-1320 is about 1,530).
-- [ ] Match scripts, run notes (`match.ps1` and `match.sh` alike, with
+- [x] Match scripts, run notes (`match.ps1` and `match.sh` alike, with
   tests): at the start the git commit and whether the working tree is
   clean or dirty (read-only `git` in the repository, as the maintainer
   allowed on 2026-11-22; "unknown" without git or a repository), and a copy

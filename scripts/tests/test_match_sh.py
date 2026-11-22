@@ -451,16 +451,52 @@ class MatchShTest(Fixture, unittest.TestCase):
 class MatchShRunTest(Fixture, unittest.TestCase):
     """What a real run leaves behind, with a stand-in that plays no game."""
 
-    def play(self, script: str, *mode_args: str):
+    def play(self, script: str, *mode_args: str, env: dict | None = None):
         fake = self.fake_cutechess(HELP_FLAGS, "playing-cli", script)
         return self.run_script(
             *mode_args, "--rounds", "5", "--openings", self.openings.as_posix(),
-            "--cutechess", fake.as_posix(),
+            "--cutechess", fake.as_posix(), env=env,
         )
 
-    def sprt_run(self, script: str):
+    # A stand-in's lines that write two games where -pgnout says.
+    WRITE_PGN = (
+        'out=""; prev=""; for a in "$@"; do [ "$prev" = -pgnout ] && out=$a; prev=$a; done\n'
+        "printf '[Event \"one\"]\\n\\n1. e4 *\\n\\n[Event \"two\"]\\n\\n1. d4 *\\n' > \"$out\"\n"
+    )
+
+    def test_notes_record_the_repository_the_games_and_the_pgn(self):
+        result = self.sprt_run(
+            self.WRITE_PGN
+            + "echo 'SPRT: llr 2.97 (100.8%), lbound -2.94, ubound 2.94 - H1 was accepted'\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = self.read(".notes.txt")
+        # The repository the script came from: its commit, clean or dirty.
+        self.assertRegex(notes, r"repository: [0-9a-f]{40} \((clean|dirty)\)\n")
+        self.assertIn("engines:    no engine list used", notes)
+        # At the end: the games in the PGN and its digest.
+        pgn = self.tmp / "matches" / "2026-01-02-sprt-Vyvrael-dev-abc1234.pgn"
+        self.assertIn("games:      2\n", notes)
+        self.assertIn(f"pgn sha256: {hashlib.sha256(pgn.read_bytes()).hexdigest()}\n", notes)
+        # Nothing but the run's own files was written in the output folder.
+        self.assertEqual(
+            sorted(p.name for p in (self.tmp / "matches").iterdir()),
+            [f"2026-01-02-sprt-Vyvrael-dev-abc1234{s}" for s in (".log", ".notes.txt", ".pgn")],
+        )
+
+    def test_without_git_the_repository_is_unknown_and_no_pgn_is_said(self):
+        result = self.sprt_run(
+            "echo 'nothing'\n", env={"VYVRAEL_GIT": (self.tmp / "no-git").as_posix()}
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = self.read(".notes.txt")
+        self.assertIn("repository: unknown (no git, or not a git repository)\n", notes)
+        self.assertIn("games:      0 (no PGN was written)\n", notes)
+        self.assertIn("pgn sha256: none\n", notes)
+
+    def sprt_run(self, script: str, env: dict | None = None):
         bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]
-        return self.play(script, "sprt", *self.builds(), *bounds)
+        return self.play(script, "sprt", *self.builds(), *bounds, env=env)
 
     def read(self, suffix: str) -> str:
         stem = "2026-01-02-sprt-Vyvrael-dev-abc1234"
@@ -527,6 +563,10 @@ class MatchShRunTest(Fixture, unittest.TestCase):
         for expected in ("Stockfish 19-1500", "Vice 1.1", self.opponent.as_posix(),
                          "outcome:    finished"):
             self.assertIn(expected, notes)
+        # A byte-for-byte copy of the engine list sits beside the notes.
+        copy = self.tmp / "matches" / "2026-01-02-gauntlet-Vyvrael-0.1.0-a1.engines.json"
+        self.assertEqual(copy.read_bytes(), self.engines_json.read_bytes())
+        self.assertIn(f"engines:    {self.engines_json.as_posix()} (copied to ", notes)
 
 
 if __name__ == "__main__":
