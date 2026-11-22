@@ -70,8 +70,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Show toolchain
-        run: rustup show
+      # rustup show no longer installs a missing toolchain, so install the
+      # version rust-toolchain.toml pins first.
+      - name: Install and show toolchain
+        run: |
+          rustup toolchain install
+          rustup show
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
@@ -125,8 +129,12 @@ jobs:
           echo "RUSTFLAGS=$flags" >> "$GITHUB_ENV"
           echo "SOURCE=target/release/vyvrael$ext" >> "$GITHUB_ENV"
           echo "FILE=vyvrael-$VERSION$suffix$ext" >> "$GITHUB_ENV"
-      - name: Show toolchain
-        run: rustup show
+      # rustup show no longer installs a missing toolchain, so install the
+      # version rust-toolchain.toml pins first.
+      - name: Install and show toolchain
+        run: |
+          rustup toolchain install
+          rustup show
       - name: Build
         run: |
           echo "RUSTFLAGS='$RUSTFLAGS'"
