@@ -762,7 +762,7 @@ Part A, documents, tools and tests:
   that build `option.NAME=VALUE` and recorded in the run notes (the
   maintainer's choice, 2026-11-22), so that limited Vyvræl builds
   (`UCI_LimitStrength`, `UCI_Elo`, `Seed`) can be measured.
-- [ ] Robustness: a test that feeds the UCI loop malformed and unexpected
+- [x] Robustness: a test that feeds the UCI loop malformed and unexpected
   input (random bytes, truncated and oversized commands, bad values, odd
   orders, commands during a search) from a seeded generator and asserts
   that it never panics and keeps answering `isready`. Any panic it finds is

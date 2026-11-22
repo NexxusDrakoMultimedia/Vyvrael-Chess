@@ -18,6 +18,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   NAME=VALUE` and `--base-option` in `match.sh`, `-TestOption` and
   `-BaseOption` in `match.ps1`, recorded in the run notes. Limited Vyvræl
   builds (`UCI_LimitStrength`, `UCI_Elo`) can now be measured.
+- **A robustness test for the UCI loop:** seeded streams of malformed and
+  unexpected input (random bytes, broken FENs, oversized and truncated
+  lines, odd option values, commands during a search). It found no panic.
 
 ## [0.1.0-alpha.2] - 2026-11-22
 
