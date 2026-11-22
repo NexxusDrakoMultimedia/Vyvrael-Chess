@@ -5,18 +5,22 @@
 opponent engines on Linux; Cute Chess, Ordo and the ladder's opponent
 engines on Windows.
 
-Installs the three external programs the project uses for strength testing
-and for playing on Lichess. They are separate programs: nothing is vendored
-into the repository or linked into the engine. Everything goes under a
-per-user prefix outside the repository.
+Installs the external programs the project uses for strength testing and
+for playing on Lichess, and the opponent engines of the ladder. They are
+separate programs: nothing is vendored into the repository or linked into
+the engine. Everything goes under a per-user prefix outside the repository.
 
 Standard library only, Python 3.9+ (lichess-bot itself needs 3.11+).
-Safe to re-run; use --force to reinstall.
+Safe to re-run; use --force to reinstall. On Windows the command is
+`python` instead of `python3`.
 
     python3 scripts/install_tools.py --list
     python3 scripts/install_tools.py --dry-run
     python3 scripts/install_tools.py                      # cutechess + ordo
     python3 scripts/install_tools.py --tool lichess-bot --engine path/to/vyvrael
+    python3 scripts/install_tools.py --engines --dry-run  # the ladder's engines
+    python3 scripts/install_tools.py --only "Vice 1.1"    # one of them
+    python3 scripts/install_tools.py --verify             # check them
 
 Every tool is pinned to an exact version in PINS below, so two runs install
 the same thing. Updating a tool means editing PINS in a reviewed commit.
@@ -904,13 +908,26 @@ def build_parser() -> argparse.ArgumentParser:
         choices=TOOLS + ["all"],
         help="repeatable; default: cutechess and ordo",
     )
-    parser.add_argument("--prefix", help="install root (default: ~/.local/share/vyvrael-tools)")
-    parser.add_argument("--bin-dir", help="where launchers go")
-    parser.add_argument("--engine", help="path to the Vyvræl binary, for lichess-bot's config")
+    parser.add_argument(
+        "--prefix",
+        help="install root (default: $XDG_DATA_HOME/vyvrael-tools, else"
+        " ~/.local/share/vyvrael-tools)",
+    )
+    parser.add_argument(
+        "--bin-dir",
+        help="where launchers go (Linux only; default: ~/.local/bin, or PREFIX/bin"
+        " with --prefix)",
+    )
+    parser.add_argument(
+        "--engine",
+        help="path to the Vyvræl binary, for lichess-bot's config (Linux and"
+        " lichess-bot only)",
+    )
     parser.add_argument(
         "--systemd",
         action="store_true",
-        help="also write a user service for lichess-bot under ~/.config (not enabled)",
+        help="also write a user service for lichess-bot under $XDG_CONFIG_HOME,"
+        " else ~/.config (not enabled; Linux and lichess-bot only)",
     )
     parser.add_argument(
         "--engines",

@@ -61,11 +61,14 @@ Options:
                       stops undecided (required)
   -Tc TC              time control (default 10+0.1)
   -Hash MB            hash size for every engine (default 64)
-  -Concurrency N      games at once (default: physical cores minus two)
+  -Concurrency N      games at once (or CONCURRENCY; default: physical
+                      cores minus two, at least one)
   -Openings FILE      opening file in EPD format (required, or OPENINGS)
   -EnginesJson FILE   engine list for gauntlet opponents (or ENGINES_JSON)
-  -Cutechess PATH     cutechess-cli to use (default: from PATH)
-  -OutDir DIR         where the PGN, log and notes go (default: matches)
+  -Cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
+                      PATH)
+  -OutDir DIR         where the PGN, log and notes go (or MATCH_DIR;
+                      default: matches in the current directory)
   -Label TEXT         added to the output file names
   -Seed N             seed for the opening order (default: random)
   -Deterministic      set Seed=822286742 and Variety=0 on the Vyvrael builds
@@ -360,6 +363,8 @@ if ($tool) {
 
 # --- the command -----------------------------------------------------------
 
+# VYVRAEL_MATCH_DATE replaces today's date in the file names; it is a hook
+# for the tests, which need names they can predict.
 $date = $env:VYVRAEL_MATCH_DATE
 if (-not $date) { $date = Get-Date -Format 'yyyy-MM-dd' }
 $slug = $TestName -replace '[^A-Za-z0-9._-]', '-'

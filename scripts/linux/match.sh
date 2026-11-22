@@ -24,7 +24,8 @@ Modes:
             the base build. The bounds, alpha and beta have no defaults.
   h2h       a fixed number of rounds between two builds.
   gauntlet  the test build against each opponent, named as in the engine
-            list (--engines-json).
+            list (--engines-json). It needs python3 (or the program in
+            VYVRAEL_PYTHON) to read the list.
 
 A round is two games: each opening is played twice with colours swapped.
 
@@ -33,11 +34,14 @@ Options:
                        stops undecided (required)
   --tc TC              time control (default 10+0.1)
   --hash MB            hash size for every engine (default 64)
-  --concurrency N      games at once (default: physical cores minus two)
+  --concurrency N      games at once (or CONCURRENCY; default: physical
+                       cores minus two, at least one)
   --openings FILE      opening file in EPD format (required, or OPENINGS)
   --engines-json FILE  engine list for gauntlet opponents (or ENGINES_JSON)
-  --cutechess PATH     cutechess-cli to use (default: from PATH)
-  --out-dir DIR        where the PGN, log and notes go (default: matches)
+  --cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
+                       PATH)
+  --out-dir DIR        where the PGN, log and notes go (or MATCH_DIR;
+                       default: matches in the current directory)
   --label TEXT         added to the output file names
   --seed N             seed for the opening order (default: random)
   --deterministic      set Seed=822286742 and Variety=0 on the Vyvræl builds
@@ -360,6 +364,8 @@ fi
 # --- the command -----------------------------------------------------------
 
 slug=$(printf '%s' "$test_name" | tr -c 'A-Za-z0-9._-' '-')
+# VYVRAEL_MATCH_DATE replaces today's date in the file names; it is a hook
+# for the tests, which need names they can predict.
 stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode-$slug${label:+-$label}"
 pgn="$stem.pgn"
 

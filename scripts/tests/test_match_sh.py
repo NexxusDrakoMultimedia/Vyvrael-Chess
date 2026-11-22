@@ -3,8 +3,10 @@
 """Offline tests for scripts/linux/match.sh.
 
 No game is played and the real cutechess-cli is never run: the tests give
-the script a stand-in that only answers `-help`, and read the command the
-script would run from `--dry-run`. Everything lives in a temporary directory.
+the script a stand-in that answers `-help` and `-version` and, for a real
+run, prints a scripted result instead of playing; most tests read the
+command the script would run from `--dry-run`. Everything lives in a
+temporary directory.
 They are skipped where there is no bash.
 
     python3 -m unittest discover -s scripts/tests

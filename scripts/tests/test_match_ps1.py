@@ -3,8 +3,11 @@
 """Offline tests for scripts/windows/match.ps1.
 
 No game is played and the real cutechess-cli is never run: the tests give
-the script a stand-in (a PowerShell script) that only answers `-help` and
-`-version`, and read the command the script would run from `-DryRun`.
+the script a stand-in (a PowerShell script) that answers `-help` and
+`-version` and, for a real run, prints a scripted result instead of
+playing; most tests read the command the script would run from `-DryRun`.
+One Windows-only test uses a small .cmd program instead, to check that
+warnings on stderr do not end a run under Windows PowerShell 5.1.
 Everything lives in a temporary directory. They are skipped where there is
 no PowerShell. The cases mirror scripts/tests/test_match_sh.py: the two
 scripts must behave alike.

@@ -8,8 +8,9 @@ PATH and nothing needs administrator rights: the installer prints the two
 lines to put in scripts/local.env instead.
 
 lichess-bot is not installed on Windows: it runs on the Linux machine only
-(docs/LICHESS.md). The ladder's opponent engines are not installed on
-Windows either; each project publishes its own Windows program.
+(docs/LICHESS.md). The ladder's opponent engines are installed on Windows
+too, by ladder_install.py from the Windows pins in ladder_engines.py; this
+module handles only Cute Chess and Ordo.
 """
 from __future__ import annotations
 

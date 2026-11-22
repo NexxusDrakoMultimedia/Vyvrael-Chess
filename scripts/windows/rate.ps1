@@ -27,7 +27,7 @@ Usage:
   rate.ps1 [options] FILE.pgn [FILE.pgn ...]
 
 Runs Ordo over the games and writes a text table and a CSV file next to the
-first PGN file. The defaults are those of Ladder Baseline 1.
+first PGN file. The defaults are those of Ladder Baselines 1 and 2.
 
 Options:
   -Anchor NAME        the engine whose rating is fixed (default "Stockfish 19")
