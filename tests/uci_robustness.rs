@@ -103,7 +103,12 @@ const WORDS: [&str; 40] = [
 
 /// Numbers a value may be: edges, overflows and things that only look like
 /// numbers.
-const NUMBERS: [&str; 16] = [
+/// Some are not ASCII, so that a command cut short can end in the middle
+/// of a character.
+const NUMBERS: [&str; 19] = [
+    "1500\u{e9}",
+    "\u{ff11}\u{ff15}\u{ff10}\u{ff10}",
+    "\u{3a9}",
     "0",
     "1",
     "-1",
@@ -124,6 +129,8 @@ const NUMBERS: [&str; 16] = [
 
 struct Generator {
     rng: Rng,
+    /// Commands cut short in the middle of a character so far.
+    cut_characters: usize,
 }
 
 impl Generator {
@@ -229,6 +236,7 @@ impl Generator {
             "UCI_LimitStrength",
             "UCI_Elo",
             "Move Overhead",
+            "Vyvr\u{e6}l",
             "hash",
             "NoSuchOption",
             "",
@@ -294,6 +302,9 @@ impl Generator {
                 };
                 let mut bytes = whole.into_bytes();
                 bytes.truncate(self.below(bytes.len() + 1));
+                if std::str::from_utf8(&bytes).is_err() {
+                    self.cut_characters += 1;
+                }
                 return bytes;
             }
             10 => {
@@ -326,6 +337,7 @@ fn malformed_input_never_panics_and_is_always_answered() {
     // Across all streams: what the input reached, so that a generator that
     // stopped producing some kind of line cannot pass unnoticed.
     let mut seen = [0usize; 4];
+    let mut cut_characters = 0;
     const REACHED: [&str; 4] = [
         "info depth ",
         "info string position: invalid FEN",
@@ -338,6 +350,7 @@ fn malformed_input_never_panics_and_is_always_answered() {
     for index in 0..STREAMS {
         let mut generator = Generator {
             rng: Rng::from_state(states.next_u64()),
+            cut_characters: 0,
         };
         let mut input = Vec::new();
         let (mut readies, mut gos) = (0, 0);
@@ -387,7 +400,12 @@ fn malformed_input_never_panics_and_is_always_answered() {
         for (count, prefix) in seen.iter_mut().zip(REACHED) {
             *count += lines.iter().filter(|line| line.starts_with(prefix)).count();
         }
+        cut_characters += generator.cut_characters;
     }
+    assert!(
+        cut_characters > 0,
+        "no command was cut in the middle of a character"
+    );
     for (count, prefix) in seen.iter().zip(REACHED) {
         assert!(*count > 0, "no stream produced a line starting {prefix:?}");
     }
