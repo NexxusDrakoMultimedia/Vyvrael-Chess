@@ -436,7 +436,9 @@ added on 2026-11-22), under
 - **Two builds, `avx2` (the default) and `pext`.** `--engine-build pext`,
   `VYVRAEL_ENGINE_BUILD=pext` or `ENGINE_BUILD=pext` in `scripts/local.env`
   installs the PEXT build of the engines that have one (Arasan, Stash,
-  Weiss, and Ethereal on Windows); the others have a single build. Stash
+  Weiss and Inanis, and Ethereal on Windows); the others have a single
+  build. Inanis has no AVX2 build either: its default is its popcnt file,
+  its `pext` build the popcnt_bmi2 file. Stash
   has no AVX2 build: its default is the popcnt file, and Ladder Baseline 2
   used its generic file, which neither build installs. Use `pext` on Intel from Haswell
   and AMD from Zen 3, where PEXT is fast; both of the maintainer's machines

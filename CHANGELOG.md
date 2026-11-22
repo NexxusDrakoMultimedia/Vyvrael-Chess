@@ -12,10 +12,13 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 - **Eleven opponents for Ladder Baseline 3 in the engine installer:**
   Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
-  Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0. They are full-strength rungs from about
-  1600 to 2700 on the CCRL Blitz list, where Vyvræl's builds are expected
-  before and after milestone 7. All are official Linux and Windows
-  downloads under MIT, GPL-3.0 or MPL-2.0 licences, pinned by SHA-256.
+  Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0: full-strength
+  engines rated from about 1600 to 2700 on the CCRL Blitz list (CCRL's
+  ratings of them, not a scale Vyvræl has been measured on). They add
+  full-strength rungs around and above the entries 0.1.0-alpha.2 placed
+  between on Ladder Baseline 2, for when milestone 7 moves it. All are
+  official Linux and Windows downloads under MIT, GPL-3.0 or MPL-2.0
+  licences, pinned by SHA-256.
 - **The match scripts' run notes say more.** `match.ps1` and `match.sh`
   record the repository's commit and whether its working tree was clean or
   dirty, the number of games in the PGN and its SHA-256; a gauntlet also

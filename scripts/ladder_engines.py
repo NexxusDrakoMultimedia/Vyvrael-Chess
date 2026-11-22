@@ -604,7 +604,9 @@ ENGINES = [
         "hash": True,
         "threads": False,
         "limit": None,
-        "notes": "See Blunder 4.0.0. Its Hash goes up to 256 MB.",
+        "notes": "See Blunder 4.0.0. It advertises Hash (1 to 256 MB, default 32), but its "
+        "handler at v5.0.0 resizes the table only when the value fails to parse, so a valid "
+        "Hash is ignored and it keeps its built-in 64 MB, the ladder's value anyway.",
     },
     {
         "name": "Blunder 7.1.0",
@@ -688,8 +690,8 @@ ENGINES = [
         "notes": "New in Ladder Baseline 3. Thomas Jahn's C# engine. Each official zip holds one "
         "self-contained .NET single-file program: no .NET runtime needs to be installed. "
         "As a .NET Core 3.1 bundle it unpacks itself to a temporary directory on its first "
-        "start. No Hash option (its PieceSquareTables option appears only when pst files, "
-        "which are not shipped, sit beside it), single-threaded, no book, no strength limit. "
+        "start. It offers no UCI option at all (a leftover PieceSquareTables routine in its "
+        "source is never called); single-threaded, no book, no strength limit. "
         "GitHub publishes no digest; these are what it served on 2026-11-22.",
     },
     {
@@ -716,7 +718,8 @@ ENGINES = [
         "hash": True,
         "threads": False,
         "limit": None,
-        "notes": "See MinimalChess 0.4.1; a .NET 5 bundle. Hash goes up to 2047 MB.",
+        "notes": "See MinimalChess 0.4.1; a .NET 5 bundle, which does not unpack itself. "
+        "Its one UCI option is Hash, up to 2047 MB.",
     },
     {
         "name": "MinimalChess 0.6",
@@ -813,7 +816,8 @@ ENGINES = [
         "evaluation and no network file. Each official zip holds the program flat, beside "
         "an icon and the licence. It has no AVX2 build: the popcnt file is the default "
         "build and the popcnt_bmi2 file the pext build. Its licence file is the GPL v3 "
-        "text and Cargo.toml says GPL-3.0, with no 'or later'. GitHub publishes no digest; "
+        "text, and neither its README, its sources nor its Cargo.toml (which has no licence "
+        "field at v1.0.1) says 'or later'. GitHub publishes no digest; "
         "these are what it served on 2026-11-22.",
     },
     {
@@ -868,8 +872,9 @@ ENGINES = [
         "hash": True,
         "threads": True,
         "limit": None,
-        "notes": "See Tantabus 1.0.2 (licence checked the same way at v2.0.0). Its Threads "
-        "option runs from 1 to 1 and does nothing; the ladder sends 1 as for every engine.",
+        "notes": "As Tantabus 1.0.2 (licence checked the same way at v2.0.0), with one "
+        "difference: it also offers Threads, a spin from 1 to 1 that does nothing, so it is "
+        "still single-threaded; the ladder sends 1 as for every engine with the option.",
     },
     # Engines with a Windows program only; NOT_INSTALLABLE["linux"] says why.
     {
@@ -968,9 +973,11 @@ NOT_INSTALLABLE = {"linux": {
 }, "windows": {}}
 
 # Engines added for Ladder Baseline 3, beside Ladder Baseline 2's: real
-# full-strength rungs from about 1600 to 2700 on the CCRL Blitz list (read on
-# 2026-11-22), where Vyvrael's builds are expected before and after milestone
-# 7. They are not in Baseline 2's record.
+# full-strength rungs, from about 1600 to 2700 on the CCRL Blitz list (read on
+# 2026-11-22; those are CCRL's ratings of these engines, not a scale Vyvrael
+# has been measured on). They give the ladder more full-strength rungs around
+# and above the entries 0.1.0-alpha.2 placed between on Ladder Baseline 2's
+# own scale, for when milestone 7 moves it. They are not in Baseline 2's record.
 NEW_IN_BASELINE_3 = [
     "Blunder 4.0.0", "Blunder 5.0.0", "Blunder 7.1.0", "Blunder 7.6.0",
     "MinimalChess 0.4.1", "MinimalChess 0.5", "MinimalChess 0.6",

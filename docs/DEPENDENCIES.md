@@ -120,10 +120,16 @@ Licences are as each repository's licence file states them. Arasan's is the
 MIT licence with further terms for its GUI, which is not used here. All of
 them, and Fruit's GPL-2.0, permit downloading the program or building it
 from source for private testing. Tantabus's MPL-2.0 is compatible with the
-GPL through its section 3.3 ("Secondary License"), as no file of its
-source carries the notice that would rule that out (checked at v1.0.2 and
-v2.0.0 on 2026-11-22); the maintainer accepts GPL-3.0-compatible licences for
-opponents (2026-11-22).
+GPL: its section 3.3 ("Distribution of a Larger Work") lets it be combined
+with code under a "Secondary License" (section 1.12: the GPL 2.0, LGPL 2.1
+or AGPL 3.0, or any later version), unless the code is marked
+"Incompatible With Secondary Licenses" (Exhibit B) or was first made
+available under MPL 1.1 or earlier (section 1.5). Neither applies, checked
+at v1.0.2 and v2.0.0 on 2026-11-22: no source file has the Exhibit B notice
+attached (the copy inside its LICENSE is the licence's own exhibit, which
+Mozilla's MPL 2.0 FAQ says does not count), and its LICENSE has been the
+MPL 2.0 since it was added. The maintainer accepts GPL-3.0-compatible
+licences for opponents (2026-11-22).
 
 Left out on Linux, with the reason:
 
@@ -133,10 +139,13 @@ Left out on Linux, with the reason:
 
 On Windows every engine of the ladder is installed, all from official
 Windows files except Fruit 2.1 (below), and nothing is compiled. Each file
-was downloaded once on 2026-11-21 and its SHA-256 compared: the file of the
-`pext` build is in every case the very file of Ladder Baseline 2, except
-Stash, whose Baseline 2 file was its generic build. Where a project
-publishes no digest, the recorded one is what it served that day.
+of Ladder Baseline 2's engines was downloaded once on 2026-11-21 and its
+SHA-256 compared: the file of the `pext` build is in every case the very
+file of Ladder Baseline 2, except Stash, whose Baseline 2 file was its
+generic build. The files of the engines new in Ladder Baseline 3 (the last
+rows) have no Baseline 2 file to match; each was downloaded on 2026-11-22.
+Where a project publishes no digest, the recorded one is what it served
+the day it was downloaded.
 
 | Engine | Windows file (`avx2`; `pext` if different) | Licence | From | SHA-256 of the program |
 | --- | --- | --- | --- | --- |
@@ -185,11 +194,10 @@ off, and 30 ms of move overhead where there is the option (Stockfish `Move
 Overhead`, Arasan `Move overhead`, Reckless, Stash and Ethereal
 `MoveOverhead`, Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`, Inanis
 `Move Overhead`). Orion, Viridithas, Princhess, Vice, Fruit, Rustic Alpha
-and Nostradamus have no move-overhead option, nor do Blunder, MinimalChess
-Velvet and Tantabus of Ladder Baseline 3; Blunder 7.6.0's `UseBook` is
-set off. Of
-the new engines only Inanis and Tantabus 2.0.0 have a Threads option
-(Tantabus's runs from 1 to 1). The book files that
+and Nostradamus have no move-overhead option, nor do Blunder, MinimalChess,
+Velvet and Tantabus of Ladder Baseline 3; Blunder 7.6.0's `UseBook` is set
+off. Of the new engines only Inanis and Tantabus 2.0.0 have a Threads
+option (Tantabus's runs from 1 to 1 and does nothing). The book files that
 Arasan, Fruit and Rodent IV ship are still installed beside them, unused.
 
 CT800's zip also holds the Windows binary of Ladder Baseline 2, identical by
