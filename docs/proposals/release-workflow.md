@@ -1,9 +1,15 @@
 # Proposal: the release workflow
 
 **Status: installed as `.github/workflows/release.yml` on 2026-11-22, with
-the maintainer's approval, and not yet run.** Agents do not edit
-`.github/workflows` without that approval. Do not call it working until it
-has run once on a test tag (see "Trying it" below).
+the maintainer's approval, and tried once the same day** on the test tag
+`v0.1.0-rc.0` (run 44980221187): all seven jobs passed in about four
+minutes. Each build used the intended flags; all four binaries reached
+depth 6 in the smoke test with the same node count (3,001,490) and
+`bestmove d2d4`; their checksums were verified at build and again before
+the draft; a draft pre-release with the eight files appeared, and nothing
+was published. The maintainer then deleted the draft, the tag and the test
+branch. Agents do not edit `.github/workflows` without the maintainer's
+approval.
 
 The workflow is [`release-workflow.yml`](release-workflow.yml). From 0.1.0
 it builds the release binaries that were built by hand up to 0.1.0-alpha.2,
@@ -126,5 +132,4 @@ Before relying on it for 0.1.0, run it once on a test tag:
    `.sha256` file; run it once.
 4. Delete the draft release, the tag (locally and on GitHub) and the branch.
 
-Until that has been done, this document says the workflow has not run and
-`RELEASING.md` says so.
+This was done on 2026-11-22 (see "Status" at the top).

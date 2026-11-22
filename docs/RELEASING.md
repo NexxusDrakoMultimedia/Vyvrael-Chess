@@ -13,8 +13,9 @@ Agents never create or push tags and never publish.
 
 **The release workflow** (`.github/workflows/release.yml`, described in
 [`proposals/release-workflow.md`](proposals/release-workflow.md)) is
-installed but has not run yet. Until it has run once on a test tag, step 4
-cannot be relied on.
+installed and was tried once on a test tag (`v0.1.0-rc.0`, 2026-11-22):
+every job passed and it made a draft with the eight files. 0.1.0 is its
+first real release.
 
 Copy the checklist below into the release's tracking note or pull request
 and tick it as you go.
