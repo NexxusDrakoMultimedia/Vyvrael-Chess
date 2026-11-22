@@ -738,17 +738,25 @@ Part A, documents, tools and tests:
 - [ ] `TESTING.md`: what a sound Elo comparison needs (same machine, same
   settings, enough games) and the limits of results from different machines.
 - [ ] `TESTING.md` and `UCI.md`: which scale `UCI_Elo` is on, in the wording
-  the maintainer approves.
+  the maintainer approved (2026-11-22): Ordo ratings on the scale of
+  Ladder Baseline 2 with Stockfish 19 as the anchor, **shifted by a fixed
+  3,500 points** so that Stockfish 19 is 3,500 and every setting is
+  positive; not Lichess, CCRL or FIDE ratings; stretched by lopsided
+  results, most visibly at the low end (Stockfish 19-1320 is about 1,530).
 - [ ] Match scripts, run notes (`match.ps1` and `match.sh` alike, with
   tests): at the start the git commit and whether the working tree is
-  clean or dirty, and a copy of the engine list beside the notes; at the end
-  the number of games in the PGN and its SHA-256. Nothing written outside
-  the output folder; an existing PGN is still refused. (`rate.ps1` and
+  clean or dirty (read-only `git` in the repository, as the maintainer
+  allowed on 2026-11-22; "unknown" without git or a repository), and a copy
+  of the engine list beside the notes; at the end the number of games in
+  the PGN and its SHA-256. Nothing written outside the output folder; an
+  existing PGN is still refused. (`rate.ps1` and
   `rate.sh` are left alone; a bug found in them is reported, not fixed
   silently.)
-- [ ] Match scripts: a way to give the build under test options of its own
-  (`UCI_LimitStrength`, `UCI_Elo`, `Seed`), the mechanism the maintainer
-  chooses, so that limited Vyvræl builds can be measured.
+- [ ] Match scripts: `--test-option NAME=VALUE` (`-TestOption`), and
+  `--base-option` (`-BaseOption`) for `sprt` and `h2h`, repeatable, giving
+  that build `option.NAME=VALUE` and recorded in the run notes (the
+  maintainer's choice, 2026-11-22), so that limited Vyvræl builds
+  (`UCI_LimitStrength`, `UCI_Elo`, `Seed`) can be measured.
 - [ ] Robustness: a test that feeds the UCI loop malformed and unexpected
   input (random bytes, truncated and oversized commands, bad values, odd
   orders, commands during a search) from a seeded generator and asserts
