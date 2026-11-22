@@ -784,7 +784,7 @@ Part B, measuring (the maintainer plays, the agent records):
   Baseline 2's games in one Ordo run anchored on Stockfish 19, recorded in
   `docs/testing/results-<build>.md` with Ordo's output. KI-8 is updated for
   the build measured.
-- [ ] `UCI_Elo` calibration: gauntlets of limited builds at several
+- [x] `UCI_Elo` calibration: gauntlets of limited builds at several
   settings (for example 400, 800, 1200, 1500 and 1800) with a fixed `Seed`,
   rated with Baseline 2; the mapping in `search::Weakening::for_elo` and the
   option's range and default refitted to the measurements, on the approved

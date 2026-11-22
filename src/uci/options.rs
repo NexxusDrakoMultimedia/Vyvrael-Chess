@@ -47,7 +47,8 @@ pub struct Options {
     /// `UCI_LimitStrength`: whether to play below full strength.
     pub limit_strength: bool,
     /// `UCI_Elo`: the rating to play at when `UCI_LimitStrength` is on.
-    /// Not calibrated yet: see `search::Weakening::for_elo`.
+    /// On the scale of the reference ladder, calibrated provisionally: see
+    /// `search::Weakening::for_elo`.
     pub elo: u32,
     /// `Move Overhead`: milliseconds kept back from every time limit for
     /// delays the engine cannot measure (GUI, network, operating system).
@@ -389,19 +390,20 @@ mod tests {
     fn elo() {
         assert_eq!(
             Options::declarations()[5],
-            "option name UCI_Elo type spin default 1200 min 400 max 1800"
+            "option name UCI_Elo type spin default 1360 min 1110 max 1630"
         );
         let mut options = Options::default();
-        assert_eq!(options.elo, 1200);
-        for (text, value) in [("400", 400), ("1800", 1800), ("1350", 1350)] {
+        assert_eq!(options.elo, 1360);
+        for (text, value) in [("1110", 1110), ("1630", 1630), ("1350", 1350)] {
             assert_eq!(options.set("UCI_Elo", Some(text)), Ok(()));
             assert_eq!(options.elo, value);
         }
-        for bad in ["399", "1801", "0", "2800", "strong"] {
+        // The old range's ends (400 and 1800) are out of the new one.
+        for bad in ["1109", "1631", "400", "1800", "0", "2800", "strong"] {
             assert_eq!(
                 options.set("uci_elo", Some(bad)),
                 Err(format!(
-                    "UCI_Elo: expected a whole number from 400 to 1800, got `{bad}`"
+                    "UCI_Elo: expected a whole number from 1110 to 1630, got `{bad}`"
                 ))
             );
         }

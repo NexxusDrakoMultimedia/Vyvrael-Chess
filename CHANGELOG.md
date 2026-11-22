@@ -26,6 +26,16 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   It places Vyvræl between Stockfish 19-1800 and Rodent IV-2000 on that
   ladder's own scale, which is not an Elo (`docs/testing/results-0.1.0-alpha.2.md`).
 
+### Changed
+
+- **`UCI_Elo` is calibrated, provisionally.** Its numbers are now ratings
+  on the scale of the reference ladder, measured for six settings of the
+  weakening: the range is 1110 to 1630 (was 400 to 1800, labels only), and
+  the default 1360 (was 1200) plays exactly as the old default did.
+  A GUI that sets a value outside the new range gets it refused, as for
+  any out-of-range value. Ratings below 1110 cannot be played yet.
+  Full-strength play is unchanged.
+
 ### Fixed
 
 - **The match scripts refuse a build name with a line break.** The

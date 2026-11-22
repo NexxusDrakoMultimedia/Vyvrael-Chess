@@ -23,12 +23,75 @@ use crate::eval::{Evaluator, Score};
 use crate::movegen::legal_moves;
 use crate::rng::Rng;
 
-/// Lowest rating that can be asked for.
-pub const ELO_MIN: u32 = 400;
-/// Highest rating that can be asked for.
-pub const ELO_MAX: u32 = 1800;
-/// The rating used when none is chosen.
-pub const ELO_DEFAULT: u32 = 1200;
+/// Lowest rating that can be asked for: the weakest setting measured.
+pub const ELO_MIN: u32 = CALIBRATION[0].elo;
+/// Highest rating that can be asked for: the strongest setting measured.
+pub const ELO_MAX: u32 = CALIBRATION[CALIBRATION.len() - 1].elo;
+/// The rating used when none is chosen: three plies and 141 centipawns,
+/// exactly what the old default (1200 on the uncalibrated labels) gave, so
+/// a GUI that never sets `UCI_Elo` gets the same play as before the
+/// calibration.
+pub const ELO_DEFAULT: u32 = 1360;
+
+/// One point of the calibration: a rating on the `UCI_Elo` scale and the
+/// weakening that plays at it.
+struct Point {
+    elo: u32,
+    depth: u32,
+    noise: Score,
+}
+
+/// The calibration of `UCI_Elo`, sorted by rating: the six weakenings
+/// measured on 2026-11-22 with 0.1.0-alpha.2 (`docs/TESTING.md`,
+/// "Calibration of `UCI_Elo`"), their ratings rounded to tens, and one
+/// point that is not measured.
+///
+/// The measured points jump from 1,220 at two plies to 1,350 at three. The
+/// point at 1,349 extends the line through the last two two-ply points
+/// (59 centipawns less misjudgement for every 70 points), so that ratings
+/// in the gap play at two plies with less and less misjudgement. That
+/// stretch is extrapolated, not measured.
+///
+/// **Provisional:** measured for one build, and measured again after
+/// milestone 7 and after queued task 2.
+const CALIBRATION: [Point; 7] = [
+    Point {
+        elo: 1110,
+        depth: 2,
+        noise: 300,
+    },
+    Point {
+        elo: 1150,
+        depth: 2,
+        noise: 230,
+    },
+    Point {
+        elo: 1220,
+        depth: 2,
+        noise: 171,
+    },
+    // Not measured: see above.
+    Point {
+        elo: 1349,
+        depth: 2,
+        noise: 62,
+    },
+    Point {
+        elo: 1350,
+        depth: 3,
+        noise: 151,
+    },
+    Point {
+        elo: 1410,
+        depth: 3,
+        noise: 90,
+    },
+    Point {
+        elo: 1630,
+        depth: 3,
+        noise: 20,
+    },
+];
 
 /// How much to weaken play.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,10 +107,13 @@ impl Weakening {
     /// The weakening for a target rating, which is clamped to
     /// [`ELO_MIN`]`..=`[`ELO_MAX`].
     ///
-    /// **The numbers are provisional.** They only order the settings: a
-    /// higher rating looks further and errs less. What rating each setting
-    /// really plays at is measured in milestone 6, and this mapping is
-    /// refitted then. Until that is done the rating is a label.
+    /// The rating is on the scale of the reference ladder (see
+    /// `docs/UCI.md`, "Limited strength"). A rating that is a point of the
+    /// calibration gets that point's weakening; one between two points of
+    /// the same depth gets that depth and a misjudgement interpolated in a
+    /// straight line between theirs, rounded towards the weaker.
+    ///
+    /// **Provisional:** see the calibration's own notes.
     #[must_use]
     pub const fn for_elo(elo: u32) -> Weakening {
         let elo = if elo < ELO_MIN {
@@ -57,11 +123,26 @@ impl Weakening {
         } else {
             elo
         };
-        // Position of the rating in its range, in thousandths.
-        let level = (elo - ELO_MIN) * 1000 / (ELO_MAX - ELO_MIN);
+        // The last point at or below the rating.
+        let mut index = 0;
+        while index + 1 < CALIBRATION.len() && CALIBRATION[index + 1].elo <= elo {
+            index += 1;
+        }
+        let low = &CALIBRATION[index];
+        if index + 1 == CALIBRATION.len() || CALIBRATION[index + 1].depth != low.depth {
+            return Weakening {
+                depth: low.depth,
+                noise: low.noise,
+            };
+        }
+        let high = &CALIBRATION[index + 1];
+        // The misjudgement falls as the rating rises, so dividing a
+        // negative change rounds it towards zero: towards more noise.
+        let along = (elo - low.elo) as Score;
+        let span = (high.elo - low.elo) as Score;
         Weakening {
-            depth: if level < 500 { 2 } else { 3 },
-            noise: 300 - (level * 280 / 1000) as Score,
+            depth: low.depth,
+            noise: low.noise + (high.noise - low.noise) * along / span,
         }
     }
 }
@@ -520,33 +601,85 @@ mod tests {
         assert_eq!(tiny.nodes, one.nodes);
     }
 
+    /// The settings measured in the calibration, as (rating, depth, noise):
+    /// written out here rather than read from the table, so that a change
+    /// to the table has to change this test too.
+    const MEASURED: [(u32, u32, Score); 6] = [
+        (1110, 2, 300),
+        (1150, 2, 230),
+        (1220, 2, 171),
+        (1350, 3, 151),
+        (1410, 3, 90),
+        (1630, 3, 20),
+    ];
+
     #[test]
-    fn a_higher_rating_looks_further_and_errs_less() {
+    fn the_measured_ratings_get_the_measured_weakenings() {
+        for (elo, depth, noise) in MEASURED {
+            assert_eq!(Weakening::for_elo(elo), Weakening { depth, noise }, "{elo}");
+        }
+        assert_eq!(ELO_MIN, 1110);
+        assert_eq!(ELO_MAX, 1630);
+        assert!((ELO_MIN..=ELO_MAX).contains(&ELO_DEFAULT));
         assert_eq!(
-            Weakening::for_elo(ELO_MIN),
-            Weakening {
-                depth: 2,
-                noise: 300
-            }
-        );
-        assert_eq!(
-            Weakening::for_elo(ELO_MAX),
+            Weakening::for_elo(ELO_DEFAULT),
             Weakening {
                 depth: 3,
-                noise: 20
+                noise: 141
             }
         );
         // Out of range is clamped.
         assert_eq!(Weakening::for_elo(0), Weakening::for_elo(ELO_MIN));
+        assert_eq!(Weakening::for_elo(400), Weakening::for_elo(ELO_MIN));
         assert_eq!(Weakening::for_elo(9_999), Weakening::for_elo(ELO_MAX));
-        assert!((ELO_MIN..=ELO_MAX).contains(&ELO_DEFAULT));
+    }
 
+    #[test]
+    fn between_the_points_the_misjudgement_is_interpolated() {
+        // Halfway from 1,410 (90) to 1,630 (20).
+        assert_eq!(
+            Weakening::for_elo(1520),
+            Weakening {
+                depth: 3,
+                noise: 55
+            }
+        );
+        // 17 of the 70 points from 1,150 (230) to 1,220 (171): 215.67,
+        // rounded towards more noise.
+        assert_eq!(
+            Weakening::for_elo(1167),
+            Weakening {
+                depth: 2,
+                noise: 216
+            }
+        );
+        // The stretch that is not measured stays at two plies, down to the
+        // extrapolated 62 just below the first three-ply point.
+        assert_eq!(Weakening::for_elo(1300).depth, 2);
+        assert_eq!(
+            Weakening::for_elo(1349),
+            Weakening {
+                depth: 2,
+                noise: 62
+            }
+        );
+    }
+
+    #[test]
+    fn a_higher_rating_never_plays_weaker() {
+        // Deeper, or as deep with no more misjudgement. The noise rises at
+        // the step to three plies, from 62 at 1,349 to 151 at 1,350; the
+        // 62 is extrapolated, so that rise is not measured. What was
+        // measured is the gain from two plies and 171 (1,217) to three
+        // plies and 151 (1,354).
         let mut previous = Weakening::for_elo(ELO_MIN);
         for elo in ELO_MIN..=ELO_MAX {
             let now = Weakening::for_elo(elo);
             assert!(now.depth >= previous.depth, "{elo}");
-            assert!(now.noise <= previous.noise, "{elo}");
-            assert!(now.depth >= 2 && now.noise > 0);
+            if now.depth == previous.depth {
+                assert!(now.noise <= previous.noise, "{elo}");
+            }
+            assert!(now.depth >= 2 && now.noise > 0, "{elo}");
             previous = now;
         }
     }
