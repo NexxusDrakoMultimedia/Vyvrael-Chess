@@ -22,11 +22,11 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Alpha (0.1.0-alpha.2): milestones 1 to 5 (board representation, move
-generation, hand-crafted evaluation, search core, UCI) and queued task 1 (the
-options `Seed` and `Variety`, and `bench`) are complete and merged.
-Milestone 6 (strength testing) is in progress: the ladder measurement and the
-provisional `UCI_Elo` calibration are done.** The engine plays chess: it
+**Alpha (0.1.0-alpha.2): milestones 1 to 6 (board representation, move
+generation, hand-crafted evaluation, search core, UCI, strength testing) and
+queued task 1 (the options `Seed` and `Variety`, and `bench`) are complete and
+merged. Milestone 6 measured the engine on the project's ladder and
+calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
 speaks UCI, so it can be used in a GUI and in match tools. It is still weak
 and slow, because the main search has no move ordering or transposition table
 yet (milestone 7). Its strength on the project's own opponent ladder, an

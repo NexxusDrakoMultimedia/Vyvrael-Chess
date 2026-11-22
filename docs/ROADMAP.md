@@ -15,7 +15,7 @@ them.
 | 3 | Evaluation (hand-crafted) | `milestone/3-eval` | done, merged into `main` |
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
-| 6 | Strength testing | `milestone/6-strength-testing` | in progress (started 2026-11-22) |
+| 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -807,7 +807,7 @@ Part B, measuring (the maintainer plays, the agent records):
 
 Closing:
 
-- [ ] End-of-milestone review and doc drift pass, then the report.
+- [x] End-of-milestone review and doc drift pass, then the report.
 
 The release of 0.1.0 follows as its own step, with `docs/RELEASING.md`.
 
