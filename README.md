@@ -22,7 +22,7 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Alpha (0.1.0-alpha.1): milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged; queued task 1 (the options `Seed` and `Variety`, and `bench`) is complete on `main`, for 0.1.0-alpha.2.** The engine plays chess: it speaks UCI, so it can be used in a
+**Alpha (0.1.0-alpha.2): milestone 1 (board representation) is complete and merged; milestone 2 (move generation) is complete and merged; milestone 3 (hand-crafted evaluation) is complete and merged; milestone 4 (search core) is complete and merged; milestone 5 (UCI) is complete and merged; queued task 1 (the options `Seed` and `Variety`, and `bench`) is complete and merged.** The engine plays chess: it speaks UCI, so it can be used in a
 GUI and in match tools. It is still weak and slow, because the search has no
 move ordering or transposition table yet (milestone 7), and its strength has
 not been measured (milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the
@@ -82,13 +82,13 @@ fixed depth or node count.
 
 The protocol is tested by driving the binary over pipes (`tests/uci.rs`)
 and by complete games under `cutechess-cli` (see
-[docs/TESTING.md](docs/TESTING.md)). It has **not yet been tried in a GUI
-or with lichess-bot**, so these instructions are unconfirmed.
+[docs/TESTING.md](docs/TESTING.md)). 0.1.0-alpha.1 has also played in the
+Cute Chess GUI and runs under lichess-bot, both set up by the maintainer.
 
-The plan for Lichess is a bot account, `Vyvrael-Chess`, that plays **casual
-games only** once the first alpha is released. Rated games wait until the
-engine's strength has been measured and its search heuristics tested (after
-0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
+On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
+maintainer upgraded it to a bot on 2026-11-21 and runs it with
+0.1.0-alpha.1. Rated games wait until the engine's strength has been
+measured and its search heuristics tested (after 0.2.0). The policy, the maintainer's checklist and the rules the bot keeps
 are in [docs/LICHESS.md](docs/LICHESS.md).
 
 ## Documentation

@@ -8,6 +8,19 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-11-22
+
+The second alpha: games that no longer repeat, a reproducible bench, and
+the tools to measure the engine on Windows and Linux. Release notes:
+[docs/releases/0.1.0-alpha.2.md](docs/releases/0.1.0-alpha.2.md).
+
+- **Breaking for scripts and GUI settings:** the options `DeterministicRNG`
+  and `RngSeed` are replaced by `Seed`.
+- **Full-strength play is unchanged** with the new options at their
+  defaults: the bench node count is the same before and after them.
+- **Strength is still unmeasured** and `UCI_Elo` is still not calibrated
+  (milestone 6).
+
 ### Changed
 
 - **The UCI option `Seed` replaces `DeterministicRNG` and `RngSeed`.** It is
@@ -42,7 +55,6 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   node count is the same on every run of a build (16,611,416 for this one)
   and changes only when what the search does changes; the speed is for
   comparing builds on one machine.
-
 - `scripts/local.env.example`: the settings the match and rating scripts
   read from a git-ignored `scripts/local.env` (tool locations, the opening
   file, the engine list, concurrency, priority).
@@ -349,5 +361,6 @@ shipped; they are kept as a record of what the reviews caught.
   back from every time limit for delays the engine cannot measure, such as
   the network between a Lichess game and the engine.
 
-[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/tag/v0.1.0-alpha.1
