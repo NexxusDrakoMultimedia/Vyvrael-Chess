@@ -74,7 +74,7 @@ Options:
                       UCI_Elo=1500 (not Threads or Hash)
   -BaseOption NAME=VALUE[,NAME=VALUE ...]
                       the same for the base build (sprt and h2h)
-  -LowPriority       run at low priority (BelowNormal)
+  -LowPriority        run at low priority (BelowNormal)
   -NoLowPriority      do not, whatever the local settings say
   -DryRun             print the cutechess-cli command and stop
   -Help               show this text
@@ -212,8 +212,12 @@ function Test-Options([string] $What, [string[]] $Options) {
             if ($option -match '^[^=]+=[^=]*=') { Die "$What '$option' may hold only one '='" }
             Die "$What '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
         }
-        if ($option -cnotmatch '^[ -~]+$') { Die "$What '$option' must be plain ASCII" }
+        # \z, not $: in .NET, $ also matches before a line break at the end.
+        if ($option -cnotmatch '^[ -~]+\z') { Die "$What '$option' must be plain ASCII" }
         if ($option -match '["'';]') { Die "$What '$option' may not contain quotes or ';'" }
+        # Windows PowerShell 5.1 passes an argument that holds a space and
+        # ends with a backslash on wrongly, swallowing the ones after it.
+        if ($option.EndsWith('\')) { Die "$What '$option' may not end with a backslash" }
         $name = $option.Substring(0, $option.IndexOf('='))
         if ($name -ne $name.Trim(' ')) {
             Die "$What '$option': the name may not start or end with a space"

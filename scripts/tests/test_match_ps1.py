@@ -288,7 +288,16 @@ class MatchPs1Test(Fixture, unittest.TestCase):
             with self.subTest(given=given):
                 self.refused(self.sprt("-TestOption", given), f"-TestOption '{given}'", message)
         # Windows may re-encode a non-ASCII argument, so only the reason is checked.
-        self.refused(self.sprt("-TestOption", "UCI_Elo=1500é"), "must be plain ASCII")
+        self.refused(self.sprt("-TestOption", "UCI_Elo=1500\u00e9"), "must be plain ASCII")
+        # A line break, even at the end, would put a second command into the
+        # engine's input.
+        for given in ("UCI_Elo=1500\nquit", "UCI_Elo=1500\n"):
+            with self.subTest(given=given):
+                self.refused(self.sprt("-TestOption", given), "must be plain ASCII")
+        self.refused(
+            self.sprt("-TestOption", "SyzygyPath=C:\\tb dir\\"),
+            "may not end with a backslash",
+        )
         self.refused(
             self.sprt("-BaseOption", "UCI_Elo=1500;uci_elo=1600"),
             "-BaseOption: the option uci_elo is given twice",

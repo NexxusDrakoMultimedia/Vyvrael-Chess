@@ -944,8 +944,12 @@ counts, test results, and whether games complete without failures.
   list. This is how a limited Vyvræl is measured, for example when
   calibrating `UCI_Elo`. `Threads` and `Hash` are refused (the script sets
   one thread and `--hash`), as are `Seed` and `Variety` next to
-  `--deterministic`, an option given twice, quotes and `;`. The notes list
-  each build's options.
+  `--deterministic`, an option given twice, anything but printable ASCII
+  (a line break would put a second command into the engine's input),
+  quotes, and a value ending with a backslash (Windows PowerShell 5.1
+  passes one on wrongly). `match.sh` refuses `;` in an option;
+  `match.ps1` splits a string at `;` into several options, as it does
+  opponents. The notes list each build's options.
 
 ## Tactical test suites (planned, milestone 8)
 

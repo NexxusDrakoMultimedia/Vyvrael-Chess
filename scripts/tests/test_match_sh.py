@@ -106,7 +106,7 @@ class Fixture:
             f"-version) echo 'cutechess-cli 9.9.9'; echo 'more'; exit 0;;\nesac\n{play}",
         )
 
-    def run_script(self, *args: str, env: dict | None = None):
+    def run_script(self, *args: str, env: dict | None = None, script: Path = SCRIPT):
         environment = {
             key: value for key, value in os.environ.items() if not key.startswith("VYVRAEL_")
         }
@@ -116,7 +116,7 @@ class Fixture:
         environment["VYVRAEL_MATCH_DATE"] = "2026-01-02"
         environment.update(env or {})
         return subprocess.run(
-            [BASH, SCRIPT.as_posix(), *args],
+            [BASH, script.as_posix(), *args],
             capture_output=True, text=True, env=environment, cwd=self.tmp, timeout=120,
         )
 
@@ -285,7 +285,27 @@ class MatchShTest(Fixture, unittest.TestCase):
             with self.subTest(given=given):
                 self.refused(self.sprt("--test-option", given), f"--test-option '{given}'", message)
         # Windows may re-encode a non-ASCII argument, so only the reason is checked.
-        self.refused(self.sprt("--test-option", "UCI_Elo=1500é"), "must be plain ASCII")
+        self.refused(self.sprt("--test-option", "UCI_Elo=1500\u00e9"), "must be plain ASCII")
+        # A line break, even at the end, would put a second command into the
+        # engine's input.
+        # Git Bash on Windows splits its command line at line breaks, so the
+        # argument is made inside bash, by a driver that runs the script.
+        for given in ("UCI_Elo=1500\\nquit", "UCI_Elo=1500\\n"):
+            with self.subTest(given=given):
+                driver = script_file(
+                    self.tmp / "driver.sh",
+                    f"exec \"$BASH\" '{SCRIPT.as_posix()}' \"$@\" --test-option $'{given}'\n",
+                )
+                bounds = ["--elo0", "0", "--elo1", "5", "--alpha", "0.05", "--beta", "0.05"]
+                self.refused(
+                    self.run_script("sprt", *self.builds(), *bounds, "--rounds", "5",
+                                    *self.common(), script=driver),
+                    "must be plain ASCII",
+                )
+        self.refused(
+            self.sprt("--test-option", "SyzygyPath=C:\\tb dir\\"),
+            "may not end with a backslash",
+        )
         self.refused(
             self.sprt("--base-option", "UCI_Elo=1500", "--base-option", "uci_elo=1600"),
             "--base-option: the option uci_elo is given twice",

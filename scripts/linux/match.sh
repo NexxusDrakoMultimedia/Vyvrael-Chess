@@ -46,7 +46,7 @@ Options:
                        UCI_Elo=1500; repeat it for more (not Threads or Hash)
   --base-option NAME=VALUE
                        the same for the base build (sprt and h2h)
-  --low-priority      run at low priority (nice)
+  --low-priority       run at low priority (nice)
   --no-low-priority    do not, whatever the local settings say
   --dry-run            print the cutechess-cli command and stop
   --help               show this text
@@ -124,6 +124,8 @@ cutechess=$(setting CUTECHESS_CLI)
 out_dir=$(setting MATCH_DIR)
 low_priority=$(setting LOW_PRIORITY)
 opponents=() test_options=() base_options=()
+# The option arrays are often empty. Under set -u, bash before 4.4 calls an
+# empty "${array[@]}" unbound, so they are written ${array[@]+"${array[@]}"}.
 
 need() { [[ $# -ge 2 ]] || die "$1 needs a value"; }
 while [[ $# -gt 0 ]]; do
@@ -191,16 +193,26 @@ check_engine_file() {
     [[ -f $path ]] || die "$what not found: $path"
     [[ -x $path ]] || die "$what is not executable: $path"
 }
+# Whether every byte of $1 is printable ASCII, space to "~". tr in the C
+# locale compares bytes (see check_name); the "." after it keeps $(...)
+# from dropping line breaks at the end, which would otherwise pass.
+is_plain() {
+    local rest
+    rest=$(printf '%s' "$1" | LC_ALL=C tr -d ' -~'; printf .)
+    [[ $rest == . ]]
+}
 # The UCI options given to one build, each NAME=VALUE.
 check_options() {
-    local what=$1 seen=$'\n' option name value lower other
+    local what=$1 seen=$'\n' option name value lower
     shift
     for option in "$@"; do
         [[ $option == ?*=?* ]] || die "$what '$option' must be NAME=VALUE (for example UCI_Elo=1500)"
         name=${option%%=*} value=${option#*=}
-        other=$(printf '%s' "$option" | LC_ALL=C tr -d ' -~')
-        [[ -z $other ]] || die "$what '$option' must be plain ASCII"
+        is_plain "$option" || die "$what '$option' must be plain ASCII"
         [[ $option != *'"'* && $option != *"'"* && $option != *';'* ]] || die "$what '$option' may not contain quotes or ';'"
+        # Windows PowerShell 5.1 passes such an argument on wrongly when it
+        # also holds a space; refused in both scripts alike.
+        [[ $option != *'\' ]] || die "$what '$option' may not end with a backslash"
         [[ $value != *=* ]] || die "$what '$option' may hold only one '='"
         [[ $name == "${name# }" && $name == "${name% }" ]] || die "$what '$option': the name may not start or end with a space"
         # UCI option names are not case-sensitive.
@@ -216,7 +228,7 @@ check_options() {
 
 check_name "--test-name" "$test_name"
 check_engine_file "the test build (--test)" "$test_path"
-check_options "--test-option" "${test_options[@]}"
+check_options "--test-option" ${test_options[@]+"${test_options[@]}"}
 
 # --- what each mode needs --------------------------------------------------
 
@@ -228,7 +240,7 @@ case $mode in
         check_engine_file "the base build (--base)" "$base_path"
         [[ $test_name != "$base_name" ]] || die "the two builds have the same name '$test_name'; the results could not be told apart"
         ((${#opponents[@]} == 0)) || die "--opponent is for gauntlet mode"
-        check_options "--base-option" "${base_options[@]}"
+        check_options "--base-option" ${base_options[@]+"${base_options[@]}"}
         ;;
     gauntlet)
         ((${#opponents[@]} > 0)) || die "gauntlet mode needs at least one --opponent"
@@ -354,16 +366,16 @@ build_options=(proto=uci option.Threads=1)
 # A fixed seed (the project's default, 0x31031996) and no variety.
 [[ $deterministic == true ]] && build_options+=(option.Seed=822286742 option.Variety=0)
 test_extra=() base_extra=()
-for option in "${test_options[@]}"; do test_extra+=("option.$option"); done
-for option in "${base_options[@]}"; do base_extra+=("option.$option"); done
+for option in ${test_options[@]+"${test_options[@]}"}; do test_extra+=("option.$option"); done
+for option in ${base_options[@]+"${base_options[@]}"}; do base_extra+=("option.$option"); done
 
 cmd=("$cutechess")
 [[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)
-cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" "${test_extra[@]}")
+cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" ${test_extra[@]+"${test_extra[@]}"})
 if [[ $mode == gauntlet ]]; then
     cmd+=("${opponent_args[@]}")
 else
-    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}" "${base_extra[@]}")
+    cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}" ${base_extra[@]+"${base_extra[@]}"})
 fi
 cmd+=(-each "tc=$tc" "option.Hash=$hash"
     -openings "file=$openings" format=epd order=random
@@ -455,8 +467,8 @@ fi
     fi
     echo
     echo "options given (--test-option, --base-option):"
-    echo "  $test_name: $(option_list "${test_options[@]}")"
-    [[ $mode == gauntlet ]] || echo "  $base_name: $(option_list "${base_options[@]}")"
+    echo "  $test_name: $(option_list ${test_options[@]+"${test_options[@]}"})"
+    [[ $mode == gauntlet ]] || echo "  $base_name: $(option_list ${base_options[@]+"${base_options[@]}"})"
     echo
     echo "command:"
     printf '  '
