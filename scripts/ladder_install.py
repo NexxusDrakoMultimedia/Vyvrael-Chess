@@ -113,6 +113,8 @@ def select(ctx, only: list[str] | None) -> list[dict]:
         base = re.sub(r"-\d+$", "", name) if name in names else name
         engine = next((p for p in available if p["name"] == base), None)
         if engine is None:
+            if name in ladder_engines.RETIRED:
+                tools.die(f"{name} is no longer in the ladder: {ladder_engines.RETIRED[name]}")
             if name in unavailable:
                 tools.die(f"{name} cannot be installed on {system}: {unavailable[name]}")
             known = ", ".join(p["name"] for p in available)

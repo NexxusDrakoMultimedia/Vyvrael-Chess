@@ -28,6 +28,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Changed
 
+- **The ladder installer no longer provides Arasan 26.1-1800.** It scored
+  13.5 of 116 in Ladder Baseline 2, too weak to tell Vyvræl builds apart,
+  and it is not an opponent in the `UCI_Elo` calibration. CT800 1.46-1200
+  and Arasan 26.1-1500 stay, as the calibration's lowest rungs. The name
+  stays in Baseline 2's record and is left out from Ladder Baseline 3 on;
+  `--only "Arasan 26.1-1800"` says why.
 - **`UCI_Elo` is calibrated, provisionally.** Its numbers are now ratings
   on the scale of the reference ladder, measured for seven settings of the
   weakening: the range is 1110 to 1630 (was 400 to 1800, labels only), and

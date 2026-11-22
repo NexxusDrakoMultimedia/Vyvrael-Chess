@@ -420,6 +420,10 @@ class LadderInstallTest(unittest.TestCase):
         with redirect_stderr(out), self.assertRaises(SystemExit):
             ladder_install.select(ctx, ["Orion 1.1"])
         self.assertIn("Orion 1.1 cannot be installed on linux", out.getvalue())
+        out = io.StringIO()
+        with redirect_stderr(out), self.assertRaises(SystemExit):
+            ladder_install.select(ctx, ["Arasan 26.1-1800"])
+        self.assertIn("Arasan 26.1-1800 is no longer in the ladder", out.getvalue())
         # The real table: every name of the ladder selects one of its engines.
         for name in ladder_engines.ladder_names():
             self.assertEqual(len(ladder_install.select(ctx, [name])), 1, name)
@@ -492,13 +496,14 @@ class LadderInstallTest(unittest.TestCase):
         for engine in ladder_engines.pins("linux"):
             entries.extend(ladder_install.engine_entries(ctx, engine))
         self.assertEqual([entry["name"] for entry in entries], ladder_engines.ladder_names())
-        self.assertEqual(len(entries), 27)
+        self.assertEqual(len(entries), 26)
         by_name = {entry["name"]: {o["name"]: o["value"] for o in entry["options"]}
                    for entry in entries}
         self.assertEqual(by_name["Stockfish 19-1320"],
                          {"Hash": 64, "Threads": 1, "Move Overhead": 30,
                           "UCI_LimitStrength": True, "UCI_Elo": 1320})
-        self.assertEqual(by_name["Arasan 26.1-1800"]["UCI_Elo"], 1800)
+        self.assertEqual(by_name["Arasan 26.1-1500"]["UCI_Elo"], 1500)
+        self.assertNotIn("Arasan 26.1-1800", by_name)  # retired
         self.assertEqual(by_name["Rodent IV-1600"]["UCI_Elo"], 1600)
         # Rodent IV limits itself unless told not to.
         self.assertIs(by_name["Rodent IV"]["UCI_LimitStrength"], False)

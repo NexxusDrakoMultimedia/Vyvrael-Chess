@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
-"""The opponent engines of Ladder Baseline 2, pinned for Linux and Windows.
+"""The opponent engines of the ladder, pinned for Linux and Windows: Ladder
+Baseline 2's, less the names in RETIRED.
 
 Which engines, versions and names: docs/testing/ladder-Baseline-2.md and its
 ratings files, which are the source of truth. This module records where each
@@ -103,7 +104,7 @@ ENGINES = [
         "threads": True,
         "limit": (1000, 3450),
         "options": [("OwnBook", False), ("Use tablebases", False), ("Move overhead", 30)],
-        "variants": [1500, 1800],
+        "variants": [1500],
         "notes": "One archive holds the avx2 build and the avx2-bmi2 build, whose sliding-"
         "piece attacks use PEXT (the project's Makefile: BUILD_TYPE=avx2-bmi2 adds -DBMI2), "
         "so the build only changes which file is installed. The avx2 file's name follows "
@@ -112,7 +113,8 @@ ENGINES = [
         "file must sit beside the binary. The engine's own book (book.bin) is installed "
         "beside it too, as in Ladder Baseline 1, but switched off with OwnBook, as in "
         "Ladder Baseline 2. UCI_Elo moves in steps of about 24.5: "
-        "1500 and 1800 play as 1490 and 1784 on the engine's own scale.",
+        "1500 plays as 1490 on the engine's own scale. Its 1800 entry of Ladder Baseline "
+        "2 is retired (see RETIRED).",
     },
     {
         "name": "Viridithas 20",
@@ -640,6 +642,16 @@ NOT_INSTALLABLE = {"linux": {
     "need a Python environment with PyTorch, which the installer does not set up (the "
     "maintainer's decision, 2026-11-21).",
 }, "windows": {}}
+
+# Names of Ladder Baseline 2 that the installer no longer provides, and why.
+# They stay in the baseline's record; they are left out of the ladder from
+# Ladder Baseline 3 on.
+RETIRED = {
+    "Arasan 26.1-1800": "Too weak to tell Vyvrael builds apart: 13.5 points of 116 in Ladder "
+    "Baseline 2, and not an opponent in the UCI_Elo calibration, unlike CT800 1.46-1200 "
+    "and Arasan 26.1-1500, which are kept as its lowest rungs (the maintainer's decision, "
+    "2026-11-22).",
+}
 
 # What every engine of the ladder is given, as in the baselines. Each pin's
 # `options` add the rest of Ladder Baseline 2's settings: books and online

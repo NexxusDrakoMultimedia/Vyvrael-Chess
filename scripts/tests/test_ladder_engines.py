@@ -40,21 +40,26 @@ class LadderEnginesTest(unittest.TestCase):
         self.assertEqual(len(baseline), 30)
         provided = ladder_engines.ladder_names()
         left_out = list(ladder_engines.NOT_INSTALLABLE["linux"])
+        retired = list(ladder_engines.RETIRED)
         self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
-        # Every name of the baseline is either provided or listed as left
-        # out with a reason, and nothing else is: no invented engines.
-        self.assertEqual(sorted(provided + left_out), sorted(baseline))
+        # Every name of the baseline is either provided, listed as left out
+        # with a reason or retired with a reason, and nothing else is: no
+        # invented engines.
+        self.assertEqual(sorted(provided + left_out + retired), sorted(baseline))
         self.assertEqual(left_out, ["Orion 1.1", "Ethereal 12.75", "Nostradamus 0.4"])
-        for reason in ladder_engines.NOT_INSTALLABLE["linux"].values():
+        self.assertEqual(retired, ["Arasan 26.1-1800"])
+        for reason in [*ladder_engines.NOT_INSTALLABLE["linux"].values(),
+                       *ladder_engines.RETIRED.values()]:
             self.assertGreater(len(reason), 40)
         # No generated name carries a stray space.
         for name in provided:
             self.assertEqual(name, name.strip())
 
-    def test_windows_provides_every_name_of_the_baseline(self):
+    def test_windows_provides_every_name_of_the_baseline_not_retired(self):
         provided = ladder_engines.ladder_names("windows")
         self.assertEqual(len(set(provided)), len(provided), "a name is given twice")
-        self.assertEqual(sorted(provided), sorted(baseline_names()))
+        self.assertEqual(sorted(provided + list(ladder_engines.RETIRED)),
+                         sorted(baseline_names()))
         self.assertEqual(ladder_engines.NOT_INSTALLABLE["windows"], {})
         self.assertEqual(len(ladder_engines.pins("windows")), 17)
         # Windows takes official programs only; nothing is built there.
@@ -81,10 +86,10 @@ class LadderEnginesTest(unittest.TestCase):
             engine["name"]: engine.get("variants", []) for engine in ladder_engines.pins("linux")
         }
         self.assertEqual(variants["Stockfish 19"], [1320, 1500, 1800, 2000, 2200, 2400])
-        self.assertEqual(variants["Arasan 26.1"], [1500, 1800])
+        self.assertEqual(variants["Arasan 26.1"], [1500])
         self.assertEqual(variants["Rodent IV"], [1600, 2000])
         self.assertEqual(variants["CT800 1.46"], [1200, 1500, 1800])
-        self.assertEqual(sum(len(elos) for elos in variants.values()), 13)
+        self.assertEqual(sum(len(elos) for elos in variants.values()), 12)
 
     def test_a_variant_needs_an_engine_that_can_be_limited_that_far(self):
         for engine in all_pins():

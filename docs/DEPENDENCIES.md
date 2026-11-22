@@ -90,7 +90,7 @@ Sources and licences were read on each project's own page or repository on
 | Engine | Version | Licence | How | Source | SHA-256 of the download |
 | --- | --- | --- | --- | --- | --- |
 | Stockfish 19 (also limited to 1320, 1500, 1800, 2000, 2200, 2400) | sf_19 | GPL-3.0 | official binary | <https://github.com/official-stockfish/Stockfish> | `9defc0d4e55d49c6...` |
-| Arasan 26.1 (also limited to 1500, 1800) | v26.1 | MIT | official binary | <https://github.com/jdart1/arasan-chess> | `33c0c4f8f70c3ed5...` |
+| Arasan 26.1 (also limited to 1500) | v26.1 | MIT | official binary | <https://github.com/jdart1/arasan-chess> | `33c0c4f8f70c3ed5...` |
 | Viridithas 20 | v20.0.0 | MIT | official binary | <https://github.com/cosmobobak/viridithas> | `eb53de2fde546f3b...` |
 | Reckless 0.9.0 | v0.9.0 | AGPL-3.0 | official binary | <https://github.com/codedeliveryservice/Reckless> | `09ba1634faaffec5...` |
 | Stash 37.0 | v37.0 | GPL-3.0 | official binary (popcnt; bmi2 for `pext`) | <https://gitlab.com/mhouppin/stash-bot> | `8643547bfe9505d5...` (`pext`: `70f8935f8e45cefe...`) |
@@ -125,7 +125,7 @@ publishes no digest, the recorded one is what it served that day.
 | Engine | Windows file (`avx2`; `pext` if different) | Licence | From | SHA-256 of the program |
 | --- | --- | --- | --- | --- |
 | Stockfish 19 (and its six limited entries) | `stockfish-windows-x86-64-universal.exe` in the release zip | GPL-3.0 | GitHub release sf_19 | `45bc8e4969147db9...` |
-| Arasan 26.1 (and its two) | `arasanx-64-avx2.exe`; `arasanx-64-avx2-bmi2.exe`, in `arasan26.1.zip`, with its network and book beside it | MIT | GitHub release v26.1 | `67ff0441343bd5f6...`; `cca0e46c7a1d18d4...` |
+| Arasan 26.1 (and its 1500 entry) | `arasanx-64-avx2.exe`; `arasanx-64-avx2-bmi2.exe`, in `arasan26.1.zip`, with its network and book beside it | MIT | GitHub release v26.1 | `67ff0441343bd5f6...`; `cca0e46c7a1d18d4...` |
 | Viridithas 20 | `viridithas-20-win-x86-64-v3.exe` | MIT | GitHub release v20.0.0 | `c7fa86b2b46fe1c3...` |
 | Reckless 0.9.0 | `reckless-windows-avx2.exe` | AGPL-3.0 | GitHub release v0.9.0 | `b74ead5648cfa7a7...` |
 | Stash 37.0 | `stash-37.0-windows-x86_64-popcnt.exe`; `...-bmi2.exe` | GPL-3.0 | GitLab release v37.0 | `e86edfdafa35416c...`; `7cd0e8bb0bf48e81...` |
