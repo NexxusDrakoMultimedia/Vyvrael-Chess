@@ -665,10 +665,27 @@ the first move after the opening position, the others at moves 3 and 7.
 Without `Variety`, three of ten pairs repeated in the self-play of
 0.1.0-alpha.1. The games were not kept in the repository.
 
-**These are checks that games complete, not measurements of strength.**
-Forty or forty-eight games against five or six opponents say nothing
-reliable about a rating; that is the KI-8 measurement (see
-[results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)).
+**Result for 0.1.0**, run on 2026-11-22 (19:57 to 20:54 UTC) on the
+Windows workstation (six games at a time) with cutechess-cli 1.5.1 and an
+`avx2` build of the release's source (commit `b048c21`; nothing after
+it on `release/0.1.0` touches the engine's source). It is the 1,000-game
+gauntlet of the release's measurement, against ten rungs of Ladder
+Baseline 2 ([results-0.1.0.md](testing/results-0.1.0.md)), so the check
+and the rating come from the same games.
+
+| Run | Games | Mate | Draw by rule | Adjudicated | Illegal moves, crashes, stalls, time losses |
+| --- | --- | --- | --- | --- | --- |
+| Gauntlet against ten rungs of Ladder Baseline 2 | 1,000 | 295 | 51 | 654 | 0 |
+
+`cutechess-cli` ended one opponent's process by force between games
+(CT800 1.46-1800), with no result affected.
+
+**The alpha checks are checks that games complete, not measurements of
+strength.** Forty or forty-eight games against five or six opponents say
+nothing reliable about a rating; the measurements are separate (see
+[results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). From 0.1.0
+the release check uses the games of the release's measurement
+([results-0.1.0.md](testing/results-0.1.0.md)).
 
 ## Strength matches, SPRT and ratings
 

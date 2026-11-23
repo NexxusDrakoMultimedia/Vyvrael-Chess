@@ -49,6 +49,11 @@ time and calibrates `UCI_Elo`, both provisionally. Release notes:
   0.1.0-alpha.2 against Ladder Baseline 2's rungs, rated with Baseline 2.
   It places Vyvræl between Stockfish 19-1800 and Rodent IV-2000 on that
   ladder's own scale, which is not an Elo (`docs/testing/results-0.1.0-alpha.2.md`).
+- **The measurement for this release:** 1,000 games of an `avx2` build of
+  0.1.0's source against the same rungs. It places Vyvræl level with
+  Rodent IV-2000 and 0.1.0-alpha.2, 56 points below the first measurement
+  of the same search, which is the spread between such runs
+  (`docs/testing/results-0.1.0.md`).
 
 ### Changed
 
