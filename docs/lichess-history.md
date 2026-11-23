@@ -95,6 +95,7 @@ What the games show:
   lichess-bot. Its settings are the maintainer's record; the checklist in
   LICHESS.md suggests `Variety: 10` from this release on.
 - **Window:** from the upgrade after the alpha.1 pre-release export on
-  2026-11-22. Still open: it closes with the next pre-release export, when
-  the bot is stopped to run a newer build.
-- **Games:** recorded when the window closes.
+  2026-11-22 until the bot moves to 0.1.0.
+- **Games:** none. The maintainer confirmed on 2026-11-23 that the bot
+  played no games with 0.1.0-alpha.2, so this section has no pre-release
+  PGN and nothing to show about `Variety` in play yet.

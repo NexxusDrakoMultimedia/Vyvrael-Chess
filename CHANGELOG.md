@@ -8,6 +8,21 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
+The first release built by the release workflow, in an `avx2` build and a
+plain build for Windows and Linux. It measures the engine for the first
+time and calibrates `UCI_Elo`, both provisionally. Release notes:
+[docs/releases/0.1.0.md](docs/releases/0.1.0.md).
+
+- **Breaking for GUI settings:** `UCI_Elo` now runs from 1110 to 1630 (it
+  was 400 to 1800); a value outside the range is refused.
+- **Full-strength play is unchanged:** the bench node count is the same as
+  in 0.1.0-alpha.2.
+- **Known limitation:** a long game with no increment and a tiny clock can
+  be lost on time (known issue KI-12), seen once in 204 games at one second
+  a side. Games with an increment are not affected.
+
 ### Added
 
 - **The installer fetches the opening file:** `install_tools.py
@@ -39,6 +54,11 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   0.1.0-alpha.2 against Ladder Baseline 2's rungs, rated with Baseline 2.
   It places Vyvræl between Stockfish 19-1800 and Rodent IV-2000 on that
   ladder's own scale, which is not an Elo (`docs/testing/results-0.1.0-alpha.2.md`).
+- **The measurement for this release:** 1,000 games of an `avx2` build of
+  0.1.0's source against the same rungs. It places Vyvræl level with
+  Rodent IV-2000 and 0.1.0-alpha.2, 56 points below the first measurement
+  of the same search, which is the spread between such runs
+  (`docs/testing/results-0.1.0.md`).
 
 ### Changed
 
@@ -421,6 +441,7 @@ shipped; they are kept as a record of what the reviews caught.
   back from every time limit for delays the engine cannot measure, such as
   the network between a Lichess game and the engine.
 
-[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.2...HEAD
+[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.2...v0.1.0
 [0.1.0-alpha.2]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/tag/v0.1.0-alpha.1
