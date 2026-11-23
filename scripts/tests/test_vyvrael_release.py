@@ -4,9 +4,10 @@
 
 Nothing is downloaded: the release's .sha256 file, the download and the
 binary's `uci` answer are stubbed, and everything is written to a temporary
-directory. The tests that make symbolic links are skipped where the system
-does not let this user make them (Windows without Developer Mode); the
-feature itself is for the Linux machine.
+directory. The Linux side and the Windows side are each tested on any
+system, by naming the side. The tests that make symbolic links are skipped
+where the system does not let this user make them (Windows without
+Developer Mode).
 
     python3 -m unittest discover -s scripts/tests
 """
@@ -86,10 +87,10 @@ class Release:
         )
 
 
-def run_release(ctx, stub, version="0.1.0", build="avx2"):
+def run_release(ctx, stub, version="0.1.0", build="avx2", windows=False):
     a, b, c = stub.patches()
     with a, b, c:
-        return quiet(release.install_release, ctx, version, build)
+        return quiet(release.install_release, ctx, version, build, windows)
 
 
 def failure(call) -> str:
@@ -114,7 +115,7 @@ class Failures(unittest.TestCase):
         self.tmp.cleanup()
 
     def install(self):
-        release.install_release(self.ctx, "0.1.0", "avx2")
+        release.install_release(self.ctx, "0.1.0", "avx2", False)
 
     def test_a_missing_release_says_why(self):
         def missing(url):
@@ -147,7 +148,7 @@ class Failures(unittest.TestCase):
     def test_engine_named_like_the_release_file_is_refused(self):
         ctx = ctx_for(Path(self.tmp.name),
                       engine=str(Path(self.tmp.name) / "vyvrael-0.1.0-avx2"))
-        err = failure(lambda: release.install_release(ctx, "0.1.0", "avx2"))
+        err = failure(lambda: release.install_release(ctx, "0.1.0", "avx2", False))
         self.assertIn("must not be named", err)
 
     def test_dry_run_through_main_fetches_and_writes_nothing(self):
@@ -183,6 +184,9 @@ class Names(unittest.TestCase):
     def test_file_names_and_urls_follow_the_release_artifacts(self):
         self.assertEqual(release.asset_name("0.1.0", "avx2"), "vyvrael-0.1.0-avx2")
         self.assertEqual(release.asset_name("0.1.0-alpha.2", "plain"), "vyvrael-0.1.0-alpha.2")
+        self.assertEqual(release.asset_name("0.1.0", "avx2", windows=True),
+                         "vyvrael-0.1.0-avx2.exe")
+        self.assertEqual(release.asset_name("0.1.0", "plain", windows=True), "vyvrael-0.1.0.exe")
         url = release.asset_url("0.1.0", "vyvrael-0.1.0-avx2")
         self.assertEqual(
             url, "https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/download/"
@@ -277,7 +281,7 @@ class Install(unittest.TestCase):
         stub.download = unavailable
         a, b, c = stub.patches()
         with a, b, c:
-            err = failure(lambda: release.install_release(self.ctx, "0.1.0", "avx2"))
+            err = failure(lambda: release.install_release(self.ctx, "0.1.0", "avx2", False))
         self.assertIn("could not download", err)
         self.assertNotIn("draft", err)
         self.assertEqual(list(self.engines.iterdir()), [])
@@ -317,12 +321,98 @@ class UciName(unittest.TestCase):
                 quiet(release.uci_name, engine)
 
 
+class Windows(unittest.TestCase):
+    """The Windows side: the .exe kept beside the ladder's engines, no link."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ctx = ctx_for(Path(self.tmp.name))
+        self.folder = self.ctx.prefix / "engines" / "vyvrael-0.1.0"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def stub(self, version="0.1.0", build="avx2", **kwargs):
+        return Release(version, name=release.asset_name(version, build, windows=True), **kwargs)
+
+    def test_downloads_checks_and_keeps_the_exe_in_its_own_folder(self):
+        stub = self.stub()
+        out, _ = run_release(self.ctx, stub, windows=True)
+        exe = self.folder / "vyvrael-0.1.0-avx2.exe"
+        self.assertEqual(exe.read_bytes(), BINARY)
+        self.assertEqual(stub.urls, [
+            release.asset_url("0.1.0", "vyvrael-0.1.0-avx2.exe.sha256"),
+            release.asset_url("0.1.0", "vyvrael-0.1.0-avx2.exe")])
+        self.assertEqual([p.name for p in self.folder.iterdir()],
+                         ["vyvrael-0.1.0-avx2.exe"])  # no staging left behind
+        self.assertFalse(os.path.lexists(self.ctx.prefix / "engines" / "vyvrael"))
+        self.assertIn("Cute Chess", out)
+
+    def test_both_builds_of_a_release_share_its_folder(self):
+        run_release(self.ctx, self.stub(), windows=True)
+        run_release(self.ctx, self.stub(build="plain"), build="plain", windows=True)
+        self.assertEqual(sorted(p.name for p in self.folder.iterdir()),
+                         ["vyvrael-0.1.0-avx2.exe", "vyvrael-0.1.0.exe"])
+
+    def test_a_binary_of_another_version_is_refused_and_nothing_is_kept(self):
+        with self.assertRaises(SystemExit):
+            run_release(self.ctx, self.stub(answers="Vyvr\u00e6l 0.1.0-alpha.2"), windows=True)
+        self.assertEqual(list(self.folder.iterdir()), [])
+
+    def test_a_wrong_digest_keeps_nothing(self):
+        stub = self.stub()
+        stub.digest = "0" * 64
+        with self.assertRaises(SystemExit):
+            run_release(self.ctx, stub, windows=True)
+        self.assertEqual(list(self.folder.iterdir()), [])
+
+    def test_a_missing_exe_gives_the_same_hint(self):
+        def missing(url):
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+        with mock.patch.object(release, "fetch_text", missing):
+            err = failure(lambda: release.install_release(self.ctx, "0.1.0", "avx2", True))
+        self.assertIn("vyvrael-0.1.0-avx2.exe", err)
+        self.assertIn("draft", err)
+
+    def test_list_shows_the_releases_kept(self):
+        self.assertIn("no release", release.describe_windows(self.ctx))
+        run_release(self.ctx, self.stub(), windows=True)
+        self.assertIn("vyvrael-0.1.0-avx2.exe", release.describe_windows(self.ctx))
+
+
 class Main(unittest.TestCase):
-    def test_refused_on_windows(self):
+    def test_on_windows_it_installs_the_windows_file_and_no_tool(self):
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(install_tools.sys, "platform", "win32"), \
-                self.assertRaises(SystemExit):
+                mock.patch.object(release, "install_release") as install, \
+                mock.patch("windows_tools.install_tools_windows",
+                           side_effect=AssertionError("no tool")):
             quiet(install_tools.main, ["--prefix", tmp, "--vyvrael", "0.1.0"])
+        install.assert_called_once()
+        self.assertEqual(install.call_args.args[1:], ("0.1.0", "avx2"))
+        self.assertEqual(install.call_args.kwargs, {"windows": True})
+
+    def test_on_windows_a_dry_run_fetches_and_writes_nothing(self):
+        stub = Release(name="vyvrael-0.1.0-avx2.exe")
+        a, b, c = stub.patches()
+        with tempfile.TemporaryDirectory() as tmp, a, b, c, \
+                mock.patch.object(install_tools.sys, "platform", "win32"):
+            out, _ = quiet(install_tools.main,
+                           ["--prefix", tmp, "--vyvrael", "0.1.0", "--dry-run"])
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+        self.assertEqual(stub.urls, [])
+        self.assertIn("vyvrael-0.1.0-avx2.exe", out)
+
+    def test_on_windows_engine_and_verify_are_refused(self):
+        for extra, words in ((["--engine", "x"], "Linux only"), (["--verify"], "leave out")):
+            with tempfile.TemporaryDirectory() as tmp, \
+                    mock.patch.object(install_tools.sys, "platform", "win32"), \
+                    mock.patch.object(release, "install_release") as install:
+                err = failure(lambda: install_tools.main(
+                    ["--prefix", tmp, "--vyvrael", "0.1.0", *extra]))
+            self.assertIn(words, err)
+            install.assert_not_called()
 
     def test_vyvrael_alone_installs_no_tool(self):
         with tempfile.TemporaryDirectory() as tmp, \

@@ -22,6 +22,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   `.sha256` file and its `id name`, and points the engine path of
   `config.yml` at it with a symbolic link. An upgrade no longer means
   editing `config.yml`, and going back means re-pointing the link.
+  On Windows it downloads the release's `.exe` instead, makes the same
+  checks and keeps it in `<prefix>\engines\vyvrael-VERSION\`, beside the
+  ladder's engines, for matches; nothing is linked there.
 - **The installer fetches the opening file:** `install_tools.py
   --openings` downloads `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
   books repository at a pinned commit, checks the zip and the `.epd` by

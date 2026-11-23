@@ -21,7 +21,7 @@ Safe to re-run; use --force to reinstall. On Windows the command is
     python3 scripts/install_tools.py --engines --dry-run  # the ladder's engines
     python3 scripts/install_tools.py --only "Vice 1.1"    # one of them
     python3 scripts/install_tools.py --verify             # check them
-    python3 scripts/install_tools.py --vyvrael 0.1.0      # the bot's engine
+    python3 scripts/install_tools.py --vyvrael 0.1.0      # a release (the bot's engine)
     python3 scripts/install_tools.py --openings           # the opening file
 
 Every tool is pinned to an exact version in PINS below, so two runs install
@@ -961,10 +961,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vyvrael",
         metavar="VERSION",
-        help="download the Linux binary of this Vyvræl release, check it against"
-        " its .sha256 file and point lichess-bot's engine path (PREFIX/engines/vyvrael,"
+        help="download this Vyvræl release, check it against its .sha256 file and"
+        " its uci answer. Linux: point lichess-bot's engine path (PREFIX/engines/vyvrael,"
         " or --engine) at it as a symbolic link; config.yml is not edited and the bot"
-        " is not restarted (Linux only)",
+        " is not restarted. Windows: keep the .exe in PREFIX/engines/vyvrael-VERSION/",
     )
     parser.add_argument(
         "--vyvrael-build",
@@ -1078,6 +1078,9 @@ def main(argv: list[str] | None = None) -> None:
             say(f"{tool:12} pinned {pin['version']:14} {have}")
         list_openings(ctx)
         list_engines(ctx)
+        import vyvrael_release
+
+        say(vyvrael_release.describe_windows(ctx))
         say("lichess-bot is installed on Linux only")
         say(f"prefix {ctx.prefix}")
         return
@@ -1099,13 +1102,20 @@ def main(argv: list[str] | None = None) -> None:
         import windows_tools
 
         if args.vyvrael:
-            die("--vyvrael is for lichess-bot's engine, which runs on Linux only")
+            if args.verify:
+                die("--vyvrael already checks the binary it installs; leave out --verify")
+            if args.engine:
+                die("--engine is lichess-bot's engine path, on Linux only")
+            import vyvrael_release
+
+            vyvrael_release.install_release(ctx, args.vyvrael, args.vyvrael_build, windows=True)
         if args.verify and not args.engines:
             openings_ok = install_openings(ctx, args.force) if args.openings else True
             verify_only(ctx, args)
             report_openings(openings_ok)
             return
-        wanted = args.tool or ([] if engines_wanted or args.openings else DEFAULT_TOOLS)
+        wanted = args.tool or (
+            [] if engines_wanted or args.openings or args.vyvrael else DEFAULT_TOOLS)
         if "all" in wanted:
             wanted = list(windows_tools.PINS)
         failed = windows_tools.install_tools_windows(ctx, wanted, args.force) if wanted else []

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Nexxus Drako Multimedia
-"""Puts a released Vyvræl binary in place for lichess-bot, for install_tools.py.
+"""Puts a released Vyvræl binary in place, for install_tools.py.
 
 `--vyvrael VERSION` downloads the Linux binary of that GitHub release and
 its `.sha256` file, checks one against the other, checks that the binary
@@ -11,6 +11,12 @@ so config.yml never needs editing for an upgrade. Each version stays beside
 the link under its own name, so going back is re-pointing the link.
 
 It never stops, starts or restarts the bot, and never edits config.yml.
+
+On Windows there is no bot: `--vyvrael VERSION` downloads the Windows file
+of the release (`.exe`) and its `.sha256` file, makes the same checks, and
+keeps it in `<prefix>/engines/vyvrael-VERSION/`, beside the ladder's
+engines, for the match scripts and Cute Chess. Nothing is linked there:
+Windows lets few users make symbolic links, and matches name a version.
 """
 from __future__ import annotations
 
@@ -18,6 +24,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -44,9 +51,11 @@ def parse_version(text: str) -> str:
     return match.group(1)
 
 
-def asset_name(version: str, build: str) -> str:
-    """The Linux file of `version` in the release, for `build`."""
-    return f"vyvrael-{version}-avx2" if build == "avx2" else f"vyvrael-{version}"
+def asset_name(version: str, build: str, windows: bool = False) -> str:
+    """The file of `version` in the release, for `build`: the Linux file, or
+    the Windows one (`.exe`) when `windows`."""
+    name = f"vyvrael-{version}-avx2" if build == "avx2" else f"vyvrael-{version}"
+    return name + ".exe" if windows else name
 
 
 def asset_url(version: str, name: str) -> str:
@@ -132,9 +141,58 @@ def fetch_error(error: OSError, url: str, name: str, version: str) -> str:
     return f"could not download {url}: {reason}"
 
 
-def install_release(ctx, version_text: str, build: str) -> None:
-    """Downloads, checks and links in the release; see the module docstring."""
+def fetch_checked(version: str, name: str, target: Path) -> None:
+    """Downloads the release file `name` to `target`, checked against its
+    `.sha256` file and its `uci` answer; nothing is left behind on failure."""
+    url = asset_url(version, name)
+    try:
+        expected = parse_sha256(fetch_text(url + ".sha256"), name)
+    except OSError as error:  # URLError, HTTPError and timeouts are OSErrors
+        tools.die(fetch_error(error, url + ".sha256", name, version))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
+        staged = Path(tmp) / name
+        try:
+            tools.download(url, staged, expected)
+        except OSError as error:
+            tools.die(fetch_error(error, url, name, version))
+        tools.make_exec(staged)
+        answered = uci_name(staged)
+        if answered.split()[-1:] != [version]:
+            tools.die(f"{name} calls itself '{answered}', not version {version}")
+        tools.say(f"  check: id name {answered}")
+        os.replace(staged, target)
+
+
+def windows_dir(ctx, version: str) -> Path:
+    """Where a release is kept on Windows: beside the ladder's engines."""
+    return ctx.prefix / "engines" / f"vyvrael-{version}"
+
+
+def install_windows(ctx, version: str, build: str) -> None:
+    """The Windows side of --vyvrael; see the module docstring."""
+    name = asset_name(version, build, windows=True)
+    target = windows_dir(ctx, version) / name
+    tools.say(f"Vyvræl {version} ({build} build) for Windows")
+    if ctx.dry:
+        tools.say(f"  [dry-run] would download {asset_url(version, name)} -> {target}")
+        return
+    fetch_checked(version, name, target)
+    tools.say(f"  {target}")
+    tools.say("  add it to the Cute Chess engine list to use it in matches")
+
+
+def install_release(ctx, version_text: str, build: str, windows: bool | None = None) -> None:
+    """Downloads, checks and links in the release; see the module docstring.
+
+    `windows` defaults to the system this runs on.
+    """
     version = parse_version(version_text)
+    if windows is None:
+        windows = sys.platform == "win32"
+    if windows:
+        install_windows(ctx, version, build)
+        return
     name = asset_name(version, build)
     link = link_path(ctx)
     target = link.with_name(name)
@@ -147,28 +205,20 @@ def install_release(ctx, version_text: str, build: str) -> None:
         tools.say(f"  [dry-run] would point {link} -> {name}")
         return
 
-    try:
-        expected = parse_sha256(fetch_text(url + ".sha256"), name)
-    except OSError as error:  # URLError, HTTPError and timeouts are OSErrors
-        tools.die(fetch_error(error, url + ".sha256", name, version))
-    link.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=link.parent) as tmp:
-        staged = Path(tmp) / name
-        try:
-            tools.download(url, staged, expected)
-        except OSError as error:
-            tools.die(fetch_error(error, url, name, version))
-        tools.make_exec(staged)
-        answered = uci_name(staged)
-        if answered.split()[-1:] != [version]:
-            tools.die(f"{name} calls itself '{answered}', not version {version}")
-        tools.say(f"  check: id name {answered}")
-        os.replace(staged, target)
+    fetch_checked(version, name, target)
     kept = point_link(link, name)
     if kept:
         tools.say(f"  the file that was at {link} is now {kept.name}")
     tools.say(f"  {link} -> {name}")
     tools.say("  restart lichess-bot to use it; config.yml is unchanged")
+
+
+def describe_windows(ctx) -> str:
+    """One line for --list on Windows: the releases kept, if any."""
+    found = sorted(p.name for p in (ctx.prefix / "engines").glob("vyvrael-*/vyvrael-*.exe"))
+    if not found:
+        return "vyvrael      no release under engines/"
+    return "vyvrael      " + ", ".join(found)
 
 
 def describe_link(ctx) -> str:
