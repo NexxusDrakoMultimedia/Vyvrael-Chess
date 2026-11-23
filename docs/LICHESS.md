@@ -6,7 +6,8 @@ bot keeps. The plan and the rules here were set by the maintainer on
 
 **Status:** the maintainer upgraded the account to BOT after tagging
 `v0.1.0-alpha.1`, and the bot has played casual games through lichess-bot
-since 2026-11-20. [lichess-history.md](lichess-history.md) records them.
+since 2026-11-20. It runs the 0.1.0 release since 2026-11-23.
+[lichess-history.md](lichess-history.md) records its games per build.
 
 **AI coding agents do not touch Lichess.** No agent requests, stores, logs
 or commits an API token, calls the Lichess API, runs the BOT upgrade,
@@ -266,7 +267,7 @@ Short and honest: the engine and its version, the tagline, casual only,
 and that strength is measured only on the project's own engine ladder, not
 as a Lichess rating. For example:
 
-> Vyvræl 0.1.0-alpha.2: a dragon-flavoured UCI chess engine in Rust, built
+> Vyvræl 0.1.0: a dragon-flavoured UCI chess engine in Rust, built
 > with AI and playing for the attack. Casual games only; strength measured
 > only against the project's own engine ladder.
 > Source: github.com/NexxusDrakoMultimedia/Vyvrael-Chess
