@@ -29,7 +29,7 @@ Layout:
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
-- `scripts/`: the tool and ladder-engine installer, the match and rating
+- `scripts/`: the tool, opening-file and ladder-engine installer, the match and rating
   scripts (`linux/`, `windows/`), `local.env.example`, and their tests.
 - `branding/`: brand assets, all rights reserved, not under the GPL.
 - `docs/`: architecture, UCI, testing, roadmap, releasing, dependencies,
@@ -45,7 +45,7 @@ Layout:
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` |
 | Test | `cargo test --workspace --release` |
 | Script tests | `python3 -m unittest discover -s scripts/tests` (`python` on Windows; takes several minutes) |
-| Install Cute Chess and Ordo (Linux, Windows; lichess-bot on Linux only) | `python3 scripts/install_tools.py --dry-run` first (`python` on Windows); see `docs/TESTING.md` |
+| Install Cute Chess and Ordo (Linux, Windows; lichess-bot on Linux only); the opening file | `python3 scripts/install_tools.py --dry-run` first (`python` on Windows); `--openings` for the opening file (prints the `OPENINGS=` line); see `docs/TESTING.md` |
 | Install the ladder's engines (Linux, Windows) | `python3 scripts/install_tools.py --engines --dry-run` first (`python` on Windows); `--only "<name>"` for one; `--verify` to check them; `--engine-build pext` or `ENGINE_BUILD=pext` in `scripts/local.env` for PEXT builds |
 | Put a release in place for lichess-bot (Linux) | `python3 scripts/install_tools.py --vyvrael <version> --dry-run` first; `--vyvrael-build plain` for the plain file |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |

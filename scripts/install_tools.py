@@ -22,6 +22,7 @@ Safe to re-run; use --force to reinstall. On Windows the command is
     python3 scripts/install_tools.py --only "Vice 1.1"    # one of them
     python3 scripts/install_tools.py --verify             # check them
     python3 scripts/install_tools.py --vyvrael 0.1.0      # the bot's engine
+    python3 scripts/install_tools.py --openings           # the opening file
 
 Every tool is pinned to an exact version in PINS below, so two runs install
 the same thing. Updating a tool means editing PINS in a reviewed commit.
@@ -972,10 +973,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="which file of the release --vyvrael takes: avx2 (the default) or plain,"
         " for older processors and releases before 0.1.0",
     )
+    parser.add_argument(
+        "--openings",
+        action="store_true",
+        help="fetch the matches' opening file, UHO_Lichess_4852_v1.epd, checked by SHA-256"
+        " (see scripts/openings.py); with no --tool, the tools are then not installed",
+    )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")
     parser.add_argument("--dry-run", action="store_true", help="show what would be done")
     return parser
+
+
+def list_openings(ctx) -> None:
+    """Prints whether the matches' opening file is installed."""
+    import openings
+
+    have = "installed" if openings.is_installed(ctx) else "not installed"
+    say(f"{'openings':12} pinned {openings.PIN['member']}  {have}  ({openings.PIN['licence']})")
 
 
 def list_engines(ctx) -> None:
@@ -1021,6 +1036,27 @@ def report_engines(failed: list[str], broken: list[str]) -> None:
         )
 
 
+def install_openings(ctx, force: bool) -> bool:
+    """Fetches the matches' opening file (scripts/openings.py). Returns
+    False if it failed; a failure does not stop the rest of the run."""
+    import openings
+
+    try:
+        openings.install_openings(ctx, force)
+    except SystemExit:
+        return False
+    except Exception as problem:  # noqa: BLE001 - a network error must not stop the rest
+        print(f"error: openings: {type(problem).__name__}: {problem}", file=sys.stderr)
+        return False
+    return True
+
+
+def report_openings(ok: bool) -> None:
+    """Ends the run with an error if the opening file was not installed."""
+    if not ok:
+        die("the opening file was not installed (see above); nothing was changed for it")
+
+
 def verify_only(ctx, args) -> None:
     """--verify without --engines: check what is there and change nothing."""
     import ladder_verify
@@ -1040,6 +1076,7 @@ def main(argv: list[str] | None = None) -> None:
         for tool, pin in windows_tools.PINS.items():
             have = "installed" if windows_tools.is_installed(ctx, tool) else "not installed"
             say(f"{tool:12} pinned {pin['version']:14} {have}")
+        list_openings(ctx)
         list_engines(ctx)
         say("lichess-bot is installed on Linux only")
         say(f"prefix {ctx.prefix}")
@@ -1049,6 +1086,7 @@ def main(argv: list[str] | None = None) -> None:
             pin = PINS[tool]
             have = ctx.installed_version(tool) or "not installed"
             say(f"{tool:12} pinned {pin['version']:14} installed: {have}  ({pin['licence']})")
+        list_openings(ctx)
         list_engines(ctx)
         import vyvrael_release
 
@@ -1063,16 +1101,20 @@ def main(argv: list[str] | None = None) -> None:
         if args.vyvrael:
             die("--vyvrael is for lichess-bot's engine, which runs on Linux only")
         if args.verify and not args.engines:
+            openings_ok = install_openings(ctx, args.force) if args.openings else True
             verify_only(ctx, args)
+            report_openings(openings_ok)
             return
-        wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
+        wanted = args.tool or ([] if engines_wanted or args.openings else DEFAULT_TOOLS)
         if "all" in wanted:
             wanted = list(windows_tools.PINS)
         failed = windows_tools.install_tools_windows(ctx, wanted, args.force) if wanted else []
+        openings_ok = install_openings(ctx, args.force) if args.openings else True
         engines_failed, engines_broken = (
             install_ladder_engines(ctx, args) if engines_wanted else ([], []))
         if failed:
             die(f"the check failed for {', '.join(failed)} (see above)")
+        report_openings(openings_ok)
         report_engines(engines_failed, engines_broken)
         return
     if not sys.platform.startswith("linux") and not args.dry_run:
@@ -1081,16 +1123,19 @@ def main(argv: list[str] | None = None) -> None:
     if args.vyvrael and args.verify:
         die("--vyvrael already checks the binary it installs; leave out --verify")
     if args.verify and not args.engines:
+        openings_ok = install_openings(ctx, args.force) if args.openings else True
         verify_only(ctx, args)
+        report_openings(openings_ok)
         return
 
     if args.vyvrael:
         import vyvrael_release
 
         vyvrael_release.install_release(ctx, args.vyvrael, args.vyvrael_build)
-    # --engines (or --only) installs engines, and --vyvrael the bot's engine;
-    # tools then only if asked for.
-    wanted = args.tool or ([] if engines_wanted or args.vyvrael else DEFAULT_TOOLS)
+    # --engines (or --only) installs engines, --openings the opening file and
+    # --vyvrael the bot's engine; tools then only if asked for.
+    wanted = args.tool or (
+        [] if engines_wanted or args.openings or args.vyvrael else DEFAULT_TOOLS)
     if "all" in wanted:
         wanted = TOOLS
     failed = []
@@ -1111,6 +1156,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             ctx.forget(tool)
             failed.append(tool)
+    openings_ok = install_openings(ctx, args.force) if args.openings else True
     engines_failed, engines_broken = (
         install_ladder_engines(ctx, args) if engines_wanted else ([], []))
     if not args.dry_run and wanted:
@@ -1122,6 +1168,7 @@ def main(argv: list[str] | None = None) -> None:
             f"the check failed for {', '.join(failed)} (see above). The files are in place under"
             f" {ctx.prefix} but not recorded as installed, so the next run installs again."
         )
+    report_openings(openings_ok)
     report_engines(engines_failed, engines_broken)
 
 
