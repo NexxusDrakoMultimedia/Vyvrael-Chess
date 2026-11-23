@@ -10,6 +10,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **A round-robin mode for baselines:** `match.sh roundrobin` and
+  `match.ps1 roundrobin` play every engine of the engine list (or those
+  named with `--opponent`) and any Vyvræl builds given with `--build
+  NAME=PATH` against each other, with Ladder Baseline 2's fixed settings;
+  the run notes list every engine's SHA-256 and keep a copy of the engine
+  list.
 - **The installer fetches the opening file:** `install_tools.py
   --openings` downloads `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
   books repository at a pinned commit, checks the zip and the `.epd` by

@@ -2,8 +2,9 @@
 # Copyright (C) 2026 Nexxus Drako Multimedia
 #
 # Runs a cutechess-cli match for Vyvrael: an SPRT between two builds, a
-# gauntlet against opponents from the ladder, or a head-to-head between two
-# builds. scripts/linux/match.sh does the same with the same options.
+# gauntlet against opponents from the ladder, a head-to-head between two
+# builds, or a round robin of Vyvrael builds and ladder engines (a ladder
+# baseline). scripts/linux/match.sh does the same with the same options.
 # See docs/TESTING.md. Works in Windows PowerShell 5.1 and PowerShell 7.
 
 param(
@@ -13,6 +14,7 @@ param(
     [string] $Base,
     [string] $BaseName,
     [string[]] $Opponent = @(),
+    [string[]] $Build = @(),
     [string] $Elo0,
     [string] $Elo1,
     [string] $Alpha,
@@ -46,6 +48,8 @@ Usage:
                      -Rounds N [options]
   match.ps1 gauntlet -Test PATH -TestName NAME -Opponent NAME[,NAME ...]
                      -Rounds N [options]
+  match.ps1 roundrobin [-Opponent NAME[,NAME ...]]
+                     [-Build NAME=PATH[,NAME=PATH ...]] -Rounds N [options]
 
 Modes:
   sprt      a sequential probability ratio test of the test build against
@@ -53,6 +57,12 @@ Modes:
   h2h       a fixed number of rounds between two builds.
   gauntlet  the test build against each opponent, named as in the engine
             list (-EnginesJson).
+  roundrobin
+            every engine against every other, for a ladder baseline: each
+            -Build first, then the engines of the engine list (-EnginesJson),
+            all of them in list order, or only those -Opponent names, in
+            the order given. At least two engines; names must be unique.
+            Not with -Test, -Base, their names and options, or SPRT bounds.
 
 A round is two games: each opening is played twice with colours swapped.
 
@@ -64,7 +74,11 @@ Options:
   -Concurrency N      games at once (or CONCURRENCY; default: physical
                       cores minus two, at least one)
   -Openings FILE      opening file in EPD format (required, or OPENINGS)
-  -EnginesJson FILE   engine list for gauntlet opponents (or ENGINES_JSON)
+  -EnginesJson FILE   engine list for gauntlet opponents and roundrobin
+                      engines (or ENGINES_JSON)
+  -Build NAME=PATH[,NAME=PATH ...]
+                      Vyvrael builds to add to a round robin, each by name
+                      and file, split at the first '=' (roundrobin only)
   -Cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
                       PATH)
   -OutDir DIR         where the PGN, log and notes go (or MATCH_DIR;
@@ -83,8 +97,9 @@ Options:
   -Help               show this text
 
 Several opponents: -Opponent "Stockfish 19-1320","Vice 1.1" (or one string
-with the names separated by semicolons); several options likewise:
--TestOption "UCI_LimitStrength=true","UCI_Elo=1500".
+with the names separated by semicolons); several options and builds
+likewise: -TestOption "UCI_LimitStrength=true","UCI_Elo=1500",
+-Build "Vyvrael 0.1.0=C:\engines\vyvrael-0.1.0.exe","Vyvrael dev=vyvrael.exe".
 
 Build names are ASCII only, for example "Vyvrael 0.1.0-a1" or
 "Vyvrael dev-1a2b3c4". Settings can also come from the environment
@@ -94,7 +109,8 @@ scripts/local.env.example.
 Beside the PGN a run leaves a .log and .notes.txt (the command, the git
 commit and whether the repository had changes, each engine's file and
 SHA-256, the times, the outcome, the number of games and the PGN's
-SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
+SHA-256), and for a gauntlet or a round robin a copy of the engine list
+(.engines.json).
 '@
 
 function Die([string] $Message) {
@@ -154,8 +170,8 @@ if (-not $Mode) {
     [Console]::Error.WriteLine($usage)
     exit 2
 }
-if ($Mode -notin @('sprt', 'h2h', 'gauntlet')) {
-    Die "unknown mode '$Mode' (expected sprt, h2h or gauntlet); see -Help"
+if ($Mode -notin @('sprt', 'h2h', 'gauntlet', 'roundrobin')) {
+    Die "unknown mode '$Mode' (expected sprt, h2h, gauntlet or roundrobin); see -Help"
 }
 $Mode = $Mode.ToLowerInvariant()
 
@@ -174,11 +190,29 @@ if ($low -cnotin @('true', 'false')) { Die "LOW_PRIORITY must be true or false, 
 $opponents = @($Opponent | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 $testOptions = @($TestOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 $baseOptions = @($BaseOption | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
+$buildsGiven = @($Build | ForEach-Object { $_ -split ';' } | Where-Object { $_ -ne '' })
 
 # --- what every mode needs -------------------------------------------------
 
-if (-not $Test) { Die '-Test is required: the build under test' }
-if (-not $TestName) { Die '-TestName is required' }
+if ($Mode -eq 'roundrobin') {
+    # A round robin has no build under test: every build is a -Build.
+    if ($Test -or $TestName) {
+        Die '-Test and -TestName are not for roundrobin mode; give each Vyvrael build as -Build NAME=PATH'
+    }
+    if ($Base -or $BaseName) {
+        Die '-Base and -BaseName are not for roundrobin mode; give each Vyvrael build as -Build NAME=PATH'
+    }
+    if ($testOptions.Count -gt 0 -or $baseOptions.Count -gt 0) {
+        Die "-TestOption and -BaseOption are not for roundrobin mode; a list engine's options are in the engine list"
+    }
+} else {
+    if ($buildsGiven.Count -gt 0) {
+        if ($Mode -eq 'gauntlet') { Die '-Build is for roundrobin mode; give the build here with -Test' }
+        Die '-Build is for roundrobin mode; give the builds here with -Test and -Base'
+    }
+    if (-not $Test) { Die '-Test is required: the build under test' }
+    if (-not $TestName) { Die '-TestName is required' }
+}
 if (-not $Rounds) { Die '-Rounds is required: a match must have an end' }
 if (-not (Test-Whole $Rounds) -or [long] $Rounds -le 0) {
     Die "-Rounds must be a whole number above zero, got '$Rounds'"
@@ -239,9 +273,11 @@ function Test-Options([string] $What, [string[]] $Options) {
     }
 }
 
-Test-BuildName '-TestName' $TestName
-Test-EngineFile 'the test build (-Test)' $Test
-Test-Options '-TestOption' $testOptions
+if ($Mode -ne 'roundrobin') {
+    Test-BuildName '-TestName' $TestName
+    Test-EngineFile 'the test build (-Test)' $Test
+    Test-Options '-TestOption' $testOptions
+}
 
 # --- what each mode needs --------------------------------------------------
 
@@ -255,18 +291,34 @@ if ($Mode -in @('sprt', 'h2h')) {
     }
     if ($opponents.Count -gt 0) { Die '-Opponent is for gauntlet mode' }
     Test-Options '-BaseOption' $baseOptions
-} else {
+} elseif ($Mode -eq 'gauntlet') {
     if ($opponents.Count -eq 0) { Die 'gauntlet mode needs at least one -Opponent' }
     if ($Base -or $BaseName) { Die '-Base and -BaseName are for sprt and h2h modes' }
     if ($baseOptions.Count -gt 0) {
         Die "-BaseOption is for sprt and h2h modes; an opponent's options are in the engine list"
     }
+}
+if ($Mode -in @('gauntlet', 'roundrobin')) {
     if (-not $EnginesJson) {
-        Die 'gauntlet mode needs the engine list: -EnginesJson, or ENGINES_JSON in scripts/local.env'
+        Die "$Mode mode needs the engine list: -EnginesJson, or ENGINES_JSON in scripts/local.env"
     }
     if (-not (Test-Path -LiteralPath $EnginesJson -PathType Leaf)) {
         Die "engine list not found: $EnginesJson"
     }
+}
+
+# The Vyvrael builds of a round robin, each NAME=PATH, split at the first '='.
+$buildList = @()
+foreach ($given in $buildsGiven) {
+    $at = $given.IndexOf('=')
+    if ($at -le 0 -or $at -eq $given.Length - 1) {
+        Die "-Build '$given' must be NAME=PATH (for example `"Vyvrael dev=vyvrael.exe`")"
+    }
+    $buildName = $given.Substring(0, $at)
+    $buildPath = $given.Substring($at + 1)
+    Test-BuildName '-Build name' $buildName
+    Test-EngineFile "the build '$buildName' (-Build)" $buildPath
+    $buildList += , @($buildName, $buildPath)
 }
 
 if ($Mode -eq 'sprt') {
@@ -280,23 +332,49 @@ if ($Mode -eq 'sprt') {
     Die '-Elo0, -Elo1, -Alpha and -Beta are for sprt mode'
 }
 
-# --- opponents from the engine list ----------------------------------------
+# --- opponents (or round robin engines) from the engine list ---------------
 
 $opponentArgs = @()
 $opponentFiles = @()
-if ($Mode -eq 'gauntlet') {
-    $seen = @()
-    foreach ($name in $opponents) {
-        if ($name -ceq $TestName) { Die "the build under test has the same name as the opponent '$name'" }
-        if ($seen -ccontains $name) { Die "opponent '$name' is listed twice" }
-        $seen += $name
+if ($Mode -in @('gauntlet', 'roundrobin')) {
+    if ($Mode -eq 'gauntlet') {
+        $seen = @()
+        foreach ($name in $opponents) {
+            if ($name -ceq $TestName) { Die "the build under test has the same name as the opponent '$name'" }
+            if ($seen -ccontains $name) { Die "opponent '$name' is listed twice" }
+            $seen += $name
+        }
     }
     try {
         $engines = @(Get-Content -LiteralPath $EnginesJson -Raw -Encoding UTF8 | ConvertFrom-Json)
     } catch {
         Die "cannot read the engine list ${EnginesJson}: $($_.Exception.Message)"
     }
-    foreach ($name in $opponents) {
+    # One item per entry: Windows PowerShell 5.1 passes a JSON array on whole.
+    $engines = @($engines | ForEach-Object { $_ })
+    $listNames = $opponents
+    $notFound = 'opponent engine not found'
+    if ($Mode -eq 'roundrobin') {
+        $notFound = 'engine not found'
+        if ($opponents.Count -eq 0) {
+            # Every engine of the list, in list order.
+            $listNames = @()
+            foreach ($entry in $engines) {
+                $entryName = [string] $entry.name
+                if (-not $entryName) { Die "an entry of $EnginesJson has no name" }
+                $listNames += $entryName
+            }
+        }
+        # Every name once, builds and list engines together.
+        $seen = @()
+        foreach ($name in @($buildList | ForEach-Object { $_[0] }) + $listNames) {
+            if ($seen -ccontains $name) {
+                Die "two engines are named '$name'; the results could not be told apart"
+            }
+            $seen += $name
+        }
+    }
+    foreach ($name in $listNames) {
         $entry = $engines | Where-Object { $_.name -ceq $name } | Select-Object -First 1
         if (-not $entry) {
             $known = (@($engines | ForEach-Object { $_.name } | Where-Object { $_ } | Sort-Object) -join ', ')
@@ -307,7 +385,7 @@ if ($Mode -eq 'gauntlet') {
         $directory = [string] $entry.workingDirectory
         if ($directory -and $command -notmatch '[\\/]') { $command = Join-Path $directory $command }
         if (-not (Test-Path -LiteralPath $command -PathType Leaf)) {
-            Die "opponent engine not found: $command (from $EnginesJson)"
+            Die "${notFound}: $command (from $EnginesJson)"
         }
         $protocol = [string] $entry.protocol
         if (-not $protocol) { $protocol = 'uci' }
@@ -321,6 +399,12 @@ if ($Mode -eq 'gauntlet') {
             $opponentArgs += "option.$($option.name)=$value"
         }
         $opponentFiles += , @($name, $command)
+    }
+    if ($Mode -eq 'roundrobin') {
+        $total = $buildList.Count + $opponentFiles.Count
+        if ($total -lt 2) {
+            Die "roundrobin mode needs at least two engines (-Build and the engine list), got $total"
+        }
     }
 }
 
@@ -346,6 +430,7 @@ $needed = @('-engine', '-each', '-openings', '-games', '-rounds', '-repeat', '-r
     '-concurrency', '-pgnout', '-ratinginterval', '-resign', '-draw')
 if ($Mode -eq 'sprt') { $needed += '-sprt' }
 if ($Mode -eq 'gauntlet') { $needed += @('-tournament', '-seeds') }
+if ($Mode -eq 'roundrobin') { $needed += '-tournament' }
 if ($Seed) { $needed += '-srand' }
 $tool = Get-Command -Name $Cutechess -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($tool) {
@@ -367,8 +452,12 @@ if ($tool) {
 # for the tests, which need names they can predict.
 $date = $env:VYVRAEL_MATCH_DATE
 if (-not $date) { $date = Get-Date -Format 'yyyy-MM-dd' }
-$slug = $TestName -replace '[^A-Za-z0-9._-]', '-'
-$stemName = "$date-$Mode-$slug"
+if ($Mode -eq 'roundrobin') {
+    $stemName = "$date-$Mode"
+} else {
+    $slug = $TestName -replace '[^A-Za-z0-9._-]', '-'
+    $stemName = "$date-$Mode-$slug"
+}
 if ($Label) { $stemName += "-$Label" }
 $stem = Join-Path $OutDir $stemName
 $pgn = "$stem.pgn"
@@ -379,13 +468,22 @@ if ($Deterministic) { $buildOptions += @('option.Seed=822286742', 'option.Variet
 
 $arguments = @()
 if ($Mode -eq 'gauntlet') { $arguments += @('-tournament', 'gauntlet', '-seeds', '1') }
-$testExtra = @($testOptions | ForEach-Object { "option.$_" })
-$baseExtra = @($baseOptions | ForEach-Object { "option.$_" })
-$arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions + $testExtra
-if ($Mode -eq 'gauntlet') {
+if ($Mode -eq 'roundrobin') {
+    # The builds first, then the engines of the list.
+    $arguments += @('-tournament', 'round-robin')
+    foreach ($pair in $buildList) {
+        $arguments += @('-engine', "name=$($pair[0])", "cmd=$($pair[1])") + $buildOptions
+    }
     $arguments += $opponentArgs
 } else {
-    $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions + $baseExtra
+    $testExtra = @($testOptions | ForEach-Object { "option.$_" })
+    $baseExtra = @($baseOptions | ForEach-Object { "option.$_" })
+    $arguments += @('-engine', "name=$TestName", "cmd=$Test") + $buildOptions + $testExtra
+    if ($Mode -eq 'gauntlet') {
+        $arguments += $opponentArgs
+    } else {
+        $arguments += @('-engine', "name=$BaseName", "cmd=$Base") + $buildOptions + $baseExtra
+    }
 }
 $arguments += @('-each', "tc=$Tc", "option.Hash=$Hash",
     '-openings', "file=$Openings", 'format=epd', 'order=random',
@@ -460,10 +558,10 @@ function Get-Digest([string] $Path) {
 }
 function Get-Now { return [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
-# The engine list a gauntlet used, copied beside the notes, so the
-# opponents' options stay on record even if the list changes later.
+# The engine list a gauntlet or round robin used, copied beside the notes,
+# so the engines' options stay on record even if the list changes later.
 $enginesCopy = ''
-if ($Mode -eq 'gauntlet') {
+if ($Mode -in @('gauntlet', 'roundrobin')) {
     $enginesCopy = Get-FullPath "$stem.engines.json"
     try {
         Copy-Item -LiteralPath $EnginesJson -Destination $enginesCopy -Force
@@ -486,10 +584,16 @@ $lines = @(
     "openings:   $Openings",
     "pgn:        $pgn",
     '',
-    'engines (name, file, SHA-256):',
-    "  $TestName", "    $Test", "    $(Get-Digest $Test)"
+    'engines (name, file, SHA-256):'
 )
-if ($Mode -eq 'gauntlet') {
+if ($Mode -eq 'roundrobin') {
+    foreach ($pair in $buildList) {
+        $lines += @("  $($pair[0])", "    $($pair[1])", "    $(Get-Digest $pair[1])")
+    }
+} else {
+    $lines += @("  $TestName", "    $Test", "    $(Get-Digest $Test)")
+}
+if ($Mode -in @('gauntlet', 'roundrobin')) {
     foreach ($pair in $opponentFiles) {
         $lines += @("  $($pair[0])", "    $($pair[1])", "    $(Get-Digest $pair[1])")
     }
@@ -501,8 +605,14 @@ function Format-Options([string[]] $Options) {
     if ($Options.Count -eq 0) { return 'none' }
     return ($Options -join '; ')
 }
-$lines += @('', 'options given (-TestOption, -BaseOption):', "  ${TestName}: $(Format-Options $testOptions)")
-if ($Mode -ne 'gauntlet') { $lines += "  ${BaseName}: $(Format-Options $baseOptions)" }
+$lines += @('', 'options given (-TestOption, -BaseOption):')
+if ($Mode -eq 'roundrobin') {
+    # A round robin takes no options for its builds.
+    foreach ($pair in $buildList) { $lines += "  $($pair[0]): none" }
+} else {
+    $lines += "  ${TestName}: $(Format-Options $testOptions)"
+    if ($Mode -ne 'gauntlet') { $lines += "  ${BaseName}: $(Format-Options $baseOptions)" }
+}
 $lines += @('', 'command:', "  $commandLine")
 [IO.File]::WriteAllLines($notes, [string[]] $lines, $utf8)
 

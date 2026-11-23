@@ -52,7 +52,7 @@ Layout:
 | Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [FEN]` |
 | Bench (node count and speed) | `cargo run --release -- bench [depth]` |
 | Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
-| Run a match | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet ... -DryRun` first, see `-Help` |
+| Run a match or a baseline round robin | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet\|roundrobin ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet\|roundrobin ... -DryRun` first, see `-Help` |
 | Rate PGN files | Linux: `scripts/linux/rate.sh [options] FILE.pgn ...`, see `--help`; Windows: `scripts/windows/rate.ps1 [options] FILE.pgn ...`, see `-Help` |
 | Data tools; training | `cargo run --release -p vyvrael-data` (stub until milestone 8); `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
