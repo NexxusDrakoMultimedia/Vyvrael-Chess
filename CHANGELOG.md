@@ -10,6 +10,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **A round-robin mode for baselines:** `match.sh roundrobin` and
+  `match.ps1 roundrobin` play every engine of the engine list (or those
+  named with `--opponent`) and any Vyvræl builds given with `--build
+  NAME=PATH` against each other, with Ladder Baseline 2's fixed settings;
+  the run notes list every engine's SHA-256 and keep a copy of the engine
+  list.
 - **`install_tools.py --vyvrael VERSION`** puts a released Vyvræl binary in
   place for lichess-bot on Linux. It downloads the release's Linux file
   (`--vyvrael-build avx2` by default, or `plain`), checks it against its

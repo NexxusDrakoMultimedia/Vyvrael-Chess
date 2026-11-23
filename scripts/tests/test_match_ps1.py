@@ -160,6 +160,36 @@ class Fixture:
                 "-Rounds", "20", "-EnginesJson", str(self.engines_json), *self.common()]
         return self.run_script("gauntlet", *override(base, extra), **kwargs)
 
+    def round_robin_list(self) -> Path:
+        """An engine list of two engines, both present."""
+        self.other = self.tmp / "other engine.exe"
+        self.other.write_bytes(b"other")
+        path = self.tmp / "round-robin.json"
+        path.write_text(json.dumps([
+            {
+                "name": "Stockfish 19-1500",
+                "command": self.opponent.name,
+                "protocol": "uci",
+                "workingDirectory": str(self.tmp),
+                "options": [
+                    {"name": "Hash", "value": 16},
+                    {"name": "Threads", "value": 1},
+                    {"name": "UCI_LimitStrength", "value": True},
+                    {"name": "UCI_Elo", "value": 1500},
+                ],
+            },
+            {"name": "Vice 1.1", "command": str(self.other)},
+        ]), encoding="utf-8")
+        return path
+
+    def round_robin(self, *extra: str, **kwargs):
+        base = ["-Rounds", "2", "-EnginesJson", str(self.round_robin_list()), *self.common()]
+        return self.run_script("roundrobin", *override(base, extra), **kwargs)
+
+    def build_args(self) -> list[str]:
+        # Several builds in one string, separated by semicolons, as opponents.
+        return ["-Build", f"Vyvrael dev-abc1234={self.test_build};Vyvrael 0.1.0-a1={self.base_build}"]
+
     def command(self, result) -> list[str]:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         lines = [line for line in result.stdout.splitlines() if line and not line.startswith("#")]
@@ -462,6 +492,166 @@ class MatchPs1Test(Fixture, unittest.TestCase):
         self.assertEqual(none.returncode, 2)
         self.assertIn("Usage:", none.stderr)
 
+    # The arguments after the engines, the same in every mode.
+    def tail(self, rounds: str, stem: str) -> list[str]:
+        return [
+            "-each", "tc=10+0.1", "option.Hash=64",
+            "-openings", f"file={self.openings}", "format=epd", "order=random",
+            "-games", "2", "-repeat", "-rounds", rounds,
+            "-resign", "movecount=3", "score=700", "twosided=true",
+            "-draw", "movenumber=34", "movecount=10", "score=20",
+            "-recover", "-concurrency", "2", "-ratinginterval", "10",
+            "-pgnout", str(Path("matches") / f"{stem}.pgn"),
+        ]
+
+    def stockfish(self) -> list[str]:
+        return [
+            "-engine", "name=Stockfish 19-1500", f"cmd={self.opponent}", "proto=uci",
+            f"dir={self.tmp}", "option.Threads=1", "option.UCI_LimitStrength=true",
+            "option.UCI_Elo=1500",
+        ]
+
+    def test_roundrobin_plays_the_builds_then_every_engine_of_the_list(self):
+        words = self.command(self.round_robin(*self.build_args()))
+        self.assertEqual(words, [
+            str(self.cutechess), "-tournament", "round-robin",
+            "-engine", "name=Vyvrael dev-abc1234", f"cmd={self.test_build}", "proto=uci",
+            "option.Threads=1",
+            "-engine", "name=Vyvrael 0.1.0-a1", f"cmd={self.base_build}", "proto=uci",
+            "option.Threads=1",
+            *self.stockfish(),
+            "-engine", "name=Vice 1.1", f"cmd={self.other}", "proto=uci",
+            *self.tail("2", "2026-01-02-roundrobin"),
+        ])
+
+    def test_roundrobin_plays_only_the_opponents_named_in_their_order(self):
+        # The fixture's full list has a missing engine, which is not chosen.
+        words = self.command(self.round_robin(
+            "-EnginesJson", str(self.engines_json), "-Opponent", "Vice 1.1;Stockfish 19-1500",
+        ))
+        self.assertEqual(words, [
+            str(self.cutechess), "-tournament", "round-robin",
+            "-engine", "name=Vice 1.1", f"cmd={self.opponent}", "proto=uci",
+            *self.stockfish(),
+            *self.tail("2", "2026-01-02-roundrobin"),
+        ])
+
+    def test_roundrobin_optional_settings(self):
+        words = self.command(self.round_robin(
+            *self.build_args(), "-Deterministic", "-Seed", "7", "-Label", "baseline",
+        ))
+        joined = " ".join(words)
+        self.assertNotIn("-seeds", words)
+        self.assertIn("-srand 7", joined)
+        # The builds get a fixed Seed and no Variety; the list engines do not.
+        self.assertEqual(words.count("option.Seed=822286742"), 2)
+        self.assertEqual(words.count("option.Variety=0"), 2)
+        build, other, stockfish, vice = self.engines(words)
+        self.assertEqual(build[2:], ["proto=uci", "option.Threads=1", "option.Seed=822286742",
+                                     "option.Variety=0"])
+        self.assertNotIn("option.Seed=822286742", stockfish + vice)
+        self.assertEqual(
+            Path(words[-1]).as_posix(), "matches/2026-01-02-roundrobin-baseline.pgn"
+        )
+
+    def test_roundrobin_needs_two_engines_with_different_names(self):
+        self.round_robin_list()
+        self.refused(
+            self.round_robin("-Opponent", "Vice 1.1"), "needs at least two engines", "got 1"
+        )
+        self.refused(
+            self.round_robin("-Build", f"Vice 1.1={self.test_build}"),
+            "two engines are named 'Vice 1.1'",
+        )
+        self.refused(
+            self.round_robin("-Build", f"Vyvrael dev={self.test_build};Vyvrael dev={self.base_build}"),
+            "two engines are named 'Vyvrael dev'",
+        )
+        self.refused(
+            self.round_robin("-Opponent", "Vice 1.1;Vice 1.1"), "two engines are named 'Vice 1.1'"
+        )
+        empty = self.tmp / "empty.json"
+        empty.write_text("[]", encoding="utf-8")
+        self.refused(self.round_robin("-EnginesJson", str(empty)), "the engine list), got 0")
+        twice = self.tmp / "twice.json"
+        entry = {"name": "Vice 1.1", "command": str(self.other)}
+        twice.write_text(json.dumps([entry, entry]), encoding="utf-8")
+        self.refused(self.round_robin("-EnginesJson", str(twice)),
+                     "two engines are named 'Vice 1.1'")
+        nameless = self.tmp / "nameless.json"
+        nameless.write_text(json.dumps([entry, {"command": str(self.other)}]), encoding="utf-8")
+        self.refused(self.round_robin("-EnginesJson", str(nameless)), "has no name")
+
+    def test_roundrobin_builds_must_be_name_and_file(self):
+        for given in (str(self.test_build), f"={self.test_build}", "Vyvrael dev="):
+            with self.subTest(given=given):
+                self.refused(self.round_robin("-Build", given), f"-Build '{given}' must be NAME=PATH")
+        for name in ("Vyvrael 'dev'", "Vyvrael dev ", "Vyvr\u00e6l dev"):
+            with self.subTest(name=name):
+                self.refused(self.round_robin("-Build", f"{name}={self.test_build}"), "-Build name")
+        # Split at the first '=': the rest is the path.
+        self.refused(
+            self.round_robin("-Build", f"Vyvrael dev={self.tmp / 'a=b.exe'}"),
+            "the build 'Vyvrael dev' (-Build) not found", "a=b.exe",
+        )
+
+    def test_roundrobin_engines_must_be_known_and_present(self):
+        self.refused(self.round_robin("-Opponent", "Nobody 9"), 'no engine named "Nobody 9"',
+                     "Stockfish 19-1500")
+        # The whole list is played, so its missing engine is refused, not skipped.
+        missing = self.round_robin("-EnginesJson", str(self.engines_json))
+        self.refused(missing, "match.ps1: engine not found", "missing.exe")
+        self.assertNotIn("opponent engine", missing.stderr)
+        result = self.run_script(
+            "roundrobin", *self.build_args(), "-Rounds", "2", *self.common()
+        )
+        self.refused(result, "roundrobin mode needs the engine list")
+        self.refused(self.round_robin("-EnginesJson", "nowhere.json"), "engine list not found")
+
+    def test_roundrobin_refuses_the_options_of_the_other_modes(self):
+        for extra, message in (
+            (["-Test", str(self.test_build)], "-Test and -TestName are not for roundrobin mode"),
+            (["-TestName", "Vyvrael dev"], "-Test and -TestName are not for roundrobin mode"),
+            (["-Base", str(self.base_build)], "-Base and -BaseName are not for roundrobin mode"),
+            (["-BaseName", "Vyvrael base"], "-Base and -BaseName are not for roundrobin mode"),
+            (["-TestOption", "UCI_Elo=1500"], "-TestOption and -BaseOption are not for roundrobin"),
+            (["-BaseOption", "UCI_Elo=1500"], "-TestOption and -BaseOption are not for roundrobin"),
+            (["-Elo0", "0"], "are for sprt mode"),
+            (["-Beta", "0.05"], "are for sprt mode"),
+        ):
+            with self.subTest(extra=extra):
+                self.refused(self.round_robin(*extra), message)
+        self.refused(self.round_robin(*self.build_args(), "-Rounds", "0"),
+                     "-Rounds must be a whole number above zero")
+
+    def test_builds_by_name_are_for_roundrobin_only(self):
+        build = ("-Build", f"Vyvrael dev={self.test_build}")
+        self.refused(self.sprt(*build), "-Build is for roundrobin mode")
+        self.refused(self.gauntlet("-Opponent", "Vice 1.1", *build),
+                     "-Build is for roundrobin mode; give the build here with -Test")
+        result = self.run_script("h2h", *self.builds(), "-Rounds", "5", *build, *self.common())
+        self.refused(result, "-Build is for roundrobin mode")
+
+    def test_the_mode_refusals_come_first_as_in_match_sh(self):
+        self.refused(self.run_script("roundrobin", "-TestName", "x", *self.common()),
+                     "-Test and -TestName are not for roundrobin mode")
+        self.refused(self.run_script("sprt", "-Build", f"Vyvrael dev={self.test_build}",
+                                     *self.common()),
+                     "-Build is for roundrobin mode")
+        # A duplicate is named before an unknown or missing engine.
+        self.refused(self.round_robin("-Build", f"Nobody 9={self.test_build}",
+                                      "-Opponent", "Nobody 9"),
+                     "two engines are named 'Nobody 9'")
+
+    def test_roundrobin_needs_a_cutechess_with_tournaments(self):
+        old = self.fake_cutechess(
+            [flag for flag in HELP_FLAGS if "-tournament" not in flag], "old-cli.ps1"
+        )
+        self.refused(self.round_robin(*self.build_args(), "-Cutechess", str(old)),
+                     "does not list the option -tournament")
+        usage = self.run_script("-Help")
+        self.assertIn("match.ps1 roundrobin", usage.stdout)
+
     def test_an_existing_pgn_is_not_added_to(self):
         out = self.tmp / "matches"
         out.mkdir()
@@ -624,6 +814,40 @@ class MatchPs1RunTest(Fixture, unittest.TestCase):
         copy = self.tmp / "matches" / "2026-01-02-gauntlet-Vyvrael-0.1.0-a1.engines.json"
         self.assertEqual(copy.read_bytes(), self.engines_json.read_bytes())
         self.assertIn(f"engines:    {self.engines_json} (copied to ", notes)
+
+    def test_roundrobin_notes_list_every_engine(self):
+        result = self.play(
+            self.WRITE_PGN, "roundrobin", *self.build_args(),
+            "-EnginesJson", str(self.round_robin_list()),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("SPRT", result.stdout)
+        stem = self.tmp / "matches" / "2026-01-02-roundrobin"
+        notes = Path(f"{stem}.notes.txt").read_text(encoding="utf-8")
+        self.assertIn("mode:       roundrobin", notes)
+        # Every engine, the builds first, each with its file and digest.
+        self.assertIn(
+            "engines (name, file, SHA-256):\n"
+            f"  Vyvrael dev-abc1234\n    {self.test_build}\n    {hashlib.sha256(b'test').hexdigest()}\n"
+            f"  Vyvrael 0.1.0-a1\n    {self.base_build}\n    {hashlib.sha256(b'base').hexdigest()}\n"
+            f"  Stockfish 19-1500\n    {self.opponent}\n    {hashlib.sha256(b'weak').hexdigest()}\n"
+            f"  Vice 1.1\n    {self.other}\n    {hashlib.sha256(b'other').hexdigest()}\n",
+            notes,
+        )
+        self.assertIn(
+            "options given (-TestOption, -BaseOption):\n"
+            "  Vyvrael dev-abc1234: none\n  Vyvrael 0.1.0-a1: none\n",
+            notes,
+        )
+        self.assertIn("outcome:    finished\n", notes)
+        self.assertIn("games:      2\n", notes)
+        pgn = Path(f"{stem}.pgn")
+        self.assertIn(f"pgn sha256: {hashlib.sha256(pgn.read_bytes()).hexdigest()}\n", notes)
+        # A byte-for-byte copy of the engine list sits beside the notes.
+        copy = Path(f"{stem}.engines.json")
+        self.assertEqual(copy.read_bytes(), (self.tmp / "round-robin.json").read_bytes())
+        self.assertIn(f"engines:    {self.tmp / 'round-robin.json'} (copied to {copy})", notes)
+        self.assertIn("-tournament round-robin", notes)
 
 
 WINDOWS_POWERSHELL = shutil.which("powershell") if sys.platform == "win32" else None

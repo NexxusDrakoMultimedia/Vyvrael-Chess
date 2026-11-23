@@ -1033,7 +1033,10 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
   Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
   Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0. Of them only Inanis has a move-overhead
   option, so the others play with their own margin; the run's notes must
-  say so.
+  say so. The run is `match.ps1 roundrobin` (or `match.sh roundrobin`)
+  with the installer's engine list and `-Build` for the four Vyvræl builds,
+  on the Windows workstation, where every engine of the list installs (see
+  "Round robin" in TESTING.md).
 - Submitting Vyvræl to rating lists. Blocked on the branding, like rated
   play.
 - Non-regression SPRT bounds for pure refactorings and speed work, beside
