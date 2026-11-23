@@ -21,6 +21,7 @@ Safe to re-run; use --force to reinstall. On Windows the command is
     python3 scripts/install_tools.py --engines --dry-run  # the ladder's engines
     python3 scripts/install_tools.py --only "Vice 1.1"    # one of them
     python3 scripts/install_tools.py --verify             # check them
+    python3 scripts/install_tools.py --vyvrael 0.1.0      # the bot's engine
 
 Every tool is pinned to an exact version in PINS below, so two runs install
 the same thing. Updating a tool means editing PINS in a reviewed commit.
@@ -956,6 +957,21 @@ def build_parser() -> argparse.ArgumentParser:
         " engines that offer a PEXT build (default from VYVRAEL_ENGINE_BUILD or"
         " ENGINE_BUILD in scripts/local.env)",
     )
+    parser.add_argument(
+        "--vyvrael",
+        metavar="VERSION",
+        help="download the Linux binary of this Vyvræl release, check it against"
+        " its .sha256 file and point lichess-bot's engine path (PREFIX/engines/vyvrael,"
+        " or --engine) at it as a symbolic link; config.yml is not edited and the bot"
+        " is not restarted (Linux only)",
+    )
+    parser.add_argument(
+        "--vyvrael-build",
+        choices=("avx2", "plain"),
+        default="avx2",
+        help="which file of the release --vyvrael takes: avx2 (the default) or plain,"
+        " for older processors and releases before 0.1.0",
+    )
     parser.add_argument("--force", action="store_true", help="reinstall the pinned version")
     parser.add_argument("--list", action="store_true", help="show pinned and installed versions")
     parser.add_argument("--dry-run", action="store_true", help="show what would be done")
@@ -1034,6 +1050,9 @@ def main(argv: list[str] | None = None) -> None:
             have = ctx.installed_version(tool) or "not installed"
             say(f"{tool:12} pinned {pin['version']:14} installed: {have}  ({pin['licence']})")
         list_engines(ctx)
+        import vyvrael_release
+
+        say(vyvrael_release.describe_link(ctx))
         say(f"prefix {ctx.prefix}\nbin    {ctx.bin}")
         return
     if sys.platform == "win32":
@@ -1041,6 +1060,8 @@ def main(argv: list[str] | None = None) -> None:
         # the ladder's engines from their official Windows releases.
         import windows_tools
 
+        if args.vyvrael:
+            die("--vyvrael is for lichess-bot's engine, which runs on Linux only")
         if args.verify and not args.engines:
             verify_only(ctx, args)
             return
@@ -1057,12 +1078,19 @@ def main(argv: list[str] | None = None) -> None:
     if not sys.platform.startswith("linux") and not args.dry_run:
         die("this installer supports Linux and Windows only; see docs/TESTING.md")
 
+    if args.vyvrael and args.verify:
+        die("--vyvrael already checks the binary it installs; leave out --verify")
     if args.verify and not args.engines:
         verify_only(ctx, args)
         return
 
-    # --engines (or --only) installs engines; tools then only if asked for.
-    wanted = args.tool or ([] if engines_wanted else DEFAULT_TOOLS)
+    if args.vyvrael:
+        import vyvrael_release
+
+        vyvrael_release.install_release(ctx, args.vyvrael, args.vyvrael_build)
+    # --engines (or --only) installs engines, and --vyvrael the bot's engine;
+    # tools then only if asked for.
+    wanted = args.tool or ([] if engines_wanted or args.vyvrael else DEFAULT_TOOLS)
     if "all" in wanted:
         wanted = TOOLS
     failed = []
