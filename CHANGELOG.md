@@ -8,6 +8,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **`install_tools.py --vyvrael VERSION`** puts a released Vyvræl binary in
+  place for lichess-bot on Linux. It downloads the release's Linux file
+  (`--vyvrael-build avx2` by default, or `plain`), checks it against its
+  `.sha256` file and its `id name`, and points the engine path of
+  `config.yml` at it with a symbolic link. An upgrade no longer means
+  editing `config.yml`, and going back means re-pointing the link.
+
 ## [0.1.0] - 2026-11-23
 
 The first release built by the release workflow, in an `avx2` build and a

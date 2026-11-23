@@ -172,6 +172,24 @@ lichess-bot is installed or set up afresh.
 
 The Lichess Bots team membership is already done.
 
+### Upgrading the bot to a new release
+
+1. **Export the pre-release PGN** by hand on the Lichess website, before
+   stopping the bot (see [lichess-history.md](lichess-history.md)).
+2. **Stop the bot:** Ctrl-C in its terminal, or
+   `systemctl --user stop vyvrael-lichess-bot`.
+3. **Put the new binary in place** on the Linux machine:
+   `python3 scripts/install_tools.py --vyvrael <version>` (add `--engine`
+   with the same path as in step 7 if `config.yml` names a different
+   engine path). It checks the download and points the engine path at it
+   with a symbolic link, so `config.yml` stays as it is. The release must be
+   published; a draft cannot be downloaded. See
+   [TESTING.md](TESTING.md) for the details and for going back.
+4. **Check the release notes for new or changed UCI options** and change
+   `engine: uci_options:` only if they say so (step 12).
+5. **Start the bot again**, watch its first games, and update the version
+   in the profile bio.
+
 ### What could not be verified
 
 - The key names above were read on 2026-11-20 from `config.yml.default` of
