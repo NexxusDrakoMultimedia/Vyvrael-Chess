@@ -1020,7 +1020,17 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
   attacking play.
 - Opening book support for match play.
 - Ladder Baseline 3: the round robin run again with Vyvræl builds in it.
-  (Ladder Baseline 2, run on 2026-11-21, has none.)
+  (Ladder Baseline 2, run on 2026-11-21, has none.) It is run once
+  milestone 7 is done and 0.2.0 is ready, not before (the maintainer,
+  2026-11-22). Vyvræl 0.1.0 and 0.2.0 go in, beside 0.1.0-alpha.1 and
+  0.1.0-alpha.2. Without
+  Arasan 26.1-1800, retired from the installer on 2026-11-22; Ladder
+  Baseline 2's record keeps it. With eleven new engines, in the installer
+  since 2026-11-22 (`NEW_IN_BASELINE_3` in `scripts/ladder_engines.py`):
+  Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
+  Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0. Of them only Inanis has a move-overhead
+  option, so the others play with their own margin; the run's notes must
+  say so.
 - Submitting Vyvræl to rating lists. Blocked on the branding, like rated
   play.
 - Non-regression SPRT bounds for pure refactorings and speed work, beside

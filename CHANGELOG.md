@@ -25,6 +25,15 @@ time and calibrates `UCI_Elo`, both provisionally. Release notes:
 
 ### Added
 
+- **Eleven opponents for Ladder Baseline 3 in the engine installer:**
+  Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
+  Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0: full-strength
+  engines rated from about 1600 to 2700 on the CCRL Blitz list (CCRL's
+  ratings of them, not a scale Vyvræl has been measured on). They add
+  full-strength rungs around and above the entries 0.1.0-alpha.2 placed
+  between on Ladder Baseline 2, for when milestone 7 moves it. All are
+  official Linux and Windows downloads under MIT, GPL-3.0 or MPL-2.0
+  licences, pinned by SHA-256.
 - **The match scripts' run notes say more.** `match.ps1` and `match.sh`
   record the repository's commit and whether its working tree was clean or
   dirty, the number of games in the PGN and its SHA-256; a gauntlet also
@@ -43,6 +52,12 @@ time and calibrates `UCI_Elo`, both provisionally. Release notes:
 
 ### Changed
 
+- **The ladder installer no longer provides Arasan 26.1-1800.** It scored
+  13.5 of 116 in Ladder Baseline 2, too weak to tell Vyvræl builds apart,
+  and it is not an opponent in the `UCI_Elo` calibration. CT800 1.46-1200
+  and Arasan 26.1-1500 stay, as the calibration's lowest rungs. The name
+  stays in Baseline 2's record and is left out from Ladder Baseline 3 on;
+  `--only "Arasan 26.1-1800"` says why.
 - **`UCI_Elo` is calibrated, provisionally.** Its numbers are now ratings
   on the scale of the reference ladder, measured for seven settings of the
   weakening: the range is 1110 to 1630 (was 400 to 1800, labels only), and

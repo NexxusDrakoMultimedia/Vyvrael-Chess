@@ -84,13 +84,14 @@ none is linked into Vyvræl, vendored or redistributed by this project. The
 full pins (addresses, complete SHA-256 digests, build commands and notes)
 are in `scripts/ladder_engines.py`, which is the place to change them.
 Sources and licences were read on each project's own page or repository on
-2026-11-21. The limited entries of the ladder (for example "Stockfish
+2026-11-21, and for the eleven engines new in Ladder Baseline 3 (the last
+rows of each table) on 2026-11-22. The limited entries of the ladder (for example "Stockfish
 19-1500") are the same binary with `UCI_LimitStrength` on.
 
 | Engine | Version | Licence | How | Source | SHA-256 of the download |
 | --- | --- | --- | --- | --- | --- |
 | Stockfish 19 (also limited to 1320, 1500, 1800, 2000, 2200, 2400) | sf_19 | GPL-3.0 | official binary | <https://github.com/official-stockfish/Stockfish> | `9defc0d4e55d49c6...` |
-| Arasan 26.1 (also limited to 1500, 1800) | v26.1 | MIT | official binary | <https://github.com/jdart1/arasan-chess> | `33c0c4f8f70c3ed5...` |
+| Arasan 26.1 (also limited to 1500) | v26.1 | MIT | official binary | <https://github.com/jdart1/arasan-chess> | `33c0c4f8f70c3ed5...` |
 | Viridithas 20 | v20.0.0 | MIT | official binary | <https://github.com/cosmobobak/viridithas> | `eb53de2fde546f3b...` |
 | Reckless 0.9.0 | v0.9.0 | AGPL-3.0 | official binary | <https://github.com/codedeliveryservice/Reckless> | `09ba1634faaffec5...` |
 | Stash 37.0 | v37.0 | GPL-3.0 | official binary (popcnt; bmi2 for `pext`) | <https://gitlab.com/mhouppin/stash-bot> | `8643547bfe9505d5...` (`pext`: `70f8935f8e45cefe...`) |
@@ -103,11 +104,32 @@ Sources and licences were read on each project's own page or repository on
 | Rustic Alpha 2.4 | alpha-2.4.0 | GPL-3.0 | official binary | <https://codeberg.org/mvanthoor/rustic> | `ac385c81fdc42a2f...` |
 | Rustic Alpha 3.0.6 | alpha-3.0.6 | GPL-3.0 | official binary | <https://codeberg.org/mvanthoor/rustic> | `ac385c81fdc42a2f...` |
 | CT800 1.46 (also limited to 1200, 1500, 1800) | V1.46 | GPL-3.0-or-later | built from official source (zip) | <https://www.ct800.net/> | `61647c7146fd8b32...` |
+| Blunder 4.0.0 | v4.0.0 | MIT | official binary (zip) | <https://github.com/deanmchris/blunder> | `2c3ad87d3ed70158...` |
+| Blunder 5.0.0 | v5.0.0 | MIT | official binary (zip) | <https://github.com/deanmchris/blunder> | `6d78c63bbc7eefa2...` |
+| Blunder 7.1.0 | v7.1.0 | MIT | official binary (zip) | <https://github.com/deanmchris/blunder> | `59670c5290e00e8a...` |
+| Blunder 7.6.0 | v7.6.0 | MIT | official binary (zip) | <https://github.com/deanmchris/blunder> | `b6e7a29b09df81be...` |
+| MinimalChess 0.4.1 | v0.4 | MIT | official binary (zip, self-contained .NET) | <https://github.com/lithander/MinimalChessEngine> | `cf6ea66b0be29cec...` |
+| MinimalChess 0.5 | v0.5 | MIT | official binary (zip, self-contained .NET) | <https://github.com/lithander/MinimalChessEngine> | `367baea84b0630c2...` |
+| MinimalChess 0.6 | v0.6 | MIT | official binary (zip, self-contained .NET) | <https://github.com/lithander/MinimalChessEngine> | `b1dacf326ae50eb3...` |
+| Velvet 1.0.0 | v1.0.0 | GPL-3.0-or-later | official binary (`modern`) | <https://github.com/mhonert/velvet-chess> | `712440e9103f2091...` |
+| Inanis 1.0.1 | v1.0.1 | GPL-3.0 | official binary (zip; popcnt, popcnt_bmi2 for `pext`) | <https://github.com/Tearth/Inanis> | `e29d2e0ffad2dad4...` (`pext`: `397b2c76f5774b11...`) |
+| Tantabus 1.0.2 | v1.0.2 | MPL-2.0 | official binary (x86-64-v3) | <https://github.com/analog-hors/tantabus> | `01ba05307ea56175...` |
+| Tantabus 2.0.0 | v2.0.0 | MPL-2.0 | official binary (x86-64-v3) | <https://github.com/analog-hors/tantabus> | `3ef81dfde621b47f...` |
 
 Licences are as each repository's licence file states them. Arasan's is the
 MIT licence with further terms for its GUI, which is not used here. All of
 them, and Fruit's GPL-2.0, permit downloading the program or building it
-from source for private testing.
+from source for private testing. Tantabus's MPL-2.0 is compatible with the
+GPL: its section 3.3 ("Distribution of a Larger Work") lets it be combined
+with code under a "Secondary License" (section 1.12: the GPL 2.0, LGPL 2.1
+or AGPL 3.0, or any later version), unless the code is marked
+"Incompatible With Secondary Licenses" (Exhibit B) or was first made
+available under MPL 1.1 or earlier (section 1.5). Neither applies, checked
+at v1.0.2 and v2.0.0 on 2026-11-22: no source file has the Exhibit B notice
+attached (the copy inside its LICENSE is the licence's own exhibit, which
+Mozilla's MPL 2.0 FAQ says does not count), and its LICENSE has been the
+MPL 2.0 since it was added. The maintainer accepts GPL-3.0-compatible
+licences for opponents (2026-11-22).
 
 Left out on Linux, with the reason:
 
@@ -117,15 +139,18 @@ Left out on Linux, with the reason:
 
 On Windows every engine of the ladder is installed, all from official
 Windows files except Fruit 2.1 (below), and nothing is compiled. Each file
-was downloaded once on 2026-11-21 and its SHA-256 compared: the file of the
-`pext` build is in every case the very file of Ladder Baseline 2, except
-Stash, whose Baseline 2 file was its generic build. Where a project
-publishes no digest, the recorded one is what it served that day.
+of Ladder Baseline 2's engines was downloaded once on 2026-11-21 and its
+SHA-256 compared: the file of the `pext` build is in every case the very
+file of Ladder Baseline 2, except Stash, whose Baseline 2 file was its
+generic build. The files of the engines new in Ladder Baseline 3 (the last
+rows) have no Baseline 2 file to match; each was downloaded on 2026-11-22.
+Where a project publishes no digest, the recorded one is what it served
+the day it was downloaded.
 
 | Engine | Windows file (`avx2`; `pext` if different) | Licence | From | SHA-256 of the program |
 | --- | --- | --- | --- | --- |
 | Stockfish 19 (and its six limited entries) | `stockfish-windows-x86-64-universal.exe` in the release zip | GPL-3.0 | GitHub release sf_19 | `45bc8e4969147db9...` |
-| Arasan 26.1 (and its two) | `arasanx-64-avx2.exe`; `arasanx-64-avx2-bmi2.exe`, in `arasan26.1.zip`, with its network and book beside it | MIT | GitHub release v26.1 | `67ff0441343bd5f6...`; `cca0e46c7a1d18d4...` |
+| Arasan 26.1 (and its 1500 entry) | `arasanx-64-avx2.exe`; `arasanx-64-avx2-bmi2.exe`, in `arasan26.1.zip`, with its network and book beside it | MIT | GitHub release v26.1 | `67ff0441343bd5f6...`; `cca0e46c7a1d18d4...` |
 | Viridithas 20 | `viridithas-20-win-x86-64-v3.exe` | MIT | GitHub release v20.0.0 | `c7fa86b2b46fe1c3...` |
 | Reckless 0.9.0 | `reckless-windows-avx2.exe` | AGPL-3.0 | GitHub release v0.9.0 | `b74ead5648cfa7a7...` |
 | Stash 37.0 | `stash-37.0-windows-x86_64-popcnt.exe`; `...-bmi2.exe` | GPL-3.0 | GitLab release v37.0 | `e86edfdafa35416c...`; `7cd0e8bb0bf48e81...` |
@@ -139,6 +164,13 @@ publishes no digest, the recorded one is what it served that day.
 | Rustic Alpha 1.5, 2.4, 3.0.6 | `rustic-alpha-<version>-win64.exe` in the same zip as on Linux | GPL-3.0 | Codeberg release alpha-3.0.6 | `2ee1c05f...`, `07803166...`, `fa8c6511...` |
 | CT800 1.46 (and its three) | `CT800_V1.46_x64.exe` in the same zip as on Linux | GPL-3.0-or-later | <https://www.ct800.net/> | `dc0c1f6e49c56898...` |
 | Nostradamus 0.4 | `nostradamus-v0.4.exe` (about 156 MB, its model inside) | MIT | GitHub release v0.4 | `485d3b606ad8784e...` |
+| Blunder 4.0.0, 5.0.0, 7.1.0 | `blunder.exe` in the same zip as on Linux | MIT | GitHub releases | `3af0456d...`, `715d196e...`, `f9ac2cf2...` |
+| Blunder 7.6.0 | `blunder-windows.exe` in the same zip as on Linux | MIT | GitHub release v7.6.0 | `15c76fe1bf16d1f3...` |
+| MinimalChess 0.4.1, 0.5, 0.6 | `MinimalChessEngine.exe` in `MinimalChess.<version>.Windows.zip` | MIT | GitHub releases | `55147a2a...`, `bf1e8a54...`, `99623e8f...` |
+| Velvet 1.0.0 | `velvet-v1.0.0-x86_64-modern.exe` | GPL-3.0-or-later | GitHub release v1.0.0 | `338d7d0606dc4009...` |
+| Inanis 1.0.1 | `inanis.exe` in the popcnt zip; in the popcnt_bmi2 zip | GPL-3.0 | GitHub release v1.0.1 | `3be5b6cecebb64df...`; `4e3ed4dafd1c39a6...` |
+| Tantabus 1.0.2 | `tantabus-windows-2019-x86-64-v3.exe` | MPL-2.0 | GitHub release v1.0.2 | `5da552a4459e52e0...` |
+| Tantabus 2.0.0 | `tantabus-windows-2019-x86-64-v3.exe` | MPL-2.0 | GitHub release v2.0.0 | `8c343ed1797c923b...` |
 
 Fruit 2.1 has no official Windows download (the author's site is gone);
 its file is taken from `github.com/Warpten/Fruit-2.1` at a fixed commit, as
@@ -160,9 +192,12 @@ Rodent IV `UseBook`, Weiss `NoobBook`, CT800 `OwnBook`), tablebases off
 (Arasan `Use tablebases`, Weiss `OnlineSyzygy`), CT800's `Keep Hash Tables`
 off, and 30 ms of move overhead where there is the option (Stockfish `Move
 Overhead`, Arasan `Move overhead`, Reckless, Stash and Ethereal
-`MoveOverhead`, Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`). Orion,
-Viridithas, Princhess, Vice, Fruit, Rustic Alpha and Nostradamus have no
-move-overhead option. The book files that
+`MoveOverhead`, Rodent IV `TimeBuffer`, CT800 `Move Overhead [ms]`, Inanis
+`Move Overhead`). Orion, Viridithas, Princhess, Vice, Fruit, Rustic Alpha
+and Nostradamus have no move-overhead option, nor do Blunder, MinimalChess,
+Velvet and Tantabus of Ladder Baseline 3; Blunder 7.6.0's `UseBook` is set
+off. Of the new engines only Inanis and Tantabus 2.0.0 have a Threads
+option (Tantabus's runs from 1 to 1 and does nothing). The book files that
 Arasan, Fruit and Rodent IV ship are still installed beside them, unused.
 
 CT800's zip also holds the Windows binary of Ladder Baseline 2, identical by
@@ -178,7 +213,11 @@ compiled with `-march=native`; a compiled engine names `haswell` or
 `x86-64-v3`, except Vice 1.1, whose makefile names no architecture (plain
 x86-64). Stockfish 19 ships one Linux binary that chooses its code path
 at run time, and the Rustic Alpha binaries do not state their processor
-level (they contain no AVX-512).
+level (they contain no AVX-512). Of Ladder Baseline 3's engines, Blunder's
+Go programs name no processor level either; MinimalChess's are
+self-contained .NET programs, which compile for the processor when they
+run; Velvet 1.0.0 has no AVX2 file, so its `modern` build (popcnt, lzcnt,
+BMI1) is used; Tantabus's files are its x86-64-v3 builds.
 
 **Two builds.** The installer takes the `avx2` build by default and the
 `pext` build with `--engine-build pext`, or else with
@@ -186,9 +225,10 @@ level (they contain no AVX-512).
 `ENGINE_BUILD=pext` in `scripts/local.env`, in that order of precedence.
 Only engines that offer a PEXT build of their own differ: on Linux Arasan
 (`arasanx-64-avx2` or `arasanx-64-avx2-bmi2` from the same archive), Stash
-(its popcnt or its bmi2 file; it has no AVX2 build) and Weiss (built
-without or with `-DUSE_PEXT`); on Windows Arasan and Weiss (two files of
-one archive each), Stash (its popcnt or bmi2 file) and Ethereal
+(its popcnt or its bmi2 file; it has no AVX2 build), Weiss (built
+without or with `-DUSE_PEXT`) and Inanis (its popcnt or its popcnt_bmi2
+zip; it has no AVX2 build); on Windows Arasan and Weiss (two files of one
+archive each), Stash and Inanis (their popcnt or bmi2 files) and Ethereal
 (`popcnt-avx2` or `pext-avx2`). Every other engine has one build for both.
 PEXT is fast on Intel from Haswell and on AMD from Zen 3, and slow on AMD
 Zen 1 and Zen 2.
