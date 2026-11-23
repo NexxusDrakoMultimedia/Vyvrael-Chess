@@ -205,6 +205,7 @@ with `python3 -m unittest discover -s scripts/tests`.
 | `scripts/tests/test_ladder_engines.py` | Python, offline. The pins of the ladder's opponent engines, for each system and build: on Linux the names provided, the names left out and the names retired are exactly the 30 of Ladder Baseline 2's ratings file, with no engine invented, the three left out are Orion 1.1, Ethereal 12.75 and Nostradamus 0.4, and the one retired is Arasan 26.1-1800; besides them only the eleven engines new in Ladder Baseline 3 are provided, none of them a Baseline 2 name; on Windows all 40 names that are not retired are provided, by 28 downloads and no builds; an engine missing on a system has a reason there; no generated name carries a stray space; the limited entries are variants of 4 binaries, 12 in all, each inside its engine's `UCI_Elo` range; every licence is GPL, AGPL, MIT, MPL-2.0 or stated freeware terms; every address is HTTPS with a SHA-256, or plain HTTP only for a pin that says why; a closed-source engine's notes state its terms; paths stay inside the install; nothing is built with `native` or for AVX-512, and every build names its tools and its architecture (Vice 1.1 excepted: its makefile names none); no `avx2` pin mentions PEXT or BMI2, and on Linux exactly Arasan, Inanis, Stash and Weiss differ in the `pext` build; a pin resolves per system and build without one system's fields leaking into the other's; fixed options never repeat Hash, Threads or the strength settings. |
 | `scripts/tests/test_ladder_install.py` | Python, offline. Made-up engines installed from archives the tests write, with the download replaced by a local copy and the build by this Python: a bare binary, a binary in a tar archive with files and directories beside it (and nothing else from the archive), one member of a zip shared by two engines and fetched once; a zip member with the files it needs beside it, and nothing else from the zip; plain HTTP allowed only for a pin that says why; a build from source, from a tar.gz or a zip, and a zip source archive that escapes refused; a missing build tool named, with nothing fetched; a failing build, or one that makes no binary, leaves nothing behind and does not stop the other engines; a wrong digest of the download or of a zip member is refused; paths may not leave the archive; a second run installs nothing again unless forced, the pin changed or the program is gone; `--only` by ladder name, a limited entry selecting its engine, and unknown, uninstallable or retired names explained; a dry run changes nothing, and only notes a missing tool; an engine without a digest is refused; a download that fails does not stop the other engines; a failed reinstall leaves the working install as it was, on disk and in the record; an engine missing a file it needs beside it is installed again. The engine list: only what is installed, a limited engine three times under the ladder's names with one program, options only where the engine has them, and a pin's fixed options in every entry; from the real Linux table, the 37 names in order with Ladder Baseline 2's values (books off, 30 ms of move overhead under each engine's own option name, CT800's settings), Rodent IV told not to limit itself, and the same values for the engines new in Baseline 3 (Blunder 7.6.0's book off, Inanis's move overhead). |
 | `scripts/tests/test_ladder_verify.py` | Python, offline, with small UCI engines written by the tests. A working engine passes and is sent `uci`, its options, `isready`, `ucinewgame`, `position startpos`, `go depth 6` and `quit` in that order; an engine that says nothing, exits, never becomes ready, thinks for ever or names no move fails with a message naming the step, and none of them holds the check up; one that ignores `quit` is killed; a program that is not there is reported; every name of an installed engine is checked with its own options and reported as PASS, FAIL or SKIP. |
+| `scripts/tests/test_openings.py` | Python, offline. `--openings` with the download replaced by a zip the tests write: the `.epd` is installed under `<prefix>/openings`, recorded, and its `OPENINGS=` line printed, and nothing else is installed, on Linux and on Windows; a second run fetches nothing unless forced or the file was changed; a wrong `.epd` digest, or a zip without the `.epd`, is refused and leaves nothing behind; a swap that fails leaves no `.new` file and says why; a failure, or a network error, is reported without a traceback and does not stop the engines; it combines with `--tool` and `--verify`; a dry run fetches and writes nothing; `--list` shows it (on Linux). The real pin is one commit over HTTPS, CC0-1.0, and its `.epd` digest is Ladder Baseline 2's. |
 | `scripts/tests/test_windows_tools.py` | Python, offline, on any system. The Windows pins (HTTPS, a SHA-256, the same versions as the Linux pins); both tools unpacked whole from zips the tests write, with their `local.env` lines printed; a second run installs nothing again unless forced; a tool that does not start is not recorded; a wrong digest, an archive without the program and unsafe archive paths are refused; a missing Visual C++ runtime is reported, not installed; lichess-bot is refused on Windows; `--engines` there takes the Windows pins of the chosen build (the `avx2` or `pext` file of Ethereal) and installs no tool, and its dry run downloads nothing; a dry run changes nothing; the check fails a program that ends with an error and no output; `--tool all` means both tools, and the whole list is checked before anything is fetched; `--list` shows the Windows tools. |
 | `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The cases of `test_match_sh.py` except those it lists as bash only, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
 | `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
@@ -319,7 +320,9 @@ lichess-bot. They are separate programs that are never part of this
 repository. `scripts/install_tools.py` installs pinned versions of them for
 the current user, outside the repository: all three on Linux, described
 first, and Cute Chess and Ordo on Windows, described at the end of this
-section. It needs only Python 3.9
+section. It also fetches the matches' opening file (`--openings`) and the
+ladder's opponent engines (`--engines`), each in a section of its own
+below. It needs only Python 3.9
 or newer (lichess-bot itself needs 3.11); building Ordo needs `gcc` and
 `make` (`sudo apt install build-essential`).
 
@@ -391,6 +394,32 @@ lichess-bot part has one known fault: see KI-11 in
 
 The match and rating scripts that use these tools are described under
 "Strength matches, SPRT and ratings" below.
+
+### The opening file (Linux and Windows)
+
+```sh
+python3 scripts/install_tools.py --openings --dry-run
+python3 scripts/install_tools.py --openings
+```
+
+`--openings` fetches `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
+project's books repository at one pinned commit (`scripts/openings.py`;
+source, licence and digests in [DATA.md](DATA.md)), checks the zip and the
+`.epd` inside it by SHA-256, and puts the `.epd` at
+`<prefix>/openings/UHO_Lichess_4852_v1.epd`. The `.epd` is the very file of
+Ladder Baselines 1 and 2, by SHA-256. The script prints the `OPENINGS=`
+line for `scripts/local.env`. With no `--tool`, it installs nothing else;
+it can be combined with `--tool`, `--engines` or `--verify` (with
+`--force`, everything in the run is reinstalled). A failure to fetch it is
+reported at the end and does not stop the rest of the run. A second run
+fetches nothing unless `--force` is given, the pin has changed, or the file
+or its record is gone or changed. The file is put in place only once both
+digests match, by a rename next to it, so a failed run leaves no partial
+file; if the swap fails (for example while a match has the file open on
+Windows), the script says so and leaves the old file. `--list` shows
+whether it is installed. Status: tested offline, and fetched for real once
+on Linux on 2026-11-23 (both digests verified, file placed and recorded);
+not yet run on Windows.
 
 ### The ladder's opponent engines (Linux and Windows)
 
@@ -713,7 +742,8 @@ check that the first attempt met was fixed.
 Paths and machine sizes are not in the repository. Copy
 `scripts/local.env.example` to `scripts/local.env` (git-ignored) and set
 what applies: where `cutechess-cli` and Ordo are if not on `PATH`, the
-opening file, the engine list, the output folder, the number of games at
+opening file (`install_tools.py --openings` fetches it and prints the
+line), the engine list, the output folder, the number of games at
 once, whether to run at low priority, and the physical core count where
 the scripts cannot detect it (`PHYSICAL_CORES`). Each setting can also be an
 environment variable with the prefix `VYVRAEL_`, and most an argument. The
@@ -789,7 +819,9 @@ without the four SPRT options, with the mode `h2h`.
 | `-recover` | on | One crashed engine does not end a long run. |
 
 `--tc` and `--hash` can change the first two. The opening file is the one
-given with `--openings` (the table's is the one the ladder used), and its
+given with the match script's `--openings PATH` (or `OPENINGS`; the
+table's is the one the ladder used, which `install_tools.py --openings`
+fetches, see "The opening file" above), and its
 order is random unless `--seed` fixes it. A build's own UCI options come
 from `--test-option` and `--base-option` (an opponent's from the engine
 list). The rest is fixed in the scripts. **Keep everything the same between two runs you mean to compare**,
