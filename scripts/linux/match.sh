@@ -3,8 +3,9 @@
 # Copyright (C) 2026 Nexxus Drako Multimedia
 #
 # Runs a cutechess-cli match for Vyvræl: an SPRT between two builds, a
-# gauntlet against opponents from the ladder, or a head-to-head between two
-# builds. scripts/windows/match.ps1 does the same with the same options.
+# gauntlet against opponents from the ladder, a head-to-head between two
+# builds, or a round robin of the ladder and any builds for a baseline.
+# scripts/windows/match.ps1 does the same with the same options.
 # See docs/TESTING.md.
 
 set -euo pipefail
@@ -18,6 +19,8 @@ Usage:
                     --rounds N [options]
   match.sh gauntlet --test PATH --test-name NAME --opponent NAME
                     [--opponent NAME ...] --rounds N [options]
+  match.sh roundrobin [--opponent NAME ...] [--build NAME=PATH ...]
+                    --rounds N [options]
 
 Modes:
   sprt      a sequential probability ratio test of the test build against
@@ -26,6 +29,13 @@ Modes:
   gauntlet  the test build against each opponent, named as in the engine
             list (--engines-json). It needs python3 (or the program in
             VYVRAEL_PYTHON) to read the list.
+  roundrobin
+            every engine against every other, for a ladder baseline: each
+            --build first, then the engines of the engine list
+            (--engines-json), all of them in list order, or only those
+            --opponent names, in the order given. At least two engines;
+            names must be unique. Not with --test, --base, their names and
+            options, or SPRT bounds. Like gauntlet it needs python3.
 
 A round is two games: each opening is played twice with colours swapped.
 
@@ -37,7 +47,8 @@ Options:
   --concurrency N      games at once (or CONCURRENCY; default: physical
                        cores minus two, at least one)
   --openings FILE      opening file in EPD format (required, or OPENINGS)
-  --engines-json FILE  engine list for gauntlet opponents (or ENGINES_JSON)
+  --engines-json FILE  engine list for gauntlet opponents and roundrobin
+                       engines (or ENGINES_JSON)
   --cutechess PATH     cutechess-cli to use (or CUTECHESS_CLI; default: from
                        PATH)
   --out-dir DIR        where the PGN, log and notes go (or MATCH_DIR;
@@ -50,6 +61,8 @@ Options:
                        UCI_Elo=1500; repeat it for more (not Threads or Hash)
   --base-option NAME=VALUE
                        the same for the base build (sprt and h2h)
+  --build NAME=PATH    a Vyvræl build to add to a round robin, split at the
+                       first '='; repeat it for more (roundrobin only)
   --low-priority       run at low priority (nice)
   --no-low-priority    do not, whatever the local settings say
   --dry-run            print the cutechess-cli command and stop
@@ -63,7 +76,8 @@ scripts/local.env.example.
 Beside the PGN a run leaves a .log and .notes.txt (the command, the git
 commit and whether the repository had changes, each engine's file and
 SHA-256, the times, the outcome, the number of games and the PGN's
-SHA-256), and for a gauntlet a copy of the engine list (.engines.json).
+SHA-256), and for a gauntlet or a round robin a copy of the engine list
+(.engines.json).
 EOF
 }
 
@@ -109,13 +123,13 @@ physical_cores() {
 
 mode=${1-}
 case $mode in
-    sprt | h2h | gauntlet) shift ;;
+    sprt | h2h | gauntlet | roundrobin) shift ;;
     --help | -h | help)
         usage
         exit 0
         ;;
     '') usage >&2; exit 2 ;;
-    *) die "unknown mode '$mode' (expected sprt, h2h or gauntlet); see --help" ;;
+    *) die "unknown mode '$mode' (expected sprt, h2h, gauntlet or roundrobin); see --help" ;;
 esac
 
 test_path='' test_name='' base_path='' base_name=''
@@ -127,7 +141,7 @@ engines_json=$(setting ENGINES_JSON)
 cutechess=$(setting CUTECHESS_CLI)
 out_dir=$(setting MATCH_DIR)
 low_priority=$(setting LOW_PRIORITY)
-opponents=() test_options=() base_options=()
+opponents=() test_options=() base_options=() builds=()
 # The option arrays are often empty. Under set -u, bash before 4.4 calls an
 # empty "${array[@]}" unbound, so they are written ${array[@]+"${array[@]}"}.
 
@@ -156,6 +170,7 @@ while [[ $# -gt 0 ]]; do
         --deterministic) deterministic=true; shift ;;
         --test-option) need "$@"; test_options+=("$2"); shift 2 ;;
         --base-option) need "$@"; base_options+=("$2"); shift 2 ;;
+        --build) need "$@"; builds+=("$2"); shift 2 ;;
         --low-priority) low_priority=true; shift ;;
         --no-low-priority) low_priority=false; shift ;;
         --dry-run) dry_run=true; shift ;;
@@ -166,8 +181,22 @@ done
 
 # --- what every mode needs -------------------------------------------------
 
-[[ -n $test_path ]] || die "--test is required: the build under test"
-[[ -n $test_name ]] || die "--test-name is required"
+# A round robin has no build under test; its builds come with --build.
+# These refusals come first, in the same order as in match.ps1.
+if [[ $mode == roundrobin ]]; then
+    [[ -z $test_path && -z $test_name ]] || die "--test and --test-name are not for roundrobin mode; give each Vyvrael build as --build NAME=PATH"
+    [[ -z $base_path && -z $base_name ]] || die "--base and --base-name are not for roundrobin mode; give each Vyvrael build as --build NAME=PATH"
+    ((${#test_options[@]} + ${#base_options[@]} == 0)) || die "--test-option and --base-option are not for roundrobin mode; a list engine's options are in the engine list"
+else
+    if ((${#builds[@]} > 0)); then
+        if [[ $mode == gauntlet ]]; then
+            die "--build is for roundrobin mode; give the build here with --test"
+        fi
+        die "--build is for roundrobin mode; give the builds here with --test and --base"
+    fi
+    [[ -n $test_path ]] || die "--test is required: the build under test"
+    [[ -n $test_name ]] || die "--test-name is required"
+fi
 [[ -n $rounds ]] || die "--rounds is required: a match must have an end"
 # 10# reads "08" as 8 and not as a bad octal number; it is passed on as 8.
 is_whole "$rounds" && ((10#$rounds > 0)) || die "--rounds must be a whole number above zero, got '$rounds'"
@@ -231,9 +260,11 @@ check_options() {
     done
 }
 
-check_name "--test-name" "$test_name"
-check_engine_file "the test build (--test)" "$test_path"
-check_options "--test-option" ${test_options[@]+"${test_options[@]}"}
+if [[ $mode != roundrobin ]]; then
+    check_name "--test-name" "$test_name"
+    check_engine_file "the test build (--test)" "$test_path"
+    check_options "--test-option" ${test_options[@]+"${test_options[@]}"}
+fi
 
 # --- what each mode needs --------------------------------------------------
 
@@ -254,7 +285,21 @@ case $mode in
         [[ -n $engines_json ]] || die "gauntlet mode needs the engine list: --engines-json, or ENGINES_JSON in scripts/local.env"
         [[ -f $engines_json ]] || die "engine list not found: $engines_json"
         ;;
+    roundrobin)
+        [[ -n $engines_json ]] || die "roundrobin mode needs the engine list: --engines-json, or ENGINES_JSON in scripts/local.env"
+        [[ -f $engines_json ]] || die "engine list not found: $engines_json"
+        ;;
 esac
+
+# The builds of a round robin, each NAME=PATH, split at the first '='.
+build_names=() build_paths=()
+for build in ${builds[@]+"${builds[@]}"}; do
+    [[ $build == ?*=?* ]] || die "--build '$build' must be NAME=PATH (for example \"Vyvrael dev=target/release/vyvrael\")"
+    check_name "--build name" "${build%%=*}"
+    check_engine_file "the build '${build%%=*}' (--build)" "${build#*=}"
+    build_names+=("${build%%=*}")
+    build_paths+=("${build#*=}")
+done
 
 if [[ $mode == sprt ]]; then
     for pair in "elo0:$elo0" "elo1:$elo1" "alpha:$alpha" "beta:$beta"; do
@@ -267,18 +312,32 @@ fi
 
 # --- opponents from the engine list ----------------------------------------
 
-opponent_args=()
-opponent_files=()
-if [[ $mode == gauntlet ]]; then
-    seen=$'\n'
-    for name in "${opponents[@]}"; do
-        [[ $name != "$test_name" ]] || die "the build under test has the same name as the opponent '$name'"
-        [[ $seen != *$'\n'"$name"$'\n'* ]] || die "opponent '$name' is listed twice"
+# Refuses a name given twice among its arguments.
+check_unique() {
+    local seen=$'\n' name
+    for name in "$@"; do
+        [[ $seen != *$'\n'"$name"$'\n'* ]] || die "two engines are named '$name'; the results could not be told apart"
         seen+="$name"$'\n'
     done
+}
+
+# In a round robin the "opponents" are the list engines that play: those
+# named with --opponent, or with none named every engine of the list.
+opponent_args=()
+opponent_files=()
+if [[ $mode == gauntlet || $mode == roundrobin ]]; then
+    if [[ $mode == gauntlet ]]; then
+        seen=$'\n'
+        for name in "${opponents[@]}"; do
+            [[ $name != "$test_name" ]] || die "the build under test has the same name as the opponent '$name'"
+            [[ $seen != *$'\n'"$name"$'\n'* ]] || die "opponent '$name' is listed twice"
+            seen+="$name"$'\n'
+        done
+    fi
     python=${VYVRAEL_PYTHON:-python3}
-    command -v "$python" >/dev/null 2>&1 || die "gauntlet mode needs $python to read the engine list"
-    # One line per opponent: the -engine arguments, tab-separated.
+    command -v "$python" >/dev/null 2>&1 || die "$mode mode needs $python to read the engine list"
+    # One line per engine: the -engine arguments, tab-separated. With no
+    # names given, every engine of the list, in its order.
     lookup='
 import json, os, sys
 path, names = sys.argv[1], sys.argv[2:]
@@ -288,6 +347,12 @@ try:
 except (OSError, ValueError) as error:
     sys.exit(f"cannot read the engine list {path}: {error}")
 by_name = {entry.get("name"): entry for entry in engines if isinstance(entry, dict)}
+if not names:
+    for entry in engines:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str) or not entry["name"]:
+            sys.exit(f"an entry of {path} has no name")
+    # A name twice in the list comes out twice, and the script refuses it.
+    names = [entry["name"] for entry in engines]
 for name in names:
     entry = by_name.get(name)
     if entry is None:
@@ -311,18 +376,43 @@ for name in names:
         sys.exit(f"engine \"{name}\" in {path} has a tab or line break in a field")
     print("\t".join(parts))
 '
-    listing=$("$python" -c "$lookup" "$engines_json" "${opponents[@]}") || die "could not look up the opponents (see the message above)"
+    if [[ $mode == gauntlet ]]; then
+        what="opponents" missing="opponent engine"
+    else
+        what="engines" missing="engine"
+    fi
+    # A round robin's engines need a name each, builds and list engines
+    # together, or the results could not be told apart. Names given with
+    # --opponent are checked before anything is looked up, as in match.ps1.
+    [[ $mode == gauntlet ]] || check_unique ${build_names[@]+"${build_names[@]}"} \
+        ${opponents[@]+"${opponents[@]}"}
+    listing=$("$python" -c "$lookup" "$engines_json" ${opponents[@]+"${opponents[@]}"}) || die "could not look up the $what (see the message above)"
+    lines=() listed=()
     while IFS= read -r line; do
         line=${line%$'\r'}
+        [[ -n $line ]] || continue # an empty list prints nothing
+        lines+=("$line")
+        listed+=("${line%%$'\t'*}")
+    done <<<"$listing"
+    # With the whole list, its names are known only now; still checked
+    # before any engine's program is looked for, as in match.ps1.
+    [[ $mode == gauntlet ]] || check_unique ${build_names[@]+"${build_names[@]}"} \
+        ${listed[@]+"${listed[@]#name=}"}
+    for line in ${lines[@]+"${lines[@]}"}; do
         IFS=$'\t' read -r -a parts <<<"$line"
         command=''
         for part in "${parts[@]}"; do
             [[ $part == cmd=* ]] && command=${part#cmd=}
         done
-        [[ -f $command ]] || die "opponent engine not found: $command (from $engines_json)"
+        [[ -f $command ]] || die "$missing not found: $command (from $engines_json)"
         opponent_args+=(-engine "${parts[@]}")
         opponent_files+=("${parts[0]#name=}"$'\t'"$command")
-    done <<<"$listing"
+    done
+fi
+
+if [[ $mode == roundrobin ]]; then
+    total=$((${#build_names[@]} + ${#opponent_files[@]}))
+    ((total >= 2)) || die "roundrobin mode needs at least two engines (--build and the engine list), got $total"
 fi
 
 # --- the tools and the files -----------------------------------------------
@@ -349,6 +439,7 @@ needed_flags=(-engine -each -openings -games -rounds -repeat -recover -concurren
     -pgnout -ratinginterval -resign -draw)
 [[ $mode == sprt ]] && needed_flags+=(-sprt)
 [[ $mode == gauntlet ]] && needed_flags+=(-tournament -seeds)
+[[ $mode == roundrobin ]] && needed_flags+=(-tournament)
 [[ -n $seed ]] && needed_flags+=(-srand)
 if command -v "$cutechess" >/dev/null 2>&1; then
     help_text=$("$cutechess" -help 2>&1) || true
@@ -363,10 +454,12 @@ fi
 
 # --- the command -----------------------------------------------------------
 
-slug=$(printf '%s' "$test_name" | tr -c 'A-Za-z0-9._-' '-')
 # VYVRAEL_MATCH_DATE replaces today's date in the file names; it is a hook
-# for the tests, which need names they can predict.
-stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode-$slug${label:+-$label}"
+# for the tests, which need names they can predict. A round robin has no
+# build under test to name the files after.
+slug=''
+[[ $mode == roundrobin ]] || slug=-$(printf '%s' "$test_name" | tr -c 'A-Za-z0-9._-' '-')
+stem="$out_dir/${VYVRAEL_MATCH_DATE:-$(date +%Y-%m-%d)}-$mode$slug${label:+-$label}"
 pgn="$stem.pgn"
 
 build_options=(proto=uci option.Threads=1)
@@ -378,9 +471,16 @@ for option in ${base_options[@]+"${base_options[@]}"}; do base_extra+=("option.$
 
 cmd=("$cutechess")
 [[ $mode == gauntlet ]] && cmd+=(-tournament gauntlet -seeds 1)
-cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" ${test_extra[@]+"${test_extra[@]}"})
-if [[ $mode == gauntlet ]]; then
-    cmd+=("${opponent_args[@]}")
+if [[ $mode == roundrobin ]]; then
+    cmd+=(-tournament round-robin)
+    for index in ${build_names[@]+"${!build_names[@]}"}; do
+        cmd+=(-engine "name=${build_names[index]}" "cmd=${build_paths[index]}" "${build_options[@]}")
+    done
+else
+    cmd+=(-engine "name=$test_name" "cmd=$test_path" "${build_options[@]}" ${test_extra[@]+"${test_extra[@]}"})
+fi
+if [[ $mode == gauntlet || $mode == roundrobin ]]; then
+    cmd+=(${opponent_args[@]+"${opponent_args[@]}"})
 else
     cmd+=(-engine "name=$base_name" "cmd=$base_path" "${build_options[@]}" ${base_extra[@]+"${base_extra[@]}"})
 fi
@@ -443,10 +543,10 @@ option_list() {
     echo "${list%; }"
 }
 
-# The engine list a gauntlet used, copied beside the notes, so the
-# opponents' options stay on record even if the list changes later.
+# The engine list a gauntlet or round robin used, copied beside the notes,
+# so the list engines' options stay on record even if the list changes later.
 engines_copy=""
-if [[ $mode == gauntlet ]]; then
+if [[ $mode == gauntlet || $mode == roundrobin ]]; then
     engines_copy="$stem.engines.json"
     cp -- "$engines_json" "$engines_copy" || die "cannot copy the engine list to $engines_copy"
 fi
@@ -467,9 +567,15 @@ fi
     echo "pgn:        $pgn"
     echo
     echo "engines (name, file, SHA-256):"
-    engine_note "$test_name" "$test_path"
-    if [[ $mode == gauntlet ]]; then
-        for entry in "${opponent_files[@]}"; do
+    if [[ $mode == roundrobin ]]; then
+        for index in ${build_names[@]+"${!build_names[@]}"}; do
+            engine_note "${build_names[index]}" "${build_paths[index]}"
+        done
+    else
+        engine_note "$test_name" "$test_path"
+    fi
+    if [[ $mode == gauntlet || $mode == roundrobin ]]; then
+        for entry in ${opponent_files[@]+"${opponent_files[@]}"}; do
             engine_note "${entry%%$'\t'*}" "${entry#*$'\t'}"
         done
     else
@@ -477,8 +583,15 @@ fi
     fi
     echo
     echo "options given (--test-option, --base-option):"
-    echo "  $test_name: $(option_list ${test_options[@]+"${test_options[@]}"})"
-    [[ $mode == gauntlet ]] || echo "  $base_name: $(option_list ${base_options[@]+"${base_options[@]}"})"
+    if [[ $mode == roundrobin ]]; then
+        # A build in a round robin takes no options of its own.
+        for name in ${build_names[@]+"${build_names[@]}"}; do
+            echo "  $name: none"
+        done
+    else
+        echo "  $test_name: $(option_list ${test_options[@]+"${test_options[@]}"})"
+    fi
+    [[ $mode == gauntlet || $mode == roundrobin ]] || echo "  $base_name: $(option_list ${base_options[@]+"${base_options[@]}"})"
     echo
     echo "command:"
     printf '  '
