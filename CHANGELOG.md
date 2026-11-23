@@ -8,6 +8,14 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **The installer fetches the opening file:** `install_tools.py
+  --openings` downloads `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
+  books repository at a pinned commit, checks the zip and the `.epd` by
+  SHA-256 (the `.epd` is the file of Ladder Baselines 1 and 2), puts it
+  under the install prefix and prints the `OPENINGS=` line.
+
 ## [0.1.0] - 2026-11-23
 
 The first release built by the release workflow, in an `avx2` build and a
@@ -25,11 +33,6 @@ time and calibrates `UCI_Elo`, both provisionally. Release notes:
 
 ### Added
 
-- **The installer fetches the opening file:** `install_tools.py
-  --openings` downloads `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
-  books repository at a pinned commit, checks the zip and the `.epd` by
-  SHA-256 (the `.epd` is the file of Ladder Baselines 1 and 2), puts it
-  under the install prefix and prints the `OPENINGS=` line.
 - **Eleven opponents for Ladder Baseline 3 in the engine installer:**
   Blunder 4.0.0, 5.0.0, 7.1.0 and 7.6.0, MinimalChess 0.4.1, 0.5 and 0.6,
   Velvet 1.0.0, Inanis 1.0.1, and Tantabus 1.0.2 and 2.0.0: full-strength
