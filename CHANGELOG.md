@@ -8,6 +8,14 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **The installer fetches the opening file:** `install_tools.py
+  --openings` downloads `UHO_Lichess_4852_v1.epd.zip` from the Stockfish
+  books repository at a pinned commit, checks the zip and the `.epd` by
+  SHA-256 (the `.epd` is the file of Ladder Baselines 1 and 2), puts it
+  under the install prefix and prints the `OPENINGS=` line.
+
 ## [0.1.0] - 2026-11-23
 
 The first release built by the release workflow, in an `avx2` build and a

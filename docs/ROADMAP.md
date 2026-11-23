@@ -716,9 +716,9 @@ Taken into the chunk checklist below:
 
 Notes for whoever starts it:
 
-- `scripts/install_tools.py` installs pinned versions of Cute Chess, Ordo
-  and the ladder's opponent engines on Linux and Windows, and lichess-bot on
-  Linux; see TESTING.md. The maintainer has installed both tools with it on the Linux
+- `scripts/install_tools.py` installs pinned versions of Cute Chess, Ordo,
+  the matches' opening file and the ladder's opponent engines on Linux and
+  Windows, and lichess-bot on Linux; see TESTING.md. The maintainer has installed both tools with it on the Linux
   machine and used them for a real match and rating (2026-11-21).
 - The tools' licences and pinned versions are recorded in
   [DEPENDENCIES.md](DEPENDENCIES.md). Re-check them if a pin changes.
