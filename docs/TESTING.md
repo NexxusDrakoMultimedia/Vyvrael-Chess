@@ -48,13 +48,16 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `attacks::magic` masks | Mask sizes for sample squares and the classic table totals (102,400 rook and 5,248 bishop entries); the rook mask of a1 square by square; for every square and every arrangement inside the mask, filling all squares outside it does not change the scanned attacks; `subsets` yields each subset exactly once. |
 | `attacks::sliders` | Exhaustive: for all 64 squares and every relevant blocker arrangement (107,648 cases) the bishop and rook lookups equal the scan; 20,000 random full-board occupancies including queens; table layout and sizes; the seeded search, run twice, finds exactly the 128 embedded magic numbers and fills exactly the engine's table; a number that is not magic is refused when a slice is filled; four pinned magic numbers and a fold of all 128 (recorded from this implementation as regression pins). |
 | `board` attack queries | Attackers of sample squares in the start position; check given by each piece kind, including pawns of both colours from both sides; positions that are not check (blocked sliders, pawns behind or straight ahead of the king); double check; only the side to move is asked about; a custom occupancy sees through a removed blocker; adjacent kings. |
+| `board` diagram | The start position drawn line for line; pieces on a8, d4, g1 and h8 land where a board has them; every line of three positions is 17 characters wide, starts with its mark and has no double space. |
 | `movegen::MoveList` | Starts empty; push keeps order; slice methods work through `Deref`; equality ignores unused slots; holds exactly 256 moves and panics on the 257th. |
 | `movegen` pseudo-legal | Expected move lists as sorted UCI strings with captures marked. Knights: start position for both colours, captures and own-piece blocking, a corner. King steps: both colours, captures, own-piece blocking, the centre, and that attacked squares are still generated at this stage. Sliders: bishop, rook (both colours) and queen stop at and capture the first enemy, stop before own pieces, and have no moves in the start position. Pawn pushes: 16 moves for each colour at the start, pushes blocked at the first or second square, double pushes only from the starting rank. Pawn captures: both diagonals for both colours; no capture of own pieces or straight ahead; no capture around the board edge, with the bait placed on the exact square a wrapping shift would reach, for both edge files and both colours. Promotions: four pieces for pushes and for captures, both colours; a blocked pawn cannot promote; moves onto the last rank are always promotions. En passant: both colours, two capturing pawns, none without the square, none without a capturer, no wrap around the edge for either colour. Castling: both ways for both colours; needs the right; needs empty squares between king and rook (own or enemy pieces, including b1); not out of check; not through or into an attacked square, with the crossed and destination squares each tested for both colours; an attacked b-file square is allowed. |
 | `movegen::legal_moves` | The published depth-1 perft counts of the six reference positions (20, 48, 14, 6, 44, 46); pinned pieces (including moving along the pin line); answering check by capture, block or king move; the king may not step onto attacked squares or next to the other king; checkmate and stalemate give no moves; en passant that exposes the king along the rank is illegal; the position is left untouched; legal moves keep the pseudo-legal order. |
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, and refuses a bad depth or extra arguments. |
+| `epd` | A record with `bm` and a quoted `id`; several moves, odd spacing, an empty operation and no last semicolon; a semicolon inside quotes stays in the operand; an opcode alone has an empty operand; `hmvc` and `fmvn` are kept as operations and do not reach the position; a bare position has no operations. Refused: fewer than four fields, a position the FEN rules refuse, an open quote. |
+| `suite` | A suite of eleven lines written for the test, pinned line for line at depth 2: two mates in one (either of two mating moves counts), a hanging queen, a move to avoid, a best move that is wrong on purpose (failed), and lines skipped with their reason (no `bm` or `am`, a move that is not one legal move, a position the FEN rules refuse, a stalemate, whose moves cannot be read); comments and blank lines are passed over; the total line. The output is the same on every run with a depth or a node limit, fewer nodes are used with a smaller limit, a move time works as a limit, and an empty suite is zero of zero. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 222 and 2,728 nodes, factors 10.57 and 12.28), leaves what comes before them unchanged, and gives the same output wherever the flag stands. `suite` runs a file (with a byte that is not UTF-8 in a comment) and prints a line per record and the total, with the limit before or after the file and with each of the three limits; eleven wrong command lines (no file, no limit, two limits, a bad number, an unknown flag) are usage errors; a file that is not there gives status 1 and no usage text. |
 | `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
@@ -68,14 +71,17 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `search` draws | Bare kings and single minor pieces are insufficient, anything that might mate is not; knights going out and back repeat the start position; the same placement with the other side to move does not; with a made-up history, a matching key an odd number of plies back or beyond the halfmove clock's reach does not count; empty and short histories are safe; the fifty-move threshold is 100 plies. In search: the losing side takes a repetition from the game history that it cannot see without it; a perpetual check with no game history is a draw by the hashes the search records on its own way down, both when the line returns to the root and when it returns to a position one ply below it, and those hashes are all taken back afterwards; the fifty-move rule ends a line that had a mate, except when the mate lands on the hundredth ply; bare material is a draw inside the tree, at the first node of every line (checked by node count). |
 | `search` principal variation | On five positions (to depth 3 or 4 on quiet ones, depth 2 on busy middlegames) the line starts with the best move, consists of legal moves, runs the full depth, and ends in a position whose quiescence value (seen from the root side) equals the reported score; the line of a mate in two is three plies and ends in checkmate; no line when the root has no legal move. |
 | `search` limits | `Limits` constructors and combinations. A node limit stops the search exactly at the limit and leaves the repetition history as it was; a search cut short at three different limits answers only from the root moves it finished, never from the one it was working on; a generous limit changes nothing; a raised stop flag ends the search before the first node while an unraised one does not disturb it; a deadline already passed ends the search within one check interval. |
-| `search` iterative deepening | Iterating to depth 3 equals a direct depth-3 search on three positions, with one report per depth that matches a direct search of that depth and with nodes and time increasing; iteration stops at the depth where a mate is proven (3 for mate in two, 2 for being mated in one) and not before: a mate in two already seen at depth 1 through quiescence is searched on to depth 3; it ends after one iteration when the root is checkmate or stalemate; a node limit that interrupts an iteration returns the last completed depth; the first iteration completes even with a one-node limit, a raised stop flag or a passed deadline, and a limit reached between iterations does not count as an interruption; a depth limit of 0 still searches one ply; a `Search` stopped by a limit can be used again and starts afresh. |
+| `search` iterative deepening | Iterating to depth 3 equals a direct depth-3 search on three positions, with one report per depth that matches a direct search of that depth and with nodes and time increasing; iteration stops at the depth where a mate is proven (3 for mate in two, 2 for being mated in one) and not before: a mate in two already seen at depth 1 through quiescence is searched on to depth 3; it ends after one iteration when the root is checkmate or stalemate; a node limit that interrupts an iteration returns the last completed depth; the first iteration completes even with a one-node limit, a raised stop flag or a passed deadline, and a limit reached between iterations does not count as an interruption; a depth limit of 0 still searches one ply; a `Search` stopped by a limit can be used again and starts afresh. The selective depth is the deepest ply visited: 1 after one move from the start position, more than 2 after two (quiescence goes below the depth), 3 for a queen trade below a depth of one, 0 with no legal move, and afresh for each search from the root; every report carries the value of its own iteration, which in the rook endgame tested is not below the depth (it can be, where every line ends sooner in a draw by rule). |
+| `search` statistics | Rates are thousandths rounded down, with none for a count of zero and no overflow. Depth 1 from the start position: 20 quiescence nodes of 21, no cutoff in the main search or by a move in quiescence, between 1 and 19 stand-pat cutoffs; one quiescence position good enough as it stands counts exactly one stand-pat cutoff; queen takes queen is one cutoff by the first move. On three positions the first-move cutoffs are among the cutoffs and the quiescence nodes among the nodes, and the same search again counts the same, not double. The lines of text: nodes per depth as differences, the branching factor in hundredths, rates as percentages with one decimal, `-` where there is nothing to divide by, and no factor after an iteration that added no node. |
 | `search` quiescence | A quiet position is worth its static evaluation; a winning capture is played out; a queen does not grab a defended pawn at depths 1 to 3 (the horizon effect); no standing pat in check (checkmate is scored by ply, a forced recapture is followed); queen promotions are considered; it terminates on a position full of captures in under a million nodes and restores it; bare kings after a capture are a draw; which moves count as tactical. Capture ordering: most valuable victim first, least valuable attacker breaking ties, promotions and en passant in their place, and the ordering only reorders (same moves, captures before quiet moves, generation order kept when nothing can be captured). The minimax-agreement and principal-variation tests now value their leaves with a full-window quiescence search. Stalemate at the horizon is a draw whatever the window, and a one-ply search does not walk into one; the two shortcuts that rule stalemate out without playing moves agree with full move generation on every position not in check of five trees (over 5,000 positions, with pins, en passant and stalemates), and a position whose only movable piece is pinned is recognised as stalemate. In check there is no standing pat (a skewered queen is not counted as material kept). A dead position is valued by its evaluation on its own, at ply 0, and as a draw inside a line. |
 | `movegen` move input | `find_legal_move` returns every legal move of five positions from its text and agrees with the trusting parser on them; it refuses moves no piece can make (which the trusting parser accepts), the other side's moves, pinned pieces, moves that leave the king in check, promotions without or with a wrong letter, castling through an attacked square, and a dozen strings that are not moves. |
-| `uci` command parsing | Each command is recognised; blank lines, extra white space, a trailing carriage return and unknown words before a command are forgiven; unknown lines are reported as such and commands are case-sensitive; `position` from the start or a FEN, with and without moves, and six malformed forms; `go` with clocks (any negative number counts as zero and what follows it is still read), with depth, nodes, move time and `infinite`, ignoring `ponder`, `searchmoves` and `mate` and skipping parameters without a usable value; `setoption` with names and values containing spaces, without a value, with an empty value, and four malformed forms. |
-| `uci` output | Scores as `cp` or as `mate` in the engine's own moves, negative when it is the one mated; `info` lines with depth, score, nodes, speed, time and line, without a `pv` word when there is no line, with no division by zero for an instant search, and with the speed taken from the full time; `bestmove` with a move and `0000` without one. |
-| `uci` time management | No clock and no move time means no time limit, also when only the other side's clock is sent; `movetime` is used less the overhead and takes precedence over a clock; the overhead is the one passed in (six values from 0 to 60 s, for a move time and for the last move before a time control), caps the time without shortening an ordinary share, and moves the deadline; each side uses its own clock and increment, and a clock sent without increments works and does not borrow the other side's; `movestogo` divides the time, and 1 or 0 allows all that is left less the overhead; the plan never exceeds the clock for 96 combinations of time, increment and moves to go, including a fallen flag and a large increment on an empty clock; limits combine the deadline with depth and nodes; `infinite` switches the clock off. |
-| `uci` engine | `uci` and `isready` are answered; `go depth` makes exactly the search a direct call makes (same nodes, line and best move), which is the check that the protocol layer changes nothing; a new engine is at the start position; `position` with moves equals the same position as a FEN; an illegal move (five kinds) or a bad FEN refuses the whole command and keeps the position; the game history reaches the search (a repetition found only with it); `ucinewgame` resets; no legal move gives `bestmove 0000`; mates are reported in moves; node and move-time limits end the search; an infinite search and a bare `go` answer only after `stop`, and `isready` is answered meanwhile; `stop` ends a long search within two seconds, and says nothing without a search; `position` and `ucinewgame` end a running search before they act; `go infinite depth 1` searches one depth and still waits for `stop`; `go` thinks on the clock of the side to move, for both sides; `Move Overhead` reaches the clock (five seconds kept back from a five-second move time answers at once, and none kept back lets the search past the first depth); limited strength is given the game's history and the limits of `go`; full strength draws no random numbers; weakened play draws from the strength stream of the seed, checked against the library for six seeds; a second `go` ends the first; `quit` ends the search and the loop; what is not understood is reported with `info string`; every output line is a protocol line; at the end of input a search is allowed to finish and an infinite one is stopped; lines that are not valid UTF-8 are reported and the commands after them still obeyed, with the running search still reporting; a read error ends the loop only after the search has reported. |
-| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` is 1360 by default, accepts 1110 to 1630, refuses the old ends 400 and 1800, and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the seven, in order. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 1110 and 1630 look 2 and 3 plies ahead, a rating out of range (3000, or the old lowest 400) is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. |
+| `movegen` SAN input | `find_san_move` reads pawn and piece moves, captures and en passant, tells a pawn on the b-file from a bishop by the letter's case, and castling written with letters or zeros (not when it is not legal); a promotion needs its piece, with or without `=`, and not a king; a text that fits two legal moves gives none, and file, rank or whole-square disambiguation picks one; a pinned knight does not count, so the text means the other; check and annotation marks and the long form are accepted and 19 kinds of nonsense give nothing; on five positions every legal move is found from its piece, origin, destination and promotion written in full. |
+| `uci` command parsing | Each command is recognised; blank lines, extra white space, a trailing carriage return and unknown words before a command are forgiven; unknown lines are reported as such and commands are case-sensitive; `position` from the start or a FEN, with and without moves, and six malformed forms; `go` with clocks (any negative number counts as zero and what follows it is still read), with depth, nodes, move time and `infinite`, ignoring `ponder`, `searchmoves` and `mate` and skipping parameters without a usable value; `setoption` with names and values containing spaces, without a value, with an empty value, and four malformed forms. `d` and `eval` are commands only as the whole line: with a protocol command after them that command is read, and anywhere else they are unknown. |
+| `uci` output | Scores as `cp` or as `mate` in the engine's own moves, negative when it is the one mated; `info` lines with depth, score, nodes, speed, time and line, without a `pv` word when there is no line, with no division by zero for an instant search, and with the speed taken from the full time; `bestmove` with a move and `0000` without one. `seldepth` follows the depth, and is left out when it is 0. When asked for, `wdl` and the model's three figures follow the score (also a mate score) and nothing else about the line changes. |
+| `uci` win, draw and loss | The module's exponential agrees with the standard one to twelve digits from -40 to 40; the model's figures at six scores, worked out by hand; for every score from -3000 to 3000 the three add up to 1000, mirror those of the opposite score, and the win never falls as the score rises; a forced mate is a certain win or loss. |
+| `uci` time management | No clock and no move time means no time limit, also when only the other side's clock is sent; `movetime` is used less the overhead and takes precedence over a clock; the overhead is the one passed in (six values from 0 to 60 s, for a move time and for the last move before a time control), caps the time without shortening an ordinary share, and moves the deadline; each side uses its own clock and increment, and a clock sent without increments works and does not borrow the other side's; `movestogo` divides the time, and 1 or 0 allows all that is left less the overhead; the plan never exceeds the clock for 96 combinations of time, increment and moves to go, including a fallen flag and a large increment on an empty clock; limits combine the deadline with depth and nodes; `infinite` switches the clock off. A clock at or below the overhead gets no time, whatever the increment, and one millisecond more gets that millisecond. For known issue KI-12 a game without increment is played out against the plan alone: the flag never falls (before the fix it fell on move 150 from one second and on move 77 from a tenth of a second), and with half a millisecond a move unaccounted for it falls on moves 162 and 94 (before: 123 and 55) |
+| `uci` engine | `uci` and `isready` are answered; `go depth` makes exactly the search a direct call makes (same nodes, line and best move), which is the check that the protocol layer changes nothing; a new engine is at the start position; `position` with moves equals the same position as a FEN; an illegal move (five kinds) or a bad FEN refuses the whole command and keeps the position; the game history reaches the search (a repetition found only with it); `ucinewgame` resets; no legal move gives `bestmove 0000`; mates are reported in moves; node and move-time limits end the search; an infinite search and a bare `go` answer only after `stop`, and `isready` is answered meanwhile; `stop` ends a long search within two seconds, and says nothing without a search; `position` and `ucinewgame` end a running search before they act; `go infinite depth 1` searches one depth and still waits for `stop`; `go` thinks on the clock of the side to move, for both sides; `Move Overhead` reaches the clock (five seconds kept back from a five-second move time answers at once, and none kept back lets the search past the first depth); limited strength is given the game's history and the limits of `go`; full strength draws no random numbers; weakened play draws from the strength stream of the seed, checked against the library for six seeds; a second `go` ends the first; `quit` ends the search and the loop; what is not understood is reported with `info string`; every output line is a protocol line; at the end of input a search is allowed to finish and an infinite one is stopped; lines that are not valid UTF-8 are reported and the commands after them still obeyed, with the running search still reporting; a read error ends the loop only after the search has reported. `d` sends the board, FEN, hash key and checking pieces (both pieces of a double check) and `eval` the lines of `eval::report`, every line as `info string`; sent during a search they arrive as whole blocks and the search prints what it prints without them. With `UCI_ShowWDL` on, every `info` line of a full-strength and of a weakened search has `wdl` and three numbers adding up to 1000 straight after the score, and without them the output is the plain search's, move included. With `SearchStats` on, a depth-3 search of the start position sends five `info string stats` lines between its last `info` line and `bestmove` (21, 222 and 2,728 nodes; the two count lines equal those of the library's own search) and is otherwise unchanged; a weakened search sends none. |
+| `uci` options | Every declared option can be set to its declared default, which changes nothing (so the declaration and the real default agree); option names ignore letter case, for every option in three spellings, but must match in full, and `true` and `false` must be lower case; an unknown option is refused; `Hash` accepts 1 to 65536 and refuses eight kinds of bad value and a missing one, keeping the old value; `Threads` accepts 1 and refuses anything else; `Seed` is 0 by default, accepts 0 to 2147483647 in decimal and refuses larger numbers, negative ones and hexadecimal; the old `DeterministicRNG` and `RngSeed` are unknown options; `Variety` is 0 by default, accepts 0 to 100 and refuses five kinds of bad value; `UCI_LimitStrength` is off by default; `UCI_Elo` is 1360 by default, accepts 1110 to 1630, refuses the old ends 400 and 1800, and does not switch limiting on; `Move Overhead` accepts 0 to 5000, refuses six kinds of bad value and a missing one, and is not known under four near-miss spellings of its two-word name; the declared options are exactly the nine, in order; `UCI_ShowWDL` is declared off, reads `true` and `false` in any letter case of its name and refuses anything else. In the engine: `uci` lists the options after the `id` lines and before `uciok`; `setoption` changes the option silently, and a refused value is reported with `info string`; the seed comes from system entropy by default, lies from 1 to 2147483647 and is logged in reply to `uci`; `Seed` sets the seed with a log line, the same value again says nothing, a refused value keeps the seed, and 0 goes back to an entropy seed with a log line; every `ucinewgame` logs the seed, given or from entropy. No test relies on two entropy seeds differing. `Variety`: at 0, explicit or default, the output is exactly the plain search's for every seed, and the move is the best; at 60 with a fixed `Seed` and `go depth` each game is reproducible, the search's own `info` lines are exactly the plain search's (root only), some of twelve seeds play another move than the best, each says so in an `info string`, an independent exact search puts the move played within 60 of the best, and the last `info` line is for the move played; after the twelfth full move it changes nothing; under `UCI_LimitStrength` it changes nothing over three moves, so it draws nothing; every `ucinewgame` adds a seed line of its own. With `UCI_LimitStrength` on: one `info` line at the weakened depth and a legal move, whatever depth `go` asked for; a chosen seed makes a two-move game reproducible; twenty seeds do not all open the same way; `ucinewgame` restarts the sequence of a chosen seed, while without it the same position is not always answered the same; in a session without a chosen seed each of three games logs its seed, and replaying with that seed reproduces that game's moves, the second and third games included; switching the option on and off again leaves full-strength play exactly as it was; `UCI_Elo` 1110 and 1630 look 2 and 3 plies ahead, a rating out of range (3000, or the old lowest 400) is refused and the default kept, and without `UCI_LimitStrength` the rating changes nothing. `SearchStats` is declared off and reads `true` and `false` only. |
 | `rng` entropy and streams | The stream indices are 0, 1 and 2 and are never renumbered; the first three outputs of the strength stream of the default seed are pinned (computed with an independent implementation); every entropy seed is a valid `Seed`, from 1 to 2147483647 and never 0, and any 64 random bits map to such a seed, the same every time; no test relies on two entropy seeds differing, which chance could break. |
 | `search` variety | It applies only above 0 and up to the twelfth full move; never with a mate for or against; over three opening positions, three `Variety` values and eight seeds every choice is within `Variety` of the best and has the score an exact search of it gives; a move that leaves the queen to be taken is never chosen over twenty seeds, while other queen moves are; a rook move that allows a back-rank mate passes the cheap filter (checked) and the second check still never lets it be played, while other safe moves are; the same seed gives the same choice and twenty seeds play more than one move; the weight is largest for the best move and falls with every centipawn of loss; one number is drawn per choice; with `stop` already raised, or a budget of one node, only the best move is offered; the budget is split two thirds to the search, a depth limit stays with the search. |
 | `search` weakening | Without noise it finds exactly the move and score of the ordinary search at the same depth, on seven positions including mates for and against; the same seed gives the same move; with noise the choice varies over seeds (at least five different legal first moves in forty); a mistake larger than twice the noise is never made (a hanging queen is always taken, and the reported score is the true one); a mate in one is played whatever the noise; errors are bounded, centred and mostly small, and a mate draws the same random numbers as any other move; no legal move; the game history is used (a repetition); with the deadline already passed or `stop` already raised it still takes a hanging queen and makes exactly the one-ply choice for the same seed, on 25 seeds, never the first generated move; a pass cut short by a node limit is discarded whole and the answer is the previous pass's, and a limit smaller than the first pass does not stop it; the generator advances exactly once per root move whatever the position holds; the fifty-move rule is honoured (a mate too late is a draw, one just in time is a mate); the seven measured settings of the calibration and its check give exactly their measured weakenings, the range is 1110 to 1630 and out-of-range ratings (the old 400 included) are clamped, the default 1360 gives three plies and 141 centipawns; between points of the same depth the misjudgement is interpolated, rounded towards more noise, and 1331 to 1349, where the depth changes, play as 1330 (two plies, 112 centipawns); a higher rating never looks less far, and at the same depth never errs more, over the whole range. |
@@ -86,7 +92,9 @@ During the milestone 1 review, make/unmake was also stress-tested outside the
 repository against an independent mailbox model over about 5.6 million
 pseudo-legal moves, and the FEN parser was fuzzed with a million mutated
 inputs; neither found a defect. Those harnesses were not committed. Their
-role is now filled by `tests/perft.rs` and `tests/consistency.rs`.
+role is now filled by `tests/perft.rs` and `tests/consistency.rs` for the
+moves, and by `tests/parser_fuzz.rs`, which feeds the FEN parser 30,000
+damaged inputs on every run.
 
 ## Looking at an evaluation
 
@@ -138,7 +146,7 @@ issue KI-9): two plies there take more nodes than five in the rook endgame.
 ## Running a search by hand
 
 ```sh
-cargo run --release -- search <depth> [FEN]
+cargo run --release -- search <depth> [--stats] [FEN]
 ```
 
 searches the position (the start position without a FEN) by iterative
@@ -159,13 +167,50 @@ bestmove d2d4
 - Time and speed go to stderr, so stdout is identical on every run and can be
   compared between versions.
 
+**Search statistics.** With `--stats` the search's statistics follow the
+best move, each line starting with `stats`:
+
+```
+stats depth 1 nodes 21
+stats depth 2 nodes 222 ebf 10.57
+stats depth 3 nodes 2728 ebf 12.28
+stats depth 4 nodes 25822 ebf 9.46
+stats cutoffs 2304 firstmove 508 rate 22.0%
+stats qnodes 26060 of 28793 (90.5%) standpat 18465 qcutoffs 1843 firstmove 1783 rate 96.7%
+```
+
+- A `depth` line gives the nodes that iteration took by itself (the
+  search's lines above count from its start), and `ebf`, the effective
+  branching factor: how many times more nodes it took than the iteration
+  before. Good pruning makes it small.
+- `cutoffs` are the beta cutoffs of the main search, `firstmove` those
+  given by the first legal move tried, and `rate` their share. It is the
+  usual measure of move ordering: the better the ordering, the nearer to
+  100%. The 22% above is the main search without any ordering (known
+  issue KI-9).
+- `qnodes` are the positions the quiescence search visited, out of the
+  search's total; `standpat` those good enough as they stood; `qcutoffs`
+  and the `firstmove` after it the cutoffs by a move there, which is
+  ordered most valuable victim first (hence 96.7%).
+- The figures are whole-number arithmetic on counts, so they too are the
+  same on every run. They are a quick look at what a change did to the
+  tree, not a measure of strength: that is what an SPRT is for.
+- The counts are always kept and cost nothing measurable; the flag only
+  shows them. They cannot change the search, which never reads them: the
+  bench node count is the same with and without.
+- The hit rate of the transposition table joins these lines when
+  milestone 7 adds the table.
+- In UCI mode the option `SearchStats` sends the same lines as `info
+  string` just before `bestmove` (see [UCI.md](UCI.md)), for looking at a
+  search on the clock or in a GUI's log. It stays off in strength matches.
+
 A fixed-depth search uses no clock and no randomness, so it is fully
 reproducible: the same position and depth always give the same lines.
 
 ## Bench
 
 ```sh
-cargo run --release -- bench [depth]
+cargo run --release -- bench [depth [threads [hash]]]
 ```
 
 searches the seven positions of `src/bench.rs` (an opening, middlegames
@@ -187,6 +232,19 @@ line:
   Compare speeds only on one machine, idle, over several runs.
 - The figures for each measured build, with perft speeds, are kept in
   [`testing/bench-history.md`](testing/bench-history.md).
+
+- **`bench <depth> <threads> <hash>`** is the form several other engines
+  share, accepted so that tools and habits carry over. The threads must be
+  1 and the hash size, in MiB, within the range of the option `Hash`; both
+  are checked and have no effect yet, because there is one search thread
+  and no transposition table. Once milestone 7 adds the table, the node
+  count is the same on every run *with the same arguments*, and the bench
+  without arguments uses a fixed size.
+- **OpenBench** runs `./binary bench` with no arguments and reads the last
+  `<n> nodes` and `<n> nps` it finds in the output (its "Requirements for
+  Public Engines" page and `Client/bench.py`, read on 2026-11-27). The
+  line above is what it expects. It also needs a makefile that builds the
+  engine as `make EXE=<name>`, which this repository does not have.
 
 The positions avoid Kiwipete, whose depth 4 alone takes about 25 seconds
 without move ordering (known issue KI-9). Queued task 2 widens the set once
@@ -211,9 +269,11 @@ with `python3 -m unittest discover -s scripts/tests`.
 | `scripts/tests/test_match_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The cases of `test_match_sh.py` except those it lists as bash only, against `scripts/windows/match.ps1` with a stand-in `cutechess-cli` written in PowerShell: the command of each mode, `roundrobin` included with its refusals, opponents from the engine list (a bare command joined to its working directory), optional settings, the order of local file, environment and arguments, every refusal, and the notes, log and SPRT outcome of a run; and, on Windows only, a real program that writes warnings to stderr under Windows PowerShell 5.1, which must not end the match. The two scripts are meant to behave alike, and the two test files are kept in step to show it. |
 | `scripts/tests/test_rate_sh.py` | Python driving bash, offline; skipped without bash. `scripts/linux/rate.sh` is given a stand-in Ordo. The default command is the baseline's (`-a 0 -A "Stockfish 19" -W -s 500`); each option; several PGN files go through Ordo's list file, or one joined file for an Ordo without that option, and the helper file is removed afterwards; a real run prints the order and the reminder and writes both output files; refusals when the anchor played in none of the games (naming the players found), for a missing PGN, bad values, a missing Ordo (a warning only in a dry run), an Ordo without a needed option, and an Ordo that fails; a table left by an earlier run does not pass for this one's; Ordo's location read from the local file. |
 | `scripts/tests/test_rate_ps1.py` | Python driving PowerShell, offline; skipped without PowerShell. The same cases as `test_rate_sh.py`, against `scripts/windows/rate.ps1` with a stand-in Ordo written in PowerShell. |
+| `scripts/tests/test_record_sprt.py` | `record_sprt.py` on notes and logs written by the tests in both scripts' forms (line feeds or carriage returns, a byte-order mark, `%q` or quoted command lines). It reads the builds and their SHA-256, the options, bounds, `alpha`, `beta`, time control, hash, round cap and games at once from the notes, and the last score, Elo and SPRT lines from the log; an undecided run is read as undecided. Refused: a run that is not an SPRT, one that was interrupted or failed, a log that is missing or has no score or SPRT line, notes and a log that disagree on the outcome, a command without bounds. The row is pinned cell for cell (white space in the change folded, a `|` escaped, no path of the notes in it); a row is appended with line feeds only and once only; a dry run writes nothing; an undecided run is written as `undecided`, without emphasis, and said not to be an acceptance; a history file without the heading or with text after the table, a missing file, an empty change and a run that is not an SPRT are refused with status 2 and nothing written; the committed history file takes a row. Two guards against drift run the real `match.sh` and `match.ps1` (where bash and PowerShell exist) in SPRT mode against the stand-in `cutechess-cli` and read back the notes and log they left: the builds with the digests of their files, the bounds, the conditions, the score and the outcome. |
 | `tests/perft.rs` | Perft acceptance tests; see "Perft" below for the positions and counts. |
-| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, seven options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; twelve lines of bad input (one blank, two not valid UTF-8, one `go` with no usable limit) and a `stop` produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
-| `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 300 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. |
+| `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, nine options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; twelve lines of bad input (one blank, two not valid UTF-8, one `go` with no usable limit) and a `stop` produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
+| `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 300 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. Each stream runs on a thread of its own with 180 seconds to finish: a hang fails the test and names the file the stream was kept in (every stream is written to Cargo's directory for test files, to be replayed with `vyvrael < file`); a second test shows that a stream that finishes passes and that its input is kept as sent. Beside each stream the test keeps a model of the position (a `position` command with anything wrong in it changes nothing, `ucinewgame` returns to the start) and checks every `bestmove`, in order, against the position of its `go`: a legal move of it, or `0000` when and only when it has none; more than 100 real moves and at least one `0000` are checked. A third test sends four streams of real sessions (the greeting, options with a fixed non-zero `Seed`, a new game, then a game's positions in order with a small search after each, by depth, nodes, move time or clock; `d`, `eval` and `isready` in between; the fifty-move counter at 99 and 120 and move number 65535 among the starts), an eighth of the lines damaged by a byte or two, one game in each stream of more than 1,200 plies. The engine is given a line at a time and each search with a small limit is waited for, others are stopped, so later depths, varied moves and weakened passes are reached. It checks the same things (no panic, every `isready` answered, every `bestmove` legal, more than 100 of them), that chances shown add up to 1000, and that statistics, a diagram, an evaluation, a varied move and a refused move list all occurred. Panics are counted on the engine's threads only, so one test failing does not fail another. A fourth test gives a 200-line malformed stream to the real binary over pipes, each pipe served by a thread of its own and the whole under the same watchdog (the process is killed if it is not done): it must leave with success, write nothing to standard error, answer every `isready`, end on `readyok`, and its moves are checked for legality like the others. |
+| `tests/parser_fuzz.rs` | The four parsers behind the UCI loop, called directly with generated text from the default seed, no engine in the way. Commands (30,000 lines of noise, damaged real commands and numbers in the wrong place): no panic, the same reading twice, only white space is empty, an unknown line is echoed whole, and all three of unknown, malformed and understood come up. FENs (30,000, damaged by up to three bytes or pure noise): what is accepted is consistent, writes itself as a FEN that reads back as the same position, and every legal move can be played; thousands are accepted and more than ten thousand refused. Move text (6,000 per position on seven positions): the answer is a legal move of the position or none. Option values (30,000, set one after another): a refusal changes nothing and is one line, and every value stays in its declared range. |
 | `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (16,611,416 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
@@ -779,8 +839,10 @@ the release check uses the games of the release's measurement
 
 Search, evaluation and network changes are accepted only when a sequential
 probability ratio test (SPRT) against the previous version shows a gain.
-The result (bounds, games, LLR, outcome) is recorded in the commit message
-of the change or in a table in this file. That is why search is split (see
+The result (bounds, games, LLR, outcome) is recorded in
+[`testing/sprt-history.md`](testing/sprt-history.md) by
+`scripts/record_sprt.py` and quoted in the commit message of the change
+(see "Recording an SPRT result"). That is why search is split (see
 "Decisions for milestones 4 to 6" in [ROADMAP.md](ROADMAP.md)): the search
 core is checked by correctness tests and fixed-depth node counts, and each
 search heuristic of milestone 7 gets its own SPRT.
@@ -797,7 +859,7 @@ comma- or semicolon-separated list where bash repeats the flag (see
 | Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
 
 They need `cutechess-cli` and Ordo, which are separate programs (see
-"Installing the external tools"). In gauntlet mode `match.sh` also needs
+"Installing the external tools"). In gauntlet and round-robin mode `match.sh` also needs
 `python3` (or the program named in `VYVRAEL_PYTHON`) to read the engine list.
 Each script reads the tool's own help before using it and stops with a clear
 message if the tool, or an option it needs, is missing. `--help` (`-Help`)
@@ -952,7 +1014,7 @@ working tree was clean or dirty, read with `git --no-optional-locks`, which
 writes nothing in the repository, before the run writes any file; set
 `VYVRAEL_GIT` to use another `git`), and at the end the number of games in the
 PGN and the PGN's SHA-256. `VYVRAEL_MATCH_DATE` replaces the date in the file
-names. A gauntlet also leaves a fourth file, `.engines.json`: a copy of the
+names. A gauntlet or a round robin also leaves a fourth file, `.engines.json`: a copy of the
 engine list it read, since that list carries the opponents' options and may
 change later. Keep the notes (and that copy) with any result you record. A
 script refuses to add games to a PGN that already exists; use `--label` for a
@@ -974,8 +1036,8 @@ reference ladder, Ladder Baseline 2, has it.
 
 ### Reading an SPRT result
 
-While an SPRT runs, `cutechess-cli` prints after each game pair lines like
-these (the match script keeps them in the `.log`):
+While an SPRT runs, `cutechess-cli` prints every ten games, and at the
+end, lines like these (the match script keeps them in the `.log`):
 
 ```text
 Score of Vyvrael dev-1a2b3c4 vs Vyvrael 0.1.0-a2: 412 - 371 - 217  [0.521] 1000
@@ -1005,8 +1067,46 @@ SPRT: llr 1.83 (62.3%), lbound -2.94, ubound 2.94
   is better by at least `elo0`, against this opponent, at this time
   control, on this machine. It does not give the size of the gain: the Elo
   line at the end is a rough estimate of that, with its margin.
-- Record the bounds, `alpha`, `beta`, the games, the final LLR and the
-  outcome in the commit message of the change (AGENTS.md).
+- Record the result as the next section says: a row in the history file,
+  and its one-line summary in the commit message of the change
+  (AGENTS.md).
+
+### Recording an SPRT result
+
+```sh
+python3 scripts/record_sprt.py <run>.notes.txt --change "MVV-LVA in the main search" --dry-run
+```
+
+(`python` on Windows.) The script reads the run's notes and the log beside
+them and appends one row to
+[`testing/sprt-history.md`](testing/sprt-history.md): the date, the change
+in your words, the two builds with the start of their SHA-256 and any
+options they were given, the bounds, `alpha` and `beta`, the time control,
+hash size, games at once and round cap, the last score and Elo line, the
+final LLR with its bounds, the outcome, and the start of the PGN's SHA-256,
+which identifies the run. It then prints the row and a one-line summary to
+paste into the commit message. So a result is written down the same way
+every time, from the files, and never retyped.
+
+- `--dry-run` shows the row and writes nothing. `--log FILE` names the
+  log if it is not beside the notes; `--file FILE` another history file.
+- **A run is recorded once:** a second call for the same run (the same
+  PGN) changes nothing and says so.
+- **Every outcome is recorded,** not only the passes: H0 accepted and
+  undecided get their rows too. An undecided run is written as
+  `undecided` and the script says that it is not an acceptance.
+- **What is not a finished SPRT is refused,** with status 2 and nothing
+  written: another kind of match, a run that was interrupted or failed, a
+  log without a score or an SPRT line, notes and a log that disagree
+  about the outcome.
+- The games and the score are those of the last line `cutechess-cli`
+  printed. With several games at once a few more may be in the PGN, since
+  games still running when the test stopped are finished and saved.
+- Nothing of the notes' paths goes into the row. The row says nothing
+  about the machine: the history file states that its rows are from the
+  Windows workstation.
+- The script never creates or repairs the history file: the file must
+  hold the table's heading and end with the table.
 
 ### Reading Ordo's output
 
@@ -1398,11 +1498,62 @@ counts, test results, and whether games complete without failures.
   `match.ps1` splits a string at `;` into several options, as it does
   opponents. The notes list each build's options.
 
+## Test suites
+
+```sh
+cargo run --release -- suite <file> (--depth N | --nodes N | --movetime MS)
+```
+
+searches every position of an EPD file and says whether the move found is
+the one the file asks for:
+
+```
+1 back rank: solved, played a1a8 (bm Ra8+)
+2 quiet move: failed, played e2e4 (bm Nf3; am e4)
+4: skipped, no bm or am operation
+solved 1 of 2 positions (1 line skipped)
+```
+
+- A line of the file is a position (the first four fields of a FEN) and
+  operations: `bm` lists the best moves, `am` moves to avoid, `id` names
+  the position. A position is **solved** when the move played is one of
+  the `bm` moves, if there are any, and none of the `am` moves. Moves are
+  in standard algebraic notation, read forgivingly (see
+  `movegen::find_san_move`).
+- Each position gets a new full-strength search with exactly one limit: a
+  depth, a node count, or a time in milliseconds. **With a depth or a node
+  count the output is the same on every run and machine**, so two builds
+  can be compared line by line; a time is what published results use, but
+  varies with the machine, and the first depth is always finished
+  whatever the time (known issue KI-10).
+- **A line that cannot be used is skipped, said so, and counted:** not a
+  position the engine accepts (FEN parsing is strict and repairs nothing,
+  known issue KI-2), no `bm` or `am`, or a move that is not exactly one
+  legal move of the position. Results are of the positions that loaded.
+  Blank lines and lines starting with `#` are passed over.
+- Time and nodes go to stderr. Status 1 means the file could not be read,
+  2 that the command line was not understood.
+- Scores some suites give per move (in a comment operation) are not read:
+  a position is solved or not.
+
+**What a suite is for.** It is a sanity check after a change to the
+search, in seconds where a match takes hours: it shows that the search
+still finds what it found, and which positions changed. **It is not a
+measure of strength and replaces no SPRT.** Positions are chosen, not
+sampled; a change that solves more of them can lose games, and the other
+way round. A count of solved positions is never quoted as how strong
+Vyvræl is.
+
+Suites are third-party files: they are never committed (git ignores
+`*.epd`), and the ones used are recorded in [DATA.md](DATA.md) with
+their source, licence and date. The command takes a path, so they can
+live anywhere.
+
 ## Tactical test suites (planned, milestone 8)
 
 A tactical suite derived from the Lichess puzzle database will report the
-share of puzzles solved at a fixed depth or time. Details will be added with
-the tooling.
+share of puzzles solved at a fixed depth or time, run with the `suite`
+command above. Details will be added with the tooling.
 
 ## Reproducible runs
 

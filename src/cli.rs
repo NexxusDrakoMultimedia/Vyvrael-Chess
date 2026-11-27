@@ -7,14 +7,15 @@
 //! in-memory buffers.
 
 use std::io::{self, Write};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
-use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
+use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search};
-use crate::uci::score_text;
+use crate::search::{Limits, MAX_PLY, Report, Search, stats_lines};
+use crate::suite::{self, SuiteLimit};
+use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -24,8 +25,10 @@ Usage:
   vyvrael perft <depth> [--divide | --copy-make] [FEN]
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
-  vyvrael search <depth> [FEN]             search to a fixed depth
-  vyvrael bench [depth]                    a fixed search workload: nodes and speed
+  vyvrael search <depth> [--stats] [FEN]   search to a fixed depth
+  vyvrael bench [depth [threads [hash]]]   a fixed search workload: nodes and speed
+  vyvrael suite <file> (--depth N | --nodes N | --movetime MS)
+                                           run an EPD test suite
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
@@ -40,15 +43,27 @@ omitted) in centipawns, with its parts. It does not search.
 
 search runs the search to <depth> plies from FEN (the start position if
 omitted) and prints one line per completed depth, then the best move. Scores
-are in centipawns for the side to move, or shown as mate in N moves.
+are in centipawns for the side to move, or shown as mate in N moves. With
+--stats it then prints the nodes each depth took, the effective branching
+factor and how often the first move tried gave the cutoff.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
-is the same on every run of the same build; the speed is not.
+is the same on every run of the same build; the speed is not. <threads> (1
+only) and <hash> (in MiB, 1 to 65536) are accepted in the form other engines
+use, `bench <depth> <threads> <hash>`, and have no effect yet.
+
+suite searches every position of an EPD file, each to the depth, node count
+or time in milliseconds given, and says for each whether the move found is
+one of its best moves (bm) and none of its moves to avoid (am), then how many
+were solved. It is a quick check of the search, not a measure of strength.
 ";
 
 /// Exit status for success.
 pub const EXIT_OK: u8 = 0;
+/// Exit status for a command that was understood and could not be carried
+/// out: a file that cannot be read.
+pub const EXIT_FAILURE: u8 = 1;
 /// Exit status for a command line that could not be understood.
 pub const EXIT_USAGE: u8 = 2;
 
@@ -75,6 +90,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Res
         Some("eval") => run_eval(&args[1..], out, err),
         Some("search") => run_search(&args[1..], out, err),
         Some("bench") => run_bench(&args[1..], out, err),
+        Some("suite") => run_suite(&args[1..], out, err),
         Some(other) => {
             writeln!(err, "unknown command: {other}")?;
             write!(err, "{USAGE}")?;
@@ -108,22 +124,9 @@ fn run_eval(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Re
     let Some(pos) = position_from(&fields, "eval", err)? else {
         return Ok(EXIT_USAGE);
     };
-    let parts = HandCrafted::breakdown(&pos);
-    writeln!(out, "position: {pos}")?;
-    writeln!(out, "evaluator: {}", HandCrafted.name())?;
-    writeln!(out, "material: {:+}", parts.material)?;
-    writeln!(
-        out,
-        "piece-square: {:+} middlegame, {:+} endgame",
-        parts.piece_square.mg, parts.piece_square.eg
-    )?;
-    writeln!(out, "phase: {} of {MAX_PHASE}", parts.phase)?;
-    writeln!(out, "total for White: {:+}", parts.total)?;
-    writeln!(
-        out,
-        "total for the side to move: {:+}",
-        HandCrafted.evaluate(&pos)
-    )?;
+    for line in eval::report(&pos) {
+        writeln!(out, "{line}")?;
+    }
     Ok(EXIT_OK)
 }
 
@@ -146,21 +149,27 @@ fn progress_line(report: &Report) -> String {
 }
 
 fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let with_stats = args.iter().any(|arg| arg == "--stats");
+    let args: Vec<&String> = args.iter().filter(|arg| *arg != "--stats").collect();
     let depth = args.first().and_then(|text| text.parse::<u32>().ok());
     let Some(depth) = depth.filter(|depth| (1..=MAX_PLY as u32).contains(depth)) else {
         writeln!(err, "search: expected a depth from 1 to {MAX_PLY}")?;
         write!(err, "{USAGE}")?;
         return Ok(EXIT_USAGE);
     };
-    let fields: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+    let fields: Vec<&str> = args[1..].iter().map(|arg| arg.as_str()).collect();
     let Some(pos) = position_from(&fields, "search", err)? else {
         return Ok(EXIT_USAGE);
     };
 
     let start = Instant::now();
     let mut lines = Vec::new();
+    let mut iterations = Vec::new();
     let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-    let outcome = searcher.iterate(&pos, &mut |report| lines.push(progress_line(report)));
+    let outcome = searcher.iterate(&pos, &mut |report| {
+        lines.push(progress_line(report));
+        iterations.push((report.depth, report.nodes));
+    });
     let elapsed = start.elapsed();
     for line in lines {
         writeln!(out, "{line}")?;
@@ -171,6 +180,11 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
     }
 
     let nodes = searcher.nodes();
+    if with_stats {
+        for line in stats_lines(&iterations, nodes, &searcher.stats()) {
+            writeln!(out, "{line}")?;
+        }
+    }
     let seconds = elapsed.as_secs_f64();
     let rate = if seconds > 0.0 {
         (nodes as f64 / seconds) as u64
@@ -186,28 +200,94 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
 }
 
 fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
-    let depth = match args {
-        [] => Some(BENCH_DEPTH),
-        [text] => text
-            .parse::<u32>()
+    // Up to three numbers: the depth, then the threads and the hash size
+    // in MiB. The last two are checked against the ranges of the UCI
+    // options `Threads` and `Hash` and otherwise unused: there is one
+    // search thread and no transposition table yet.
+    let ranges = [(1, MAX_PLY as u32), (1, THREADS_MAX), (1, HASH_MAX)];
+    let in_range = |(text, (low, high)): (&String, &(u32, u32))| {
+        text.parse::<u32>()
             .ok()
-            .filter(|depth| (1..=MAX_PLY as u32).contains(depth)),
-        _ => None,
+            .filter(|value| (*low..=*high).contains(value))
     };
-    let Some(depth) = depth else {
+    let numbers: Option<Vec<u32>> = if args.len() > ranges.len() {
+        None
+    } else {
+        args.iter().zip(&ranges).map(in_range).collect()
+    };
+    let Some(numbers) = numbers else {
         writeln!(
             err,
-            "bench: expected nothing, or a depth from 1 to {MAX_PLY}"
+            "bench: expected up to three numbers: a depth from 1 to {MAX_PLY}, threads (1 only) and a hash size from 1 to {HASH_MAX}"
         )?;
         write!(err, "{USAGE}")?;
         return Ok(EXIT_USAGE);
     };
+    let depth = numbers.first().copied().unwrap_or(BENCH_DEPTH);
     let result = bench(depth);
     writeln!(
         out,
         "{} nodes {} nps",
         result.nodes,
         result.nodes_per_second()
+    )?;
+    Ok(EXIT_OK)
+}
+
+/// The file and the limit of a `suite` command, or `None` if the arguments
+/// are not one file and exactly one limit with a whole number above 0
+/// (0 is allowed for a time).
+fn suite_arguments(args: &[String]) -> Option<(&str, SuiteLimit)> {
+    let [first, second, third] = args else {
+        return None;
+    };
+    // The file may stand before or after the limit.
+    let (file, flag, value) = if first.starts_with("--") {
+        (third, first, second)
+    } else {
+        (first, second, third)
+    };
+    let limit = match flag.as_str() {
+        "--depth" => {
+            let depth = value
+                .parse()
+                .ok()
+                .filter(|depth| (1..=MAX_PLY as u32).contains(depth));
+            SuiteLimit::Depth(depth?)
+        }
+        "--nodes" => SuiteLimit::Nodes(value.parse().ok().filter(|nodes| *nodes > 0)?),
+        "--movetime" => SuiteLimit::MoveTime(Duration::from_millis(value.parse().ok()?)),
+        _ => return None,
+    };
+    (!file.starts_with("--")).then_some((file.as_str(), limit))
+}
+
+fn run_suite(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let Some((file, limit)) = suite_arguments(args) else {
+        writeln!(
+            err,
+            "suite: expected a file and one of --depth (1 to {MAX_PLY}), --nodes or --movetime \
+             (milliseconds), with a number"
+        )?;
+        write!(err, "{USAGE}")?;
+        return Ok(EXIT_USAGE);
+    };
+    let text = match std::fs::read(file) {
+        // Suite files are old and not always UTF-8; a stray byte in a
+        // comment should not cost the whole file.
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(problem) => {
+            writeln!(err, "suite: cannot read {file}: {problem}")?;
+            return Ok(EXIT_FAILURE);
+        }
+    };
+    let start = Instant::now();
+    let result = suite::run(&text, limit, out)?;
+    writeln!(
+        err,
+        "time: {} ms, {} nodes",
+        start.elapsed().as_millis(),
+        result.nodes
     )?;
     Ok(EXIT_OK)
 }
@@ -432,6 +512,32 @@ total for the side to move: +0
         assert_eq!(run_args(&["search", "3"]).1, out);
     }
 
+    /// `--stats` adds the statistics after the best move and changes
+    /// nothing before it; it may stand anywhere after the command.
+    #[test]
+    fn search_with_stats_adds_the_statistics() {
+        let (_, plain, _) = run_args(&["search", "3"]);
+        let (status, out, err) = run_args(&["search", "3", "--stats"]);
+        assert_eq!(status, EXIT_OK);
+        assert!(err.starts_with("time: "));
+        let added = out.strip_prefix(plain.as_str()).unwrap();
+        let lines: Vec<&str> = added.lines().collect();
+        assert_eq!(lines.len(), 5, "{added}");
+        assert_eq!(lines[0], "stats depth 1 nodes 21");
+        assert_eq!(lines[1], "stats depth 2 nodes 222 ebf 10.57");
+        assert_eq!(lines[2], "stats depth 3 nodes 2728 ebf 12.28");
+        assert!(lines[3].starts_with("stats cutoffs "), "{added}");
+        assert!(lines[4].starts_with("stats qnodes "), "{added}");
+        assert!(lines[4].contains(" of 2971 ("), "{added}");
+        // The same on every run, and wherever the flag stands.
+        assert_eq!(run_args(&["search", "--stats", "3"]).1, out);
+        let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let (_, first, _) = run_args(&["search", "2", "--stats", kiwipete]);
+        let (_, last, _) = run_args(&["search", "2", kiwipete, "--stats"]);
+        assert_eq!(first, last);
+        assert!(first.contains("\nstats depth 2 nodes "));
+    }
+
     #[test]
     fn search_reports_mates_in_moves() {
         let (_, out, _) = run_args(&["search", "5", "7k/8/8/8/8/8/R7/1R4K1 w - - 0 1"]);
@@ -477,6 +583,98 @@ total for the side to move: +0
         assert!(err.contains("search: invalid FEN"));
     }
 
+    /// A file for the `suite` tests, in the system's temporary directory
+    /// under a name of this process, removed when dropped.
+    struct SuiteFile(std::path::PathBuf);
+
+    impl SuiteFile {
+        fn new(name: &str, bytes: &[u8]) -> SuiteFile {
+            let file = format!("vyvrael-{}-{name}.epd", std::process::id());
+            let path = std::env::temp_dir().join(file);
+            std::fs::write(&path, bytes).unwrap();
+            SuiteFile(path)
+        }
+
+        fn path(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+    }
+
+    impl Drop for SuiteFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn suite_runs_a_file_and_reports() {
+        // A byte that is not UTF-8 in a comment does not stop the file.
+        let file = SuiteFile::new(
+            "runs",
+            b"# by \xe9douard\n6k1/5ppp/8/8/8/8/8/R5K1 w - - bm Ra8+; id \"back rank\";\n\
+              4k3/8/8/3q4/8/8/8/3RK3 w - - bm Rd2;\nnot a record\n",
+        );
+        let (status, out, err) = run_args(&["suite", file.path(), "--depth", "2"]);
+        assert_eq!(status, EXIT_OK);
+        assert_eq!(
+            out,
+            "2 back rank: solved, played a1a8 (bm Ra8+)\n\
+             3: failed, played d1d5 (bm Rd2)\n\
+             4: skipped, fewer than the four fields of a position\n\
+             solved 1 of 2 positions (1 line skipped)\n"
+        );
+        assert!(
+            err.starts_with("time: ") && err.trim_end().ends_with(" nodes"),
+            "{err}"
+        );
+        // The limit may come first, and the other limits work.
+        assert_eq!(run_args(&["suite", "--depth", "2", file.path()]).1, out);
+        for limit in [["--nodes", "200"], ["--movetime", "0"]] {
+            let (status, out, _) = run_args(&["suite", file.path(), limit[0], limit[1]]);
+            assert_eq!(status, EXIT_OK, "{limit:?}");
+            assert!(
+                out.ends_with("positions (1 line skipped)\n"),
+                "{limit:?}: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn suite_rejects_bad_input() {
+        let file = SuiteFile::new("rejects", b"");
+        let path = file.path();
+        for args in [
+            &["suite"][..],
+            &["suite", path],
+            &["suite", path, "--depth"],
+            &["suite", path, "--depth", "0"],
+            &["suite", path, "--depth", "129"],
+            &["suite", path, "--depth", "deep"],
+            &["suite", path, "--nodes", "0"],
+            &["suite", path, "--movetime", "-5"],
+            &["suite", path, "--time", "5"],
+            &["suite", "--depth", "2", "--nodes"],
+            &["suite", path, "--depth", "2", "--nodes", "5"],
+        ] {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_USAGE, "{args:?}");
+            assert!(out.is_empty());
+            assert!(
+                err.starts_with("suite: expected a file and one of --depth"),
+                "{err}"
+            );
+        }
+        // A file that is not there is not a usage error.
+        let (status, out, err) = run_args(&["suite", "no/such/file.epd", "--depth", "1"]);
+        assert_eq!(status, EXIT_FAILURE);
+        assert!(out.is_empty());
+        assert!(
+            err.starts_with("suite: cannot read no/such/file.epd: "),
+            "{err}"
+        );
+        assert!(!err.contains("Usage:"));
+    }
+
     /// The bench prints one line, `<nodes> nodes <nps> nps`, and the same
     /// node count every time. A shallow depth keeps the test quick.
     #[test]
@@ -494,18 +692,53 @@ total for the side to move: +0
         assert_eq!(second.split_whitespace().next(), Some(words[0]));
     }
 
+    /// `bench <depth> <threads> <hash>`, the form other engines use: the
+    /// threads and the hash size are accepted and change nothing.
+    #[test]
+    fn bench_accepts_threads_and_a_hash_size() {
+        let nodes = |args: &[&str]| {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_OK, "{args:?}");
+            assert!(err.is_empty(), "{args:?}");
+            assert_eq!(out.split_whitespace().count(), 4, "{args:?}");
+            out.split_whitespace().next().unwrap().to_owned()
+        };
+        let plain = nodes(&["bench", "2"]);
+        for args in [
+            &["bench", "2", "1"][..],
+            &["bench", "2", "1", "1"],
+            &["bench", "2", "1", "16"],
+            &["bench", "2", "1", "65536"],
+        ] {
+            assert_eq!(nodes(args), plain, "{args:?}");
+        }
+    }
+
     #[test]
     fn bench_rejects_bad_input() {
         for args in [
             &["bench", "0"][..],
             &["bench", "deep"],
             &["bench", "129"],
+            // More than the one thread there is, or none.
             &["bench", "2", "3"],
+            &["bench", "2", "0"],
+            &["bench", "2", "many"],
+            // A hash size outside the range of the option `Hash`.
+            &["bench", "2", "1", "0"],
+            &["bench", "2", "1", "65537"],
+            &["bench", "2", "1", "big"],
+            // A bad depth is not excused by what follows it.
+            &["bench", "0", "1", "16"],
+            // A fourth number.
+            &["bench", "2", "1", "16", "4"],
         ] {
             let (status, out, err) = run_args(args);
             assert_eq!(status, EXIT_USAGE, "{args:?}");
             assert!(out.is_empty());
-            assert!(err.contains("bench: expected nothing, or a depth from 1 to 128"));
+            assert!(err.contains(
+                "bench: expected up to three numbers: a depth from 1 to 128, threads (1 only) and a hash size from 1 to 65536"
+            ));
         }
     }
 

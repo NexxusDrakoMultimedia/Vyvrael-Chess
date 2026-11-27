@@ -8,8 +8,57 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Fixed
+
+- **A clock within `Move Overhead` is no longer spent a millisecond at a
+  time** (known issue KI-12, narrowed). Once the clock is at or below the
+  overhead the engine plans no time and plays from the first search depth,
+  where before every move got at least a millisecond and a long game
+  without increment ran the clock out. Play with more than the overhead on
+  the clock is unchanged.
+
 ### Added
 
+- **`vyvrael suite <file>`** runs an EPD test suite at a fixed depth, node
+  count or time and reports which positions were solved (`bm`, `am`). It
+  is a quick check of the search after a change, not a measure of
+  strength. Behind it: `movegen::find_san_move` reads moves in standard
+  algebraic notation, and the modules `epd` and `suite`. Suite files are
+  not part of the repository.
+- **`scripts/record_sprt.py`** appends the result of an SPRT run to
+  `docs/testing/sprt-history.md` from the run's notes and log: the
+  builds, the terms of the test, the score, the LLR and the outcome, the
+  same way every time. Undecided runs are recorded as undecided.
+- **More fuzzing of the UCI loop:** the robustness test now fails on a
+  hang instead of waiting, checks that every `bestmove` of a malformed
+  stream is legal, plays through damaged real sessions and games of more
+  than a thousand plies, and gives a malformed stream to the real binary
+  over pipes; `tests/parser_fuzz.rs` feeds the command, FEN, move and
+  option parsers directly. No defect was found.
+- **Search statistics:** `vyvrael search <depth> --stats` prints, after
+  the best move, the nodes each depth took, the effective branching
+  factor, and how often the first move tried gave the cutoff, in the main
+  search and in quiescence. The search counts them always and never reads
+  them, so play and the bench node count are unchanged. In UCI mode the
+  option `SearchStats` (check, off by default) sends the same lines as
+  `info string` before `bestmove`.
+- **`UCI_ShowWDL`** (check, off by default): with it on, `info` lines give
+  `wdl <win> <draw> <loss>` after the score. The numbers come from a
+  fixed, documented model of the score and are not a measured win rate
+  (`docs/UCI.md`, "Win, draw and loss"). `info_line` takes the switch as
+  a second argument.
+- **`seldepth` in `info`:** each `info` line of a search gives the
+  selective depth, the deepest ply that iteration reached with the
+  captures played out. `Report`, the library's progress record, gains the
+  field `seldepth`.
+- **`d` and `eval` in UCI mode:** `d` shows the current position (board,
+  FEN, hash key, checking pieces) and `eval` its static evaluation with
+  its parts. Both answer in `info string` lines, so standard output stays
+  protocol output, and neither disturbs a running search.
+- **`bench <depth> <threads> <hash>`:** the bench accepts the threads (1
+  only) and a hash size after the depth, in the form other engines use.
+  Both are checked and have no effect yet. `bench` alone is unchanged:
+  the same line, the same 16,611,416 nodes.
 - **A round-robin mode for baselines:** `match.sh roundrobin` and
   `match.ps1 roundrobin` play every engine of the engine list (or those
   named with `--opponent`) and any Vyvræl builds given with `--build

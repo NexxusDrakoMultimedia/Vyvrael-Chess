@@ -4,6 +4,7 @@
 # Chess data and compressed archives (see docs/DATA.md)
 *.pgn
 *.zst
+*.epd
 
 # Match and test-run output
 /matches/

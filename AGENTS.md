@@ -24,13 +24,13 @@ Layout:
   FEN, Zobrist hashing, make/unmake, move parsing), `attacks/` (attack tables
   per piece type), `movegen/` (move generation), `perft.rs` (perft node
   counting), `eval/` (static evaluation), `search/`, `uci/` (parsing, options,
-  time, engine loop), `bench.rs` (a fixed search workload) and `cli.rs` (the
-  binary's other commands: `perft`, `eval`, `search`, `bench`, `help`).
+  time, engine loop), `bench.rs` (a fixed search workload), `epd.rs` and `suite.rs` (EPD records, test suites) and `cli.rs` (the
+  binary's other commands: `perft`, `eval`, `search`, `bench`, `suite`, `help`).
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
 - `scripts/`: the tool, opening-file and ladder-engine installer, the match and rating
-  scripts (`linux/`, `windows/`), `local.env.example`, and their tests.
+  scripts (`linux/`, `windows/`), the SPRT recorder, `local.env.example`, and their tests.
 - `branding/`: brand assets, all rights reserved, not under the GPL.
 - `docs/`: architecture, UCI, testing, roadmap, releasing, dependencies,
   data, NNUE, Lichess and the bot's build history. `docs/prompts/` holds the
@@ -50,10 +50,12 @@ Layout:
 | Put a release in place: for lichess-bot (Linux), or beside the ladder's engines (Windows) | `python3 scripts/install_tools.py --vyvrael <version> --dry-run` first (`python` on Windows); `--vyvrael-build plain` for the plain file |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
-| Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [FEN]` |
-| Bench (node count and speed) | `cargo run --release -- bench [depth]` |
+| Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [--stats] [FEN]` |
+| Bench (node count and speed) | `cargo run --release -- bench [depth [threads [hash]]]` |
+| Run an EPD test suite (a quick check, not a strength measure) | `cargo run --release -- suite <file> (--depth N \| --nodes N \| --movetime MS)` |
 | Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
 | Run a match or a baseline round robin | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet\|roundrobin ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet\|roundrobin ... -DryRun` first, see `-Help` |
+| Record an SPRT result | `python3 scripts/record_sprt.py RUN.notes.txt --change "TEXT" --dry-run` first (`python` on Windows); see `docs/TESTING.md` |
 | Rate PGN files | Linux: `scripts/linux/rate.sh [options] FILE.pgn ...`, see `--help`; Windows: `scripts/windows/rate.ps1 [options] FILE.pgn ...`, see `-Help` |
 | Data tools; training | `cargo run --release -p vyvrael-data` (stub until milestone 8); `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
@@ -88,8 +90,9 @@ Update this table in the same commit that adds or changes a command.
   parameters, and a manifest committed with any net's documentation (not the
   net itself unless it is small and the maintainer approves).
 - A new net, eval change or search change is accepted only if SPRT against
-  the previous version shows a gain. Record the result in the commit message
-  or `docs/TESTING.md`. Exempt: options that weaken play on purpose and are
+  the previous version shows a gain. Record the result in
+  `docs/testing/sprt-history.md` with `scripts/record_sprt.py` and quote
+  it in the commit message. Exempt: options that weaken play on purpose and are
   off by default, `UCI_LimitStrength` / `UCI_Elo` and `Variety`. With them
   at their defaults play must be unchanged, shown by an unchanged bench node
   count, and they stay at their defaults in every strength match.
@@ -153,8 +156,9 @@ shared in the tool crates).
 - Branching: one branch per milestone (`milestone/1-board`,
   `milestone/2-movegen`, ...), each started from `main` once the previous
   one is merged; the agent reviews and merges it (see "Rules"). Release
-  preparation (`release/<version>`) and tooling (`tooling/<name>`) get
-  branches of their own; the maintainer reviews a release branch and tags.
+  preparation (`release/<version>`), tooling (`tooling/<name>`) and queued
+  tasks (`task/<name>`) get branches of their own; the maintainer reviews
+  a release branch and tags.
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 

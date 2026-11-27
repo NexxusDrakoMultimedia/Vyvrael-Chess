@@ -43,9 +43,9 @@ CI runs the same commands.
 
 Any change to search, evaluation or the network is accepted only if an SPRT
 match against the previous version shows a gain. Record the SPRT result
-(bounds, games, LLR, Elo estimate) in the commit message or in
-`docs/TESTING.md`. Until the match scripts exist (planned before milestone 6), search changes
-need at least a fixed-depth node-count and correctness check.
+(bounds, games, LLR, Elo estimate) in `docs/testing/sprt-history.md` with
+`scripts/record_sprt.py` and quote it in the commit message; see "Recording
+an SPRT result" in `docs/TESTING.md`.
 
 ## Commits
 

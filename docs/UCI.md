@@ -22,13 +22,15 @@ option name Variety type spin default 0 min 0 max 100
 option name UCI_LimitStrength type check default false
 option name UCI_Elo type spin default 1360 min 1110 max 1630
 option name Move Overhead type spin default 30 min 0 max 5000
+option name UCI_ShowWDL type check default false
+option name SearchStats type check default false
 info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
 go depth 3
-info depth 1 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
-info depth 2 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
-info depth 3 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
+info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
+info depth 2 seldepth 9 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
+info depth 3 seldepth 13 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
@@ -37,12 +39,12 @@ It has been tested by driving the binary over pipes (`tests/uci.rs`), by
 seeded streams of malformed input (`tests/uci_robustness.rs`) and by
 playing complete games under `cutechess-cli`; see "Complete games in
 cutechess-cli" in [TESTING.md](TESTING.md). 0.1.0-alpha.1 has also played
-in the Cute Chess GUI, and the releases run under lichess-bot (0.1.0-alpha.2
-since 2026-11-22), both set up by the maintainer.
+in the Cute Chess GUI, and the releases run under lichess-bot (0.1.0
+since 2026-11-23), both set up by the maintainer.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
-(`perft`, `eval`, `search`, `bench`, `help`), which are not part of UCI; see
+(`perft`, `eval`, `search`, `bench`, `suite`, `help`), which are not part of UCI; see
 [TESTING.md](TESTING.md).
 
 ## Identity
@@ -68,6 +70,34 @@ package name needs one.
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
+Two commands are not part of the protocol and are there for a person at a
+terminal. Both answer in `info string` lines, so that everything on
+standard output stays protocol output; both read the current position
+(the one the next `go` would search), change nothing, and are answered
+while a search runs without disturbing it. They are commands only when
+they are the whole line.
+
+| Command | Behaviour |
+| --- | --- |
+| `d` | The board (ranks 8 to 1, FEN letters, `.` for an empty square), then `fen:`, `key:` (the position's hash, 16 hexadecimal digits) and `checkers:` (the squares of the pieces giving check, or `-`). |
+| `eval` | The static evaluation with its parts: the seven lines that `vyvrael eval` prints (see "Command line and bench" in [ARCHITECTURE.md](ARCHITECTURE.md)). Nothing is searched. |
+
+```text
+d
+info string 8 r n b q k b n r
+info string 7 p p p p p p p p
+info string 6 . . . . . . . .
+info string 5 . . . . . . . .
+info string 4 . . . . . . . .
+info string 3 . . . . . . . .
+info string 2 P P P P P P P P
+info string 1 R N B Q K B N R
+info string + a b c d e f g h
+info string fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+info string key: <16 hexadecimal digits>
+info string checkers: -
+```
+
 Not offered: `debug`, `register`, `ponderhit`. They are answered with
 `info string unknown command: <line>`, which echoes the line.
 
@@ -75,7 +105,7 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 
 | Parameter | Status | Behaviour |
 | --- | --- | --- |
-| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less the `Move Overhead` (30 ms by default). A negative clock counts as zero. |
+| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less the `Move Overhead` (30 ms by default). A clock at or below the overhead gets no time: the move comes from the first search depth alone. A negative clock counts as zero. |
 | `movestogo` | implemented | Moves to the next time control. |
 | `movetime` | implemented | Think this long, less the `Move Overhead`. Takes precedence over the clocks. |
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
@@ -100,9 +130,16 @@ milestone 7.
 
 ### Output
 
-- `info depth <d> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
+- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
   after every completed depth. `nodes` and `time` count from the start of the
-  search. `score` is from the side to move's point of view; `mate n` counts
+  search. `seldepth` is the selective depth: how many plies from the root
+  the deepest position of that iteration was, the captures played out
+  beyond the depth included. So it is usually at least the depth; it is
+  less when every line ends sooner in a draw by rule (too little material,
+  a repetition, the fifty-move rule) or a mate. It is left out
+  when there is none to give: the position has no legal move, or the line
+  is for a weakened move (see "Limited strength"). The extra line for a
+  varied move (see `Variety`) repeats that of the search's last depth. `score` is from the side to move's point of view; `mate n` counts
   the engine's own moves and is negative when the engine is being mated.
 - `bestmove <move>` at the end. A position with no legal move (checkmate or
   stalemate) gives `bestmove 0000`.
@@ -111,7 +148,9 @@ milestone 7.
 
 ### Bad input
 
-Nothing a GUI sends can make the engine play an illegal move or crash.
+Nothing a GUI sends can make the engine play an illegal move or crash
+(`tests/uci_robustness.rs` checks both on generated input, see
+[TESTING.md](TESTING.md)).
 
 - Every move of a `position` command is looked up among the legal moves. If
   one is not legal, or is not a move, the **whole command is refused**: the
@@ -145,6 +184,8 @@ search.
 | `UCI_LimitStrength` | check | `false` | implemented, **calibrated provisionally** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
 | `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7 and after queued task 2. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
+| `UCI_ShowWDL` | check | `false` | implemented, **a model, not a measurement** | Standard UCI option. When `true`, every `info` line of a search gives `wdl <win> <draw> <loss>` after the score: chances per thousand for the side to move. See "Win, draw and loss" below. It changes nothing about the search. |
+| `SearchStats` | check | `false` | implemented, a diagnostic | When `true`, a full-strength search sends its statistics as `info string stats ...` lines just before `bestmove`: the nodes each depth took, the effective branching factor, and how often the first move tried gave the cutoff. They are explained under "Running a search by hand" in [TESTING.md](TESTING.md), where `vyvrael search --stats` prints the same lines. It changes nothing about the search, which counts these in any case; a weakened search (`UCI_LimitStrength`) sends none, and with `Variety` the checks of a varied move are not counted. Leave it off in matches: it only fills their logs. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
@@ -189,6 +230,42 @@ openings. `Variety` weakens play on purpose, so it is exempt from the rule
 that changes must pass an SPRT, and it must be 0 in any match that measures
 strength.
 
+### Win, draw and loss
+
+With `UCI_ShowWDL` on, an `info` line reads
+
+```text
+info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2971 nps 2500000 time 1 pv d2d4 d7d5 b1c3
+```
+
+**The three numbers are a model, not a measurement.** They are a fixed
+function of the centipawn score, of the shape engines usually use: one
+logistic curve for a win, its mirror image for a loss, and the draw is
+what is left.
+
+```text
+win  = 1000 / (1 + e^((200 - score) / 100))
+loss = 1000 / (1 + e^((200 + score) / 100))
+draw = 1000 - win - loss
+```
+
+each rounded to a whole number, for the side to move. So a level score
+reads 119 762 119, a pawn up (100) reads 269 684 47, and at 200 a win is
+given half the time. A forced mate is 1000 0 0, or 0 0 1000 for the side
+being mated.
+
+The constants 200 and 100 were chosen, not fitted. Nobody has counted how
+Vyvræl's games end from each score, so the numbers are not a win rate of
+this engine against any opponent, and a GUI that shows them as
+percentages shows the model. They would also be off in scale after any
+change to what a centipawn means in the evaluation (a tuned or neural
+evaluation, for example). The option exists because GUIs and lichess-bot
+can display the numbers; it is off by default. The figures are the same
+on every platform.
+
+The lines of a weakened move and of a varied move give the chances of
+the score they report, like any other line.
+
 ### Move Overhead
 
 The engine only knows how long it thinks. It does not see the time a move
@@ -201,9 +278,12 @@ is the number of milliseconds kept back for that.
   what is on the clock less the overhead. An ordinary share of the time is
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
-- There is always at least one millisecond to move in. Without an
-  increment, a long game at a very short time control can still lose on
-  time; this is known issue KI-12 in [ROADMAP.md](ROADMAP.md).
+- Once the clock is at or below the overhead no time is planned at all:
+  the search completes its first depth, which it always does, and plays
+  from that. The overhead is a reserve that the plan does not spend. (Up
+  to 0.1.0 a move always got at least a millisecond, which spent it; see
+  known issue KI-12 in [ROADMAP.md](ROADMAP.md).) A `movetime` at or
+  below the overhead still gets one millisecond.
 - It does not change which move is chosen at a fixed depth or node count,
   only how long a search on the clock may run.
 

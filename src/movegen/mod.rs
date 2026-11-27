@@ -10,7 +10,9 @@ mod legal;
 mod list;
 mod pawns;
 mod pseudo;
+mod san;
 
 pub use legal::{find_legal_move, legal_moves};
 pub use list::MoveList;
 pub use pseudo::pseudo_legal_moves;
+pub use san::find_san_move;

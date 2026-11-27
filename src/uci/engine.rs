@@ -19,12 +19,12 @@ use std::time::{Duration, Instant};
 use super::{Command, GoParams, Options, bestmove_line, info_line, limits_for, parse};
 use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
-use crate::eval::default_evaluator;
+use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
 use crate::search::{
-    Limits, Outcome, Report, Search, Weakening, split_limits, varied_move, variety_applies,
-    weakened_move,
+    Limits, Outcome, Report, Search, Weakening, split_limits, stats_lines, varied_move,
+    variety_applies, weakened_move,
 };
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -44,6 +44,16 @@ const SEARCH_STACK_BYTES: usize = 16 * 1024 * 1024;
 fn send(out: &Output, line: &str) {
     let mut out = out.lock().unwrap_or_else(PoisonError::into_inner);
     let _ = writeln!(out, "{line}");
+    let _ = out.flush();
+}
+
+/// Sends `lines` as `info string` lines under one lock, so that they
+/// arrive together whatever the other thread is sending.
+fn send_block(out: &Output, lines: &[String]) {
+    let mut out = out.lock().unwrap_or_else(PoisonError::into_inner);
+    for line in lines {
+        let _ = writeln!(out, "info string {line}");
+    }
     let _ = out.flush();
 }
 
@@ -182,6 +192,8 @@ impl Engine {
                     Err(problem) => self.say(&format!("info string {problem}")),
                 }
             }
+            Command::Display => self.say_lines(&self.display()),
+            Command::Eval => self.say_lines(&eval::report(&self.position)),
             Command::Quit => {
                 self.end_search();
                 return false;
@@ -206,6 +218,32 @@ impl Engine {
 
     fn say(&self, line: &str) {
         send(&self.out, line);
+    }
+
+    /// Sends `lines` as `info string` lines, as one block: a search that is
+    /// running cannot put a line of its own in between.
+    fn say_lines(&self, lines: &[String]) {
+        send_block(&self.out, lines);
+    }
+
+    /// What `d` shows: the board, the FEN, the hash key and the pieces
+    /// giving check. It reads the position and changes nothing.
+    fn display(&self) -> Vec<String> {
+        let pos = &self.position;
+        let checkers: Vec<String> = pos
+            .checkers()
+            .into_iter()
+            .map(|sq| sq.to_string())
+            .collect();
+        let mut lines = pos.diagram();
+        lines.push(format!("fen: {pos}"));
+        lines.push(format!("key: {:016x}", pos.hash()));
+        lines.push(if checkers.is_empty() {
+            "checkers: -".to_owned()
+        } else {
+            format!("checkers: {}", checkers.join(" "))
+        });
+        lines
     }
 
     /// Stops the running search, if any, and waits until it has reported
@@ -292,6 +330,8 @@ impl Engine {
         // their own, drawn only when it applies. With `Variety` 0 nothing
         // here changes the search or touches the generator.
         let variety = self.options.variety;
+        let show_wdl = self.options.show_wdl;
+        let search_stats = self.options.search_stats;
         let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
         let (search_limits, check_limits) = if varying {
             split_limits(limits, Instant::now())
@@ -309,10 +349,20 @@ impl Engine {
                         .with_stop_flag(&stop);
                     let started = Instant::now();
                     let mut reached = 0;
+                    let mut reached_seldepth = 0;
+                    let mut iterations = Vec::new();
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
-                        send(&out, &info_line(report));
+                        reached_seldepth = report.seldepth;
+                        iterations.push((report.depth, report.nodes));
+                        send(&out, &info_line(report, show_wdl));
                     });
+                    if search_stats {
+                        // Of the search just done; the checks of a varied
+                        // move, which follow, are not part of them.
+                        let lines = stats_lines(&iterations, search.nodes(), &search.stats());
+                        send_block(&out, &lines);
+                    }
                     match variety_rng {
                         None => outcome,
                         Some(mut rng) => {
@@ -341,13 +391,17 @@ impl Engine {
                                     // so a GUI records its score and line.
                                     send(
                                         &out,
-                                        &info_line(&Report {
-                                            depth: reached,
-                                            score: varied.score,
-                                            nodes: search.nodes() + varied.nodes,
-                                            elapsed: started.elapsed(),
-                                            pv: vec![varied.best_move],
-                                        }),
+                                        &info_line(
+                                            &Report {
+                                                depth: reached,
+                                                seldepth: reached_seldepth,
+                                                score: varied.score,
+                                                nodes: search.nodes() + varied.nodes,
+                                                elapsed: started.elapsed(),
+                                                pv: vec![varied.best_move],
+                                            },
+                                            show_wdl,
+                                        ),
                                     );
                                     Outcome {
                                         score: varied.score,
@@ -373,13 +427,19 @@ impl Engine {
                     );
                     send(
                         &out,
-                        &info_line(&Report {
-                            depth: weak.depth,
-                            score: weak.outcome.score,
-                            nodes: weak.nodes,
-                            elapsed: started.elapsed(),
-                            pv: weak.outcome.pv.clone(),
-                        }),
+                        &info_line(
+                            &Report {
+                                depth: weak.depth,
+                                // Not recorded for the passes of a weakened
+                                // search.
+                                seldepth: 0,
+                                score: weak.outcome.score,
+                                nodes: weak.nodes,
+                                elapsed: started.elapsed(),
+                                pv: weak.outcome.pv.clone(),
+                            },
+                            show_wdl,
+                        ),
                     );
                     weak.outcome
                 }
@@ -725,6 +785,14 @@ mod tests {
             assert!(started.elapsed() < Duration::from_secs(5), "{side}");
             assert!(lines.last().unwrap().starts_with("bestmove "));
         }
+        // A clock within `Move Overhead` (30 ms) gets no time at all: the
+        // move comes from the first depth alone, every time.
+        for go in ["go wtime 30 btime 600000", "go wtime 1 btime 600000 winc 9"] {
+            let lines = played(&[&format!("position fen {MIDDLEGAME} w - - 0 10"), go]);
+            assert_eq!(lines.len(), 2, "{go}: {lines:?}");
+            assert!(lines[0].starts_with("info depth 1 "));
+            assert!(lines[1].starts_with("bestmove "));
+        }
     }
 
     /// `Move Overhead` reaches the clock. With five seconds kept back from a
@@ -998,9 +1066,10 @@ mod tests {
         let lines = session(&["position startpos", "go depth 3"]);
         let (outcome, nodes) = direct(crate::board::START_FEN, 3);
         assert_eq!(lines.len(), 4, "{lines:?}");
-        for (line, depth) in lines.iter().zip(1..=3) {
+        // The selective depths: quiescence goes deeper than the search.
+        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 8)]) {
             assert!(
-                line.starts_with(&format!("info depth {depth} score cp ")),
+                line.starts_with(&format!("info depth {depth} seldepth {seldepth} score cp ")),
                 "{line}"
             );
         }
@@ -1052,6 +1121,80 @@ mod tests {
             .find_map(|line| line.strip_prefix("bestmove "))
             .unwrap()
             .to_string()
+    }
+
+    /// `UCI_ShowWDL` adds the chances after the score of every `info` line
+    /// of a search, weakened ones included, and changes nothing else: the
+    /// lines without them, and the move, are those of the plain search.
+    #[test]
+    fn show_wdl_adds_chances_and_changes_nothing_else() {
+        let on = "setoption name UCI_ShowWDL value true";
+        let limited = "setoption name UCI_LimitStrength value true";
+        for setup in [&[][..], &["setoption name Seed value 7", limited]] {
+            let mut plain: Vec<&str> = setup.to_vec();
+            plain.push("go depth 3");
+            let mut shown = vec![on];
+            shown.extend(&plain);
+            let (plain, shown) = (stable(&session(&plain)), stable(&session(&shown)));
+            assert_eq!(plain.len(), shown.len());
+            assert!(plain.iter().all(|line| !line.contains(" wdl ")));
+            let mut seen = 0;
+            for (plain, shown) in plain.iter().zip(&shown) {
+                if !plain.starts_with("info depth ") {
+                    assert_eq!(plain, shown);
+                    continue;
+                }
+                let words: Vec<&str> = shown.split(' ').collect();
+                let at = words.iter().position(|&word| word == "wdl").unwrap();
+                // Straight after `score cp <n>` or `score mate <n>`.
+                assert_eq!(words[at - 3], "score", "{shown}");
+                let chances: Vec<u32> = words[at + 1..at + 4]
+                    .iter()
+                    .map(|word| word.parse().unwrap())
+                    .collect();
+                assert_eq!(chances.iter().sum::<u32>(), 1000, "{shown}");
+                let without = [&words[..at], &words[at + 4..]].concat().join(" ");
+                assert_eq!(&without, plain);
+                seen += 1;
+            }
+            assert!(seen >= 1, "{shown:?}");
+        }
+    }
+
+    /// `SearchStats` adds the statistics of a full-strength search before
+    /// its `bestmove`, as `info string` lines, and changes nothing else. A
+    /// weakened search has none to show.
+    #[test]
+    fn search_stats_are_sent_before_the_best_move() {
+        let plain = stable(&session(&["go depth 3"]));
+        let on = "setoption name SearchStats value true";
+        let shown = stable(&session(&[on, "go depth 3"]));
+        assert_eq!(shown.len(), plain.len() + 5, "{shown:?}");
+        assert_eq!(shown[..3], plain[..3]);
+        assert_eq!(shown[3], "info string stats depth 1 nodes 21");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 222 ebf 10.57");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 2728 ebf 12.28");
+        assert!(shown[6].starts_with("info string stats cutoffs "));
+        assert!(shown[7].starts_with("info string stats qnodes "));
+        assert!(shown[7].contains(" of 2971 ("));
+        assert_eq!(shown[8], plain[3]);
+        assert!(shown[8].starts_with("bestmove "));
+        // The figures are those of the library's own search.
+        let pos = Position::startpos();
+        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+        let _ = search.iterate(&pos, &mut |_| {});
+        let own = stats_lines(&[], search.nodes(), &search.stats());
+        assert_eq!(shown[6], format!("info string {}", own[0]));
+        assert_eq!(shown[7], format!("info string {}", own[1]));
+        // Limited strength: the option is accepted and nothing is added.
+        let limited = [
+            "setoption name Seed value 7",
+            "setoption name UCI_LimitStrength value true",
+            "go depth 3",
+        ];
+        let mut with_stats = vec![on];
+        with_stats.extend(limited);
+        assert_eq!(stable(&session(&with_stats)), stable(&session(&limited)));
     }
 
     /// With `Variety` 0, the default, the root move is always the search's
@@ -1119,9 +1262,12 @@ mod tests {
                     "seed {seed}: {played}"
                 );
                 // The last `info` line is for the move played.
+                // It keeps the selective depth of the search's last
+                // iteration (8, as the third line of the plain search says).
+                assert!(plain[2].starts_with("info depth 3 seldepth 8 "));
                 let last_info = &lines[lines.len() - 2];
                 assert!(
-                    last_info.starts_with(&format!("info depth 3 score cp {score} "))
+                    last_info.starts_with(&format!("info depth 3 seldepth 8 score cp {score} "))
                         && last_info.ends_with(&format!(" pv {played}")),
                     "{last_info}"
                 );
@@ -1269,7 +1415,7 @@ mod tests {
             "go depth 2",
         ]);
         assert!(
-            lines[1].starts_with("info depth 2 score cp 0 "),
+            lines[1].starts_with("info depth 2 seldepth 3 score cp 0 "),
             "{lines:?}"
         );
         assert_eq!(lines.last().unwrap(), "bestmove g8h8");
@@ -1315,7 +1461,7 @@ mod tests {
         let lines = session(&["position fen 7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", "go depth 5"]);
         // Proven at depth 3, where the search stops by itself.
         assert_eq!(lines.len(), 4, "{lines:?}");
-        assert!(lines[2].starts_with("info depth 3 score mate 2 "));
+        assert!(lines[2].starts_with("info depth 3 seldepth 4 score mate 2 "));
     }
 
     #[test]
@@ -1352,7 +1498,7 @@ mod tests {
         engine.handle("position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1");
         engine.handle("go infinite");
         wait_for_output(&captured);
-        assert!(captured.lines()[0].starts_with("info depth 1 score mate 1 "));
+        assert!(captured.lines()[0].starts_with("info depth 1 seldepth 1 score mate 1 "));
         // The search is over (a mate is proven), yet no move is announced.
         thread::sleep(Duration::from_millis(50));
         assert_eq!(best_moves(&captured), 0, "{:?}", captured.lines());
@@ -1444,12 +1590,71 @@ mod tests {
         assert!(session(&["", "   "]).is_empty());
     }
 
+    /// `d` draws the position the next `go` would search.
+    #[test]
+    fn d_shows_the_board_the_fen_the_key_and_the_checkers() {
+        let lines = session(&["position startpos moves e2e4", "d"]);
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let key = Position::from_fen(after_e4).unwrap().hash();
+        assert_eq!(lines.len(), 12, "{lines:?}");
+        assert_eq!(lines[0], "info string 8 r n b q k b n r");
+        assert_eq!(lines[4], "info string 4 . . . . P . . .");
+        assert_eq!(lines[8], "info string + a b c d e f g h");
+        assert_eq!(lines[9], format!("info string fen: {after_e4}"));
+        assert_eq!(lines[10], format!("info string key: {key:016x}"));
+        assert_eq!(lines[11], "info string checkers: -");
+        // A double check: both checking pieces are named.
+        let double = "position fen 4k3/8/3N4/8/8/8/8/4R1K1 b - - 0 1";
+        let lines = session(&[double, "d"]);
+        assert_eq!(lines[11], "info string checkers: e1 d6");
+    }
+
+    /// `eval` sends what the `eval` command of the binary prints.
+    #[test]
+    fn eval_shows_the_evaluation_of_the_current_position() {
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let expected: Vec<String> = eval::report(&Position::from_fen(after_e4).unwrap())
+            .iter()
+            .map(|line| format!("info string {line}"))
+            .collect();
+        assert_eq!(expected.len(), 7);
+        assert_eq!(session(&["position startpos moves e2e4", "eval"]), expected);
+        assert!(expected.contains(&"info string total for White: +40".to_owned()));
+    }
+
+    /// Neither command ends a search or changes what it finds, and their
+    /// blocks arrive whole.
+    #[test]
+    fn d_and_eval_leave_a_running_search_alone() {
+        let plain = played(&["go depth 3"]);
+        let (mut engine, captured) = engine();
+        engine.handle("go depth 3");
+        engine.handle("d");
+        engine.handle("eval");
+        engine.wait();
+        let lines = captured.lines();
+        let start = lines
+            .iter()
+            .position(|line| line == "info string 8 r n b q k b n r")
+            .unwrap();
+        assert_eq!(lines[start + 8], "info string + a b c d e f g h");
+        assert_eq!(lines[start + 11], "info string checkers: -");
+        let search: Vec<String> = lines
+            .iter()
+            .filter(|line| !line.starts_with("info string "))
+            .cloned()
+            .collect();
+        assert_eq!(stable(&search), plain);
+    }
+
     #[test]
     fn every_line_of_output_is_protocol() {
         let lines = session(&[
             "uci",
             "isready",
             "nonsense",
+            "d",
+            "eval",
             "position startpos moves e2e4",
             "go depth 2",
         ]);

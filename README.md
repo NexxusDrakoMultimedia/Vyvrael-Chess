@@ -24,15 +24,17 @@ test suite, the documentation and a small-commit history. See
 
 **Version 0.1.0: milestones 1 to 6 (board representation, move
 generation, hand-crafted evaluation, search core, UCI, strength testing) and
-queued task 1 (the options `Seed` and `Variety`, and `bench`) are complete and
+queued task 1 (the options `Seed` and `Variety`, and `bench`) and the
+preparation for milestone 7 (search statistics, a test-suite runner, more
+fuzzing, small UCI additions) are complete and
 merged. Milestone 6 measured the engine on the project's ladder and
 calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
 speaks UCI, so it can be used in a GUI and in match tools. It is still weak
 and slow, because the main search has no move ordering or transposition table
 yet (milestone 7). Its strength on the project's own opponent ladder, an
 ordering rather than an Elo, is in
-[docs/testing/results-0.1.0-alpha.2.md](docs/testing/results-0.1.0-alpha.2.md)
-(milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
+[docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md)
+(measured for the release; the milestone 6 measurement is beside it). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
 and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
@@ -46,8 +48,8 @@ cargo test --workspace --release
 ```
 
 Run with no arguments, the binary speaks UCI on standard input and output
-(see [docs/UCI.md](docs/UCI.md)). It also has four subcommands, `perft`,
-`eval`, `search` and `bench`:
+(see [docs/UCI.md](docs/UCI.md)). It also has five subcommands, `perft`,
+`eval`, `search`, `bench` and `suite`:
 
 ```sh
 cargo run --release -- perft 5            # count positions 5 moves deep
@@ -56,6 +58,7 @@ cargo run --release -- perft 5 --copy-make  # same count, copy-make style
 cargo run --release -- eval               # static evaluation, with its parts
 cargo run --release -- search 4           # search 4 plies and name the best move
 cargo run --release -- bench              # a fixed search workload: nodes and speed
+cargo run --release -- suite wac.epd --depth 4  # run an EPD test suite (a file of your own)
 cargo run --release -- help
 ```
 
@@ -74,8 +77,10 @@ is in [docs/UCI.md](docs/UCI.md).
   `engine.protocol` to `uci` in `config.yml`.
 
 Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
-`UCI_Elo` and `Move Overhead`:
+`UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
 
+- **`SearchStats`** (off by default): a diagnostic that sends a search's
+  statistics as `info string` lines; see [docs/UCI.md](docs/UCI.md).
 - **`Seed`** (0 to 2147483647, default 0): the seed of the engine's
   strength-affecting randomness. 0 takes a new one from system entropy for
   every game and logs it; any other number fixes it, to replay a game.
@@ -95,7 +100,7 @@ maintainer.
 
 On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
 maintainer upgraded it to a bot on 2026-11-20 (UTC) and runs it with
-0.1.0-alpha.2 (0.1.0-alpha.1 until 2026-11-22). Rated games wait until the
+0.1.0 (since 2026-11-23; the alphas before it). Rated games wait until the
 engine's strength has been measured and its search heuristics tested
 (after 0.2.0). The policy, the maintainer's checklist and the rules the bot
 keeps are in [docs/LICHESS.md](docs/LICHESS.md), and what it has played with

@@ -54,6 +54,14 @@ pub struct Options {
     /// `Move Overhead`: milliseconds kept back from every time limit for
     /// delays the engine cannot measure (GUI, network, operating system).
     pub move_overhead_ms: u32,
+    /// `UCI_ShowWDL`: whether `info` lines give chances of a win, a draw
+    /// and a loss after the score. They come from a fixed model, not from
+    /// measured results: see `uci::wdl`.
+    pub show_wdl: bool,
+    /// `SearchStats`: whether a full-strength search ends by sending its
+    /// statistics as `info string` lines. A diagnostic: the search counts
+    /// them in any case and never reads them.
+    pub search_stats: bool,
 }
 
 impl Default for Options {
@@ -66,6 +74,8 @@ impl Default for Options {
             limit_strength: false,
             elo: ELO_DEFAULT,
             move_overhead_ms: MOVE_OVERHEAD_DEFAULT,
+            show_wdl: false,
+            search_stats: false,
         }
     }
 }
@@ -83,6 +93,8 @@ impl Options {
             check("UCI_LimitStrength", false),
             spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
             spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
+            check("UCI_ShowWDL", false),
+            check("SearchStats", false),
         ]
     }
 
@@ -114,6 +126,8 @@ impl Options {
             "move overhead" => {
                 self.move_overhead_ms = parse_spin("Move Overhead", value, 0, MOVE_OVERHEAD_MAX)?;
             }
+            "uci_showwdl" => self.show_wdl = parse_check("UCI_ShowWDL", value)?,
+            "searchstats" => self.search_stats = parse_check("SearchStats", value)?,
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -426,9 +440,46 @@ mod tests {
                 "Variety",
                 "UCI_LimitStrength",
                 "UCI_Elo",
-                "Move Overhead"
+                "Move Overhead",
+                "UCI_ShowWDL",
+                "SearchStats"
             ]
         );
+    }
+
+    #[test]
+    fn show_wdl() {
+        assert_eq!(
+            Options::declarations()[7],
+            "option name UCI_ShowWDL type check default false"
+        );
+        assert_eq!(Options::declarations().len(), 9);
+        let mut options = Options::default();
+        assert!(!options.show_wdl);
+        assert_eq!(options.set("UCI_ShowWDL", Some("true")), Ok(()));
+        assert!(options.show_wdl);
+        assert_eq!(options.set("uci_showwdl", Some("false")), Ok(()));
+        assert!(!options.show_wdl);
+        for bad in [Some("1"), Some("on"), Some("True"), None] {
+            assert!(options.set("UCI_ShowWDL", bad).is_err(), "{bad:?}");
+            assert!(!options.show_wdl);
+        }
+    }
+
+    #[test]
+    fn search_stats() {
+        assert_eq!(
+            Options::declarations()[8],
+            "option name SearchStats type check default false"
+        );
+        let mut options = Options::default();
+        assert!(!options.search_stats);
+        assert_eq!(options.set("searchstats", Some("true")), Ok(()));
+        assert!(options.search_stats);
+        assert!(options.set("SearchStats", Some("yes")).is_err());
+        assert!(options.search_stats);
+        assert_eq!(options.set("SearchStats", Some("false")), Ok(()));
+        assert!(!options.search_stats);
     }
 
     #[test]
