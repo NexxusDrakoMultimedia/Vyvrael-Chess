@@ -17,7 +17,7 @@ them.
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
-| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
+| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | in progress (started 2026-11-27) |
 | - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
@@ -975,6 +975,106 @@ behind a feature, for the optional `pext` release build (see
 the same counts on both paths. It is a speed change that leaves the search
 tree alone, so it is checked by perft and by an unchanged node count, not by
 SPRT.
+
+### Chunk checklist
+
+Branch `milestone/7-search-heuristics`, started 2026-11-27 from `main`.
+
+**The order below is a proposal until the maintainer confirms it.** Items
+1 to 4 are the order the maintainer set on 2026-11-20; the rest is the
+agent's proposal of 2026-11-27, with the reason for each place.
+
+How every search change is done:
+
+- **One feature, one commit, one SPRT** against the commit before it, on
+  the Windows workstation with `match.ps1 sprt`, both builds `avx2`,
+  10+0.1, Hash 64, `alpha` and `beta` 0.05, a cap of 5,000 rounds. Bounds
+  `[0, 10]` while changes are worth tens of Elo (items 1 to 9), `[0, 5]`
+  after. The agent gives the command and the two builds; the maintainer
+  runs it and sends the notes and the log back.
+- **The result is a row of
+  [`testing/sprt-history.md`](testing/sprt-history.md)**, written by
+  `scripts/record_sprt.py`, and its summary line goes into the commit
+  message. H1 accepted: the change stays. H0 accepted: it is reverted.
+  Undecided is not a pass: the cap is raised and the test run again, or
+  the change is dropped.
+- **The bench node count moves with every one of them.** The commit
+  updates the pin in `tests/bench.rs` and adds a row to
+  [`testing/bench-history.md`](testing/bench-history.md). `vyvrael search
+  --stats` before and after goes into the commit message: the first-move
+  cutoff rate and the branching factor are what these changes are for.
+- A change that is not meant to alter the search (a speed change, a
+  protocol feature, a diagnostic) keeps the bench count and says so.
+
+**Capture ordering and the table (the maintainer's order):**
+
+- [ ] 1. MVV-LVA with promotions for the captures of the main search. The
+  baseline for everything after it. SPRT.
+- [ ] 2a. The transposition table: the table itself, sized by `Hash`,
+  cleared at `ucinewgame`, probed and stored in the main search, with its
+  cutoffs. SPRT.
+- [ ] 2b. The table's move tried first. SPRT.
+- [ ] 2c. With the table, no SPRT (the bench count must not move): the
+  button `Clear Hash`, `hashfull` in `info`, the table's hit rate in the
+  search statistics, and `bench <depth> <threads> <hash>` using its hash
+  size (the bench without arguments keeps a fixed one).
+- [ ] 3. Static exchange evaluation, for ordering captures and for
+  leaving losing ones out of quiescence. Kept only if its SPRT shows a
+  gain.
+- [ ] 4. Delta pruning in quiescence, last of the four, with its own SPRT.
+
+**KI-10, once quiescence is pruned:**
+
+- [ ] 5. `stop` and the clock apply once the first root move of depth 1
+  is done. Not a change to what a fixed-depth search finds, so the bench
+  count stays; tested with the many-queens positions of KI-10. KI-10 is
+  removed from the table here.
+
+**Quiet-move ordering** (before the pruning that relies on it):
+
+- [ ] 6. Killer moves. SPRT.
+- [ ] 7. The history heuristic. SPRT.
+
+**Windows, then pruning and reductions.** Principal variation search is
+proposed before null move and late move reductions, where the request
+listed it after them: reductions are searched with a zero window and
+re-searched on a fail high, which is the machinery of principal
+variation search, so building it first keeps the reductions' commit to
+the reductions.
+
+- [ ] 8. Principal variation search. SPRT.
+- [ ] 9. Null-move pruning, with its guards (not in check, not in a pawn
+  endgame, a verification where zugzwang threatens). SPRT.
+- [ ] 10. Late move reductions. SPRT.
+- [ ] 11. Aspiration windows at the root. SPRT.
+- [ ] 12. Check extensions. SPRT.
+- [ ] 13. Reverse futility pruning. SPRT.
+- [ ] 14. Internal iterative reduction. SPRT.
+- [ ] 15. The countermove heuristic. SPRT.
+- [ ] 16. Continuation history. SPRT.
+
+**Not search changes:**
+
+- [ ] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
+  Magic bitboards stay the default; perft matches on both paths and the
+  bench count is the same. No SPRT.
+- [ ] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
+  bench count unchanged, tested in `tests/uci.rs`.
+
+**At the end:**
+
+- [ ] KI-9: the measurement table of `TESTING.md` taken again, and the
+  entry removed if the search is no longer slow for lack of ordering.
+- [ ] KI-8: the commands for measuring strength and `UCI_Elo` again
+  against Ladder Baseline 2; the maintainer runs them, and the results
+  are written up under `docs/testing/`.
+- [ ] End-of-milestone doc drift pass, an independent review, the merge
+  into `main`.
+
+Pondering and the `tune` tool of the [B] list are not in this milestone:
+pondering touches time management and the search thread and gets a
+branch of its own, and the tuner waits for the maintainer's word on
+where it fits.
 
 ## Decisions for milestones 4 to 6
 
