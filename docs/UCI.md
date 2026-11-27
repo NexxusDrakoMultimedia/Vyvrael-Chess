@@ -24,6 +24,7 @@ option name UCI_Elo type spin default 1360 min 1110 max 1630
 option name Move Overhead type spin default 30 min 0 max 5000
 option name UCI_ShowWDL type check default false
 option name SearchStats type check default false
+option name Clear Hash type button
 info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
@@ -181,7 +182,8 @@ search.
 
 | Option | Type | Default | Status | Behaviour |
 | --- | --- | --- | --- | --- |
-| `Hash` | spin | `16` (1 to 65536) | implemented | Transposition table size in MiB. The table holds 65,536 positions to the MiB, and their number is a power of two, so a size that is not one is rounded down. A new size takes effect at the next search and starts with an empty table; if there is no memory for it, the engine says so with `info string` and keeps the table it has. The table is emptied by `ucinewgame`, and is used by full-strength play only. |
+| `Hash` | spin | `16` (1 to 65536) | implemented | Transposition table size in MiB. The table holds 65,536 positions to the MiB, and their number is a power of two, so a size that is not one is rounded down. A new size takes effect at the next search and starts with an empty table; if there is no memory for it, the engine says so with `info string` and keeps the table it has. The table is emptied by `ucinewgame` and by `Clear Hash`, and is used by full-strength play only. |
+| `Clear Hash` | button | none | implemented | `setoption name Clear Hash` empties the transposition table, as `ucinewgame` does, without starting a new game: the next search knows nothing of the ones before it. Like every option it applies from the next search on, so pressed during a search it leaves that search alone. It has no value, and one sent with it is not looked at. Nothing is answered. |
 | `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
 | `Seed` | spin | `0` (0 to 2147483647) | implemented | Seed of strength-affecting randomness. `0` takes a new seed from system entropy when the engine starts and at every `ucinewgame`; any other value is that seed. Setting it back to `0` takes a fresh entropy seed. The maximum is the largest signed 32-bit number, which Cute Chess can store; entropy seeds stay from 1 to it, so a logged seed can always be given back. It replaces `DeterministicRNG` and `RngSeed` (0.1.0-alpha.1). |
 | `Variety` | spin | `0` (0 to 100) | implemented | Centipawns. In the first 12 full moves, at full strength, play at random among the best move and the moves a second search checks to be within this many centipawns of it, weighted towards the best. Never when the best score is a mate. `0` always plays the best move. It weakens play on purpose. See "Variety" below. |

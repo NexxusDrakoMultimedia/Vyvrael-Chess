@@ -109,7 +109,7 @@ fn a_whole_conversation() {
             .iter()
             .filter(|line| line.starts_with("option name "))
             .count(),
-        9
+        10
     );
     assert!(hello.contains(&"option name Variety type spin default 0 min 0 max 100".to_string()));
     assert!(

@@ -562,7 +562,7 @@ transposition table, pruning) come in milestone 7, one at a time.
     variation the engine prints can be shorter than the depth.
   - `Search::with_table` lends a table to a search; without one the
     search is as before. The engine keeps one table for a game (sized by
-    `Hash`, emptied by `ucinewgame`) and lends it to every full-strength
+    `Hash`, emptied by `ucinewgame` and by the button `Clear Hash`) and lends it to every full-strength
     search; `bench`, `search` and `suite` use a new one for each
     position. The weakened search and the checks of a varied move use
     none, so limited-strength play is what it was.
@@ -728,9 +728,11 @@ and option is listed in [UCI.md](UCI.md).
   react to the search change playing strength and wait for milestone 7.
 - **Options** (`uci/options.rs`): `Options` holds the value of every UCI
   option. `Options::declarations()` gives the `option` lines for `uci` and
-  `Options::set(name, value)` checks and stores a value; an option exists
-  only in those two places, so what the GUI is shown and what the engine
-  accepts cannot drift apart. A test sets every declared option to its
+  `Options::set(name, value)` checks and stores a value. A button
+  (`Clear Hash`) has no value: `Options::button(name)` recognises it and
+  the engine does what it stands for. An option exists only in that one
+  file, so what the GUI is shown and what the engine accepts cannot drift
+  apart. A test sets every declared option that has a value to its
   declared default and requires that nothing changes.
 - **The engine** (`uci/engine.rs`): `Engine` owns the current position, the
   hashes of the positions the game went through, and the running search.

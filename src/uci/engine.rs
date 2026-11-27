@@ -17,7 +17,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use super::{
-    Command, GoParams, HASH_DEFAULT, Options, bestmove_line, info_line, limits_for, parse,
+    Button, Command, GoParams, HASH_DEFAULT, Options, bestmove_line, info_line, limits_for, parse,
 };
 use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
@@ -82,6 +82,9 @@ pub struct Engine {
     /// The size the table was made with, in MiB: the option `Hash` as it
     /// was when a search last started.
     table_mb: u32,
+    /// Whether `Clear Hash` was pressed since the last search started: the
+    /// table is emptied before the next one.
+    clear_table: bool,
     /// The seed of strength-affecting randomness: the option `Seed`, or
     /// one from system entropy while `Seed` is 0.
     seed: u32,
@@ -116,6 +119,7 @@ impl Engine {
                     .expect("memory for a table of one slot"),
             )),
             table_mb: HASH_DEFAULT,
+            clear_table: false,
             seed,
             rng: Rng::stream(seed, stream::STRENGTH),
         }
@@ -194,6 +198,7 @@ impl Engine {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .clear();
+                self.clear_table = false;
                 // Every game starts its random sequence afresh, so that any
                 // game can be replayed by itself from one logged number.
                 // With a chosen seed that is the same seed again; without
@@ -210,11 +215,16 @@ impl Engine {
             Command::Stop => self.end_search(),
             Command::SetOption { name, value } => {
                 // An option applies from the next search on; a running one
-                // keeps the values it started with.
+                // keeps the values it started with. So does a button: the
+                // running search holds the table, which is emptied before
+                // the next one starts.
                 let previous = self.options.seed;
-                match self.options.set(&name, value.as_deref()) {
-                    Ok(()) => self.reseed(previous),
-                    Err(problem) => self.say(&format!("info string {problem}")),
+                match Options::button(&name) {
+                    Some(Button::ClearHash) => self.clear_table = true,
+                    None => match self.options.set(&name, value.as_deref()) {
+                        Ok(()) => self.reseed(previous),
+                        Err(problem) => self.say(&format!("info string {problem}")),
+                    },
                 }
             }
             Command::Display => self.say_lines(&self.display()),
@@ -324,10 +334,17 @@ impl Engine {
 
     /// `go`: starts a search of the current position on its own thread. A
     /// search still running is ended first.
-    /// Makes the table the size `Hash` asks for, if it is not. Called with
-    /// no search running. A new table is empty; if there is no memory for
-    /// it the old one stays, and `Hash` is put back to its size.
+    /// Makes the table the size `Hash` asks for, if it is not, and empties
+    /// it if `Clear Hash` was pressed. Called with no search running. A
+    /// new table is empty; if there is no memory for it the old one stays,
+    /// and `Hash` is put back to its size.
     fn fit_table(&mut self) {
+        if std::mem::take(&mut self.clear_table) {
+            self.table
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+        }
         let wanted = self.options.hash_mb;
         if wanted == self.table_mb {
             return;
@@ -1335,6 +1352,57 @@ mod tests {
         assert_eq!(renewed[1..=first.len()], first[..]);
         assert_eq!(renewed[first.len() + 1], seed);
         assert_eq!(renewed[first.len() + 2..], first[..]);
+    }
+
+    /// `Clear Hash` empties the table: the search after it is the first
+    /// search of the game again, line for line, in any letter case and
+    /// whatever value is sent along. It says nothing and changes no
+    /// option. Pressed during a search, it leaves that search alone and
+    /// empties the table before the next one.
+    #[test]
+    fn clear_hash_empties_the_table() {
+        let go = "go depth 5";
+        let first = played(&[go]);
+        for press in [
+            "setoption name Clear Hash",
+            "setoption name clear hash",
+            "setoption name Clear Hash value true",
+        ] {
+            let lines = played(&[go, press, go]);
+            assert_eq!(lines.len(), 2 * first.len(), "{press}");
+            assert_eq!(lines[..first.len()], first[..], "{press}");
+            assert_eq!(lines[first.len()..], first[..], "{press}");
+        }
+        // Pressed once, it empties once.
+        let twice = played(&[go, go]);
+        let pressed = played(&[go, "setoption name Clear Hash", go, go]);
+        assert_eq!(pressed[first.len()..], twice[..]);
+        // Before any search, and before a new game, it changes nothing.
+        let press = "setoption name Clear Hash";
+        assert_eq!(played(&[press, go]), first);
+        let (mut engine, captured) = engine();
+        engine.handle(press);
+        assert_eq!(engine.options, Options::default());
+        assert!(captured.lines().is_empty());
+        // During a search: the search goes on with what it knows, and the
+        // next one starts from nothing.
+        engine.handle("go infinite");
+        // Deep enough for the table to hold something that shows.
+        let started = Instant::now();
+        while captured.lines().len() < 6 {
+            assert!(started.elapsed() < Duration::from_secs(60), "no depth 6");
+            thread::sleep(Duration::from_millis(1));
+        }
+        engine.handle(press);
+        assert!(engine.clear_table);
+        engine.handle("stop");
+        engine.wait();
+        assert!(engine.table.lock().unwrap().hashfull() > 0);
+        let before = captured.lines().len();
+        engine.handle(go);
+        engine.wait();
+        assert_eq!(stable(&captured.lines()[before..]), first);
+        assert!(!engine.clear_table);
     }
 
     /// `Hash` sizes the table from the next search on. A new size is a new,

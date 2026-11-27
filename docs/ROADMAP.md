@@ -699,8 +699,8 @@ commands `d` and `eval` in UCI mode.
 
 **[B], with and after milestone 7:**
 
-- [ ] A `Clear Hash` button option and `hashfull` in `info`, with the
-  transposition table.
+- [x] A `Clear Hash` button option and `hashfull` in `info`, with the
+  transposition table (milestone 7, item 2c).
 - [ ] Further search features, each its own commit and its own SPRT, after
   the transposition table, MVV-LVA, killers and history, null move and
   late move reductions: principal variation search, aspiration windows,
@@ -1019,11 +1019,10 @@ How every search change is done:
   cutoffs. SPRT [0, 10]: H1 accepted in 344 games (run `ad16d90abf11`).
 - [x] 2b. The table's move tried first, at the root too. SPRT [0, 10]:
   H1 accepted in 242 games (run `9710d85acf32`).
-- [ ] 2c. With the table, no SPRT (the bench count must not move): the
-  button `Clear Hash`, `hashfull` in `info`, the table's hit rate in the
-  search statistics, and `bench <depth> <threads> <hash>` using its hash
-  size (the bench without arguments keeps a fixed one). Done so far: the
-  bench's hash size, `hashfull`, the hit rate.
+- [x] 2c. With the table, no SPRT (the bench count did not move, 206,097):
+  the button `Clear Hash`, `hashfull` in `info`, the table's hit rate in
+  the search statistics, and `bench <depth> <threads> <hash>` using its
+  hash size (the bench without arguments keeps a fixed one).
 - [ ] 3. Static exchange evaluation, for ordering captures and for
   leaving losing ones out of quiescence. Kept only if its SPRT shows a
   gain.
