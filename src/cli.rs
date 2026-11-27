@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
-use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
+use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
 use crate::search::{Limits, MAX_PLY, Report, Search};
 use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
@@ -110,22 +110,9 @@ fn run_eval(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Re
     let Some(pos) = position_from(&fields, "eval", err)? else {
         return Ok(EXIT_USAGE);
     };
-    let parts = HandCrafted::breakdown(&pos);
-    writeln!(out, "position: {pos}")?;
-    writeln!(out, "evaluator: {}", HandCrafted.name())?;
-    writeln!(out, "material: {:+}", parts.material)?;
-    writeln!(
-        out,
-        "piece-square: {:+} middlegame, {:+} endgame",
-        parts.piece_square.mg, parts.piece_square.eg
-    )?;
-    writeln!(out, "phase: {} of {MAX_PHASE}", parts.phase)?;
-    writeln!(out, "total for White: {:+}", parts.total)?;
-    writeln!(
-        out,
-        "total for the side to move: {:+}",
-        HandCrafted.evaluate(&pos)
-    )?;
+    for line in eval::report(&pos) {
+        writeln!(out, "{line}")?;
+    }
     Ok(EXIT_OK)
 }
 
