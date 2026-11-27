@@ -24,7 +24,7 @@ Layout:
   FEN, Zobrist hashing, make/unmake, move parsing), `attacks/` (attack tables
   per piece type), `movegen/` (move generation), `perft.rs` (perft node
   counting), `eval/` (static evaluation), `search/`, `uci/` (parsing, options,
-  time, engine loop), `bench.rs` (a fixed search workload) and `cli.rs` (the
+  time, engine loop), `bench.rs` (a fixed search workload), `epd.rs` (EPD records) and `cli.rs` (the
   binary's other commands: `perft`, `eval`, `search`, `bench`, `help`).
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).

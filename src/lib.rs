@@ -12,6 +12,7 @@ pub mod attacks;
 pub mod bench;
 pub mod board;
 pub mod cli;
+pub mod epd;
 pub mod eval;
 pub mod movegen;
 pub mod perft;
