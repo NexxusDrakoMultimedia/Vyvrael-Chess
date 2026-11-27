@@ -8,7 +8,8 @@
 //! option values and commands sent while a search runs. Each stream goes
 //! through `uci::run`, and the test checks that nothing panicked on any
 //! thread, that every `isready` was answered and that every `go` got
-//! exactly one `bestmove`.
+//! exactly one `bestmove`, and that each of those moves is legal in the
+//! position the engine should have been searching.
 //!
 //! A stream that the engine does not finish in time fails the test instead
 //! of stalling it, and every stream's input is written to Cargo's directory
@@ -28,7 +29,7 @@ use std::thread;
 use std::time::Duration;
 
 use vyvrael::board::Position;
-use vyvrael::movegen::legal_moves;
+use vyvrael::movegen::{find_legal_move, legal_moves};
 use vyvrael::rng::Rng;
 use vyvrael::uci::{Command, parse, run};
 
@@ -340,6 +341,82 @@ impl Generator {
     }
 }
 
+/// What a stream should leave the engine thinking about, worked out beside
+/// it: the position after each line, by the rule that a `position` command
+/// with anything wrong in it changes nothing, and the position each `go`
+/// was given.
+struct Model {
+    position: Position,
+    /// The position of each `go`, in order.
+    searched: Vec<Position>,
+}
+
+impl Model {
+    fn new() -> Model {
+        Model {
+            position: Position::startpos(),
+            searched: Vec::new(),
+        }
+    }
+
+    /// Takes in one command as the engine understood it.
+    fn follow(&mut self, command: &Command) {
+        match command {
+            Command::NewGame => self.position = Position::startpos(),
+            Command::Position { fen, moves } => {
+                let start = match fen {
+                    None => Some(Position::startpos()),
+                    Some(fen) => Position::from_fen(fen).ok(),
+                };
+                let reached = start.and_then(|mut position| {
+                    for text in moves {
+                        let mv = find_legal_move(&position, text)?;
+                        let _undo = position.make_move(mv);
+                    }
+                    Some(position)
+                });
+                if let Some(position) = reached {
+                    self.position = position;
+                }
+            }
+            Command::Go(_) => self.searched.push(self.position.clone()),
+            _ => {}
+        }
+    }
+
+    /// Checks the engine's `bestmove` lines, in order, against the
+    /// positions searched: a legal move of that position, or `0000` when
+    /// and only when it has none. Returns how many were real moves and how
+    /// many `0000`.
+    fn check(&self, name: &str, lines: &[&str]) -> (usize, usize) {
+        let moves: Vec<&str> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("bestmove "))
+            .collect();
+        assert_eq!(
+            moves.len(),
+            self.searched.len(),
+            "stream {name}: every go gets one bestmove"
+        );
+        let mut none = 0;
+        for (number, (text, position)) in moves.iter().zip(&self.searched).enumerate() {
+            let stuck = legal_moves(position).is_empty();
+            let fine = if stuck {
+                *text == "0000"
+            } else {
+                find_legal_move(position, text).is_some()
+            };
+            assert!(
+                fine,
+                "stream {name}: bestmove {text} (number {}) is not a move of {position}",
+                number + 1
+            );
+            none += usize::from(stuck);
+        }
+        (moves.len() - none, none)
+    }
+}
+
 /// Where the input of stream `name` is kept for looking at afterwards.
 fn kept_input(name: &str) -> PathBuf {
     Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("uci-robustness-stream-{name}.txt"))
@@ -406,6 +483,7 @@ fn malformed_input_never_panics_and_is_always_answered() {
     // stopped producing some kind of line cannot pass unnoticed.
     let mut seen = [0usize; 4];
     let mut cut_characters = 0;
+    let (mut moves_played, mut no_move) = (0, 0);
     const REACHED: [&str; 4] = [
         "info depth ",
         "info string position: invalid FEN",
@@ -421,7 +499,8 @@ fn malformed_input_never_panics_and_is_always_answered() {
             cut_characters: 0,
         };
         let mut input = Vec::new();
-        let (mut readies, mut gos) = (0, 0);
+        let mut model = Model::new();
+        let mut readies = 0;
         let mut written = 0;
         while written < LINES {
             let line = generator.line();
@@ -431,7 +510,7 @@ fn malformed_input_never_panics_and_is_always_answered() {
                 continue;
             }
             readies += usize::from(command == Command::IsReady);
-            gos += usize::from(matches!(command, Command::Go(_)));
+            model.follow(&command);
             input.extend_from_slice(&line);
             input.push(b'\n');
             written += 1;
@@ -453,11 +532,9 @@ fn malformed_input_never_panics_and_is_always_answered() {
             answered, readies,
             "stream {index}: every isready is answered"
         );
-        let best = lines
-            .iter()
-            .filter(|line| line.starts_with("bestmove "))
-            .count();
-        assert_eq!(best, gos, "stream {index}: every go gets one bestmove");
+        let (played, none) = model.check(&index.to_string(), &lines);
+        moves_played += played;
+        no_move += none;
         assert_eq!(
             lines.last(),
             Some(&"readyok"),
@@ -472,6 +549,10 @@ fn malformed_input_never_panics_and_is_always_answered() {
         cut_characters > 0,
         "no command was cut in the middle of a character"
     );
+    // Both kinds of answer were checked: real moves, and `0000` from a
+    // position without one (one of the listed FENs is a stalemate).
+    assert!(moves_played > 100, "only {moves_played} moves were checked");
+    assert!(no_move > 0, "no search of a position without a move");
     for (count, prefix) in seen.iter().zip(REACHED) {
         assert!(*count > 0, "no stream produced a line starting {prefix:?}");
     }
