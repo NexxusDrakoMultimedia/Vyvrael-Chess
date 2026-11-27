@@ -153,8 +153,9 @@ shared in the tool crates).
 - Branching: one branch per milestone (`milestone/1-board`,
   `milestone/2-movegen`, ...), each started from `main` once the previous
   one is merged; the agent reviews and merges it (see "Rules"). Release
-  preparation (`release/<version>`) and tooling (`tooling/<name>`) get
-  branches of their own; the maintainer reviews a release branch and tags.
+  preparation (`release/<version>`), tooling (`tooling/<name>`) and queued
+  tasks (`task/<name>`) get branches of their own; the maintainer reviews
+  a release branch and tags.
 - Reporting: at the end of each milestone report the branch name, its
   `git log --oneline`, the tests that cover it, and any doc/code mismatches.
 

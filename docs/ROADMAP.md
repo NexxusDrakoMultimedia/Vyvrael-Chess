@@ -16,7 +16,10 @@ them.
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
+| — | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | in progress |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
+| — | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
+| — | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
 | 10 | Endgame tablebases (optional, needs approval) | `milestone/10-tablebases` | not started |
@@ -32,10 +35,16 @@ work is actually done is this:
    Done on 2026-11-21.
 2. **Queued task 1:** the options `Seed` and `Variety` and the `bench`
    command. See "Queued work". Done on 2026-11-22.
-3. **Milestone 6:** strength testing.
-4. **Milestone 7:** search heuristics.
-5. **Queued task 2:** benchmark and speed up.
-6. **Milestone 8 onwards**, in numerical order.
+3. **Milestone 6:** strength testing. Done on 2026-11-23.
+4. **The preparation branch** (`task/pre-7-tooling-and-qol`, added by the
+   maintainer on 2026-11-27): the small items of "Extra features and QoL"
+   that need no SPRT, so that milestone 7 has diagnostics and a quick test
+   runner to work with.
+5. **Milestone 7:** search heuristics.
+6. **Queued task 2:** benchmark and speed up.
+7. **The rest of the extra features**, each on its own branch, in the order
+   the maintainer confirms.
+8. **Milestone 8 onwards**, in numerical order.
 
 **Where things run** (the maintainer, 2026-11-21): strength is measured on
 the Windows workstation, where Ladder Baselines 1 and 2 and the results of
@@ -293,7 +302,8 @@ that milestone starts, and must include the known issues due in it:
 - Milestone 6: calibration of `UCI_Elo` (KI-8 was measured for
   0.1.0-alpha.2).
 - Milestone 7: KI-9, KI-10; KI-8 measured again.
-- Not yet scheduled: KI-2, KI-11, KI-12, KI-13.
+- The preparation branch before milestone 7: KI-12.
+- Not yet scheduled: KI-2, KI-11, KI-13.
 
 ## Planned features
 
@@ -545,7 +555,8 @@ by itself; the first is followed by the release of 0.1.0-alpha.2, prepared
 as a separate step (see "Releases"). The first
 follows the tooling branch, which is merged, so it is next; the second
 waits until milestone 7 is done (the maintainer's decision of 2026-11-21).
-See "Order of work".
+See "Order of work". A third group of requests, of 2026-11-27, follows
+them as section 3.
 
 ### 1. Optional determinism: `Seed`, `Variety`, `bench`
 
@@ -667,6 +678,111 @@ it will really be, not one that is slow mainly for lack of them.
 - [ ] Report: speed before and after, the hotspots and what changed for
   each, which commits are pure speed and which change the search, and what
   to SPRT next.
+
+### 3. Extra features and QoL (requested 2026-11-27)
+
+Asked for by the maintainer, in three groups. **[A]** is small, needs no
+SPRT and is done before milestone 7 on the preparation branch below.
+**[B]** is done with or after milestone 7 and may need an SPRT or careful
+testing. **[C]** is larger: a branch each, asked about first.
+
+**[A], the preparation branch:** the fix for KI-12; search statistics
+behind a flag; an EPD test-suite runner; more fuzzing of the UCI parser;
+`bench <depth> <threads> <hash>`; a script that records an SPRT result;
+`seldepth` and `UCI_ShowWDL` in `info` (`nps` was there already); the
+commands `d` and `eval` in UCI mode.
+
+**[B], with and after milestone 7:**
+
+- [ ] A `Clear Hash` button option and `hashfull` in `info`, with the
+  transposition table.
+- [ ] Further search features, each its own commit and its own SPRT, after
+  the transposition table, MVV-LVA, killers and history, null move and
+  late move reductions: principal variation search, aspiration windows,
+  reverse futility pruning, check extensions, internal iterative
+  reduction, countermove and continuation history. Their order is
+  proposed when milestone 7 starts.
+- [ ] `go mate` and `searchmoves`: protocol features with no effect on
+  strength, tested in `tests/uci.rs`, bench node count unchanged.
+- [ ] Pondering (`Ponder`, `go ponder`, `ponderhit`), tested by the
+  integration tests and by real games in `cutechess-cli`, then described
+  for lichess-bot in `LICHESS.md`.
+- [ ] A `tune` tool in `tools/` (SPSA or Texel style) for the piece-square
+  tables and the evaluation's terms, king-attack terms among them, with
+  fixed seeds, recorded parameters and a manifest. Each tuned set needs
+  its SPRT. Where it fits (possibly after milestone 8, whose tooling
+  provides the data) is the maintainer's to say.
+
+**[C], larger work, asked about first:**
+
+- [ ] Chess960 (`UCI_Chess960`), accepted by perft against the published
+  Chess960 counts with standard perft unchanged.
+- [ ] A short opening book for the Lichess bot through lichess-bot's
+  polyglot support: documentation and configuration only, no book file
+  committed.
+- Rated play and submission to rating lists stay blocked on the branding.
+
+#### Chunk checklist of the preparation branch
+
+Branch `task/pre-7-tooling-and-qol`, started 2026-11-27 from `main`. One
+commit per item unless noted; tests and docs travel with each. **Nothing
+here may change what the search does at its default settings: the bench
+counts 16,611,416 nodes after every commit.** CI does not run on pushes to
+this branch (the workflow names `main` and `milestone/**`), so the three
+gates and the script tests are run locally.
+
+Decided by the maintainer on 2026-11-27: the statistics are counted always
+and only shown behind a flag; `d` and `eval` answer in `info string`
+lines, so the rule that stdout carries protocol output only has no
+exception; `UCI_ShowWDL` uses a fixed, documented mapping that is a model
+and not a measurement; SPRT results go into
+`docs/testing/sprt-history.md`; the suite runner is a command of the
+engine binary; `bench` refuses more than one thread.
+
+- [ ] This plan, and the `task/` branch prefix in `AGENTS.md`
+- [ ] Docs: fix the drift found on `main` while planning
+- **KI-12** (the maintainer runs the matches on the Windows workstation):
+  - [ ] A test that plays out a clock without increment against the time
+    formula and pins how it runs out today
+  - [ ] No time is planned once the clock is within `Move Overhead`: the
+    move comes from the first depth alone
+  - [ ] `Move Overhead` is taken off the clock before it is shared out
+    (moves every budget by about a millisecond, so it needs a
+    non-regression SPRT)
+  - [ ] The runs at 1+0 and 0.1+0 before and after, recorded; KI-12 removed
+- [ ] `bench [depth] [threads] [hash]`
+- **`d` and `eval` in UCI mode:**
+  - [ ] The evaluation's report built in the `eval` module
+  - [ ] A text diagram of a position
+  - [ ] The two commands
+- **`info` fields:**
+  - [ ] The search records its selective depth
+  - [ ] `seldepth` in the `info` lines
+  - [ ] The score-to-WDL mapping
+  - [ ] The option `UCI_ShowWDL`
+- **Search statistics:**
+  - [ ] Cutoffs and first-move cutoffs counted in the search
+  - [ ] `search --stats`: nodes per depth, branching factor, cutoff rates
+  - [ ] The option `SearchStats` and its `info string` line (the hit rate
+    of the transposition table joins in milestone 7)
+- **UCI fuzzing** (tests only; a defect found gets a fix commit of its own):
+  - [ ] A stream that hangs fails the test instead of stalling it
+  - [ ] Every `bestmove` of a malformed stream is legal
+  - [ ] The command, FEN, move and option parsers fuzzed directly
+  - [ ] Streams of mutated real sessions and long games
+  - [ ] The release binary survives a fuzzed stream over pipes
+- **SPRT recorder:**
+  - [ ] `scripts/record_sprt.py` reads a run's notes and log
+  - [ ] It appends the result to `docs/testing/sprt-history.md`
+  - [ ] A test that it reads what the match scripts really write
+- **EPD suite runner:**
+  - [ ] `*.epd` ignored by git
+  - [ ] A legal move found from its SAN text
+  - [ ] EPD records read
+  - [ ] Positions scored by `bm` and `am`
+  - [ ] The command `suite`
+  - [ ] `DATA.md`: the WAC and STS suites, confirmed on their official pages
+- [ ] End-of-branch doc drift pass
 
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 
