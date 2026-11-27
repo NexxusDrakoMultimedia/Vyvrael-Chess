@@ -757,7 +757,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] The two commands
 - **`info` fields:**
   - [x] The search records its selective depth
-  - [ ] `seldepth` in the `info` lines
+  - [x] `seldepth` in the `info` lines
   - [ ] The score-to-WDL mapping
   - [ ] The option `UCI_ShowWDL`
 - **Search statistics:**

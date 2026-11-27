@@ -19,14 +19,22 @@ pub fn score_text(score: Score) -> String {
     }
 }
 
-/// The `info` line for one completed iteration: depth, score, nodes, speed,
-/// time in milliseconds, and the principal variation.
+/// The `info` line for one completed iteration: depth, selective depth,
+/// score, nodes, speed, time in milliseconds, and the principal variation.
+///
+/// `seldepth` is left out when it is 0: the root had no legal move, or the
+/// line is for a move that was not found by one search from the root (a
+/// weakened move), so there is no selective depth to give.
 #[must_use]
 pub fn info_line(report: &Report) -> String {
     let micros = report.elapsed.as_micros().max(1);
     let per_second = u128::from(report.nodes) * 1_000_000 / micros;
+    let seldepth = match report.seldepth {
+        0 => String::new(),
+        plies => format!(" seldepth {plies}"),
+    };
     let mut line = format!(
-        "info depth {} score {} nodes {} nps {per_second} time {}",
+        "info depth {}{seldepth} score {} nodes {} nps {per_second} time {}",
         report.depth,
         score_text(report.score),
         report.nodes,
@@ -99,23 +107,37 @@ mod tests {
                 Duration::from_millis(250),
                 vec![e2e4, promote]
             )),
-            "info depth 5 score cp 31 nodes 12000 nps 48000 time 250 pv e2e4 e7e8q"
+            "info depth 5 seldepth 9 score cp 31 nodes 12000 nps 48000 time 250 pv e2e4 e7e8q"
         );
         // No line to show: no `pv` word at all.
         assert_eq!(
             info_line(&report(7, Duration::from_millis(2), vec![])),
-            "info depth 5 score cp 31 nodes 7 nps 3500 time 2"
+            "info depth 5 seldepth 9 score cp 31 nodes 7 nps 3500 time 2"
         );
         // Faster than the clock can tell: no division by zero, and the speed
         // is counted as if one microsecond had passed.
         assert_eq!(
             info_line(&report(21, Duration::ZERO, vec![e2e4])),
-            "info depth 5 score cp 31 nodes 21 nps 21000000 time 0 pv e2e4"
+            "info depth 5 seldepth 9 score cp 31 nodes 21 nps 21000000 time 0 pv e2e4"
         );
         // Whole milliseconds, rounded down, but the speed uses the full time.
         assert_eq!(
             info_line(&report(1_000, Duration::from_micros(1_500), vec![])),
-            "info depth 5 score cp 31 nodes 1000 nps 666666 time 1"
+            "info depth 5 seldepth 9 score cp 31 nodes 1000 nps 666666 time 1"
+        );
+    }
+
+    /// Without a selective depth (no legal move, or a weakened move) the
+    /// word is left out, not sent as 0.
+    #[test]
+    fn no_selective_depth_no_word() {
+        let nothing = Report {
+            seldepth: 0,
+            ..report(1, Duration::from_millis(1), vec![])
+        };
+        assert_eq!(
+            info_line(&nothing),
+            "info depth 5 score cp 31 nodes 1 nps 1000 time 1"
         );
     }
 

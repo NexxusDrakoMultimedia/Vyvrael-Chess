@@ -1044,9 +1044,10 @@ mod tests {
         let lines = session(&["position startpos", "go depth 3"]);
         let (outcome, nodes) = direct(crate::board::START_FEN, 3);
         assert_eq!(lines.len(), 4, "{lines:?}");
-        for (line, depth) in lines.iter().zip(1..=3) {
+        // The selective depths: quiescence goes deeper than the search.
+        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 8)]) {
             assert!(
-                line.starts_with(&format!("info depth {depth} score cp ")),
+                line.starts_with(&format!("info depth {depth} seldepth {seldepth} score cp ")),
                 "{line}"
             );
         }
@@ -1165,9 +1166,12 @@ mod tests {
                     "seed {seed}: {played}"
                 );
                 // The last `info` line is for the move played.
+                // It keeps the selective depth of the search's last
+                // iteration (8, as the third line of the plain search says).
+                assert!(plain[2].starts_with("info depth 3 seldepth 8 "));
                 let last_info = &lines[lines.len() - 2];
                 assert!(
-                    last_info.starts_with(&format!("info depth 3 score cp {score} "))
+                    last_info.starts_with(&format!("info depth 3 seldepth 8 score cp {score} "))
                         && last_info.ends_with(&format!(" pv {played}")),
                     "{last_info}"
                 );
@@ -1315,7 +1319,7 @@ mod tests {
             "go depth 2",
         ]);
         assert!(
-            lines[1].starts_with("info depth 2 score cp 0 "),
+            lines[1].starts_with("info depth 2 seldepth 3 score cp 0 "),
             "{lines:?}"
         );
         assert_eq!(lines.last().unwrap(), "bestmove g8h8");
@@ -1361,7 +1365,7 @@ mod tests {
         let lines = session(&["position fen 7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", "go depth 5"]);
         // Proven at depth 3, where the search stops by itself.
         assert_eq!(lines.len(), 4, "{lines:?}");
-        assert!(lines[2].starts_with("info depth 3 score mate 2 "));
+        assert!(lines[2].starts_with("info depth 3 seldepth 4 score mate 2 "));
     }
 
     #[test]
@@ -1398,7 +1402,7 @@ mod tests {
         engine.handle("position fen 6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1");
         engine.handle("go infinite");
         wait_for_output(&captured);
-        assert!(captured.lines()[0].starts_with("info depth 1 score mate 1 "));
+        assert!(captured.lines()[0].starts_with("info depth 1 seldepth 1 score mate 1 "));
         // The search is over (a mate is proven), yet no move is announced.
         thread::sleep(Duration::from_millis(50));
         assert_eq!(best_moves(&captured), 0, "{:?}", captured.lines());

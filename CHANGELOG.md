@@ -19,6 +19,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`seldepth` in `info`:** each `info` line of a search gives the
+  selective depth, the deepest ply that iteration reached with the
+  captures played out. `Report`, the library's progress record, gains the
+  field `seldepth`.
 - **`d` and `eval` in UCI mode:** `d` shows the current position (board,
   FEN, hash key, checking pieces) and `eval` its static evaluation with
   its parts. Both answer in `info string` lines, so standard output stays

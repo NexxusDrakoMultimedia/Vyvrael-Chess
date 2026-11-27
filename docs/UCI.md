@@ -26,9 +26,9 @@ info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
 go depth 3
-info depth 1 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
-info depth 2 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
-info depth 3 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
+info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
+info depth 2 seldepth 9 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
+info depth 3 seldepth 13 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
@@ -128,9 +128,14 @@ milestone 7.
 
 ### Output
 
-- `info depth <d> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
+- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
   after every completed depth. `nodes` and `time` count from the start of the
-  search. `score` is from the side to move's point of view; `mate n` counts
+  search. `seldepth` is the selective depth: how many plies from the root
+  the deepest position of that iteration was, the captures played out
+  beyond the depth included, so it is at least the depth. It is left out
+  when there is none to give: the position has no legal move, or the line
+  is for a weakened move (see "Limited strength"). The extra line for a
+  varied move (see `Variety`) repeats that of the search's last depth. `score` is from the side to move's point of view; `mate n` counts
   the engine's own moves and is negative when the engine is being mated.
 - `bestmove <move>` at the end. A position with no legal move (checkmate or
   stalemate) gives `bestmove 0000`.
