@@ -785,7 +785,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] EPD records read
   - [x] Positions scored by `bm` and `am`
   - [x] The command `suite`
-  - [ ] `DATA.md`: the WAC and STS suites, confirmed on their official pages
+  - [x] `DATA.md`: the WAC and STS suites, confirmed on their official pages
 - [ ] End-of-branch doc drift pass
 
 ## Milestone 6: strength testing (Cute Chess + Ordo)

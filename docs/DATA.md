@@ -58,4 +58,31 @@ and each licence will be verified on the official page before first use.
   puzzles and evaluations, for opening extraction, a tactical suite and
   possibly training data (milestone 8).
 - Self-generated training data from Vyvræl's own `datagen` (milestone 9).
+
+### Test suites for `vyvrael suite` (not fetched; no licence found)
+
+The two suites named by the maintainer on 2026-11-27 for the suite runner
+(see "Test suites" in [TESTING.md](TESTING.md)). Their pages were read on
+2026-11-27. **Neither states a licence or terms of use for the suite
+file**, so under this document's policy the decision to use them, locally
+and without redistributing them, is the maintainer's. Nothing has been
+downloaded, and nothing of either suite is in this repository: the
+runner's tests use positions written for them.
+
+| Field | Win at Chess (WAC) | Strategic Test Suite (STS) |
+| --- | --- | --- |
+| Kind | test suite (EPD positions with `bm`), tactical | test suite (EPD positions), positional, in fifteen themed parts (STS 1 to STS 15) |
+| What it is | 300 positions from the book "Win at Chess" by Fred Reinfeld (first published 1958; revised by Fred Wilson in 2001), taken from tournament play | By Dann Corbit and Swaminathan Natarajan, announced from 2008 to 2014; the positions were later revised and converted by Ferdinand Mosca (2015). The number of positions is not stated on the pages read |
+| Pages read | <https://www.chessprogramming.org/Win_at_Chess> (the Chess Programming Wiki, at the time a read-only recovery copy) | <https://sites.google.com/site/strategictestsuite/>, its "About" and "Download All EPDs in One File" pages, and <https://www.chessprogramming.org/Strategic_Test_Suite> |
+| Official source | None is named. The wiki links to a copy kept by John Bergbom (`wac.epd`) and to a corrected `wacnew.epd`; several versions that differ in a few positions circulate | The suite's own site, above. Its download page links to a folder on Google Drive; the wiki links to copies of `STS1.epd` to `STS15.epd` of its own |
+| Licence | **None stated** on the page read. (The wiki's own text is CC BY-SA 3.0, which is not a licence for the suite.) The positions come from a published book | **None stated** on the pages read. The site's "About" page only thanks the sources of the games |
+| Licence checked on | 2026-11-27 | 2026-11-27 |
+| Date fetched | not fetched | not fetched |
+| File(s), size, checksum | to be recorded when a file is chosen: name, bytes and SHA-256 of the exact file used, since copies differ | to be recorded likewise |
+| Local path | under `/data/` (git-ignored) or outside the repository; the command takes the path | the same |
+| Processing | none; `vyvrael suite <file> --depth N` (or `--nodes`, `--movetime`) | none; the per-move points some copies carry in a comment operation are not read, a position is solved or not |
+| Used for | a quick check of the search after a change; never a strength claim | the same |
+
+When a file is first used, its entry moves to "Artefacts in use" with the
+fields above filled in, in the commit that records the first result.
 - Syzygy tablebases, only if milestone 10 is approved.
