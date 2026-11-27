@@ -30,7 +30,7 @@ Layout:
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
 - `scripts/`: the tool, opening-file and ladder-engine installer, the match and rating
-  scripts (`linux/`, `windows/`), `local.env.example`, and their tests.
+  scripts (`linux/`, `windows/`), the SPRT recorder, `local.env.example`, and their tests.
 - `branding/`: brand assets, all rights reserved, not under the GPL.
 - `docs/`: architecture, UCI, testing, roadmap, releasing, dependencies,
   data, NNUE, Lichess and the bot's build history. `docs/prompts/` holds the

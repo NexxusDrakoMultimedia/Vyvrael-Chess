@@ -16,10 +16,10 @@ them.
 | 4 | Search core (negamax, alpha-beta, iterative deepening, quiescence) | `milestone/4-search` | done, merged into `main` |
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
-| — | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | in progress |
+| - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
-| — | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
-| — | Larger extra features (the [C] items), asked about first | a branch each | not started |
+| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
+| - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
 | 10 | Endgame tablebases (optional, needs approval) | `milestone/10-tablebases` | not started |
@@ -37,7 +37,8 @@ work is actually done is this:
    command. See "Queued work". Done on 2026-11-22.
 3. **Milestone 6:** strength testing. Done on 2026-11-23.
 4. **The preparation branch** (`task/pre-7-tooling-and-qol`, added by the
-   maintainer on 2026-11-27): the small items of "Extra features and QoL"
+   maintainer on 2026-11-27; done on 2026-11-27 but for KI-12's second
+   half): the small items of "Extra features and QoL"
    that need no SPRT, so that milestone 7 has diagnostics and a quick test
    runner to work with.
 5. **Milestone 7:** search heuristics.
@@ -54,7 +55,7 @@ installer still work on both systems.
 
 Where the releases fall: **0.1.0-alpha.1** came before step 1, after
 milestone 5; **0.1.0-alpha.2** follows step 2; **0.1.0** follows step 3;
-**0.2.0** follows step 4. The
+**0.2.0** follows step 5. The
 casual-only Lichess bot starts once the maintainer has tagged
 0.1.0-alpha.1, so it runs alongside all of the steps above; rated play
 waits for 0.2.0 and the branding.
@@ -752,8 +753,13 @@ engine binary; `bench` refuses more than one thread.
     move comes from the first depth alone
   - [ ] `Move Overhead` is taken off the clock before it is shared out
     (moves every budget by about a millisecond, so it needs a
-    non-regression SPRT)
-  - [ ] The runs at 1+0 and 0.1+0 before and after, recorded; KI-12 removed
+    non-regression SPRT). **Written and green on the side branch
+    `task/pre-7-ki12-overhead`, not merged:** it waits for its SPRT
+    (bounds -5 and 0) on the Windows workstation, and is dropped if that
+    does not accept it.
+  - [ ] The runs at 1+0 and 0.1+0 before and after, recorded; KI-12
+    removed. **Waits for the maintainer's runs.** Until then KI-12 stays
+    in the table, narrowed.
 - [x] `bench [depth] [threads] [hash]`
 - **`d` and `eval` in UCI mode:**
   - [x] The evaluation's report built in the `eval` module
@@ -786,7 +792,10 @@ engine binary; `bench` refuses more than one thread.
   - [x] Positions scored by `bm` and `am`
   - [x] The command `suite`
   - [x] `DATA.md`: the WAC and STS suites, confirmed on their official pages
-- [ ] End-of-branch doc drift pass
+- [x] End-of-branch doc drift pass, with an independent review of the
+  branch: no defect in the search, the time management, the protocol or
+  the fuzz tests; fixed from it, a byte-order mark at the start of a
+  suite file, three gaps in the SPRT recorder and ten slips in the docs
 
 ## Milestone 6: strength testing (Cute Chess + Ordo)
 

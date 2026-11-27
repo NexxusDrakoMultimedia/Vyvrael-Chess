@@ -13,7 +13,7 @@ src/main.rs             engine binary (thin wrapper over the library)
 tools/vyvrael-data/     data and database tooling (stub; milestone 8)
 tools/vyvrael-train/    NNUE training (stub; milestone 9)
 tests/                  integration tests (public API only)
-scripts/                tool installer, match and rating scripts, their tests
+scripts/                tool installer, match and rating scripts, SPRT recorder, their tests
 branding/               brand assets (all rights reserved, not under the GPL)
 docs/                   documentation
 ```
@@ -515,14 +515,6 @@ transposition table, pruning) come in milestone 7, one at a time.
   - The selective depth is the deepest ply the iteration visited,
     quiescence included. The search writes it and never reads it, so it
     cannot change what is searched.
-- **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
-  and how many of them the first move tried gave, in the main search and
-  in quiescence, the quiescence positions and those cut off as they
-  stood (`SearchStats`, read with `Search::stats`). Like the selective
-  depth they are written and never read by the search, so counting them
-  cannot move a node count; they are always counted, and shown only when
-  asked for. The share of cutoffs given by the first move is the measure
-  of move ordering that milestone 7 works on.
   - It looks wasteful, but each level of the tree is many times larger than
     the last, so repeating the shallow levels costs little. In return the
     search can be stopped at any moment and still has a complete answer,
@@ -535,6 +527,14 @@ transposition table, pruning) come in milestone 7, one at a time.
     find a shorter one.
   - With no ordering heuristics or tables yet, iterating to depth N gives
     exactly the result of a direct depth-N search; a test relies on that.
+- **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
+  and how many of them the first move tried gave, in the main search and
+  in quiescence, the quiescence positions and those cut off as they
+  stood (`SearchStats`, read with `Search::stats`). Like the selective
+  depth they are written and never read by the search, so counting them
+  cannot move a node count; they are always counted, and shown only when
+  asked for. The share of cutoffs given by the first move is the measure
+  of move ordering that milestone 7 works on.
 
 - **Quiescence search.** A static evaluation only means something in a quiet
   position. Evaluating at a fixed depth would count a queen that has just

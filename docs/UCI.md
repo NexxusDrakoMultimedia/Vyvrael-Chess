@@ -44,7 +44,7 @@ since 2026-11-23), both set up by the maintainer.
 
 The "Status" columns below are the truth: only rows marked *implemented*
 work. Started with arguments, the binary runs one of its other commands
-(`perft`, `eval`, `search`, `bench`, `help`), which are not part of UCI; see
+(`perft`, `eval`, `search`, `bench`, `suite`, `help`), which are not part of UCI; see
 [TESTING.md](TESTING.md).
 
 ## Identity
@@ -134,7 +134,9 @@ milestone 7.
   after every completed depth. `nodes` and `time` count from the start of the
   search. `seldepth` is the selective depth: how many plies from the root
   the deepest position of that iteration was, the captures played out
-  beyond the depth included, so it is at least the depth. It is left out
+  beyond the depth included. So it is usually at least the depth; it is
+  less when every line ends sooner in a draw by rule (too little material,
+  a repetition, the fifty-move rule) or a mate. It is left out
   when there is none to give: the position has no legal move, or the line
   is for a weakened move (see "Limited strength"). The extra line for a
   varied move (see `Variety`) repeats that of the search's last depth. `score` is from the side to move's point of view; `mate n` counts
@@ -233,7 +235,7 @@ strength.
 With `UCI_ShowWDL` on, an `info` line reads
 
 ```text
-info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2971 nps 2500000 time 1 pv d2d4 d7d5 g1f3
+info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2971 nps 2500000 time 1 pv d2d4 d7d5 b1c3
 ```
 
 **The three numbers are a model, not a measurement.** They are a fixed

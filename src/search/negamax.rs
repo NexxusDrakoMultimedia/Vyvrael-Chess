@@ -1510,8 +1510,9 @@ mod tests {
         assert_eq!(searcher.seldepth(), 0);
     }
 
-    /// Every report carries the selective depth of its own iteration, never
-    /// less than the depth while the search has moves to look at.
+    /// Every report carries the selective depth of its own iteration. In
+    /// this endgame it is never less than the depth; it can be where every
+    /// line ends sooner in a draw by rule.
     #[test]
     fn each_report_has_the_selective_depth_of_its_iteration() {
         let (_, reports, _) = iterate(ROOK_ENDGAME, Limits::depth(4));

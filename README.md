@@ -24,7 +24,9 @@ test suite, the documentation and a small-commit history. See
 
 **Version 0.1.0: milestones 1 to 6 (board representation, move
 generation, hand-crafted evaluation, search core, UCI, strength testing) and
-queued task 1 (the options `Seed` and `Variety`, and `bench`) are complete and
+queued task 1 (the options `Seed` and `Variety`, and `bench`) and the
+preparation for milestone 7 (search statistics, a test-suite runner, more
+fuzzing, small UCI additions) are complete and
 merged. Milestone 6 measured the engine on the project's ladder and
 calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
 speaks UCI, so it can be used in a GUI and in match tools. It is still weak
@@ -46,7 +48,7 @@ cargo test --workspace --release
 ```
 
 Run with no arguments, the binary speaks UCI on standard input and output
-(see [docs/UCI.md](docs/UCI.md)). It also has four subcommands, `perft`,
+(see [docs/UCI.md](docs/UCI.md)). It also has five subcommands, `perft`,
 `eval`, `search`, `bench` and `suite`:
 
 ```sh
