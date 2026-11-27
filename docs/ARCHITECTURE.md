@@ -570,6 +570,18 @@ transposition table, pruning) come in milestone 7, one at a time.
     function of the searches before it and no longer of the position
     alone. The same commands in the same order still give the same
     result.
+- **Static exchange evaluation** (`search/see.rs`, `search::see`). What a
+  move wins or loses on its destination square if both sides go on
+  capturing there, cheapest piece first, each free to stop when going on
+  would cost it. It is worked out on bitboards without making a move: the
+  balance after each capture is noted, then the list is walked back.
+  - Sliders behind a piece that has captured join in (x-rays), a pawn
+    that captures onto the last rank becomes a queen, en passant removes
+    the pawn it takes, and a king captures only what is not defended.
+  - Its values are its own (`exchange_value`): knight and bishop are
+    equal, so that bishop takes defended knight is an even trade.
+  - Pins and checks are not looked at. It is an estimate for ordering
+    and pruning, not a search.
 - **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
   and how many of them the first move tried gave, in the main search and
   in quiescence, the quiescence positions and those cut off as they

@@ -1025,7 +1025,8 @@ How every search change is done:
   hash size (the bench without arguments keeps a fixed one).
 - [ ] 3. Static exchange evaluation, for ordering captures and for
   leaving losing ones out of quiescence. Kept only if its SPRT shows a
-  gain.
+  gain. Done so far: the evaluation itself (`search::see`), tested and
+  not yet used.
 - [ ] 4. Delta pruning in quiescence, last of the four, with its own SPRT.
 
 **KI-10, once quiescence is pruned:**
