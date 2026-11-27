@@ -127,6 +127,9 @@ pub fn solve(line: &str, limit: SuiteLimit) -> (Option<EpdRecord>, Verdict) {
 /// Returns an error only if writing to `out` fails.
 pub fn run(text: &str, limit: SuiteLimit, out: &mut dyn Write) -> io::Result<SuiteResult> {
     let mut result = SuiteResult::default();
+    // A byte-order mark, which some editors put at the start of a file, is
+    // not white space and would spoil the first line.
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     for (index, line) in text.lines().enumerate() {
         if line.trim().is_empty() || line.trim_start().starts_with('#') {
             continue;
@@ -261,6 +264,15 @@ mod tests {
         let (record, verdict) = solve("not a position", SuiteLimit::Depth(1));
         assert_eq!(record, None);
         assert!(matches!(verdict, Verdict::Skipped(_)));
+        // A byte-order mark in front of the file does not cost its first
+        // line, whether that is a record or a comment.
+        for first in ["6k1/5ppp/8/8/8/8/8/R5K1 w - - bm Ra8+;", "# a comment"] {
+            let mut out = Vec::new();
+            let text = format!("\u{feff}{first}\n");
+            let result = run(&text, SuiteLimit::Depth(1), &mut out).unwrap();
+            assert_eq!(result.skipped, 0, "{first}");
+            assert_eq!(result.positions, u32::from(!first.starts_with('#')));
+        }
         // An empty suite is zero of zero, with the plural.
         let mut out = Vec::new();
         let none = run("\n# only this\n", SuiteLimit::Depth(1), &mut out).unwrap();
