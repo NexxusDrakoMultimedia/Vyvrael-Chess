@@ -26,9 +26,12 @@ OUTCOMES = ("H1 accepted", "H0 accepted", "undecided")
 SCORE = re.compile(r"^Score of .*: (\d+) - (\d+) - (\d+)\s+\[[\d.]+\]\s+(\d+)\s*$")
 ELO = re.compile(r"^Elo difference: (\S+) \+/- ([^,\s]+)")
 SPRT = re.compile(
-    r"^SPRT: llr (-?[\d.]+) \([^)]*\), lbound (-?[\d.]+), ubound (-?[\d.]+)"
+    r"^SPRT: llr (-?[\d.]+(?:e[-+]?\d+)?) \([^)]*\), "
+    r"lbound (-?[\d.]+(?:e[-+]?\d+)?), ubound (-?[\d.]+(?:e[-+]?\d+)?)"
     r"(?: - (H[01]) was accepted)?"
 )
+# How each kind of result line starts, to find the last one before reading it.
+PREFIXES = {"score": "Score of ", "elo": "Elo difference:", "sprt": "SPRT:"}
 
 
 class RecordError(Exception):
@@ -106,10 +109,14 @@ def read_log(lines: list[str]) -> dict[str, str]:
     """The last score, Elo and SPRT lines of a log, taken apart."""
     last = {}
     for pattern, name in ((SCORE, "score"), (ELO, "elo"), (SPRT, "sprt")):
-        matches = [found for found in map(pattern.match, lines) if found]
-        if not matches:
+        # The last line of its kind, then read: a last line that cannot be
+        # read must not be passed over for an earlier one that can.
+        candidates = [line for line in lines if line.startswith(PREFIXES[name])]
+        if not candidates:
             raise RecordError(f"the log has no {name} line: nothing can be recorded")
-        last[name] = matches[-1]
+        last[name] = pattern.match(candidates[-1])
+        if not last[name]:
+            raise RecordError(f"the log's last {name} line cannot be read: {candidates[-1]}")
     wins, losses, draws, games = last["score"].groups()
     llr, lbound, ubound, accepted = last["sprt"].groups()
     return {
@@ -150,7 +157,7 @@ def read_run(notes_path: Path, log_path: Path | None = None) -> Run:
         dirty="dirty" in state,
         test=(test, test_sha),
         base=(base, base_sha),
-        options=tuple(text.split(": ", 1)[1] for text in given),
+        options=tuple(options_of(text) for text in given),
         elo0=setting(command, r"\belo0=(-?[\d.]+)", "elo0"),
         elo1=setting(command, r"\belo1=(-?[\d.]+)", "elo1"),
         alpha=setting(command, r"\balpha=([\d.]+)", "alpha"),
@@ -164,8 +171,26 @@ def read_run(notes_path: Path, log_path: Path | None = None) -> Run:
         elo=log["elo"], margin=log["margin"],
         llr=log["llr"], lbound=log["lbound"], ubound=log["ubound"],
         outcome=log["outcome"],
-        pgn_sha256=field(notes, "pgn sha256"),
+        pgn_sha256=pgn_digest(notes),
     )
+
+
+def options_of(line: str) -> str:
+    """The options of one `name: options` line of the notes."""
+    _, colon, options = line.partition(": ")
+    if not colon:
+        raise RecordError(f"the notes' options line cannot be read: {line}")
+    return options
+
+
+def pgn_digest(notes: list[str]) -> str:
+    """The SHA-256 of the run's PGN, which is what identifies the run. The
+    scripts write `none` when no PGN was written; such a run has no
+    identity and is refused."""
+    digest = field(notes, "pgn sha256").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise RecordError("the notes have no SHA-256 of a PGN (was one written?): the run cannot be identified")
+    return digest
 
 
 # --- writing the result down -------------------------------------------------
@@ -230,7 +255,7 @@ def record(run: Run, change: str, target: Path, dry_run: bool = False) -> bool:
     line = row(run, change)
     try:
         text = target.read_text(encoding="utf-8")
-    except OSError as problem:
+    except (OSError, UnicodeDecodeError) as problem:
         raise RecordError(f"cannot read {target}: {problem}") from None
     lines = text.replace("\r\n", "\n").split("\n")
     if HEADER not in lines:

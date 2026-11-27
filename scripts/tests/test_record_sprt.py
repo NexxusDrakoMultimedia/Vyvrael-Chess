@@ -180,6 +180,22 @@ class Refusals(Files):
         undecided = "SPRT: llr 1.83 (62.3%), lbound -2.94, ubound 2.94"
         self.assertIn("means undecided", self.refused(notes(), log(undecided)))
 
+    def test_a_last_line_that_cannot_be_read_is_not_passed_over(self):
+        """An earlier SPRT line that can be read must not stand in for it."""
+        self.assertIn("last sprt line cannot be read", self.refused(notes(), log("SPRT: llr nan (nan%), lbound -2.94, ubound 2.94")))
+        # A very small LLR is written with an exponent, and is read.
+        text = notes(outcome="undecided: the round cap was reached first (LLR -1.2e-05)")
+        run = record_sprt.read_run(self.run_files(text, log("SPRT: llr -1.2e-05 (-0.0%), lbound -2.94, ubound 2.94")))
+        self.assertEqual((run.llr, run.outcome), ("-1.2e-05", "undecided"))
+
+    def test_a_run_without_a_pgn_has_no_identity(self):
+        text = notes().replace(f"pgn sha256: {PGN_SHA}", "pgn sha256: none")
+        self.assertIn("cannot be identified", self.refused(text, log()))
+
+    def test_an_options_line_without_its_colon(self):
+        text = notes().replace("  Vyvrael 0.1.0: none", "  Vyvrael 0.1.0 none")
+        self.assertIn("options line cannot be read", self.refused(text, log()))
+
     def test_a_command_without_bounds(self):
         self.assertIn("no elo0", self.refused(notes(COMMAND_SH.replace("elo0=0 ", "")), log()))
 
@@ -267,6 +283,11 @@ class Writing(Files):
                 self.assertEqual((status, out), (2, ""))
                 self.assertIn(message, err)
                 self.assertEqual(self.history.read_text(encoding="utf-8"), content)
+        # A file that is not UTF-8 is refused like one that is not there.
+        self.history.write_bytes(b"# SPRT \xe6\xff history\n")
+        status, _, err = self.main("--change", "x")
+        self.assertEqual(status, 2)
+        self.assertIn("cannot read", err)
         self.history.unlink()
         self.assertIn("cannot read", self.main("--change", "x")[2])
         self.history.write_bytes(TABLE.encode("utf-8"))
