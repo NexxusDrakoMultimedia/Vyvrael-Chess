@@ -1022,7 +1022,8 @@ How every search change is done:
 - [ ] 2c. With the table, no SPRT (the bench count must not move): the
   button `Clear Hash`, `hashfull` in `info`, the table's hit rate in the
   search statistics, and `bench <depth> <threads> <hash>` using its hash
-  size (the bench without arguments keeps a fixed one).
+  size (the bench without arguments keeps a fixed one). Done so far: the
+  bench's hash size.
 - [ ] 3. Static exchange evaluation, for ordering captures and for
   leaving losing ones out of quiescence. Kept only if its SPRT shows a
   gain.

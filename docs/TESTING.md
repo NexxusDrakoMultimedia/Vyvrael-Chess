@@ -57,7 +57,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
 | `epd` | A record with `bm` and a quoted `id`; several moves, odd spacing, an empty operation and no last semicolon; a semicolon inside quotes stays in the operand; an opcode alone has an empty operand; `hmvc` and `fmvn` are kept as operations and do not reach the position; a bare position has no operations. Refused: fewer than four fields, a position the FEN rules refuse, an open quote. |
 | `suite` | A suite of eleven lines written for the test, pinned line for line at depth 2: two mates in one (either of two mating moves counts), a hanging queen, a move to avoid, a best move that is wrong on purpose (failed), and lines skipped with their reason (no `bm` or `am`, a move that is not one legal move, a position the FEN rules refuse, a stalemate, whose moves cannot be read); comments and blank lines are passed over; the total line. The output is the same on every run with a depth or a node limit, fewer nodes are used with a smaller limit, a move time works as a limit, and an empty suite is zero of zero. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 113 and 1,114 nodes, factors 5.38 and 9.85), leaves what comes before them unchanged, and gives the same output wherever the flag stands. `suite` runs a file (with a byte that is not UTF-8 in a comment) and prints a line per record and the total, with the limit before or after the file and with each of the three limits; eleven wrong command lines (no file, no limit, two limits, a bad number, an unknown flag) are usage errors; a file that is not there gives status 1 and no usage text. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>`, where the default hash size gives the count of the bench without arguments and other sizes run, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 113 and 1,114 nodes, factors 5.38 and 9.85), leaves what comes before them unchanged, and gives the same output wherever the flag stands. `suite` runs a file (with a byte that is not UTF-8 in a comment) and prints a line per record and the total, with the limit before or after the file and with each of the three limits; eleven wrong command lines (no file, no limit, two limits, a bad number, an unknown flag) are usage errors; a file that is not there gives status 1 and no usage text. |
 | `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
@@ -240,11 +240,14 @@ transposition table of the default size (16 MiB), and prints one line:
 
 - **`bench <depth> <threads> <hash>`** is the form several other engines
   share, accepted so that tools and habits carry over. The threads must be
-  1 and the hash size, in MiB, within the range of the option `Hash`; both
-  are checked and have no effect yet, because there is one search thread
-  and no transposition table. Once milestone 7 adds the table, the node
-  count is the same on every run *with the same arguments*, and the bench
-  without arguments uses a fixed size.
+  1, since there is one search thread. The hash size, in MiB and within
+  the range of the option `Hash`, is the size of the transposition table
+  each position gets. The node count is the same on every run *with the
+  same arguments*: a smaller table forgets more, so another size can give
+  another count (206,137 with 1 MiB against 206,097 with 16). The bench
+  without arguments always uses 16 MiB, the engine's default, and that is
+  the count that is pinned. If there is no memory for the size asked for,
+  the command says so and ends with status 1.
 - **OpenBench** runs `./binary bench` with no arguments and reads the last
   `<n> nodes` and `<n> nps` it finds in the output (its "Requirements for
   Public Engines" page and `Client/bench.py`, read on 2026-11-27). The

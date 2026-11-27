@@ -9,7 +9,7 @@
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-use crate::bench::{BENCH_DEPTH, bench};
+use crate::bench::{BENCH_DEPTH, bench_with_hash};
 use crate::board::Position;
 use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
@@ -49,9 +49,10 @@ factor and how often the first move tried gave the cutoff.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
-is the same on every run of the same build; the speed is not. <threads> (1
-only) and <hash> (in MiB, 1 to 65536) are accepted in the form other engines
-use, `bench <depth> <threads> <hash>`, and have no effect yet.
+is the same on every run of the same build with the same arguments; the
+speed is not. <threads> (1 only) and <hash> are accepted in the form other
+engines use, `bench <depth> <threads> <hash>`: <hash> is the size of the
+transposition table in MiB (1 to 65536; 16 if not given).
 
 suite searches every position of an EPD file, each to the depth, node count
 or time in milliseconds given, and says for each whether the move found is
@@ -209,9 +210,8 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
 
 fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
     // Up to three numbers: the depth, then the threads and the hash size
-    // in MiB. The last two are checked against the ranges of the UCI
-    // options `Threads` and `Hash` and otherwise unused: there is one
-    // search thread, and the bench's table has a fixed size for now.
+    // in MiB, checked against the ranges of the UCI options `Threads` and
+    // `Hash`. There is one search thread, so the threads change nothing.
     let ranges = [(1, MAX_PLY as u32), (1, THREADS_MAX), (1, HASH_MAX)];
     let in_range = |(text, (low, high)): (&String, &(u32, u32))| {
         text.parse::<u32>()
@@ -232,7 +232,11 @@ fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::R
         return Ok(EXIT_USAGE);
     };
     let depth = numbers.first().copied().unwrap_or(BENCH_DEPTH);
-    let result = bench(depth);
+    let hash_mb = numbers.get(2).copied().unwrap_or(HASH_DEFAULT);
+    let Some(result) = bench_with_hash(depth, hash_mb) else {
+        writeln!(err, "bench: no memory for tables of {hash_mb} MiB")?;
+        return Ok(EXIT_FAILURE);
+    };
     writeln!(
         out,
         "{} nodes {} nps",
@@ -700,8 +704,9 @@ total for the side to move: +0
         assert_eq!(second.split_whitespace().next(), Some(words[0]));
     }
 
-    /// `bench <depth> <threads> <hash>`, the form other engines use: the
-    /// threads and the hash size are accepted and change nothing.
+    /// `bench <depth> <threads> <hash>`, the form other engines use. The
+    /// threads change nothing; the hash size is the table's, and the
+    /// default size gives the count of the bench without arguments.
     #[test]
     fn bench_accepts_threads_and_a_hash_size() {
         let nodes = |args: &[&str]| {
@@ -712,13 +717,11 @@ total for the side to move: +0
             out.split_whitespace().next().unwrap().to_owned()
         };
         let plain = nodes(&["bench", "2"]);
-        for args in [
-            &["bench", "2", "1"][..],
-            &["bench", "2", "1", "1"],
-            &["bench", "2", "1", "16"],
-            &["bench", "2", "1", "65536"],
-        ] {
-            assert_eq!(nodes(args), plain, "{args:?}");
+        assert_eq!(nodes(&["bench", "2", "1"]), plain);
+        assert_eq!(nodes(&["bench", "2", "1", "16"]), plain);
+        // Other sizes run; their counts are their own.
+        for size in ["1", "2", "64"] {
+            assert!(nodes(&["bench", "2", "1", size]).parse::<u64>().unwrap() > 0);
         }
     }
 

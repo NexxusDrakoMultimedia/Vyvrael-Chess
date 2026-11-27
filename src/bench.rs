@@ -72,22 +72,35 @@ impl BenchResult {
 }
 
 /// Searches every bench position to `depth` plies, with iterative deepening
-/// as in a game, and counts the positions visited.
+/// as in a game, and counts the positions visited. Each position gets a
+/// new transposition table of the engine's default size, [`HASH_DEFAULT`],
+/// so the count belongs to the build and not to a setting.
+///
+/// # Panics
+///
+/// Panics if a bench position is not a valid FEN, which the tests rule out,
+/// or if there is no memory for a table of the default size.
+#[must_use]
+pub fn bench(depth: u32) -> BenchResult {
+    bench_with_hash(depth, HASH_DEFAULT).expect("memory for the bench's table")
+}
+
+/// [`bench`] with tables of `hash_mb` MiB, or `None` if there is no memory
+/// for one. The node count can differ from one table size to another: a
+/// smaller table forgets more.
 ///
 /// # Panics
 ///
 /// Panics if a bench position is not a valid FEN, which the tests rule out.
 #[must_use]
-pub fn bench(depth: u32) -> BenchResult {
+pub fn bench_with_hash(depth: u32, hash_mb: u32) -> Option<BenchResult> {
     let evaluator = default_evaluator();
     let mut nodes = 0;
     let mut elapsed = Duration::ZERO;
     for fen in BENCH_POSITIONS {
         let pos = Position::from_fen(fen).expect("the bench positions are valid");
-        // A new table for each position, as a new game has, of the size the
-        // engine starts with.
-        let mut table =
-            TranspositionTable::new(HASH_DEFAULT).expect("memory for the bench's table");
+        // A new table for each position, as a new game has.
+        let mut table = TranspositionTable::new(hash_mb)?;
         let mut search = Search::new(evaluator.as_ref())
             .with_limits(Limits::depth(depth))
             .with_table(&mut table);
@@ -96,7 +109,7 @@ pub fn bench(depth: u32) -> BenchResult {
         elapsed += start.elapsed();
         nodes += search.nodes();
     }
-    BenchResult { nodes, elapsed }
+    Some(BenchResult { nodes, elapsed })
 }
 
 #[cfg(test)]
@@ -118,6 +131,17 @@ mod tests {
         for _ in 0..2 {
             assert_eq!(bench(3).nodes, first);
         }
+    }
+
+    /// The hash size reaches the tables: the default size is the plain
+    /// bench, a table of one slot remembers next to nothing and so visits
+    /// more, and a size no machine has is an answer.
+    #[test]
+    fn the_hash_size_is_used() {
+        let plain = bench(4).nodes;
+        assert_eq!(bench_with_hash(4, HASH_DEFAULT).unwrap().nodes, plain);
+        assert!(bench_with_hash(4, 0).unwrap().nodes > plain);
+        assert_eq!(bench_with_hash(1, u32::MAX), None);
     }
 
     #[test]

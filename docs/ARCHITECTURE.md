@@ -780,8 +780,9 @@ and option is listed in [UCI.md](UCI.md).
   to a fixed depth and prints one line per depth and the best move, with
   timing on stderr so that stdout is identical on every run; `--stats`
   adds the lines of `search::stats_lines`. `bench [depth [threads [hash]]]`
-  runs `bench::bench` and prints `<nodes> nodes <nps> nps`; the threads
-  and the hash size are checked and have no effect yet. `suite <file>`
+  runs `bench::bench_with_hash` and prints `<nodes> nodes <nps> nps`; the
+  hash size is the size of the table each position gets (16 MiB if not
+  given), and the threads, of which there is one, change nothing. `suite <file>`
   with `--depth`, `--nodes` or `--movetime` reads an EPD file and gives it
   to `suite::run`. Exit status 2 means the command line was not
   understood, 1 that a file could not be read.

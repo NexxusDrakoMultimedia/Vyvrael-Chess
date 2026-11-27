@@ -78,8 +78,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   protocol output, and neither disturbs a running search.
 - **`bench <depth> <threads> <hash>`:** the bench accepts the threads (1
   only) and a hash size after the depth, in the form other engines use.
-  Both are checked and have no effect yet. `bench` alone is unchanged:
-  the same line, the same 16,611,416 nodes.
+  The hash size is the size of the transposition table each position
+  gets; `bench` alone uses 16 MiB, and its count is the one that is
+  pinned.
 - **A round-robin mode for baselines:** `match.sh roundrobin` and
   `match.ps1 roundrobin` play every engine of the engine list (or those
   named with `--opponent`) and any Vyvræl builds given with `--build
