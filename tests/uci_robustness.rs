@@ -836,3 +836,93 @@ fn damaged_sessions_and_long_games_are_played_through() {
     // A game of more than a thousand plies was sent as one line.
     assert!(longest > 5_000, "the longest line had {longest} bytes");
 }
+
+/// The same kind of malformed stream given to the real binary over real
+/// pipes: what the tests above show of the library holds for the program a
+/// GUI starts, which reads bytes from a pipe, writes to one, and is built
+/// to abort on a panic. It must read to the end, answer, write nothing to
+/// standard error and leave with success.
+#[test]
+fn the_binary_survives_a_malformed_stream_over_pipes() {
+    use std::io::Read;
+    use std::process::{Command as Process, Stdio};
+
+    // A generator of its own, after those of the other tests' streams.
+    let mut states = Rng::default();
+    for _ in 0..STREAMS + 4 {
+        states.next_u64();
+    }
+    let mut generator = Generator {
+        rng: Rng::from_state(states.next_u64()),
+        cut_characters: 0,
+    };
+    let mut input = Vec::new();
+    let mut model = Model::new();
+    let mut readies = 0;
+    let mut written = 0;
+    while written < 200 {
+        let line = generator.line();
+        let command = parse(&String::from_utf8_lossy(&line));
+        if command == Command::Quit {
+            continue;
+        }
+        readies += usize::from(command == Command::IsReady);
+        model.follow(&command);
+        input.extend_from_slice(&line);
+        input.push(b'\n');
+        written += 1;
+    }
+    input.extend_from_slice(b"stop\nisready\nquit\n");
+    readies += 1;
+    let kept = kept_input("binary");
+    std::fs::write(&kept, &input).expect("the input can be kept");
+
+    let mut child = Process::new(env!("CARGO_BIN_EXE_vyvrael"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the engine binary starts");
+    // Each pipe has a thread of its own: writing all the input before
+    // reading any output would fill both pipes and stop both sides.
+    let mut stdin = child.stdin.take().unwrap();
+    let writer = thread::spawn(move || {
+        // The engine may leave before taking everything; that is judged
+        // by its answers, not here.
+        let _ = stdin.write_all(&input);
+    });
+    let mut stderr = child.stderr.take().unwrap();
+    let errors = thread::spawn(move || {
+        let mut text = String::new();
+        let _ = stderr.read_to_string(&mut text);
+        text
+    });
+    let mut stdout = child.stdout.take().unwrap();
+    let (done, finished) = mpsc::channel();
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stdout.read_to_end(&mut bytes);
+        let _ = done.send(bytes);
+    });
+    let Ok(bytes) = finished.recv_timeout(WATCHDOG) else {
+        let _ = child.kill();
+        panic!(
+            "the binary was not done after {} s; its input is in {}",
+            WATCHDOG.as_secs(),
+            kept.display()
+        );
+    };
+    let status = child.wait().expect("the engine can be waited for");
+    writer.join().unwrap();
+    let errors = errors.join().unwrap();
+
+    assert!(status.success(), "{status}; input in {}", kept.display());
+    assert_eq!(errors, "", "the engine wrote to standard error");
+    let output = String::from_utf8(bytes).expect("output is text");
+    let lines: Vec<&str> = output.lines().collect();
+    let answered = lines.iter().filter(|line| **line == "readyok").count();
+    assert_eq!(answered, readies, "every isready is answered");
+    assert_eq!(lines.last(), Some(&"readyok"), "nothing follows quit");
+    let (played, _) = model.check("binary", &lines);
+    assert!(played > 10, "only {played} moves were checked");
+}

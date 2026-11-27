@@ -19,6 +19,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **More fuzzing of the UCI loop:** the robustness test now fails on a
+  hang instead of waiting, checks that every `bestmove` of a malformed
+  stream is legal, plays through damaged real sessions and games of more
+  than a thousand plies, and gives a malformed stream to the real binary
+  over pipes; `tests/parser_fuzz.rs` feeds the command, FEN, move and
+  option parsers directly. No defect was found.
 - **Search statistics:** `vyvrael search <depth> --stats` prints, after
   the best move, the nodes each depth took, the effective branching
   factor, and how often the first move tried gave the cutoff, in the main

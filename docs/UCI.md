@@ -146,7 +146,9 @@ milestone 7.
 
 ### Bad input
 
-Nothing a GUI sends can make the engine play an illegal move or crash.
+Nothing a GUI sends can make the engine play an illegal move or crash
+(`tests/uci_robustness.rs` checks both on generated input, see
+[TESTING.md](TESTING.md)).
 
 - Every move of a `position` command is looked up among the legal moves. If
   one is not legal, or is not a move, the **whole command is refused**: the
