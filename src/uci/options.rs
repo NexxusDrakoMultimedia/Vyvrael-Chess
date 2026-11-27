@@ -58,6 +58,10 @@ pub struct Options {
     /// and a loss after the score. They come from a fixed model, not from
     /// measured results: see `uci::wdl`.
     pub show_wdl: bool,
+    /// `SearchStats`: whether a full-strength search ends by sending its
+    /// statistics as `info string` lines. A diagnostic: the search counts
+    /// them in any case and never reads them.
+    pub search_stats: bool,
 }
 
 impl Default for Options {
@@ -71,6 +75,7 @@ impl Default for Options {
             elo: ELO_DEFAULT,
             move_overhead_ms: MOVE_OVERHEAD_DEFAULT,
             show_wdl: false,
+            search_stats: false,
         }
     }
 }
@@ -89,6 +94,7 @@ impl Options {
             spin("UCI_Elo", ELO_DEFAULT, ELO_MIN, ELO_MAX),
             spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
             check("UCI_ShowWDL", false),
+            check("SearchStats", false),
         ]
     }
 
@@ -121,6 +127,7 @@ impl Options {
                 self.move_overhead_ms = parse_spin("Move Overhead", value, 0, MOVE_OVERHEAD_MAX)?;
             }
             "uci_showwdl" => self.show_wdl = parse_check("UCI_ShowWDL", value)?,
+            "searchstats" => self.search_stats = parse_check("SearchStats", value)?,
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
@@ -434,7 +441,8 @@ mod tests {
                 "UCI_LimitStrength",
                 "UCI_Elo",
                 "Move Overhead",
-                "UCI_ShowWDL"
+                "UCI_ShowWDL",
+                "SearchStats"
             ]
         );
     }
@@ -445,7 +453,7 @@ mod tests {
             Options::declarations()[7],
             "option name UCI_ShowWDL type check default false"
         );
-        assert_eq!(Options::declarations().len(), 8);
+        assert_eq!(Options::declarations().len(), 9);
         let mut options = Options::default();
         assert!(!options.show_wdl);
         assert_eq!(options.set("UCI_ShowWDL", Some("true")), Ok(()));
@@ -456,6 +464,22 @@ mod tests {
             assert!(options.set("UCI_ShowWDL", bad).is_err(), "{bad:?}");
             assert!(!options.show_wdl);
         }
+    }
+
+    #[test]
+    fn search_stats() {
+        assert_eq!(
+            Options::declarations()[8],
+            "option name SearchStats type check default false"
+        );
+        let mut options = Options::default();
+        assert!(!options.search_stats);
+        assert_eq!(options.set("searchstats", Some("true")), Ok(()));
+        assert!(options.search_stats);
+        assert!(options.set("SearchStats", Some("yes")).is_err());
+        assert!(options.search_stats);
+        assert_eq!(options.set("SearchStats", Some("false")), Ok(()));
+        assert!(!options.search_stats);
     }
 
     #[test]

@@ -23,8 +23,8 @@ use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
 use crate::search::{
-    Limits, Outcome, Report, Search, Weakening, split_limits, varied_move, variety_applies,
-    weakened_move,
+    Limits, Outcome, Report, Search, Weakening, split_limits, stats_lines, varied_move,
+    variety_applies, weakened_move,
 };
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -44,6 +44,16 @@ const SEARCH_STACK_BYTES: usize = 16 * 1024 * 1024;
 fn send(out: &Output, line: &str) {
     let mut out = out.lock().unwrap_or_else(PoisonError::into_inner);
     let _ = writeln!(out, "{line}");
+    let _ = out.flush();
+}
+
+/// Sends `lines` as `info string` lines under one lock, so that they
+/// arrive together whatever the other thread is sending.
+fn send_block(out: &Output, lines: &[String]) {
+    let mut out = out.lock().unwrap_or_else(PoisonError::into_inner);
+    for line in lines {
+        let _ = writeln!(out, "info string {line}");
+    }
     let _ = out.flush();
 }
 
@@ -213,11 +223,7 @@ impl Engine {
     /// Sends `lines` as `info string` lines, as one block: a search that is
     /// running cannot put a line of its own in between.
     fn say_lines(&self, lines: &[String]) {
-        let mut out = self.out.lock().unwrap_or_else(PoisonError::into_inner);
-        for line in lines {
-            let _ = writeln!(out, "info string {line}");
-        }
-        let _ = out.flush();
+        send_block(&self.out, lines);
     }
 
     /// What `d` shows: the board, the FEN, the hash key and the pieces
@@ -325,6 +331,7 @@ impl Engine {
         // here changes the search or touches the generator.
         let variety = self.options.variety;
         let show_wdl = self.options.show_wdl;
+        let search_stats = self.options.search_stats;
         let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
         let (search_limits, check_limits) = if varying {
             split_limits(limits, Instant::now())
@@ -343,11 +350,19 @@ impl Engine {
                     let started = Instant::now();
                     let mut reached = 0;
                     let mut reached_seldepth = 0;
+                    let mut iterations = Vec::new();
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
                         reached_seldepth = report.seldepth;
+                        iterations.push((report.depth, report.nodes));
                         send(&out, &info_line(report, show_wdl));
                     });
+                    if search_stats {
+                        // Of the search just done; the checks of a varied
+                        // move, which follow, are not part of them.
+                        let lines = stats_lines(&iterations, search.nodes(), &search.stats());
+                        send_block(&out, &lines);
+                    }
                     match variety_rng {
                         None => outcome,
                         Some(mut rng) => {
@@ -1144,6 +1159,42 @@ mod tests {
             }
             assert!(seen >= 1, "{shown:?}");
         }
+    }
+
+    /// `SearchStats` adds the statistics of a full-strength search before
+    /// its `bestmove`, as `info string` lines, and changes nothing else. A
+    /// weakened search has none to show.
+    #[test]
+    fn search_stats_are_sent_before_the_best_move() {
+        let plain = stable(&session(&["go depth 3"]));
+        let on = "setoption name SearchStats value true";
+        let shown = stable(&session(&[on, "go depth 3"]));
+        assert_eq!(shown.len(), plain.len() + 5, "{shown:?}");
+        assert_eq!(shown[..3], plain[..3]);
+        assert_eq!(shown[3], "info string stats depth 1 nodes 21");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 222 ebf 10.57");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 2728 ebf 12.28");
+        assert!(shown[6].starts_with("info string stats cutoffs "));
+        assert!(shown[7].starts_with("info string stats qnodes "));
+        assert!(shown[7].contains(" of 2971 ("));
+        assert_eq!(shown[8], plain[3]);
+        assert!(shown[8].starts_with("bestmove "));
+        // The figures are those of the library's own search.
+        let pos = Position::startpos();
+        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+        let _ = search.iterate(&pos, &mut |_| {});
+        let own = stats_lines(&[], search.nodes(), &search.stats());
+        assert_eq!(shown[6], format!("info string {}", own[0]));
+        assert_eq!(shown[7], format!("info string {}", own[1]));
+        // Limited strength: the option is accepted and nothing is added.
+        let limited = [
+            "setoption name Seed value 7",
+            "setoption name UCI_LimitStrength value true",
+            "go depth 3",
+        ];
+        let mut with_stats = vec![on];
+        with_stats.extend(limited);
+        assert_eq!(stable(&session(&with_stats)), stable(&session(&limited)));
     }
 
     /// With `Variety` 0, the default, the root move is always the search's

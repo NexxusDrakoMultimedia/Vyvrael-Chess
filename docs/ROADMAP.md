@@ -763,7 +763,7 @@ engine binary; `bench` refuses more than one thread.
 - **Search statistics:**
   - [x] Cutoffs and first-move cutoffs counted in the search
   - [x] `search --stats`: nodes per depth, branching factor, cutoff rates
-  - [ ] The option `SearchStats` and its `info string` line (the hit rate
+  - [x] The option `SearchStats` and its `info string` line (the hit rate
     of the transposition table joins in milestone 7)
 - **UCI fuzzing** (tests only; a defect found gets a fix commit of its own):
   - [ ] A stream that hangs fails the test instead of stalling it

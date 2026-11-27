@@ -23,7 +23,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   the best move, the nodes each depth took, the effective branching
   factor, and how often the first move tried gave the cutoff, in the main
   search and in quiescence. The search counts them always and never reads
-  them, so play and the bench node count are unchanged.
+  them, so play and the bench node count are unchanged. In UCI mode the
+  option `SearchStats` (check, off by default) sends the same lines as
+  `info string` before `bestmove`.
 - **`UCI_ShowWDL`** (check, off by default): with it on, `info` lines give
   `wdl <win> <draw> <loss>` after the score. The numbers come from a
   fixed, documented model of the score and are not a measured win rate

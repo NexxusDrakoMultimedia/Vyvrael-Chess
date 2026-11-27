@@ -76,6 +76,8 @@ is in [docs/UCI.md](docs/UCI.md).
 Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
 `UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
 
+- **`SearchStats`** (off by default): a diagnostic that sends a search's
+  statistics as `info string` lines; see [docs/UCI.md](docs/UCI.md).
 - **`Seed`** (0 to 2147483647, default 0): the seed of the engine's
   strength-affecting randomness. 0 takes a new one from system entropy for
   every game and logs it; any other number fixes it, to replay a game.
