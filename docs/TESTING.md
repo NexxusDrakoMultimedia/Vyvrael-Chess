@@ -797,7 +797,7 @@ comma- or semicolon-separated list where bash repeats the flag (see
 | Make a rating list | `scripts/linux/rate.sh` | `scripts/windows/rate.ps1` |
 
 They need `cutechess-cli` and Ordo, which are separate programs (see
-"Installing the external tools"). In gauntlet mode `match.sh` also needs
+"Installing the external tools"). In gauntlet and round-robin mode `match.sh` also needs
 `python3` (or the program named in `VYVRAEL_PYTHON`) to read the engine list.
 Each script reads the tool's own help before using it and stops with a clear
 message if the tool, or an option it needs, is missing. `--help` (`-Help`)
@@ -952,7 +952,7 @@ working tree was clean or dirty, read with `git --no-optional-locks`, which
 writes nothing in the repository, before the run writes any file; set
 `VYVRAEL_GIT` to use another `git`), and at the end the number of games in the
 PGN and the PGN's SHA-256. `VYVRAEL_MATCH_DATE` replaces the date in the file
-names. A gauntlet also leaves a fourth file, `.engines.json`: a copy of the
+names. A gauntlet or a round robin also leaves a fourth file, `.engines.json`: a copy of the
 engine list it read, since that list carries the opponents' options and may
 change later. Keep the notes (and that copy) with any result you record. A
 script refuses to add games to a PGN that already exists; use `--label` for a
@@ -974,8 +974,8 @@ reference ladder, Ladder Baseline 2, has it.
 
 ### Reading an SPRT result
 
-While an SPRT runs, `cutechess-cli` prints after each game pair lines like
-these (the match script keeps them in the `.log`):
+While an SPRT runs, `cutechess-cli` prints every ten games, and at the
+end, lines like these (the match script keeps them in the `.log`):
 
 ```text
 Score of Vyvrael dev-1a2b3c4 vs Vyvrael 0.1.0-a2: 412 - 371 - 217  [0.521] 1000

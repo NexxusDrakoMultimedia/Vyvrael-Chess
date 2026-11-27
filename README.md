@@ -31,8 +31,8 @@ speaks UCI, so it can be used in a GUI and in match tools. It is still weak
 and slow, because the main search has no move ordering or transposition table
 yet (milestone 7). Its strength on the project's own opponent ladder, an
 ordering rather than an Elo, is in
-[docs/testing/results-0.1.0-alpha.2.md](docs/testing/results-0.1.0-alpha.2.md)
-(milestone 6). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
+[docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md)
+(measured for the release; the milestone 6 measurement is beside it). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
 and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
@@ -95,7 +95,7 @@ maintainer.
 
 On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
 maintainer upgraded it to a bot on 2026-11-20 (UTC) and runs it with
-0.1.0-alpha.2 (0.1.0-alpha.1 until 2026-11-22). Rated games wait until the
+0.1.0 (since 2026-11-23; the alphas before it). Rated games wait until the
 engine's strength has been measured and its search heuristics tested
 (after 0.2.0). The policy, the maintainer's checklist and the rules the bot
 keeps are in [docs/LICHESS.md](docs/LICHESS.md), and what it has played with

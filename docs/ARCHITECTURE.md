@@ -735,7 +735,7 @@ the command thread keeps reading stdin and can act on `stop`. Search calls
 the evaluation through a trait, so the hand-crafted evaluation and the NNUE
 evaluation are interchangeable and can be compared by SPRT. Only the UCI
 layer writes to stdout; the other commands of the binary (`perft`, `eval`,
-`search`) are separate and never run in the same process as the loop.
+`search`, `bench`, `help`) are separate and never run in the same process as the loop.
 
 ## RNG design
 
