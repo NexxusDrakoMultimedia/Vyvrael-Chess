@@ -31,7 +31,7 @@ position startpos moves e2e4 e7e5
 go depth 3
 info depth 1 seldepth 3 score cp 40 nodes 32 nps 1700000 hashfull 0 time 0 pv d2d4
 info depth 2 seldepth 7 score cp 3 nodes 267 nps 2506726 hashfull 0 time 0 pv d2d4 b8c6
-info depth 3 seldepth 7 score cp 37 nodes 2391 nps 3714847 hashfull 1 time 2 pv d2d4 d7d5 g1f3
+info depth 3 seldepth 7 score cp 37 nodes 2383 nps 3714847 hashfull 1 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```

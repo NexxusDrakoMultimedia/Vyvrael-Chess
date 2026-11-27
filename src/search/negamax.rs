@@ -14,7 +14,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::ordering::{captures_first, loses_material, table_move_first};
+use super::ordering::{captures_first, gain, loses_material, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
     fifty_moves_reached, insufficient_material, is_repetition, mated_in,
@@ -602,6 +602,8 @@ impl Search<'_> {
             generated = Some(moves);
         }
         let mut best = -INFINITY;
+        // The static evaluation, where the side to move may stand pat.
+        let mut standing = None;
         if !in_check || ply >= MAX_PLY {
             let stand_pat = self.evaluator.evaluate(pos);
             if stand_pat >= beta || ply >= MAX_PLY {
@@ -610,6 +612,7 @@ impl Search<'_> {
             }
             best = stand_pat;
             alpha = alpha.max(stand_pat);
+            standing = Some(stand_pat);
         }
 
         let mut any_legal = false;
@@ -629,6 +632,20 @@ impl Search<'_> {
             let _undo = next.make_move(mv);
             if next.can_capture_king() {
                 continue;
+            }
+            // Delta pruning: a capture that could not lift the score to
+            // alpha even if what it takes were won for nothing, with a
+            // margin to spare, is not tried. The position is then worth
+            // no more than that hopeful figure, which is what is reported
+            // for it rather than the lower standing-pat score. A capture
+            // that gives check is tried all the same: the reply is forced,
+            // and what it wins may be the next capture, not this one.
+            if let Some(stand_pat) = standing {
+                let hopeful = stand_pat + gain(pos, mv) + DELTA_MARGIN;
+                if hopeful <= alpha && !next.in_check() {
+                    best = best.max(hopeful);
+                    continue;
+                }
             }
             let first = !any_legal;
             any_legal = true;
@@ -656,6 +673,12 @@ impl Search<'_> {
         }
     }
 }
+
+/// The margin of delta pruning in the quiescence search, in centipawns: how
+/// much more than the material it takes a capture is allowed to be worth,
+/// by what it does to the placing of the pieces, before it is given up as
+/// unable to reach alpha. Two pawns is the customary figure.
+const DELTA_MARGIN: Score = 200;
 
 /// Whether quiescence search looks at `mv` when not in check: captures (en
 /// passant and capturing promotions included) and promotions to a queen.
@@ -1464,6 +1487,65 @@ mod tests {
         let value = searcher.quiesce(&checked, 0, -INFINITY, INFINITY);
         assert!(!crate::search::is_mate_score(value), "{value}");
         assert!(searcher.nodes() > 1);
+    }
+
+    /// Delta pruning: a capture is not tried when even winning what it
+    /// takes for nothing, and two pawns more, would leave the score at or
+    /// below alpha. The rook can take a free pawn; whether it is tried
+    /// depends on how much the window asks for.
+    #[test]
+    fn quiescence_leaves_out_captures_that_cannot_reach_alpha() {
+        let pos = fen("4k3/8/8/3p4/8/8/8/3RK3 w - - 0 1");
+        let stands = HandCrafted.evaluate(&pos);
+        let hopeful = stands + 100 + DELTA_MARGIN;
+        // Alpha is just within reach: the capture is tried.
+        let mut searcher = Search::new(&HandCrafted);
+        searcher.quiesce(&pos, 1, hopeful - 1, hopeful + 100);
+        assert!(searcher.nodes() > 1);
+        // Alpha is exactly what the capture could hope for, or more: it is
+        // not tried, and the position is reported as worth no more than
+        // that, which is more than standing pat gives.
+        for alpha in [hopeful, hopeful + 500] {
+            let mut searcher = Search::new(&HandCrafted);
+            let value = searcher.quiesce(&pos, 1, alpha, alpha + 100);
+            assert_eq!(searcher.nodes(), 1, "alpha {alpha}");
+            assert_eq!(value, hopeful, "alpha {alpha}");
+        }
+        // A promotion counts for what the new queen is worth more than the
+        // pawn, so it is still tried where a pawn's worth would not be (the
+        // black king stands where the new queen does not check it).
+        let promotes = fen("8/3P4/8/8/8/7k/8/4K3 w - - 0 1");
+        let stands = HandCrafted.evaluate(&promotes);
+        let mut searcher = Search::new(&HandCrafted);
+        searcher.quiesce(&promotes, 1, stands + 800, stands + 900);
+        assert!(searcher.nodes() > 1);
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&promotes, 1, stands + 1_100, stands + 1_200);
+        assert_eq!(searcher.nodes(), 1);
+        assert_eq!(value, stands + 900 + DELTA_MARGIN);
+    }
+
+    /// Delta pruning stops where a check is involved. A capture that gives
+    /// check is tried however little it takes: the same rook and pawn as
+    /// above, with the black king on the rook's file. And in check there
+    /// is no standing-pat score to prune by, so the only way out is tried
+    /// and the position is not called mate.
+    #[test]
+    fn delta_pruning_leaves_checks_alone() {
+        let pos = fen("3k4/8/8/3p4/8/8/8/3RK3 w - - 0 1");
+        let stands = HandCrafted.evaluate(&pos);
+        let alpha = stands + 100 + DELTA_MARGIN + 500;
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&pos, 1, alpha, alpha + 100);
+        assert!(searcher.nodes() > 1);
+        assert!(value <= alpha);
+
+        let checked = fen("k4r2/8/8/8/8/8/5nPP/5RNK w - - 0 1");
+        assert!(checked.in_check());
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&checked, 1, 5_000, 5_100);
+        assert!(searcher.nodes() > 1);
+        assert!(!crate::search::is_mate_score(value), "{value}");
     }
 
     #[test]

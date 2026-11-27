@@ -85,6 +85,23 @@ pub(super) fn loses_material(pos: &Position, mv: Move) -> bool {
     see(pos, mv) < 0
 }
 
+/// The most material `mv` can win at once: the piece it takes, and for a
+/// promotion what the new piece is worth more than the pawn. What the
+/// opponent takes back is not counted, so this is an upper bound, in the
+/// values of the static exchange evaluation.
+pub(super) fn gain(pos: &Position, mv: Move) -> i32 {
+    let victim = match mv.kind() {
+        MoveKind::EnPassant => exchange_value(PieceKind::Pawn),
+        _ => pos
+            .piece_at(mv.to())
+            .map_or(0, |piece| exchange_value(piece.kind)),
+    };
+    let promoted = mv.promotion().map_or(0, |kind| {
+        exchange_value(kind) - exchange_value(PieceKind::Pawn)
+    });
+    victim + promoted
+}
+
 /// How far below the quiet moves a losing capture is put.
 const LOSING: i32 = 1_000;
 
@@ -284,6 +301,31 @@ mod tests {
         assert!(!loses("4k3/2p5/8/3pP3/8/8/8/4K3 w - d6 0 1", "e5d6"));
         // A quiet move is not asked about by the search, but has an answer.
         assert!(loses("4k3/8/4p3/8/8/8/8/3RK3 w - - 0 1", "d1d5"));
+    }
+
+    #[test]
+    fn gain_is_what_is_taken_and_what_a_promotion_adds() {
+        let gain_of = |fen: &str, text: &str| {
+            let pos = Position::from_fen(fen).unwrap();
+            let moves = pseudo_legal_moves(&pos);
+            let mv = *moves.iter().find(|mv| mv.to_string() == text).unwrap();
+            gain(&pos, mv)
+        };
+        let busy = "4k3/8/1q3r2/8/3Q4/8/1p6/4K3 w - - 0 1";
+        assert_eq!(gain_of(busy, "d4b6"), 1_000);
+        assert_eq!(gain_of(busy, "d4f6"), 500);
+        assert_eq!(gain_of(busy, "d4b2"), 100);
+        assert_eq!(gain_of(busy, "e1e2"), 0);
+        // Whether the piece is defended does not enter into it.
+        assert_eq!(gain_of("4k3/8/4p3/3n4/8/5B2/8/4K3 w - - 0 1", "f3d5"), 325);
+        // En passant takes a pawn that is not on the destination square.
+        assert_eq!(gain_of("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1", "e5d6"), 100);
+        // Promotions, with and without a capture, to a queen and a knight.
+        let last_rank = "1r5k/2P5/8/8/8/8/8/4K3 w - - 0 1";
+        assert_eq!(gain_of(last_rank, "c7c8q"), 900);
+        assert_eq!(gain_of(last_rank, "c7c8n"), 225);
+        assert_eq!(gain_of(last_rank, "c7b8q"), 1_400);
+        assert_eq!(gain_of(last_rank, "c7b8n"), 725);
     }
 
     #[test]

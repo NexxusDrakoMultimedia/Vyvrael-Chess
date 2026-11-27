@@ -640,9 +640,26 @@ transposition table, pruning) come in milestone 7, one at a time.
     on its square can still win elsewhere, by a discovered attack for
     one. That is the price of every such pruning, and its SPRT is the
     judge of it.
-  - No other pruning is used beyond alpha-beta and standing pat. Skipping
-    captures that cannot help (delta pruning, static exchange evaluation) is
-    left to milestone 7.
+  - **Captures that cannot reach alpha are left out** (delta pruning,
+    since milestone 7). If the standing-pat score, the most the capture
+    can win at once (the piece taken, and what a promotion adds, in the
+    values of the static exchange evaluation) and a margin of 200
+    (`DELTA_MARGIN`) together do not exceed alpha, the capture is not
+    searched, and the position is reported as worth no more than that
+    sum. The margin is for what a capture does beyond the material:
+    the evaluation's piece values and piece-square tables differ from
+    the exchange values.
+    - A capture that gives check is searched all the same. The reply to
+      a check is forced, so such a capture can win a second thing with
+      the next move; one of the pinned searches gave another score and
+      line until checks were exempt (Position 4, where queen takes bishop
+      with check wins the rook in the corner as well).
+    - In check there is no standing-pat score and nothing is pruned.
+    - Like the rule above it can change the value quiescence returns: a
+      capture can be worth more than its victim and the margin by what
+      it threatens. Its SPRT is the judge of that too.
+  - No other pruning is used beyond alpha-beta, standing pat and these
+    two.
 
 ### Playing below full strength
 
