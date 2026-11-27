@@ -1025,8 +1025,7 @@ How every search change is done:
   hash size (the bench without arguments keeps a fixed one).
 - [x] 3. Static exchange evaluation, for ordering captures and for
   leaving losing ones out of quiescence. Kept only if its SPRT shows a
-  gain. SPRT: awaited; if it does not show one, both of its commits are
-  reverted.
+  gain. SPRT [0, 10]: H1 accepted in 1,160 games (run `9c8de5ceed4c`).
 - [ ] 4. Delta pruning in quiescence, last of the four, with its own SPRT.
 
 **KI-10, once quiescence is pruned:**
