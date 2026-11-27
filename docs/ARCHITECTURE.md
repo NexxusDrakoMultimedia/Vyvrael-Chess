@@ -513,6 +513,14 @@ transposition table, pruning) come in milestone 7, one at a time.
   - The selective depth is the deepest ply the iteration visited,
     quiescence included. The search writes it and never reads it, so it
     cannot change what is searched.
+- **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
+  and how many of them the first move tried gave, in the main search and
+  in quiescence, the quiescence positions and those cut off as they
+  stood (`SearchStats`, read with `Search::stats`). Like the selective
+  depth they are written and never read by the search, so counting them
+  cannot move a node count; they are always counted, and shown only when
+  asked for. The share of cutoffs given by the first move is the measure
+  of move ordering that milestone 7 works on.
   - It looks wasteful, but each level of the tree is many times larger than
     the last, so repeating the shallow levels costs little. In return the
     search can be stopped at any moment and still has a complete answer,

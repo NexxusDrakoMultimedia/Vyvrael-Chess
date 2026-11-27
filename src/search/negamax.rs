@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use super::ordering::captures_first;
 use super::{
-    DRAW, INFINITY, Limits, MATE, MAX_PLY, fifty_moves_reached, insufficient_material,
+    DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, fifty_moves_reached, insufficient_material,
     is_repetition, mated_in,
 };
 use crate::attacks::knight_attacks;
@@ -82,6 +82,9 @@ pub struct Search<'a> {
     /// It is only ever written here and read by [`Search::seldepth`]: the
     /// search decides nothing by it.
     seldepth: usize,
+    /// Counts of what the search did. Like `seldepth`, written here and
+    /// read only from outside, by [`Search::stats`].
+    stats: SearchStats,
 }
 
 /// The stop flag and the clock are looked at once per this many nodes:
@@ -103,6 +106,7 @@ impl<'a> Search<'a> {
             stopped: false,
             limits_apply: true,
             seldepth: 0,
+            stats: SearchStats::ZERO,
         }
     }
 
@@ -248,6 +252,16 @@ impl<'a> Search<'a> {
         self.nodes = 0;
         self.stopped = false;
         self.seldepth = 0;
+        self.stats = SearchStats::ZERO;
+    }
+
+    /// What the current or most recent search has counted: cutoffs, how
+    /// many of them the first move gave, and the quiescence search's share.
+    /// An interrupted iteration's work is included, as it is in
+    /// [`Search::nodes`].
+    #[must_use]
+    pub const fn stats(&self) -> SearchStats {
+        self.stats
     }
 
     /// The selective depth of the current or most recent search from the
@@ -411,6 +425,7 @@ impl<'a> Search<'a> {
                 self.keys.pop();
                 continue;
             }
+            let first = !any_legal;
             any_legal = true;
             let score = -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha);
             self.keys.pop();
@@ -426,6 +441,8 @@ impl<'a> Search<'a> {
                     if alpha >= beta {
                         // The opponent has a better option elsewhere and
                         // will never let the game reach this position.
+                        self.stats.cutoffs += 1;
+                        self.stats.first_move_cutoffs += u64::from(first);
                         break;
                     }
                 }
@@ -468,6 +485,7 @@ impl Search<'_> {
         }
         self.seldepth = self.seldepth.max(ply);
         self.nodes += 1;
+        self.stats.quiescence_nodes += 1;
         // A capture can leave too little material to mate with. Repetition
         // and the fifty-move rule are not looked for here: captures cannot
         // lead to either, and the quiet moves that get out of a check are
@@ -494,6 +512,7 @@ impl Search<'_> {
         if !in_check || ply >= MAX_PLY {
             let stand_pat = self.evaluator.evaluate(pos);
             if stand_pat >= beta || ply >= MAX_PLY {
+                self.stats.stand_pat_cutoffs += u64::from(stand_pat >= beta);
                 return stand_pat;
             }
             best = stand_pat;
@@ -513,6 +532,7 @@ impl Search<'_> {
             if next.can_capture_king() {
                 continue;
             }
+            let first = !any_legal;
             any_legal = true;
             let score = -self.quiesce(&next, ply + 1, -beta, -alpha);
             if self.stopped {
@@ -523,6 +543,8 @@ impl Search<'_> {
                 if score > alpha {
                     alpha = score;
                     if alpha >= beta {
+                        self.stats.quiescence_cutoffs += 1;
+                        self.stats.quiescence_first_move_cutoffs += u64::from(first);
                         break;
                     }
                 }
@@ -1500,6 +1522,69 @@ mod tests {
         }
         let (_, mated, _) = iterate("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", Limits::depth(3));
         assert_eq!(mated[0].seldepth, 0);
+    }
+
+    /// The statistics in cases small enough to check by hand.
+    #[test]
+    fn the_statistics_count_cutoffs_and_quiescence_nodes() {
+        let mut searcher = Search::new(&HandCrafted);
+        assert_eq!(searcher.stats(), SearchStats::ZERO);
+        // Depth 1 from the start: the root, then one quiescence position
+        // for each of the 20 moves. The root's window is open, so the main
+        // search has no cutoff; no capture is possible, so quiescence has
+        // none by a move.
+        searcher.fixed_depth(&Position::startpos(), 1);
+        let stats = searcher.stats();
+        assert_eq!(searcher.nodes(), 21);
+        assert_eq!(stats.quiescence_nodes, 20);
+        assert_eq!((stats.cutoffs, stats.first_move_cutoffs), (0, 0));
+        assert_eq!(stats.quiescence_cutoffs, 0);
+        // A reply that is no better for White than the best so far is cut
+        // off as it stands: all 19 others at most.
+        assert!((1..=19).contains(&stats.stand_pat_cutoffs), "{stats:?}");
+        // One quiescence position that is good enough as it stands.
+        let mut alone = Search::new(&HandCrafted);
+        alone.quiesce(&Position::startpos(), 0, -1_000, -500);
+        let expected = SearchStats {
+            quiescence_nodes: 1,
+            stand_pat_cutoffs: 1,
+            ..SearchStats::ZERO
+        };
+        assert_eq!(alone.stats(), expected);
+        // Queen takes queen refutes at once: a cutoff by the first move
+        // tried, since captures are tried most valuable victim first.
+        let mut capture = Search::new(&HandCrafted);
+        capture.quiesce(&fen("3qk3/8/8/8/8/8/8/3QK3 w - - 0 1"), 0, -100, 100);
+        let stats = capture.stats();
+        assert_eq!(
+            (
+                stats.quiescence_cutoffs,
+                stats.quiescence_first_move_cutoffs
+            ),
+            (1, 1)
+        );
+        assert_eq!(stats.quiescence_first_move_rate(), Some(1000));
+    }
+
+    /// What holds whatever the position: the first-move cutoffs are among
+    /// the cutoffs, the quiescence nodes among the nodes, and each search
+    /// starts counting from nothing.
+    #[test]
+    fn the_statistics_are_consistent_and_start_afresh() {
+        let mut searcher = Search::new(&HandCrafted);
+        for position in [KIWIPETE, ROOK_ENDGAME, crate::board::START_FEN] {
+            let pos = fen(position);
+            searcher.fixed_depth(&pos, 2);
+            let (stats, nodes) = (searcher.stats(), searcher.nodes());
+            assert!(stats.cutoffs > 0, "{position}");
+            assert!(stats.first_move_cutoffs <= stats.cutoffs);
+            assert!(stats.quiescence_first_move_cutoffs <= stats.quiescence_cutoffs);
+            assert!(stats.quiescence_nodes < nodes);
+            assert!(stats.stand_pat_cutoffs + stats.quiescence_cutoffs <= stats.quiescence_nodes);
+            // The same search again counts the same again, not twice as much.
+            searcher.fixed_depth(&pos, 2);
+            assert_eq!((searcher.stats(), searcher.nodes()), (stats, nodes));
+        }
     }
 
     #[test]
