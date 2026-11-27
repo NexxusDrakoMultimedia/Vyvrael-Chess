@@ -29,8 +29,8 @@ uciok
 position startpos moves e2e4 e7e5
 go depth 3
 info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
-info depth 2 seldepth 9 score cp 3 nodes 544 nps 2506726 time 0 pv d2d4 b8c6
-info depth 3 seldepth 11 score cp 37 nodes 5923 nps 3714847 time 2 pv d2d4 d7d5 g1f3
+info depth 2 seldepth 9 score cp 3 nodes 407 nps 2506726 time 0 pv d2d4 b8c6
+info depth 3 seldepth 11 score cp 37 nodes 3142 nps 3714847 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
@@ -235,7 +235,7 @@ strength.
 With `UCI_ShowWDL` on, an `info` line reads
 
 ```text
-info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2933 nps 2500000 time 1 pv d2d4 d7d5 b1c3
+info depth 3 seldepth 7 score cp 37 wdl 164 751 85 nodes 1248 nps 2500000 time 1 pv d2d4 d7d5 b1c3
 ```
 
 **The three numbers are a model, not a measurement.** They are a fixed

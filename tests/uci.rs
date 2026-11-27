@@ -17,7 +17,8 @@ use std::time::{Duration, Instant};
 use vyvrael::board::Position;
 use vyvrael::eval::HandCrafted;
 use vyvrael::movegen::find_legal_move;
-use vyvrael::search::{Limits, Search};
+use vyvrael::search::{Limits, Search, TranspositionTable};
+use vyvrael::uci::HASH_DEFAULT;
 
 /// A running engine process and both ends of its pipes.
 struct Engine {
@@ -136,7 +137,12 @@ fn a_whole_conversation() {
         let mv = find_legal_move(&pos, text).unwrap();
         let _undo = pos.make_move(mv);
     }
-    let mut direct = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+    // With an empty table of the default size, as the engine has for the
+    // first search of a game.
+    let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+    let mut direct = Search::new(&HandCrafted)
+        .with_limits(Limits::depth(3))
+        .with_table(&mut table);
     let outcome = direct.iterate(&pos, &mut |_| {});
     assert_eq!(search.len(), 4, "{search:?}");
     assert!(search[2].contains(&format!(" nodes {} ", direct.nodes())));

@@ -459,13 +459,16 @@ transposition table, pruning) come in milestone 7, one at a time.
     otherwise, so stalemate is never mistaken for a win.
   - At depth 0 the quiescence search takes over (below), so positions are
     not judged in the middle of an exchange.
-  - Captures and promotions are searched first, most valuable victim
-    first and by the cheapest attacker among equals (`ordering.rs`, the
-    order quiescence has used from the start); quiet moves follow in
-    generation order. Ordering does not change the value alpha-beta
+  - The transposition table's move for the position is searched first,
+    if it has one: the move that was best in an earlier, usually
+    shallower, search (at the root, the best move of the iteration
+    before). Then captures and promotions, most valuable victim first and
+    by the cheapest attacker among equals (`ordering.rs`, the order
+    quiescence has used from the start); quiet moves follow in generation
+    order. Ordering does not change the value alpha-beta
     returns, only how much of the tree it has to look at. The rest of the
-    ordering (the transposition table's move, killers, history) is added
-    one SPRT at a time in milestone 7.
+    ordering (killers, history) is added one SPRT at a time in milestone
+    7.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.
@@ -541,9 +544,9 @@ transposition table, pruning) come in milestone 7, one at a time.
   bound on it, and the best move.
   - The main search asks the table after counting the node. A result at
     least as deep as is needed settles the position if it is the value,
-    or a bound that already lies outside the window. The root and the
-    quiescence search do not ask. After searching, the node stores what
-    it found.
+    or a bound that already lies outside the window. The quiescence search does not ask, and the
+    root asks only for its move, never for a result. After searching,
+    the node stores what it found; the root stores its best move.
   - It is a flat array of 16-byte slots indexed by the low bits of the
     hash, each holding the whole hash. A newer result takes the slot
     unless the slot holds the same position searched deeper.

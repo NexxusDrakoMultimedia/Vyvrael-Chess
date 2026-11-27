@@ -14,7 +14,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::ordering::captures_first;
+use super::ordering::{captures_first, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
     fifty_moves_reached, insufficient_material, is_repetition, mated_in,
@@ -364,9 +364,16 @@ impl<'a> Search<'a> {
             };
         }
         self.nodes += 1;
-        // Captures and promotions first, most valuable victim first: see
-        // `ordering.rs`.
-        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
+        // The best move of the iteration before, which the table holds,
+        // then captures and promotions: see `ordering.rs`. The root is
+        // never settled from the table, only ordered by it.
+        let key = pos.hash();
+        let table_move = self
+            .table
+            .as_deref()
+            .and_then(|table| table.probe(key, 0))
+            .and_then(|known| known.best);
+        for &mv in &table_move_first(pos, &pseudo_legal_moves(pos), table_move) {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -389,6 +396,14 @@ impl<'a> Search<'a> {
                 best_move = Some(mv);
                 self.update_pv(0, mv);
             }
+        }
+        // Remember the root's best move for the next iteration and the next
+        // search of the game. Not after a stop: the move may be the best
+        // of only the moves that were searched.
+        if let (Some(table), false) = (self.table.as_deref_mut(), self.stopped)
+            && best_move.is_some()
+        {
+            table.store(key, 0, depth, alpha, Bound::Exact, best_move);
         }
         match best_move {
             Some(_) => Outcome {
@@ -446,18 +461,22 @@ impl<'a> Search<'a> {
         // what was found may settle it: its value, or a bound on the value
         // that already lies outside the window.
         let key = pos.hash();
+        let mut table_move = None;
         if let Some(table) = self.table.as_deref()
             && let Some(known) = table.probe(key, ply)
-            && known.depth >= depth
-            && pos.halfmove_clock() < FIFTY_MOVE_GUARD
         {
-            let settles = match known.bound {
-                Bound::Exact => true,
-                Bound::Lower => known.score >= beta,
-                Bound::Upper => known.score <= alpha,
-            };
-            if settles {
-                return known.score;
+            // Whatever the depth it was found at, the move that was best
+            // before is the one to try first now.
+            table_move = known.best;
+            if known.depth >= depth && pos.halfmove_clock() < FIFTY_MOVE_GUARD {
+                let settles = match known.bound {
+                    Bound::Exact => true,
+                    Bound::Lower => known.score >= beta,
+                    Bound::Upper => known.score <= alpha,
+                };
+                if settles {
+                    return known.score;
+                }
             }
         }
 
@@ -465,9 +484,9 @@ impl<'a> Search<'a> {
         let mut best = -INFINITY;
         let mut best_move = None;
         let mut any_legal = false;
-        // Captures and promotions first, most valuable victim first: see
-        // `ordering.rs`.
-        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
+        // The table's move first, then captures and promotions, most
+        // valuable victim first: see `ordering.rs`.
+        for &mv in &table_move_first(pos, &pseudo_legal_moves(pos), table_move) {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);

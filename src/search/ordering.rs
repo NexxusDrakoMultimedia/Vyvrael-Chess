@@ -80,10 +80,55 @@ pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
     ordered
 }
 
+/// The moves of `moves` in the order the main search tries them: `first`
+/// before all others, if it is one of them, then the rest as
+/// [`captures_first`] has them.
+///
+/// `first` is the move the transposition table remembers as best for the
+/// position. It was best in an earlier, usually shallower, search, which
+/// makes it the likeliest move to be best or to cut off now. It is only
+/// moved to the front if the position really has it: a table entry of
+/// another position that happens to share the hash cannot put a move here
+/// that is not in the list.
+pub(super) fn table_move_first(pos: &Position, moves: &MoveList, first: Option<Move>) -> MoveList {
+    let sorted = captures_first(pos, moves);
+    let Some(first) = first.filter(|mv| sorted.contains(mv)) else {
+        return sorted;
+    };
+    let mut ordered = MoveList::new();
+    ordered.push(first);
+    for &mv in sorted.iter().filter(|mv| **mv != first) {
+        ordered.push(mv);
+    }
+    ordered
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::movegen::pseudo_legal_moves;
+
+    #[test]
+    fn the_table_move_goes_to_the_front_and_nothing_else_moves() {
+        // The queen can take a queen, a rook or a pawn; a quiet king move
+        // is the table's move.
+        let pos = Position::from_fen("4k3/8/1q3r2/8/3Q4/8/1p6/4K3 w - - 0 1").unwrap();
+        let moves = pseudo_legal_moves(&pos);
+        let plain = captures_first(&pos, &moves);
+        let quiet = *plain.iter().find(|mv| mv.to_string() == "e1e2").unwrap();
+        let ordered = table_move_first(&pos, &moves, Some(quiet));
+        assert_eq!(ordered.len(), plain.len());
+        assert_eq!(ordered.as_slice()[0], quiet);
+        let rest: Vec<Move> = plain.iter().copied().filter(|mv| *mv != quiet).collect();
+        assert_eq!(ordered.as_slice()[1..], rest[..]);
+        // The move that is first anyway stays first, once.
+        let best = plain.as_slice()[0];
+        assert_eq!(table_move_first(&pos, &moves, Some(best)), plain);
+        // No move, or a move the position does not have: the plain order.
+        assert_eq!(table_move_first(&pos, &moves, None), plain);
+        let foreign = Move::new(Square::A1, Square::H8, MoveKind::Quiet);
+        assert_eq!(table_move_first(&pos, &moves, Some(foreign)), plain);
+    }
 
     fn ordered(fen: &str) -> Vec<String> {
         let pos = Position::from_fen(fen).unwrap();

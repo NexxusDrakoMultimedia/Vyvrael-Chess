@@ -16,6 +16,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   the next iteration. `Hash` now sizes it, `ucinewgame` empties it. The
   bench counts 394,939 nodes, from 459,926. SPRT against the search
   before it: see `docs/testing/sprt-history.md`.
+- **The table's move is tried first** (item 2b), at the root too, where
+  it is the best move of the iteration before. The bench counts 206,097
+  nodes. SPRT: see the same file.
 
 ### Changed
 

@@ -604,9 +604,14 @@ mod tests {
         captured.lines()
     }
 
+    /// The library's own search of `fen` to `depth`, as the engine makes
+    /// the first search of a game: with an empty table of the default size.
     fn direct(fen: &str, depth: u32) -> (Outcome, u64) {
         let pos = Position::from_fen(fen).unwrap();
-        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+        let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+        let mut search = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
         let outcome = search.iterate(&pos, &mut |_| {});
         (outcome, search.nodes())
     }
@@ -1119,7 +1124,7 @@ mod tests {
         let (outcome, nodes) = direct(crate::board::START_FEN, 3);
         assert_eq!(lines.len(), 4, "{lines:?}");
         // The selective depths: quiescence goes deeper than the search.
-        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 8)]) {
+        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 7)]) {
             assert!(
                 line.starts_with(&format!("info depth {depth} seldepth {seldepth} score cp ")),
                 "{line}"
@@ -1224,16 +1229,19 @@ mod tests {
         assert_eq!(shown.len(), plain.len() + 5, "{shown:?}");
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
-        assert_eq!(shown[4], "info string stats depth 2 nodes 222 ebf 10.57");
-        assert_eq!(shown[5], "info string stats depth 3 nodes 2690 ebf 12.11");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 113 ebf 5.38");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 1114 ebf 9.85");
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
-        assert!(shown[7].contains(" of 2933 ("));
+        assert!(shown[7].contains(" of 1248 ("));
         assert_eq!(shown[8], plain[3]);
         assert!(shown[8].starts_with("bestmove "));
         // The figures are those of the library's own search.
         let pos = Position::startpos();
-        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+        let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+        let mut search = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(3))
+            .with_table(&mut table);
         let _ = search.iterate(&pos, &mut |_| {});
         let own = stats_lines(&[], search.nodes(), &search.stats());
         assert_eq!(shown[6], format!("info string {}", own[0]));
@@ -1384,11 +1392,11 @@ mod tests {
                 );
                 // The last `info` line is for the move played.
                 // It keeps the selective depth of the search's last
-                // iteration (8, as the third line of the plain search says).
-                assert!(plain[2].starts_with("info depth 3 seldepth 8 "));
+                // iteration (7, as the third line of the plain search says).
+                assert!(plain[2].starts_with("info depth 3 seldepth 7 "));
                 let last_info = &lines[lines.len() - 2];
                 assert!(
-                    last_info.starts_with(&format!("info depth 3 seldepth 8 score cp {score} "))
+                    last_info.starts_with(&format!("info depth 3 seldepth 7 score cp {score} "))
                         && last_info.ends_with(&format!(" pv {played}")),
                     "{last_info}"
                 );
@@ -1536,7 +1544,7 @@ mod tests {
             "go depth 2",
         ]);
         assert!(
-            lines[1].starts_with("info depth 2 seldepth 3 score cp 0 "),
+            lines[1].starts_with("info depth 2 seldepth 2 score cp 0 "),
             "{lines:?}"
         );
         assert_eq!(lines.last().unwrap(), "bestmove g8h8");
