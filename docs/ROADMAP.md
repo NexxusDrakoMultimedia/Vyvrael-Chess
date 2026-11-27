@@ -778,7 +778,7 @@ engine binary; `bench` refuses more than one thread.
 - **SPRT recorder:**
   - [x] `scripts/record_sprt.py` reads a run's notes and log
   - [x] It appends the result to `docs/testing/sprt-history.md`
-  - [ ] A test that it reads what the match scripts really write
+  - [x] A test that it reads what the match scripts really write
 - **EPD suite runner:**
   - [ ] `*.epd` ignored by git
   - [ ] A legal move found from its SAN text

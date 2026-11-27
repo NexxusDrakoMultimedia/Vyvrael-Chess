@@ -9,6 +9,7 @@ scripts leave them in. No match is played and nothing is fetched.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import sys
 import tempfile
@@ -17,7 +18,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import record_sprt  # noqa: E402
+import test_match_ps1  # noqa: E402
+import test_match_sh  # noqa: E402
 
 TEST_SHA = "a" * 64
 BASE_SHA = "b" * 64
@@ -277,6 +281,61 @@ class Writing(Files):
         self.assertEqual(real, record_sprt.HISTORY)
         self.history.write_bytes(real.read_bytes())
         self.assertEqual(self.main("--change", "x", "--dry-run")[0], 0)
+
+
+RESULT = (
+    "Score of Vyvrael dev-abc1234 vs Vyvrael 0.1.0-a1: 10 - 2 - 3  [0.767] 15",
+    "Elo difference: 206.8 +/- 219.2, LOS: 99.0 %, DrawRatio: 20.0 %",
+    "SPRT: llr 2.97 (100.8%), lbound -2.94, ubound 2.94 - H1 was accepted",
+)
+
+
+class WhatTheScriptsWrite:
+    """A guard against the recorder and the match scripts drifting apart:
+    the real script runs an SPRT against a stand-in cutechess-cli (as its
+    own tests do), and the recorder reads the notes and the log it left."""
+
+    def recorded(self, lines: str):
+        result = self.sprt_run(self.WRITE_PGN + lines)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        stem = self.tmp / "matches" / "2026-01-02-sprt-Vyvrael-dev-abc1234"
+        run = record_sprt.read_run(Path(f"{stem}.notes.txt"))
+        digest = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()  # noqa: E731
+        # The day the run started (the date in the file names is the test's).
+        self.assertRegex(run.date, r"^d{4}-dd-dd$")
+        self.assertRegex(run.commit, r"^[0-9a-f]{12}$")
+        self.assertEqual(run.test, ("Vyvrael dev-abc1234", digest(self.test_build)))
+        self.assertEqual(run.base, ("Vyvrael 0.1.0-a1", digest(self.base_build)))
+        self.assertEqual(run.options, ("none", "none"))
+        self.assertEqual((run.elo0, run.elo1, run.alpha, run.beta), ("0", "5", "0.05", "0.05"))
+        self.assertEqual((run.tc, run.hash_mb, run.rounds), ("10+0.1", "64", "5"))
+        self.assertTrue(run.concurrency.isdigit())
+        self.assertEqual((run.wins, run.losses, run.draws, run.games), (10, 2, 3, 15))
+        self.assertEqual((run.elo, run.margin, run.llr), ("206.8", "219.2", "2.97"))
+        self.assertEqual(run.outcome, "H1 accepted")
+        self.assertEqual(run.pgn_sha256, digest(f"{stem}.pgn"))
+        # And the row can be made of it.
+        self.assertIn("| **H1 accepted** |", record_sprt.row(run, "a guard"))
+
+
+@unittest.skipUnless(test_match_sh.BASH, "bash is not available")
+class WhatMatchShWrites(WhatTheScriptsWrite, test_match_sh.Fixture, unittest.TestCase):
+    play = test_match_sh.MatchShRunTest.play
+    sprt_run = test_match_sh.MatchShRunTest.sprt_run
+    WRITE_PGN = test_match_sh.MatchShRunTest.WRITE_PGN
+
+    def test_the_recorder_reads_a_run_of_match_sh(self):
+        self.recorded("".join(f"echo '{line}'\n" for line in RESULT))
+
+
+@unittest.skipUnless(test_match_ps1.POWERSHELL, "PowerShell is not available")
+class WhatMatchPs1Writes(WhatTheScriptsWrite, test_match_ps1.Fixture, unittest.TestCase):
+    play = test_match_ps1.MatchPs1RunTest.play
+    sprt_run = test_match_ps1.MatchPs1RunTest.sprt_run
+    WRITE_PGN = test_match_ps1.MatchPs1RunTest.WRITE_PGN
+
+    def test_the_recorder_reads_a_run_of_match_ps1(self):
+        self.recorded("".join(f"'{line}'\n" for line in RESULT))
 
 
 if __name__ == "__main__":
