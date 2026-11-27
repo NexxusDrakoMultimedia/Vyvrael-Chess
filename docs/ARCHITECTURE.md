@@ -732,9 +732,10 @@ and option is listed in [UCI.md](UCI.md).
   does not call it at all: `main.rs` starts the UCI loop instead (see "UCI"
   above). `perft <depth> [--divide | --copy-make] [FEN]` prints node counts
   on stdout and timing on stderr. `eval [FEN]` prints the hand-crafted
-  evaluation and its parts. `search <depth> [FEN]` runs iterative deepening
+  evaluation and its parts. `search <depth> [--stats] [FEN]` runs iterative deepening
   to a fixed depth and prints one line per depth and the best move, with
-  timing on stderr so that stdout is identical on every run. `bench [depth [threads [hash]]]`
+  timing on stderr so that stdout is identical on every run; `--stats`
+  adds the lines of `search::stats_lines`. `bench [depth [threads [hash]]]`
   runs `bench::bench` and prints `<nodes> nodes <nps> nps`; the threads
   and the hash size are checked and have no effect yet. Exit status 2
   means the command line was not understood.

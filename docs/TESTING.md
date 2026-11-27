@@ -55,7 +55,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 222 and 2,728 nodes, factors 10.57 and 12.28), leaves what comes before them unchanged, and gives the same output wherever the flag stands. |
 | `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
@@ -70,7 +70,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `search` principal variation | On five positions (to depth 3 or 4 on quiet ones, depth 2 on busy middlegames) the line starts with the best move, consists of legal moves, runs the full depth, and ends in a position whose quiescence value (seen from the root side) equals the reported score; the line of a mate in two is three plies and ends in checkmate; no line when the root has no legal move. |
 | `search` limits | `Limits` constructors and combinations. A node limit stops the search exactly at the limit and leaves the repetition history as it was; a search cut short at three different limits answers only from the root moves it finished, never from the one it was working on; a generous limit changes nothing; a raised stop flag ends the search before the first node while an unraised one does not disturb it; a deadline already passed ends the search within one check interval. |
 | `search` iterative deepening | Iterating to depth 3 equals a direct depth-3 search on three positions, with one report per depth that matches a direct search of that depth and with nodes and time increasing; iteration stops at the depth where a mate is proven (3 for mate in two, 2 for being mated in one) and not before: a mate in two already seen at depth 1 through quiescence is searched on to depth 3; it ends after one iteration when the root is checkmate or stalemate; a node limit that interrupts an iteration returns the last completed depth; the first iteration completes even with a one-node limit, a raised stop flag or a passed deadline, and a limit reached between iterations does not count as an interruption; a depth limit of 0 still searches one ply; a `Search` stopped by a limit can be used again and starts afresh. The selective depth is the deepest ply visited: 1 after one move from the start position, more than 2 after two (quiescence goes below the depth), 3 for a queen trade below a depth of one, 0 with no legal move, and afresh for each search from the root; every report carries the value of its own iteration, never below the depth while there are moves. |
-| `search` statistics | Rates are thousandths rounded down, with none for a count of zero and no overflow. Depth 1 from the start position: 20 quiescence nodes of 21, no cutoff in the main search or by a move in quiescence, between 1 and 19 stand-pat cutoffs; one quiescence position good enough as it stands counts exactly one stand-pat cutoff; queen takes queen is one cutoff by the first move. On three positions the first-move cutoffs are among the cutoffs and the quiescence nodes among the nodes, and the same search again counts the same, not double. |
+| `search` statistics | Rates are thousandths rounded down, with none for a count of zero and no overflow. Depth 1 from the start position: 20 quiescence nodes of 21, no cutoff in the main search or by a move in quiescence, between 1 and 19 stand-pat cutoffs; one quiescence position good enough as it stands counts exactly one stand-pat cutoff; queen takes queen is one cutoff by the first move. On three positions the first-move cutoffs are among the cutoffs and the quiescence nodes among the nodes, and the same search again counts the same, not double. The lines of text: nodes per depth as differences, the branching factor in hundredths, rates as percentages with one decimal, `-` where there is nothing to divide by, and no factor after an iteration that added no node. |
 | `search` quiescence | A quiet position is worth its static evaluation; a winning capture is played out; a queen does not grab a defended pawn at depths 1 to 3 (the horizon effect); no standing pat in check (checkmate is scored by ply, a forced recapture is followed); queen promotions are considered; it terminates on a position full of captures in under a million nodes and restores it; bare kings after a capture are a draw; which moves count as tactical. Capture ordering: most valuable victim first, least valuable attacker breaking ties, promotions and en passant in their place, and the ordering only reorders (same moves, captures before quiet moves, generation order kept when nothing can be captured). The minimax-agreement and principal-variation tests now value their leaves with a full-window quiescence search. Stalemate at the horizon is a draw whatever the window, and a one-ply search does not walk into one; the two shortcuts that rule stalemate out without playing moves agree with full move generation on every position not in check of five trees (over 5,000 positions, with pins, en passant and stalemates), and a position whose only movable piece is pinned is recognised as stalemate. In check there is no standing pat (a skewered queen is not counted as material kept). A dead position is valued by its evaluation on its own, at ply 0, and as a draw inside a line. |
 | `movegen` move input | `find_legal_move` returns every legal move of five positions from its text and agrees with the trusting parser on them; it refuses moves no piece can make (which the trusting parser accepts), the other side's moves, pinned pieces, moves that leave the king in check, promotions without or with a wrong letter, castling through an attacked square, and a dozen strings that are not moves. |
 | `uci` command parsing | Each command is recognised; blank lines, extra white space, a trailing carriage return and unknown words before a command are forgiven; unknown lines are reported as such and commands are case-sensitive; `position` from the start or a FEN, with and without moves, and six malformed forms; `go` with clocks (any negative number counts as zero and what follows it is still read), with depth, nodes, move time and `infinite`, ignoring `ponder`, `searchmoves` and `mate` and skipping parameters without a usable value; `setoption` with names and values containing spaces, without a value, with an empty value, and four malformed forms. `d` and `eval` are commands only as the whole line: with a protocol command after them that command is read, and anywhere else they are unknown. |
@@ -141,7 +141,7 @@ issue KI-9): two plies there take more nodes than five in the rook endgame.
 ## Running a search by hand
 
 ```sh
-cargo run --release -- search <depth> [FEN]
+cargo run --release -- search <depth> [--stats] [FEN]
 ```
 
 searches the position (the start position without a FEN) by iterative
@@ -161,6 +161,40 @@ bestmove d2d4
 - `pv` is the line of best play the score comes from.
 - Time and speed go to stderr, so stdout is identical on every run and can be
   compared between versions.
+
+**Search statistics.** With `--stats` the search's statistics follow the
+best move, each line starting with `stats`:
+
+```
+stats depth 1 nodes 21
+stats depth 2 nodes 222 ebf 10.57
+stats depth 3 nodes 2728 ebf 12.28
+stats depth 4 nodes 25822 ebf 9.46
+stats cutoffs 2304 firstmove 508 rate 22.0%
+stats qnodes 26060 of 28793 (90.5%) standpat 18465 qcutoffs 1843 firstmove 1783 rate 96.7%
+```
+
+- A `depth` line gives the nodes that iteration took by itself (the
+  search's lines above count from its start), and `ebf`, the effective
+  branching factor: how many times more nodes it took than the iteration
+  before. Good pruning makes it small.
+- `cutoffs` are the beta cutoffs of the main search, `firstmove` those
+  given by the first legal move tried, and `rate` their share. It is the
+  usual measure of move ordering: the better the ordering, the nearer to
+  100%. The 22% above is the main search without any ordering (known
+  issue KI-9).
+- `qnodes` are the positions the quiescence search visited, out of the
+  search's total; `standpat` those good enough as they stood; `qcutoffs`
+  and the `firstmove` after it the cutoffs by a move there, which is
+  ordered most valuable victim first (hence 96.7%).
+- The figures are whole-number arithmetic on counts, so they too are the
+  same on every run. They are a quick look at what a change did to the
+  tree, not a measure of strength: that is what an SPRT is for.
+- The counts are always kept and cost nothing measurable; the flag only
+  shows them. They cannot change the search, which never reads them: the
+  bench node count is the same with and without.
+- The hit rate of the transposition table joins these lines when
+  milestone 7 adds the table.
 
 A fixed-depth search uses no clock and no randomness, so it is fully
 reproducible: the same position and depth always give the same lines.

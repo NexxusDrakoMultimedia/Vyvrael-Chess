@@ -13,7 +13,7 @@ use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
 use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search};
+use crate::search::{Limits, MAX_PLY, Report, Search, stats_lines};
 use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -24,7 +24,7 @@ Usage:
   vyvrael perft <depth> [--divide | --copy-make] [FEN]
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
-  vyvrael search <depth> [FEN]             search to a fixed depth
+  vyvrael search <depth> [--stats] [FEN]   search to a fixed depth
   vyvrael bench [depth [threads [hash]]]   a fixed search workload: nodes and speed
   vyvrael help                             show this text
 
@@ -40,7 +40,9 @@ omitted) in centipawns, with its parts. It does not search.
 
 search runs the search to <depth> plies from FEN (the start position if
 omitted) and prints one line per completed depth, then the best move. Scores
-are in centipawns for the side to move, or shown as mate in N moves.
+are in centipawns for the side to move, or shown as mate in N moves. With
+--stats it then prints the nodes each depth took, the effective branching
+factor and how often the first move tried gave the cutoff.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
@@ -135,21 +137,27 @@ fn progress_line(report: &Report) -> String {
 }
 
 fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let with_stats = args.iter().any(|arg| arg == "--stats");
+    let args: Vec<&String> = args.iter().filter(|arg| *arg != "--stats").collect();
     let depth = args.first().and_then(|text| text.parse::<u32>().ok());
     let Some(depth) = depth.filter(|depth| (1..=MAX_PLY as u32).contains(depth)) else {
         writeln!(err, "search: expected a depth from 1 to {MAX_PLY}")?;
         write!(err, "{USAGE}")?;
         return Ok(EXIT_USAGE);
     };
-    let fields: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+    let fields: Vec<&str> = args[1..].iter().map(|arg| arg.as_str()).collect();
     let Some(pos) = position_from(&fields, "search", err)? else {
         return Ok(EXIT_USAGE);
     };
 
     let start = Instant::now();
     let mut lines = Vec::new();
+    let mut iterations = Vec::new();
     let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-    let outcome = searcher.iterate(&pos, &mut |report| lines.push(progress_line(report)));
+    let outcome = searcher.iterate(&pos, &mut |report| {
+        lines.push(progress_line(report));
+        iterations.push((report.depth, report.nodes));
+    });
     let elapsed = start.elapsed();
     for line in lines {
         writeln!(out, "{line}")?;
@@ -160,6 +168,11 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
     }
 
     let nodes = searcher.nodes();
+    if with_stats {
+        for line in stats_lines(&iterations, nodes, &searcher.stats()) {
+            writeln!(out, "{line}")?;
+        }
+    }
     let seconds = elapsed.as_secs_f64();
     let rate = if seconds > 0.0 {
         (nodes as f64 / seconds) as u64
@@ -427,6 +440,32 @@ total for the side to move: +0
         assert!(err.contains("nodes per second"));
         // The same command gives the same output: nothing depends on time.
         assert_eq!(run_args(&["search", "3"]).1, out);
+    }
+
+    /// `--stats` adds the statistics after the best move and changes
+    /// nothing before it; it may stand anywhere after the command.
+    #[test]
+    fn search_with_stats_adds_the_statistics() {
+        let (_, plain, _) = run_args(&["search", "3"]);
+        let (status, out, err) = run_args(&["search", "3", "--stats"]);
+        assert_eq!(status, EXIT_OK);
+        assert!(err.starts_with("time: "));
+        let added = out.strip_prefix(plain.as_str()).unwrap();
+        let lines: Vec<&str> = added.lines().collect();
+        assert_eq!(lines.len(), 5, "{added}");
+        assert_eq!(lines[0], "stats depth 1 nodes 21");
+        assert_eq!(lines[1], "stats depth 2 nodes 222 ebf 10.57");
+        assert_eq!(lines[2], "stats depth 3 nodes 2728 ebf 12.28");
+        assert!(lines[3].starts_with("stats cutoffs "), "{added}");
+        assert!(lines[4].starts_with("stats qnodes "), "{added}");
+        assert!(lines[4].contains(" of 2971 ("), "{added}");
+        // The same on every run, and wherever the flag stands.
+        assert_eq!(run_args(&["search", "--stats", "3"]).1, out);
+        let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+        let (_, first, _) = run_args(&["search", "2", "--stats", kiwipete]);
+        let (_, last, _) = run_args(&["search", "2", kiwipete, "--stats"]);
+        assert_eq!(first, last);
+        assert!(first.contains("\nstats depth 2 nodes "));
     }
 
     #[test]

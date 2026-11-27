@@ -50,7 +50,7 @@ Layout:
 | Put a release in place: for lichess-bot (Linux), or beside the ladder's engines (Windows) | `python3 scripts/install_tools.py --vyvrael <version> --dry-run` first (`python` on Windows); `--vyvrael-build plain` for the plain file |
 | Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
-| Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [FEN]` |
+| Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [--stats] [FEN]` |
 | Bench (node count and speed) | `cargo run --release -- bench [depth [threads [hash]]]` |
 | Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
 | Run a match or a baseline round robin | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet\|roundrobin ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet\|roundrobin ... -DryRun` first, see `-Help` |
