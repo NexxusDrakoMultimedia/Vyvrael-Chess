@@ -19,6 +19,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`scripts/record_sprt.py`** appends the result of an SPRT run to
+  `docs/testing/sprt-history.md` from the run's notes and log: the
+  builds, the terms of the test, the score, the LLR and the outcome, the
+  same way every time. Undecided runs are recorded as undecided.
 - **More fuzzing of the UCI loop:** the robustness test now fails on a
   hang instead of waiting, checks that every `bestmove` of a malformed
   stream is legal, plays through damaged real sessions and games of more

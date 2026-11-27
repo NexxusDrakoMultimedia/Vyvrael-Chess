@@ -166,3 +166,117 @@ def read_run(notes_path: Path, log_path: Path | None = None) -> Run:
         outcome=log["outcome"],
         pgn_sha256=field(notes, "pgn sha256"),
     )
+
+
+# --- writing the result down -------------------------------------------------
+
+HISTORY = Path(__file__).resolve().parents[1] / "docs" / "testing" / "sprt-history.md"
+HEADER = (
+    "| Date | Change | Test build | Base build | Bounds | alpha, beta | Conditions "
+    "| Games | W - L - D | Elo | LLR | Outcome | Run |"
+)
+
+
+def build_cell(build: tuple[str, str], options: str) -> str:
+    """A build as the table names it: its name, the start of its SHA-256,
+    and the options it was given, if any."""
+    name, digest = build
+    cell = f"{name} (`{digest[:12]}`)"
+    return cell if options == "none" else f"{cell}, {options}"
+
+
+def row(run: Run, change: str) -> str:
+    """The table row for `run`. Nothing of the notes' paths goes into it."""
+    change = " ".join(change.split()).replace("|", "\\|")
+    if not change:
+        raise RecordError("--change needs a few words on what was tested")
+    outcome = f"**{run.outcome}**" if run.outcome == "H1 accepted" else run.outcome
+    cells = [
+        run.date,
+        change,
+        build_cell(run.test, run.options[0]),
+        build_cell(run.base, run.options[1]),
+        f"[{run.elo0}, {run.elo1}]",
+        f"{run.alpha}, {run.beta}",
+        f"{run.tc}, Hash {run.hash_mb}, {run.concurrency} at once, cap {run.rounds} rounds",
+        str(run.games),
+        f"{run.wins} - {run.losses} - {run.draws}",
+        f"{run.elo} +/- {run.margin}",
+        f"{run.llr} ({run.lbound}, {run.ubound})",
+        outcome,
+        f"`{run.pgn_sha256[:12]}`",
+    ]
+    return "| " + " | ".join(cells) + " |"
+
+
+def summary(run: Run) -> str:
+    """The result in one line, for the commit message of the change."""
+    return (
+        f"SPRT [{run.elo0}, {run.elo1}], alpha {run.alpha}, beta {run.beta}, {run.tc}: "
+        f"{run.wins} - {run.losses} - {run.draws} in {run.games} games, "
+        f"Elo {run.elo} +/- {run.margin}, LLR {run.llr} ({run.lbound}, {run.ubound}): "
+        f"{run.outcome}. Run {run.pgn_sha256[:12]} in docs/testing/sprt-history.md."
+    )
+
+
+def record(run: Run, change: str, target: Path, dry_run: bool = False) -> bool:
+    """Appends the row for `run` to the table that ends `target`. Returns
+    whether a row was added: a run already in the table (by the start of
+    its PGN's SHA-256) is not added twice.
+
+    The file is never created or repaired here: it must hold the table's
+    heading and end with the table, or the run is refused.
+    """
+    line = row(run, change)
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError as problem:
+        raise RecordError(f"cannot read {target}: {problem}") from None
+    lines = text.replace("\r\n", "\n").split("\n")
+    if HEADER not in lines:
+        raise RecordError(f"{target} does not hold the SPRT table (its heading line is missing)")
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines[-1].startswith("|"):
+        raise RecordError(f"{target} has text after the table; a row cannot be appended")
+    if any(text.endswith(f"| `{run.pgn_sha256[:12]}` |") for text in lines):
+        return False
+    if not dry_run:
+        with target.open("w", encoding="utf-8", newline="\n") as out:
+            out.write("\n".join(lines + [line]) + "\n")
+    return True
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Append the result of an SPRT run to docs/testing/sprt-history.md.")
+    parser.add_argument("notes", type=Path, help="the run's .notes.txt (its .log is read from beside it)")
+    parser.add_argument("--change", required=True, help="what was tested, in a few words")
+    parser.add_argument("--log", type=Path, help="the run's log, if it is not beside the notes")
+    parser.add_argument("--file", type=Path, default=HISTORY, help="the history file (default: %(default)s)")
+    parser.add_argument("--dry-run", action="store_true", help="show the row and write nothing")
+    args = parser.parse_args(argv)
+    try:
+        run = read_run(args.notes, args.log)
+        added = record(run, args.change, args.file, args.dry_run)
+    except RecordError as problem:
+        print(f"record_sprt.py: {problem}", file=sys.stderr)
+        return 2
+    print(row(run, args.change))
+    print()
+    print(summary(run))
+    if not added:
+        print("record_sprt.py: this run is already in the table; nothing was written", file=sys.stderr)
+    elif args.dry_run:
+        print("record_sprt.py: dry run; nothing was written", file=sys.stderr)
+    if run.outcome == "undecided":
+        print("record_sprt.py: undecided is not an acceptance: raise the round cap and run again, "
+              "or drop the change", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

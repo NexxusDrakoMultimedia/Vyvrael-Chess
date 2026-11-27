@@ -54,6 +54,7 @@ Layout:
 | Bench (node count and speed) | `cargo run --release -- bench [depth [threads [hash]]]` |
 | Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
 | Run a match or a baseline round robin | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet\|roundrobin ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet\|roundrobin ... -DryRun` first, see `-Help` |
+| Record an SPRT result | `python3 scripts/record_sprt.py RUN.notes.txt --change "TEXT" --dry-run` first (`python` on Windows); see `docs/TESTING.md` |
 | Rate PGN files | Linux: `scripts/linux/rate.sh [options] FILE.pgn ...`, see `--help`; Windows: `scripts/windows/rate.ps1 [options] FILE.pgn ...`, see `-Help` |
 | Data tools; training | `cargo run --release -p vyvrael-data` (stub until milestone 8); `cargo run --release -p vyvrael-train` (stub until milestone 9) |
 
@@ -88,8 +89,9 @@ Update this table in the same commit that adds or changes a command.
   parameters, and a manifest committed with any net's documentation (not the
   net itself unless it is small and the maintainer approves).
 - A new net, eval change or search change is accepted only if SPRT against
-  the previous version shows a gain. Record the result in the commit message
-  or `docs/TESTING.md`. Exempt: options that weaken play on purpose and are
+  the previous version shows a gain. Record the result in
+  `docs/testing/sprt-history.md` with `scripts/record_sprt.py` and quote
+  it in the commit message. Exempt: options that weaken play on purpose and are
   off by default, `UCI_LimitStrength` / `UCI_Elo` and `Variety`. With them
   at their defaults play must be unchanged, shown by an unchanged bench node
   count, and they stay at their defaults in every strength match.

@@ -9,9 +9,11 @@ scripts leave them in. No match is played and nothing is fetched.
 """
 from __future__ import annotations
 
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -176,6 +178,105 @@ class Refusals(Files):
 
     def test_a_command_without_bounds(self):
         self.assertIn("no elo0", self.refused(notes(COMMAND_SH.replace("elo0=0 ", "")), log()))
+
+
+TABLE = f"# SPRT history\n\nSome words.\n\n{record_sprt.HEADER}\n| --- |\n"
+
+
+class Writing(Files):
+    """The row, and appending it to the table that ends the history file."""
+
+    def setUp(self):
+        super().setUp()
+        self.history = self.dir / "sprt-history.md"
+        self.history.write_bytes(TABLE.encode("utf-8"))
+        self.notes = self.run_files(notes(), log())
+
+    def main(self, *extra: str) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            status = record_sprt.main([str(self.notes), "--file", str(self.history), *extra])
+        return status, out.getvalue(), err.getvalue()
+
+    def test_the_row(self):
+        run = record_sprt.read_run(self.notes)
+        self.assertEqual(
+            record_sprt.row(run, "  MVV-LVA in the\nmain search | first try "),
+            "| 2026-11-28 | MVV-LVA in the main search \\| first try "
+            "| Vyvrael dev-1a2b3c4 (`aaaaaaaaaaaa`), Move Overhead=100; Variety=0 "
+            "| Vyvrael 0.1.0 (`bbbbbbbbbbbb`) | [0, 5] | 0.05, 0.05 "
+            "| 10+0.1, Hash 64, 3 at once, cap 5000 rounds | 1232 | 520 - 431 - 281 "
+            "| 25.1 +/- 17.0 | 2.95 (-2.94, 2.94) | **H1 accepted** | `0123456789ab` |",
+        )
+        # As many cells as the heading has, and no path from the notes.
+        row = record_sprt.row(run, "x")
+        self.assertEqual(row.count(" | "), record_sprt.HEADER.count(" | "))
+        for path in ("/b/vyvrael", "/o/UHO.epd", "/m/run.pgn", "/opt/"):
+            self.assertNotIn(path, row)
+
+    def test_a_row_is_appended_once(self):
+        status, out, err = self.main("--change", "MVV-LVA in the main search")
+        self.assertEqual((status, err), (0, ""))
+        written = self.history.read_bytes()
+        self.assertNotIn(b"\r", written)
+        lines = written.decode("utf-8").splitlines()
+        self.assertEqual(lines[:-1], TABLE.splitlines())
+        self.assertEqual(lines[-1], out.splitlines()[0])
+        self.assertIn("H1 accepted. Run 0123456789ab in docs/testing/sprt-history.md.", out)
+        # The same run again changes nothing, whatever the words.
+        status, _, err = self.main("--change", "other words")
+        self.assertEqual(status, 0)
+        self.assertIn("already in the table", err)
+        self.assertEqual(self.history.read_bytes(), written)
+
+    def test_a_dry_run_writes_nothing(self):
+        status, out, err = self.main("--change", "x", "--dry-run")
+        self.assertEqual(status, 0)
+        self.assertIn("| 2026-11-28 | x |", out)
+        self.assertIn("nothing was written", err)
+        self.assertEqual(self.history.read_bytes(), TABLE.encode("utf-8"))
+
+    def test_undecided_is_recorded_as_undecided_and_said_not_to_pass(self):
+        text = notes(outcome="undecided: the round cap was reached first (LLR 1.83)")
+        self.notes = self.run_files(text, log("SPRT: llr 1.83 (62.3%), lbound -2.94, ubound 2.94"))
+        status, _, err = self.main("--change", "x")
+        self.assertEqual(status, 0)
+        self.assertIn("undecided is not an acceptance", err)
+        last = self.history.read_text(encoding="utf-8").splitlines()[-1]
+        self.assertIn("| undecided | `0123456789ab` |", last)
+        self.assertNotIn("**", last)
+
+    def test_a_history_file_kept_with_carriage_returns_is_written_without(self):
+        self.history.write_bytes(TABLE.replace("\n", "\r\n").encode("utf-8"))
+        self.assertEqual(self.main("--change", "x")[0], 0)
+        self.assertNotIn(b"\r", self.history.read_bytes())
+
+    def test_what_is_refused_writes_nothing(self):
+        cases = [
+            ("no table", "# SPRT history\n", "heading line is missing"),
+            ("text after it", TABLE + "\nA closing remark.\n", "text after the table"),
+        ]
+        for name, content, message in cases:
+            with self.subTest(name):
+                self.history.write_text(content, encoding="utf-8", newline="\n")
+                status, out, err = self.main("--change", "x")
+                self.assertEqual((status, out), (2, ""))
+                self.assertIn(message, err)
+                self.assertEqual(self.history.read_text(encoding="utf-8"), content)
+        self.history.unlink()
+        self.assertIn("cannot read", self.main("--change", "x")[2])
+        self.history.write_bytes(TABLE.encode("utf-8"))
+        self.assertIn("needs a few words", self.main("--change", "  ")[2])
+        self.notes = self.run_files(notes(mode="h2h"), log())
+        self.assertEqual(self.main("--change", "x")[0], 2)
+        self.assertEqual(self.history.read_bytes(), TABLE.encode("utf-8"))
+
+    def test_the_committed_history_file_takes_a_row(self):
+        """The real file has the heading the script looks for and ends with its table."""
+        real = Path(__file__).resolve().parents[2] / "docs" / "testing" / "sprt-history.md"
+        self.assertEqual(real, record_sprt.HISTORY)
+        self.history.write_bytes(real.read_bytes())
+        self.assertEqual(self.main("--change", "x", "--dry-run")[0], 0)
 
 
 if __name__ == "__main__":

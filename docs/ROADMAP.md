@@ -516,6 +516,10 @@ with `match.sh` and a rating with `rate.sh` (2026-11-21).
 
 ## Recording results
 
+SPRT results are not in the files described here: each test is a row of
+[`testing/sprt-history.md`](testing/sprt-history.md), appended by
+`scripts/record_sprt.py` (TESTING.md, "Recording an SPRT result").
+
 Every measured build gets one file under `docs/testing/`, named after the
 build (for example `results-0.1.0-alpha.1.md`), with:
 
@@ -773,7 +777,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] The release binary survives a fuzzed stream over pipes
 - **SPRT recorder:**
   - [x] `scripts/record_sprt.py` reads a run's notes and log
-  - [ ] It appends the result to `docs/testing/sprt-history.md`
+  - [x] It appends the result to `docs/testing/sprt-history.md`
   - [ ] A test that it reads what the match scripts really write
 - **EPD suite runner:**
   - [ ] `*.epd` ignored by git
