@@ -16,15 +16,17 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::{Command, GoParams, Options, bestmove_line, info_line, limits_for, parse};
+use super::{
+    Command, GoParams, HASH_DEFAULT, Options, bestmove_line, info_line, limits_for, parse,
+};
 use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
 use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
 use crate::search::{
-    Limits, Outcome, Report, Search, Weakening, split_limits, stats_lines, varied_move,
-    variety_applies, weakened_move,
+    Limits, Outcome, Report, Search, TranspositionTable, Weakening, split_limits, stats_lines,
+    varied_move, variety_applies, weakened_move,
 };
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -73,6 +75,13 @@ pub struct Engine {
     until_stopped: bool,
     /// The values of the UCI options.
     options: Options,
+    /// The transposition table, kept from one search of a game to the
+    /// next. The search thread holds it for as long as a full-strength
+    /// search runs.
+    table: Arc<Mutex<TranspositionTable>>,
+    /// The size the table was made with, in MiB: the option `Hash` as it
+    /// was when a search last started.
+    table_mb: u32,
     /// The seed of strength-affecting randomness: the option `Seed`, or
     /// one from system entropy while `Seed` is 0.
     seed: u32,
@@ -99,6 +108,14 @@ impl Engine {
             worker: None,
             until_stopped: false,
             options: Options::default(),
+            // If even the default size cannot be had, a table of one slot
+            // still lets the engine play.
+            table: Arc::new(Mutex::new(
+                TranspositionTable::new(HASH_DEFAULT)
+                    .or_else(|| TranspositionTable::new(0))
+                    .expect("memory for a table of one slot"),
+            )),
+            table_mb: HASH_DEFAULT,
             seed,
             rng: Rng::stream(seed, stream::STRENGTH),
         }
@@ -169,6 +186,14 @@ impl Engine {
                 self.end_search();
                 self.position = Position::startpos();
                 self.history.clear();
+                // What was learnt about the last game's positions says
+                // nothing reliable about the next one's, and a game must be
+                // repeatable from its own moves. No search is running: it
+                // was ended above.
+                self.table
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear();
                 // Every game starts its random sequence afresh, so that any
                 // game can be replayed by itself from one logged number.
                 // With a chosen seed that is the same seed again; without
@@ -299,8 +324,33 @@ impl Engine {
 
     /// `go`: starts a search of the current position on its own thread. A
     /// search still running is ended first.
+    /// Makes the table the size `Hash` asks for, if it is not. Called with
+    /// no search running. A new table is empty; if there is no memory for
+    /// it the old one stays, and `Hash` is put back to its size.
+    fn fit_table(&mut self) {
+        let wanted = self.options.hash_mb;
+        if wanted == self.table_mb {
+            return;
+        }
+        match TranspositionTable::new(wanted) {
+            Some(table) => {
+                *self.table.lock().unwrap_or_else(PoisonError::into_inner) = table;
+                self.table_mb = wanted;
+            }
+            None => {
+                self.say(&format!(
+                    "info string Hash: no memory for {wanted} MiB; it stays at {} MiB",
+                    self.table_mb
+                ));
+                self.options.hash_mb = self.table_mb;
+            }
+        }
+    }
+
     fn go(&mut self, params: &GoParams) {
         self.end_search();
+        self.fit_table();
+        let table = Arc::clone(&self.table);
         self.stop.store(false, Ordering::Relaxed);
         let limits = limits_for(
             params,
@@ -343,10 +393,12 @@ impl Engine {
             let evaluator = default_evaluator();
             let outcome = match weakened {
                 None => {
+                    let mut table = table.lock().unwrap_or_else(PoisonError::into_inner);
                     let mut search = Search::new(evaluator.as_ref())
                         .with_history(&history)
                         .with_limits(search_limits)
-                        .with_stop_flag(&stop);
+                        .with_stop_flag(&stop)
+                        .with_table(&mut table);
                     let started = Instant::now();
                     let mut reached = 0;
                     let mut reached_seldepth = 0;
@@ -1195,6 +1247,75 @@ mod tests {
         let mut with_stats = vec![on];
         with_stats.extend(limited);
         assert_eq!(stable(&session(&with_stats)), stable(&session(&limited)));
+    }
+
+    /// The node count of the last `info depth` line of `lines`.
+    fn last_nodes(lines: &[String]) -> u64 {
+        let line = lines.iter().rfind(|line| line.starts_with("info depth "));
+        let words: Vec<&str> = line.unwrap().split(' ').collect();
+        let at = words.iter().position(|&word| word == "nodes").unwrap();
+        words[at + 1].parse().unwrap()
+    }
+
+    /// The transposition table is kept from one search of a game to the
+    /// next and emptied by `ucinewgame`: the same search again is quicker,
+    /// and after a new game it is the first search again, line for line.
+    #[test]
+    fn the_table_lasts_a_game_and_a_new_game_empties_it() {
+        let go = "go depth 5";
+        let first = stable(&played(&[go]));
+        let twice = stable(&played(&[go, go]));
+        assert_eq!(twice[..first.len()], first[..]);
+        let again = &twice[first.len()..];
+        assert_eq!(again.last(), first.last());
+        assert!(last_nodes(again) * 4 < last_nodes(&first), "{again:?}");
+        // A new game in between: the seed line it logs, then the first
+        // search once more.
+        let renewed = stable(&played(&[
+            "setoption name Seed value 5",
+            go,
+            "ucinewgame",
+            go,
+        ]));
+        let seed = "info string rng seed 5 (Seed)";
+        assert_eq!(renewed[0], seed);
+        assert_eq!(renewed[1..=first.len()], first[..]);
+        assert_eq!(renewed[first.len() + 1], seed);
+        assert_eq!(renewed[first.len() + 2..], first[..]);
+    }
+
+    /// `Hash` sizes the table from the next search on. A new size is a new,
+    /// empty table; the same size again keeps what the table holds.
+    #[test]
+    fn hash_sizes_the_table() {
+        let (mut engine, captured) = engine();
+        assert_eq!(engine.table_mb, HASH_DEFAULT);
+        let slots = |engine: &Engine| engine.table.lock().unwrap().len();
+        assert_eq!(slots(&engine), 1 << 20);
+        engine.handle("setoption name Hash value 2");
+        // Not yet: an option applies from the next search.
+        assert_eq!(slots(&engine), 1 << 20);
+        engine.handle("go depth 4");
+        engine.wait();
+        assert_eq!((engine.table_mb, slots(&engine)), (2, 1 << 17));
+        let first = last_nodes(&captured.lines());
+        // The same size named again: the table is kept, so the search is
+        // quicker.
+        engine.handle("setoption name Hash value 2");
+        engine.handle("go depth 4");
+        engine.wait();
+        assert!(last_nodes(&captured.lines()) * 2 < first);
+        // Another size: an empty table, and the first search's work again.
+        engine.handle("setoption name Hash value 1");
+        engine.handle("go depth 4");
+        engine.wait();
+        assert_eq!((engine.table_mb, slots(&engine)), (1, 1 << 16));
+        assert_eq!(last_nodes(&captured.lines()), first);
+        // A size that is refused changes nothing.
+        engine.handle("setoption name Hash value 0");
+        engine.handle("go depth 1");
+        engine.wait();
+        assert_eq!(engine.table_mb, 1);
     }
 
     /// With `Variety` 0, the default, the root move is always the search's

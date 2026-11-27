@@ -8,6 +8,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **A transposition table** (milestone 7, item 2a). The search remembers
+  what it found for each position (depth, score, bound, best move) and
+  uses it when the position comes up again by another move order or in
+  the next iteration. `Hash` now sizes it, `ucinewgame` empties it. The
+  bench counts 394,939 nodes, from 459,926. SPRT against the search
+  before it: see `docs/testing/sprt-history.md`.
+
 ### Changed
 
 - **The main search tries captures first** (milestone 7, item 1): captures

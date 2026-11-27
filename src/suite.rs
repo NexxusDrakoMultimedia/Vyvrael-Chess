@@ -17,7 +17,8 @@ use crate::board::Move;
 use crate::epd::EpdRecord;
 use crate::eval::default_evaluator;
 use crate::movegen::find_san_move;
-use crate::search::{Limits, Search};
+use crate::search::{Limits, Search, TranspositionTable};
+use crate::uci::HASH_DEFAULT;
 
 /// How long each position of a suite is searched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +96,13 @@ pub fn solve(line: &str, limit: SuiteLimit) -> (Option<EpdRecord>, Verdict) {
         SuiteLimit::MoveTime(time) => Limits::until(Instant::now() + time),
     };
     let evaluator = default_evaluator();
+    // A new table for each position: one position's search must not
+    // depend on the positions before it in the file.
+    let mut table = TranspositionTable::new(HASH_DEFAULT);
     let mut search = Search::new(evaluator.as_ref()).with_limits(limits);
+    if let Some(table) = table.as_mut() {
+        search = search.with_table(table);
+    }
     let played = search.iterate(&record.position, &mut |_| {}).best_move;
     let solved =
         played.is_some_and(|mv| (best.is_empty() || best.contains(&mv)) && !avoid.contains(&mv));

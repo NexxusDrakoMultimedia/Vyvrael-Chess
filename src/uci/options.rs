@@ -30,8 +30,8 @@ pub const MOVE_OVERHEAD_MAX: u32 = 5_000;
 /// The current value of every option.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Options {
-    /// `Hash`: transposition table size in mebibytes. Stored but not used
-    /// yet: there is no transposition table before milestone 7.
+    /// `Hash`: transposition table size in mebibytes. The engine makes the
+    /// table this size when the next search starts.
     pub hash_mb: u32,
     /// `Threads`: number of search threads. Only 1 is possible until there
     /// is a parallel search.

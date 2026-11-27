@@ -11,9 +11,9 @@
 use vyvrael::bench::{BENCH_DEPTH, BENCH_POSITIONS, bench};
 
 /// The count of `vyvrael bench` at the default depth. It was 16,611,416
-/// from 2026-11-22 until the main search began to try captures first
-/// (milestone 7); `docs/testing/bench-history.md` has every value.
-const BENCH_NODES: u64 = 459_926;
+/// from 2026-11-22 until milestone 7 began to change the search;
+/// `docs/testing/bench-history.md` has every value since.
+const BENCH_NODES: u64 = 394_939;
 
 #[test]
 fn the_bench_node_count_is_pinned() {

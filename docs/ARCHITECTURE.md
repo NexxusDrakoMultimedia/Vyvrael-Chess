@@ -42,7 +42,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `suite` | implemented | `suite::run` searches every record of an EPD test suite for a depth, a node count or a time (`SuiteLimit`) and reports whether the move played is a `bm` move and not an `am` move; `suite::solve` does one line. A quick check of the search, not a measure of strength. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`; `report`, the evaluation and its parts as lines of text. |
-| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). Since milestone 7: captures tried first in the main search, and the transposition table (`TranspositionTable`, `Bound`, `Entry`, `Search::with_table`). |
 | `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
@@ -530,8 +530,42 @@ transposition table, pruning) come in milestone 7, one at a time.
   - It ends early when the root has no legal move, and when a forced mate
     has been found within the depth searched, since a deeper search cannot
     find a shorter one.
-  - With no ordering heuristics or tables yet, iterating to depth N gives
-    exactly the result of a direct depth-N search; a test relies on that.
+  - Without a transposition table, iterating to depth N gives exactly the
+    result of a direct depth-N search; a test relies on that. With a
+    table (below) the earlier iterations leave what they found, which is
+    the point of iterating, and the node counts differ.
+- **Transposition table** (`search/tt.rs`, since milestone 7). The same
+  position is reached by many move orders and by every iteration. The
+  table keeps, by position hash, how deep a position was searched, the
+  score, whether the score is the value or only a lower or an upper
+  bound on it, and the best move.
+  - The main search asks the table after counting the node. A result at
+    least as deep as is needed settles the position if it is the value,
+    or a bound that already lies outside the window. The root and the
+    quiescence search do not ask. After searching, the node stores what
+    it found.
+  - It is a flat array of 16-byte slots indexed by the low bits of the
+    hash, each holding the whole hash. A newer result takes the slot
+    unless the slot holds the same position searched deeper.
+  - Mate scores count plies from the root, so they are stored as
+    distances from the position and turned back for whoever asks.
+  - A stored result ignores how the position was reached. So it is not
+    used from 90 half-moves without progress on, where the fifty-move
+    rule makes the count matter; repetitions are looked for before the
+    table is asked. What remains is the usual small risk of a value
+    found on one path being wrong on another.
+  - A cutoff from the table ends the line there, so the principal
+    variation the engine prints can be shorter than the depth.
+  - `Search::with_table` lends a table to a search; without one the
+    search is as before. The engine keeps one table for a game (sized by
+    `Hash`, emptied by `ucinewgame`) and lends it to every full-strength
+    search; `bench`, `search` and `suite` use a new one for each
+    position. The weakened search and the checks of a varied move use
+    none, so limited-strength play is what it was.
+  - A search with a table depends on what the table held, so it is a
+    function of the searches before it and no longer of the position
+    alone. The same commands in the same order still give the same
+    result.
 - **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
   and how many of them the first move tried gave, in the main search and
   in quiescence, the quiescence positions and those cut off as they

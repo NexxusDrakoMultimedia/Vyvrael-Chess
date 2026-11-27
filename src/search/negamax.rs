@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 
 use super::ordering::captures_first;
 use super::{
-    DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, fifty_moves_reached, insufficient_material,
-    is_repetition, mated_in,
+    Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
+    fifty_moves_reached, insufficient_material, is_repetition, mated_in,
 };
 use crate::attacks::knight_attacks;
 use crate::board::{Color, Move, MoveKind, PieceKind, Position, Square};
@@ -85,7 +85,16 @@ pub struct Search<'a> {
     /// Counts of what the search did. Like `seldepth`, written here and
     /// read only from outside, by [`Search::stats`].
     stats: SearchStats,
+    /// What earlier searching found out about positions, if the caller
+    /// lent a table (see [`Search::with_table`]). Without one every
+    /// position is searched afresh.
+    table: Option<&'a mut TranspositionTable>,
 }
+
+/// From this many half-moves without a capture or a pawn move, a result in
+/// the table is not taken on trust: it was found with another count, and
+/// the fifty-move rule is about to make the count matter.
+const FIFTY_MOVE_GUARD: u16 = 90;
 
 /// The stop flag and the clock are looked at once per this many nodes:
 /// reading them at every node would cost more than the search itself.
@@ -107,6 +116,7 @@ impl<'a> Search<'a> {
             limits_apply: true,
             seldepth: 0,
             stats: SearchStats::ZERO,
+            table: None,
         }
     }
 
@@ -124,6 +134,21 @@ impl<'a> Search<'a> {
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Search<'a> {
         self.limits = limits;
+        self
+    }
+
+    /// Lends the search a transposition table: it uses what the table
+    /// knows and adds what it finds. The table outlives the search, so the
+    /// next search, of the next move of the game, starts with it.
+    ///
+    /// A search with a table is no longer a function of the position alone:
+    /// what it visits depends on what the table held. It is still
+    /// repeatable, since the same searches in the same order fill the table
+    /// the same way, and a new table makes it a function of the position
+    /// again.
+    #[must_use]
+    pub fn with_table(mut self, table: &'a mut TranspositionTable) -> Search<'a> {
+        self.table = Some(table);
         self
     }
 
@@ -417,7 +442,28 @@ impl<'a> Search<'a> {
         }
         self.nodes += 1;
 
+        // Has this position been searched at least this deep before? Then
+        // what was found may settle it: its value, or a bound on the value
+        // that already lies outside the window.
+        let key = pos.hash();
+        if let Some(table) = self.table.as_deref()
+            && let Some(known) = table.probe(key, ply)
+            && known.depth >= depth
+            && pos.halfmove_clock() < FIFTY_MOVE_GUARD
+        {
+            let settles = match known.bound {
+                Bound::Exact => true,
+                Bound::Lower => known.score >= beta,
+                Bound::Upper => known.score <= alpha,
+            };
+            if settles {
+                return known.score;
+            }
+        }
+
+        let alpha_at_first = alpha;
         let mut best = -INFINITY;
+        let mut best_move = None;
         let mut any_legal = false;
         // Captures and promotions first, most valuable victim first: see
         // `ordering.rs`.
@@ -441,6 +487,7 @@ impl<'a> Search<'a> {
                 best = score;
                 if score > alpha {
                     alpha = score;
+                    best_move = Some(mv);
                     self.update_pv(ply, mv);
                     if alpha >= beta {
                         // The opponent has a better option elsewhere and
@@ -453,11 +500,24 @@ impl<'a> Search<'a> {
             }
         }
 
-        if any_legal {
-            best
-        } else {
-            no_moves_score(pos, ply)
+        if !any_legal {
+            return no_moves_score(pos, ply);
         }
+        // Remember the result. It is the value if some move raised alpha
+        // without reaching beta; a move that reached beta shows only that
+        // the value is at least that; and if no move raised alpha, only
+        // that it is at most the best seen.
+        if let Some(table) = self.table.as_deref_mut() {
+            let bound = if best >= beta {
+                Bound::Lower
+            } else if best > alpha_at_first {
+                Bound::Exact
+            } else {
+                Bound::Upper
+            };
+            table.store(key, ply, depth, best, bound, best_move);
+        }
+        best
     }
 }
 
@@ -1590,6 +1650,109 @@ mod tests {
             searcher.fixed_depth(&pos, 2);
             assert_eq!((searcher.stats(), searcher.nodes()), (stats, nodes));
         }
+    }
+
+    /// A search with a table and one without, each iterating to `depth`.
+    fn with_and_without_a_table(text: &str, depth: u32) -> ((Outcome, u64), (Outcome, u64)) {
+        let pos = fen(text);
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut helped = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
+        let with = (helped.iterate(&pos, &mut |_| {}), helped.nodes());
+        let mut plain = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+        let without = (plain.iterate(&pos, &mut |_| {}), plain.nodes());
+        (with, without)
+    }
+
+    /// The table saves work and changes no answer: the same score and the
+    /// same first move as the search without it, in fewer positions.
+    #[test]
+    fn a_table_saves_work_and_changes_no_answer() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 5),
+            (KIWIPETE, 4),
+            (ROOK_ENDGAME, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                4,
+            ),
+            ("4k3/8/3p4/4p3/8/8/4Q3/4K3 w - - 0 1", 5),
+        ] {
+            let ((with, fewer), (without, nodes)) = with_and_without_a_table(text, depth);
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+            assert!(fewer < nodes, "{text}: {fewer} with, {nodes} without");
+        }
+    }
+
+    /// Mates are found at the same distance with a table, where the scores
+    /// it hands back were stored at other distances from the root.
+    #[test]
+    fn a_table_keeps_mate_distances_right() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("8/8/8/8/8/5k2/8/3q1K2 w - - 0 1", 6),
+        ] {
+            let ((with, _), (without, _)) = with_and_without_a_table(text, depth);
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    /// The table outlives a search. The same position searched again finds
+    /// its answer almost at once, and after `clear` the work is the first
+    /// search's again, node for node.
+    #[test]
+    fn a_table_is_kept_between_searches_until_it_is_cleared() {
+        let pos = fen(KIWIPETE);
+        let mut table = TranspositionTable::new(1).unwrap();
+        let search = |table: &mut TranspositionTable| {
+            let mut searcher = Search::new(&HandCrafted)
+                .with_limits(Limits::depth(3))
+                .with_table(table);
+            (searcher.iterate(&pos, &mut |_| {}), searcher.nodes())
+        };
+        let (first, nodes) = search(&mut table);
+        let (again, fewer) = search(&mut table);
+        assert_eq!(
+            (again.score, again.best_move),
+            (first.score, first.best_move)
+        );
+        assert!(fewer * 4 < nodes, "{fewer} against {nodes}");
+        table.clear();
+        assert_eq!(search(&mut table), (first, nodes));
+    }
+
+    /// Near the fifty-move rule the table is not believed: a value found
+    /// with a low count would hide the draw that the count is about to
+    /// force. Rook against bare king, 98 half-moves in: a mate in two that
+    /// the hundredth half-move turns into a draw.
+    #[test]
+    fn a_table_does_not_hide_the_fifty_move_rule() {
+        let mut table = TranspositionTable::new(1).unwrap();
+        let won = |clock: u32| fen(&format!("7k/8/5K2/8/8/8/8/R7 w - - {clock} 60"));
+        // Fill the table from the position with a count of 0.
+        let mut filling = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .with_table(&mut table);
+        let fresh = filling.iterate(&won(0), &mut |_| {});
+        assert!(crate::search::is_mate_score(fresh.score), "{}", fresh.score);
+        // The count is not part of the hash: the same table, the same
+        // squares, and a search that must still see the draw.
+        let late = won(98);
+        assert_eq!(late.hash(), won(0).hash());
+        let mut helped = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .with_table(&mut table);
+        let with = helped.iterate(&late, &mut |_| {});
+        let without = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .iterate(&late, &mut |_| {});
+        assert_eq!(with.score, without.score);
+        assert!(!crate::search::is_mate_score(with.score), "{}", with.score);
     }
 
     #[test]

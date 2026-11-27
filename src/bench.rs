@@ -18,7 +18,8 @@ use std::time::{Duration, Instant};
 
 use crate::board::Position;
 use crate::eval::default_evaluator;
-use crate::search::{Limits, Search};
+use crate::search::{Limits, Search, TranspositionTable};
+use crate::uci::HASH_DEFAULT;
 
 /// The depth every bench position is searched to, in plies.
 ///
@@ -83,7 +84,13 @@ pub fn bench(depth: u32) -> BenchResult {
     let mut elapsed = Duration::ZERO;
     for fen in BENCH_POSITIONS {
         let pos = Position::from_fen(fen).expect("the bench positions are valid");
-        let mut search = Search::new(evaluator.as_ref()).with_limits(Limits::depth(depth));
+        // A new table for each position, as a new game has, of the size the
+        // engine starts with.
+        let mut table =
+            TranspositionTable::new(HASH_DEFAULT).expect("memory for the bench's table");
+        let mut search = Search::new(evaluator.as_ref())
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
         let start = Instant::now();
         let _ = search.iterate(&pos, &mut |_| {});
         elapsed += start.elapsed();

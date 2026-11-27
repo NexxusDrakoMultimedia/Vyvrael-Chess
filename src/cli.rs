@@ -13,9 +13,9 @@ use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
 use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search, stats_lines};
+use crate::search::{Limits, MAX_PLY, Report, Search, TranspositionTable, stats_lines};
 use crate::suite::{self, SuiteLimit};
-use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
+use crate::uci::{HASH_DEFAULT, HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -165,7 +165,15 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
     let start = Instant::now();
     let mut lines = Vec::new();
     let mut iterations = Vec::new();
-    let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+    // As the engine searches the first move of a game: with an empty
+    // table of its default size.
+    let Some(mut table) = TranspositionTable::new(HASH_DEFAULT) else {
+        writeln!(err, "search: no memory for the transposition table")?;
+        return Ok(EXIT_FAILURE);
+    };
+    let mut searcher = Search::new(&HandCrafted)
+        .with_limits(Limits::depth(depth))
+        .with_table(&mut table);
     let outcome = searcher.iterate(&pos, &mut |report| {
         lines.push(progress_line(report));
         iterations.push((report.depth, report.nodes));
@@ -203,7 +211,7 @@ fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::R
     // Up to three numbers: the depth, then the threads and the hash size
     // in MiB. The last two are checked against the ranges of the UCI
     // options `Threads` and `Hash` and otherwise unused: there is one
-    // search thread and no transposition table yet.
+    // search thread, and the bench's table has a fixed size for now.
     let ranges = [(1, MAX_PLY as u32), (1, THREADS_MAX), (1, HASH_MAX)];
     let in_range = |(text, (low, high)): (&String, &(u32, u32))| {
         text.parse::<u32>()
