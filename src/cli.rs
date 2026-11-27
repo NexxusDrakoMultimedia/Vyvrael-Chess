@@ -7,13 +7,14 @@
 //! in-memory buffers.
 
 use std::io::{self, Write};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::bench::{BENCH_DEPTH, bench};
 use crate::board::Position;
 use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
 use crate::search::{Limits, MAX_PLY, Report, Search, stats_lines};
+use crate::suite::{self, SuiteLimit};
 use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -26,6 +27,8 @@ Usage:
   vyvrael eval [FEN]                       show the static evaluation
   vyvrael search <depth> [--stats] [FEN]   search to a fixed depth
   vyvrael bench [depth [threads [hash]]]   a fixed search workload: nodes and speed
+  vyvrael suite <file> (--depth N | --nodes N | --movetime MS)
+                                           run an EPD test suite
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
@@ -49,10 +52,18 @@ given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
 is the same on every run of the same build; the speed is not. <threads> (1
 only) and <hash> (in MiB, 1 to 65536) are accepted in the form other engines
 use, `bench <depth> <threads> <hash>`, and have no effect yet.
+
+suite searches every position of an EPD file, each to the depth, node count
+or time in milliseconds given, and says for each whether the move found is
+one of its best moves (bm) and none of its moves to avoid (am), then how many
+were solved. It is a quick check of the search, not a measure of strength.
 ";
 
 /// Exit status for success.
 pub const EXIT_OK: u8 = 0;
+/// Exit status for a command that was understood and could not be carried
+/// out: a file that cannot be read.
+pub const EXIT_FAILURE: u8 = 1;
 /// Exit status for a command line that could not be understood.
 pub const EXIT_USAGE: u8 = 2;
 
@@ -79,6 +90,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Res
         Some("eval") => run_eval(&args[1..], out, err),
         Some("search") => run_search(&args[1..], out, err),
         Some("bench") => run_bench(&args[1..], out, err),
+        Some("suite") => run_suite(&args[1..], out, err),
         Some(other) => {
             writeln!(err, "unknown command: {other}")?;
             write!(err, "{USAGE}")?;
@@ -218,6 +230,64 @@ fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::R
         "{} nodes {} nps",
         result.nodes,
         result.nodes_per_second()
+    )?;
+    Ok(EXIT_OK)
+}
+
+/// The file and the limit of a `suite` command, or `None` if the arguments
+/// are not one file and exactly one limit with a whole number above 0
+/// (0 is allowed for a time).
+fn suite_arguments(args: &[String]) -> Option<(&str, SuiteLimit)> {
+    let [first, second, third] = args else {
+        return None;
+    };
+    // The file may stand before or after the limit.
+    let (file, flag, value) = if first.starts_with("--") {
+        (third, first, second)
+    } else {
+        (first, second, third)
+    };
+    let limit = match flag.as_str() {
+        "--depth" => {
+            let depth = value
+                .parse()
+                .ok()
+                .filter(|depth| (1..=MAX_PLY as u32).contains(depth));
+            SuiteLimit::Depth(depth?)
+        }
+        "--nodes" => SuiteLimit::Nodes(value.parse().ok().filter(|nodes| *nodes > 0)?),
+        "--movetime" => SuiteLimit::MoveTime(Duration::from_millis(value.parse().ok()?)),
+        _ => return None,
+    };
+    (!file.starts_with("--")).then_some((file.as_str(), limit))
+}
+
+fn run_suite(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
+    let Some((file, limit)) = suite_arguments(args) else {
+        writeln!(
+            err,
+            "suite: expected a file and one of --depth (1 to {MAX_PLY}), --nodes or --movetime \
+             (milliseconds), with a number"
+        )?;
+        write!(err, "{USAGE}")?;
+        return Ok(EXIT_USAGE);
+    };
+    let text = match std::fs::read(file) {
+        // Suite files are old and not always UTF-8; a stray byte in a
+        // comment should not cost the whole file.
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(problem) => {
+            writeln!(err, "suite: cannot read {file}: {problem}")?;
+            return Ok(EXIT_FAILURE);
+        }
+    };
+    let start = Instant::now();
+    let result = suite::run(&text, limit, out)?;
+    writeln!(
+        err,
+        "time: {} ms, {} nodes",
+        start.elapsed().as_millis(),
+        result.nodes
     )?;
     Ok(EXIT_OK)
 }
@@ -511,6 +581,98 @@ total for the side to move: +0
         let (status, _, err) = run_args(&["search", "2", "not", "a", "fen"]);
         assert_eq!(status, EXIT_USAGE);
         assert!(err.contains("search: invalid FEN"));
+    }
+
+    /// A file for the `suite` tests, in the system's temporary directory
+    /// under a name of this process, removed when dropped.
+    struct SuiteFile(std::path::PathBuf);
+
+    impl SuiteFile {
+        fn new(name: &str, bytes: &[u8]) -> SuiteFile {
+            let file = format!("vyvrael-{}-{name}.epd", std::process::id());
+            let path = std::env::temp_dir().join(file);
+            std::fs::write(&path, bytes).unwrap();
+            SuiteFile(path)
+        }
+
+        fn path(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+    }
+
+    impl Drop for SuiteFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn suite_runs_a_file_and_reports() {
+        // A byte that is not UTF-8 in a comment does not stop the file.
+        let file = SuiteFile::new(
+            "runs",
+            b"# by \xe9douard\n6k1/5ppp/8/8/8/8/8/R5K1 w - - bm Ra8+; id \"back rank\";\n\
+              4k3/8/8/3q4/8/8/8/3RK3 w - - bm Rd2;\nnot a record\n",
+        );
+        let (status, out, err) = run_args(&["suite", file.path(), "--depth", "2"]);
+        assert_eq!(status, EXIT_OK);
+        assert_eq!(
+            out,
+            "2 back rank: solved, played a1a8 (bm Ra8+)\n\
+             3: failed, played d1d5 (bm Rd2)\n\
+             4: skipped, fewer than the four fields of a position\n\
+             solved 1 of 2 positions (1 line skipped)\n"
+        );
+        assert!(
+            err.starts_with("time: ") && err.trim_end().ends_with(" nodes"),
+            "{err}"
+        );
+        // The limit may come first, and the other limits work.
+        assert_eq!(run_args(&["suite", "--depth", "2", file.path()]).1, out);
+        for limit in [["--nodes", "200"], ["--movetime", "0"]] {
+            let (status, out, _) = run_args(&["suite", file.path(), limit[0], limit[1]]);
+            assert_eq!(status, EXIT_OK, "{limit:?}");
+            assert!(
+                out.ends_with("positions (1 line skipped)\n"),
+                "{limit:?}: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn suite_rejects_bad_input() {
+        let file = SuiteFile::new("rejects", b"");
+        let path = file.path();
+        for args in [
+            &["suite"][..],
+            &["suite", path],
+            &["suite", path, "--depth"],
+            &["suite", path, "--depth", "0"],
+            &["suite", path, "--depth", "129"],
+            &["suite", path, "--depth", "deep"],
+            &["suite", path, "--nodes", "0"],
+            &["suite", path, "--movetime", "-5"],
+            &["suite", path, "--time", "5"],
+            &["suite", "--depth", "2", "--nodes"],
+            &["suite", path, "--depth", "2", "--nodes", "5"],
+        ] {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_USAGE, "{args:?}");
+            assert!(out.is_empty());
+            assert!(
+                err.starts_with("suite: expected a file and one of --depth"),
+                "{err}"
+            );
+        }
+        // A file that is not there is not a usage error.
+        let (status, out, err) = run_args(&["suite", "no/such/file.epd", "--depth", "1"]);
+        assert_eq!(status, EXIT_FAILURE);
+        assert!(out.is_empty());
+        assert!(
+            err.starts_with("suite: cannot read no/such/file.epd: "),
+            "{err}"
+        );
+        assert!(!err.contains("Usage:"));
     }
 
     /// The bench prints one line, `<nodes> nodes <nps> nps`, and the same

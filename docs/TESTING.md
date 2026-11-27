@@ -57,7 +57,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
 | `epd` | A record with `bm` and a quoted `id`; several moves, odd spacing, an empty operation and no last semicolon; a semicolon inside quotes stays in the operand; an opcode alone has an empty operand; `hmvc` and `fmvn` are kept as operations and do not reach the position; a bare position has no operations. Refused: fewer than four fields, a position the FEN rules refuse, an open quote. |
 | `suite` | A suite of eleven lines written for the test, pinned line for line at depth 2: two mates in one (either of two mating moves counts), a hanging queen, a move to avoid, a best move that is wrong on purpose (failed), and lines skipped with their reason (no `bm` or `am`, a move that is not one legal move, a position the FEN rules refuse, a stalemate, whose moves cannot be read); comments and blank lines are passed over; the total line. The output is the same on every run with a depth or a node limit, fewer nodes are used with a smaller limit, a move time works as a limit, and an empty suite is zero of zero. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 222 and 2,728 nodes, factors 10.57 and 12.28), leaves what comes before them unchanged, and gives the same output wherever the flag stands. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. `search --stats` adds five lines after the best move of a depth-3 search (21, 222 and 2,728 nodes, factors 10.57 and 12.28), leaves what comes before them unchanged, and gives the same output wherever the flag stands. `suite` runs a file (with a byte that is not UTF-8 in a comment) and prints a line per record and the total, with the limit before or after the file and with each of the three limits; eleven wrong command lines (no file, no limit, two limits, a bad number, an unknown flag) are usage errors; a file that is not there gives status 1 and no usage text. |
 | `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
@@ -1498,11 +1498,62 @@ counts, test results, and whether games complete without failures.
   `match.ps1` splits a string at `;` into several options, as it does
   opponents. The notes list each build's options.
 
+## Test suites
+
+```sh
+cargo run --release -- suite <file> (--depth N | --nodes N | --movetime MS)
+```
+
+searches every position of an EPD file and says whether the move found is
+the one the file asks for:
+
+```
+1 back rank: solved, played a1a8 (bm Ra8+)
+2 quiet move: failed, played e2e4 (bm Nf3; am e4)
+4: skipped, no bm or am operation
+solved 1 of 2 positions (1 line skipped)
+```
+
+- A line of the file is a position (the first four fields of a FEN) and
+  operations: `bm` lists the best moves, `am` moves to avoid, `id` names
+  the position. A position is **solved** when the move played is one of
+  the `bm` moves, if there are any, and none of the `am` moves. Moves are
+  in standard algebraic notation, read forgivingly (see
+  `movegen::find_san_move`).
+- Each position gets a new full-strength search with exactly one limit: a
+  depth, a node count, or a time in milliseconds. **With a depth or a node
+  count the output is the same on every run and machine**, so two builds
+  can be compared line by line; a time is what published results use, but
+  varies with the machine, and the first depth is always finished
+  whatever the time (known issue KI-10).
+- **A line that cannot be used is skipped, said so, and counted:** not a
+  position the engine accepts (FEN parsing is strict and repairs nothing,
+  known issue KI-2), no `bm` or `am`, or a move that is not exactly one
+  legal move of the position. Results are of the positions that loaded.
+  Blank lines and lines starting with `#` are passed over.
+- Time and nodes go to stderr. Status 1 means the file could not be read,
+  2 that the command line was not understood.
+- Scores some suites give per move (in a comment operation) are not read:
+  a position is solved or not.
+
+**What a suite is for.** It is a sanity check after a change to the
+search, in seconds where a match takes hours: it shows that the search
+still finds what it found, and which positions changed. **It is not a
+measure of strength and replaces no SPRT.** Positions are chosen, not
+sampled; a change that solves more of them can lose games, and the other
+way round. A count of solved positions is never quoted as how strong
+Vyvræl is.
+
+Suites are third-party files: they are never committed (git ignores
+`*.epd`), and the ones used are recorded in [DATA.md](DATA.md) with
+their source, licence and date. The command takes a path, so they can
+live anywhere.
+
 ## Tactical test suites (planned, milestone 8)
 
 A tactical suite derived from the Lichess puzzle database will report the
-share of puzzles solved at a fixed depth or time. Details will be added with
-the tooling.
+share of puzzles solved at a fixed depth or time, run with the `suite`
+command above. Details will be added with the tooling.
 
 ## Reproducible runs
 

@@ -25,7 +25,7 @@ Layout:
   per piece type), `movegen/` (move generation), `perft.rs` (perft node
   counting), `eval/` (static evaluation), `search/`, `uci/` (parsing, options,
   time, engine loop), `bench.rs` (a fixed search workload), `epd.rs` and `suite.rs` (EPD records, test suites) and `cli.rs` (the
-  binary's other commands: `perft`, `eval`, `search`, `bench`, `help`).
+  binary's other commands: `perft`, `eval`, `search`, `bench`, `suite`, `help`).
 - `tests/`: integration tests that use only the public API.
 - `tools/vyvrael-data`: data and database tooling (milestone 8).
 - `tools/vyvrael-train`: NNUE training (milestone 9).
@@ -52,6 +52,7 @@ Layout:
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [--stats] [FEN]` |
 | Bench (node count and speed) | `cargo run --release -- bench [depth [threads [hash]]]` |
+| Run an EPD test suite (a quick check, not a strength measure) | `cargo run --release -- suite <file> (--depth N \| --nodes N \| --movetime MS)` |
 | Run as a UCI engine; usage | `cargo run --release` (no arguments; see `docs/UCI.md`); `cargo run --release -- help` lists the other commands |
 | Run a match or a baseline round robin | Linux: `scripts/linux/match.sh sprt\|h2h\|gauntlet\|roundrobin ... --dry-run` first, see `--help`; Windows: `scripts/windows/match.ps1 sprt\|h2h\|gauntlet\|roundrobin ... -DryRun` first, see `-Help` |
 | Record an SPRT result | `python3 scripts/record_sprt.py RUN.notes.txt --change "TEXT" --dry-run` first (`python` on Windows); see `docs/TESTING.md` |

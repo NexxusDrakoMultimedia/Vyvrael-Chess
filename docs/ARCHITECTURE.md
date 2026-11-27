@@ -36,7 +36,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake, coordinate-notation move parsing and a text diagram (`Position::diagram`). |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
 | `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. `find_legal_move` and `find_san_move` turn outside text (UCI notation, standard algebraic notation) into a legal move or nothing. |
-| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `bench`, `help`. |
+| `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `bench`, `suite`, `help`. |
 | `bench` | implemented | `bench(depth)`, `BenchResult`, `BENCH_POSITIONS`, `BENCH_DEPTH`: a fixed full-strength search workload whose node count is pinned. |
 | `epd` | implemented | `EpdRecord::parse` reads one line of an EPD file (a position and its operations, such as `bm`, `am` and `id`), for test suites. The position is checked as strictly as a FEN. |
 | `suite` | implemented | `suite::run` searches every record of an EPD test suite for a depth, a node count or a time (`SuiteLimit`) and reports whether the move played is a `bm` move and not an `am` move; `suite::solve` does one line. A quick check of the search, not a measure of strength. |
@@ -739,8 +739,10 @@ and option is listed in [UCI.md](UCI.md).
   timing on stderr so that stdout is identical on every run; `--stats`
   adds the lines of `search::stats_lines`. `bench [depth [threads [hash]]]`
   runs `bench::bench` and prints `<nodes> nodes <nps> nps`; the threads
-  and the hash size are checked and have no effect yet. Exit status 2
-  means the command line was not understood.
+  and the hash size are checked and have no effect yet. `suite <file>`
+  with `--depth`, `--nodes` or `--movetime` reads an EPD file and gives it
+  to `suite::run`. Exit status 2 means the command line was not
+  understood, 1 that a file could not be read.
 
 - **Bench** (`bench.rs`): `bench(depth)` searches the fixed positions of
   `BENCH_POSITIONS` to `depth` at full strength, each as a new search with
@@ -757,7 +759,7 @@ the command thread keeps reading stdin and can act on `stop`. Search calls
 the evaluation through a trait, so the hand-crafted evaluation and the NNUE
 evaluation are interchangeable and can be compared by SPRT. Only the UCI
 layer writes to stdout; the other commands of the binary (`perft`, `eval`,
-`search`, `bench`, `help`) are separate and never run in the same process as the loop.
+`search`, `bench`, `suite`, `help`) are separate and never run in the same process as the loop.
 The loop's own `d` and `eval` reuse `Position::diagram` and `eval::report`
 and send them as `info string` lines.
 

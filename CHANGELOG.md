@@ -19,6 +19,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`vyvrael suite <file>`** runs an EPD test suite at a fixed depth, node
+  count or time and reports which positions were solved (`bm`, `am`). It
+  is a quick check of the search after a change, not a measure of
+  strength. Behind it: `movegen::find_san_move` reads moves in standard
+  algebraic notation, and the modules `epd` and `suite`. Suite files are
+  not part of the repository.
 - **`scripts/record_sprt.py`** appends the result of an SPRT run to
   `docs/testing/sprt-history.md` from the run's notes and log: the
   builds, the terms of the test, the score, the LLR and the outcome, the

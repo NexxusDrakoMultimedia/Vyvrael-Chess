@@ -784,7 +784,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] A legal move found from its SAN text
   - [x] EPD records read
   - [x] Positions scored by `bm` and `am`
-  - [ ] The command `suite`
+  - [x] The command `suite`
   - [ ] `DATA.md`: the WAC and STS suites, confirmed on their official pages
 - [ ] End-of-branch doc drift pass
 
