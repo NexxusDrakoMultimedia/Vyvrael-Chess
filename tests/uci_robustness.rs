@@ -11,6 +11,14 @@
 //! exactly one `bestmove`, and that each of those moves is legal in the
 //! position the engine should have been searching.
 //!
+//! A second kind of stream is made of real sessions, as a GUI or a match
+//! tool sends them (options, a new game, a growing move list with a search
+//! after each position), some lines damaged by a byte or two, with games of
+//! more than a thousand plies among them. There the engine is given each
+//! line as it would arrive, and each search with a limit of its own is left
+//! to run to that limit before the next line, so that the later depths, the
+//! checks of a varied move and the passes of a weakened one are reached.
+//!
 //! A stream that the engine does not finish in time fails the test instead
 //! of stalling it, and every stream's input is written to Cargo's directory
 //! for test files, so that a failure can be looked at and replayed
@@ -24,14 +32,14 @@ use std::panic;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use std::thread;
 use std::time::Duration;
 
 use vyvrael::board::Position;
 use vyvrael::movegen::{find_legal_move, legal_moves};
 use vyvrael::rng::Rng;
-use vyvrael::uci::{Command, parse, run};
+use vyvrael::uci::{Command, Engine, GoParams, parse, run};
 
 /// Input streams to try, each with a generator whose state is one draw from
 /// the default seed's generator.
@@ -287,6 +295,111 @@ impl Generator {
         }
     }
 
+    /// `text` with one or two bytes changed, removed or repeated, which may
+    /// leave it no longer text.
+    fn damaged(&mut self, text: &str) -> Vec<u8> {
+        const LETTERS: &[u8] = b"0123456789 abefgkopstuv\xff-";
+        let mut bytes = text.as_bytes().to_vec();
+        for _ in 0..1 + self.below(2) {
+            if bytes.is_empty() {
+                break;
+            }
+            let at = self.below(bytes.len());
+            match self.below(3) {
+                0 => bytes[at] = LETTERS[self.below(LETTERS.len())],
+                1 => {
+                    bytes.remove(at);
+                }
+                _ => bytes.insert(at, bytes[at]),
+            }
+        }
+        bytes
+    }
+
+    /// A search with a small limit of its own, of every kind of limit.
+    fn small_go(&mut self) -> String {
+        match self.below(6) {
+            0 => format!("go depth {}", 1 + self.below(2)),
+            1 => format!("go movetime {}", 1 + self.below(8)),
+            2 => {
+                let clock = self.pick(&["0", "20", "40", "300"]);
+                let other = self.pick(&["0", "20", "40", "300"]);
+                format!("go wtime {clock} btime {other} winc 0 binc 0")
+            }
+            3 => format!("go depth 2 nodes {}", 100 + self.below(400)),
+            _ => format!("go nodes {}", 200 + self.below(3_000)),
+        }
+    }
+
+    /// One session as a GUI or a match tool sends it: the greeting, some
+    /// options, a new game, then a game's positions in order with a search
+    /// after each. With `long` the game has more than a thousand plies and
+    /// only its last positions are searched.
+    fn session(&mut self, long: bool) -> Vec<String> {
+        let mut lines = vec!["uci".to_string(), "isready".to_string()];
+        // A fixed seed, never 0: what the strength options draw is then
+        // the same on every run.
+        lines.push(format!(
+            "setoption name Seed value {}",
+            1 + self.below(1_000)
+        ));
+        for _ in 0..self.below(6) {
+            let (name, value) = match self.below(7) {
+                0 => ("UCI_ShowWDL", self.pick(&["true", "false"]).to_string()),
+                1 => ("SearchStats", self.pick(&["true", "false"]).to_string()),
+                2 => ("Variety", self.pick(&["0", "10", "60", "100"]).to_string()),
+                3 => (
+                    "UCI_LimitStrength",
+                    self.pick(&["true", "false"]).to_string(),
+                ),
+                4 => ("UCI_Elo", (1_110 + self.below(521)).to_string()),
+                5 => ("Move Overhead", self.pick(&["0", "30", "100"]).to_string()),
+                _ => ("Hash", self.pick(&["1", "64"]).to_string()),
+            };
+            lines.push(format!("setoption name {name} value {value}"));
+        }
+        lines.push("ucinewgame".to_string());
+        let start = match self.below(4) {
+            // The fifty-move counter at its limit and beyond it, and the
+            // move number at the largest a FEN can hold.
+            0 => "fen 4k3/8/8/8/8/8/8/4K2R w K - 99 80",
+            1 => "fen 4k3/8/8/8/8/8/8/4K2R w K - 120 65535",
+            _ => "startpos",
+        };
+        let from = match start.strip_prefix("fen ") {
+            Some(fen) => Position::from_fen(fen).expect("the FENs of a session are valid"),
+            None => Position::startpos(),
+        };
+        let plies = if long {
+            1_200 + self.below(600)
+        } else {
+            self.below(50)
+        };
+        let game = self.game(from, plies);
+        let mut played = if long {
+            game.len().saturating_sub(3)
+        } else {
+            0
+        };
+        while played <= game.len() {
+            let mut line = format!("position {start}");
+            if played > 0 {
+                line.push_str(" moves ");
+                line.push_str(&game[..played].join(" "));
+            }
+            lines.push(line);
+            match self.below(8) {
+                0 => lines.push("d".to_string()),
+                1 => lines.push("eval".to_string()),
+                2 => lines.push("isready".to_string()),
+                _ => {}
+            }
+            lines.push(self.small_go());
+            played += 1 + self.below(8);
+        }
+        lines
+    }
+
     /// One line of input, without its line break.
     fn line(&mut self) -> Vec<u8> {
         let text = match self.below(12) {
@@ -432,14 +545,57 @@ fn kept_input(name: &str) -> PathBuf {
 /// in time or its loop ends by a panic. The thread is then left behind: a
 /// hung engine cannot be stopped from outside, and the test fails anyway.
 fn answer(name: &str, input: &[u8]) -> String {
+    watched(name, input, false)
+}
+
+/// Whether a search with these limits ends by itself soon enough to be
+/// waited for. A damaged line can turn a small limit into a large one, or
+/// into none; such a search is told to stop.
+fn ends_soon(go: &GoParams) -> bool {
+    let small_clock = |clock: Option<u64>| clock.is_some_and(|ms| ms <= 10_000);
+    !go.infinite
+        && (go.depth.is_some_and(|depth| depth <= 3)
+            || go.nodes.is_some_and(|nodes| nodes <= 1_000_000)
+            || go.movetime.is_some_and(|ms| ms <= 1_000)
+            || (small_clock(go.wtime) && small_clock(go.btime)))
+}
+
+/// Gives `input` to a new engine a line at a time, as [`Engine::handle`]
+/// takes them, and after each `go` waits for its search: to its own limit
+/// if it has a small one, or after a `stop` if it has not.
+fn paced(input: &[u8], out: Captured) {
+    let mut engine = Engine::new(Box::new(out));
+    for line in input.split(|byte| *byte == b'\n') {
+        let line = String::from_utf8_lossy(line);
+        if !engine.handle(&line) {
+            return;
+        }
+        if let Command::Go(go) = parse(&line) {
+            if !ends_soon(&go) {
+                engine.handle("stop");
+            }
+            engine.wait();
+        }
+    }
+    engine.wait();
+}
+
+/// [`answer`], or the same with the input given a line at a time and each
+/// search waited for (see [`paced`]).
+fn watched(name: &str, input: &[u8], pace: bool) -> String {
     let kept = kept_input(name);
     std::fs::write(&kept, input).expect("the input can be kept");
     let out = Captured::default();
     let (done, finished) = mpsc::channel();
     let (theirs, copy) = (out.clone(), input.to_vec());
     thread::spawn(move || {
-        let read = run(Cursor::new(copy), Box::new(theirs));
-        let _ = done.send(read.is_ok());
+        let read = if pace {
+            paced(&copy, theirs);
+            true
+        } else {
+            run(Cursor::new(copy), Box::new(theirs)).is_ok()
+        };
+        let _ = done.send(read);
     });
     match finished.recv_timeout(WATCHDOG) {
         Ok(read) => assert!(read, "reading a buffer cannot fail"),
@@ -471,13 +627,27 @@ fn a_finished_stream_passes_the_watchdog_and_keeps_its_input() {
     );
 }
 
+/// Counts, from now on, the panics of the engine's threads: the search
+/// thread, which is named `search`, and the thread a stream's loop runs on,
+/// which has no name. A test's own thread carries the test's name and is
+/// left out, so that one test failing an assertion is not counted against
+/// the other.
+fn count_engine_panics() {
+    static INSTALLED: Once = Once::new();
+    INSTALLED.call_once(|| {
+        let default_hook = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            if matches!(thread::current().name(), None | Some("search")) {
+                PANICS.fetch_add(1, Ordering::SeqCst);
+            }
+            default_hook(info);
+        }));
+    });
+}
+
 #[test]
 fn malformed_input_never_panics_and_is_always_answered() {
-    let default_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |info| {
-        PANICS.fetch_add(1, Ordering::SeqCst);
-        default_hook(info);
-    }));
+    count_engine_panics();
 
     // Across all streams: what the input reached, so that a generator that
     // stopped producing some kind of line cannot pass unnoticed.
@@ -556,4 +726,113 @@ fn malformed_input_never_panics_and_is_always_answered() {
     for (count, prefix) in seen.iter().zip(REACHED) {
         assert!(*count > 0, "no stream produced a line starting {prefix:?}");
     }
+}
+
+/// Sessions as a GUI sends them, some lines damaged, long games among
+/// them, with every limited search left to run to its limit.
+#[test]
+fn damaged_sessions_and_long_games_are_played_through() {
+    count_engine_panics();
+    const SESSION_STREAMS: u64 = 4;
+    const REACHED: [&str; 5] = [
+        "info string stats depth ",
+        "info string + a b c d e f g h",
+        "info string total for White: ",
+        "info string variety: ",
+        "info string position: illegal move",
+    ];
+    let mut seen = [0usize; 5];
+    let (mut moves_played, mut with_chances, mut longest) = (0, 0, 0);
+    // The streams of the test above take the first draws; these take the
+    // ones after them.
+    let mut states = Rng::default();
+    for _ in 0..STREAMS {
+        states.next_u64();
+    }
+    for index in 0..SESSION_STREAMS {
+        let mut generator = Generator {
+            rng: Rng::from_state(states.next_u64()),
+            cut_characters: 0,
+        };
+        let mut input = Vec::new();
+        let mut model = Model::new();
+        let mut readies = 0;
+        for (number, long) in [false, true, false, false, false, false, false, false]
+            .into_iter()
+            .enumerate()
+        {
+            let mut session = generator.session(long);
+            if number == 0 {
+                // One session of each stream is sure to play with the
+                // widest `Variety`, at full strength.
+                let new_game = session.iter().position(|line| line == "ucinewgame");
+                let at = new_game.expect("every session starts a game");
+                session.insert(at, "setoption name UCI_LimitStrength value false".into());
+                session.insert(at, "setoption name Variety value 100".into());
+            }
+            for line in session {
+                let line = if generator.below(8) == 0 {
+                    generator.damaged(&line)
+                } else {
+                    line.into_bytes()
+                };
+                if line.contains(&b'\n') {
+                    continue;
+                }
+                let command = parse(&String::from_utf8_lossy(&line));
+                if command == Command::Quit {
+                    continue;
+                }
+                readies += usize::from(command == Command::IsReady);
+                model.follow(&command);
+                longest = longest.max(line.len());
+                input.extend_from_slice(&line);
+                input.push(b'\n');
+            }
+        }
+        input.extend_from_slice(b"stop\nisready\n");
+        readies += 1;
+
+        let name = format!("sessions-{index}");
+        let output = watched(&name, &input, true);
+        assert_eq!(PANICS.load(Ordering::SeqCst), 0, "stream {name} panicked");
+        assert!(
+            !output.contains("the search ended unexpectedly"),
+            "stream {name}: a search thread failed"
+        );
+        let lines: Vec<&str> = output.lines().collect();
+        let answered = lines.iter().filter(|line| **line == "readyok").count();
+        assert_eq!(
+            answered, readies,
+            "stream {name}: every isready is answered"
+        );
+        assert_eq!(
+            lines.last(),
+            Some(&"readyok"),
+            "stream {name} ends answered"
+        );
+        moves_played += model.check(&name, &lines).0;
+        // Chances, where shown, are three numbers that add up to 1000.
+        for line in lines.iter().filter(|line| line.starts_with("info depth ")) {
+            let words: Vec<&str> = line.split(' ').collect();
+            if let Some(at) = words.iter().position(|&word| word == "wdl") {
+                let sum: u32 = words[at + 1..at + 4]
+                    .iter()
+                    .map(|word| word.parse::<u32>().unwrap())
+                    .sum();
+                assert_eq!(sum, 1000, "stream {name}: {line}");
+                with_chances += 1;
+            }
+        }
+        for (count, prefix) in seen.iter_mut().zip(REACHED) {
+            *count += lines.iter().filter(|line| line.starts_with(prefix)).count();
+        }
+    }
+    for (count, prefix) in seen.iter().zip(REACHED) {
+        assert!(*count > 0, "no stream produced a line starting {prefix:?}");
+    }
+    assert!(moves_played > 100, "only {moves_played} moves were checked");
+    assert!(with_chances > 0, "no info line had chances");
+    // A game of more than a thousand plies was sent as one line.
+    assert!(longest > 5_000, "the longest line had {longest} bytes");
 }

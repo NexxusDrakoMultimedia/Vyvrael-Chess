@@ -769,7 +769,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] A stream that hangs fails the test instead of stalling it
   - [x] Every `bestmove` of a malformed stream is legal
   - [x] The command, FEN, move and option parsers fuzzed directly
-  - [ ] Streams of mutated real sessions and long games
+  - [x] Streams of mutated real sessions and long games
   - [ ] The release binary survives a fuzzed stream over pipes
 - **SPRT recorder:**
   - [ ] `scripts/record_sprt.py` reads a run's notes and log
