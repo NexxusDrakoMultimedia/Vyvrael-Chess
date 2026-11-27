@@ -10,13 +10,22 @@
 //! thread, that every `isready` was answered and that every `go` got
 //! exactly one `bestmove`.
 //!
+//! A stream that the engine does not finish in time fails the test instead
+//! of stalling it, and every stream's input is written to Cargo's directory
+//! for test files, so that a failure can be looked at and replayed
+//! (`vyvrael < uci-robustness-stream-<n>.txt`).
+//!
 //! This test is a binary of its own because it installs a panic hook, which
 //! is global to the process.
 
 use std::io::{self, Cursor, Write};
 use std::panic;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use vyvrael::board::Position;
 use vyvrael::movegen::legal_moves;
@@ -28,6 +37,11 @@ use vyvrael::uci::{Command, parse, run};
 const STREAMS: u64 = 8;
 /// Lines in each stream.
 const LINES: usize = 400;
+
+/// How long the engine may take over one stream. A stream takes a few
+/// seconds; this is generous so that only a hang, or a machine far too
+/// busy to test on, runs into it.
+const WATCHDOG: Duration = Duration::from_secs(180);
 
 /// Panics seen on any thread since the hook was installed.
 static PANICS: AtomicUsize = AtomicUsize::new(0);
@@ -326,6 +340,60 @@ impl Generator {
     }
 }
 
+/// Where the input of stream `name` is kept for looking at afterwards.
+fn kept_input(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("uci-robustness-stream-{name}.txt"))
+}
+
+/// Feeds `input` to a new engine through `uci::run` and returns everything
+/// it wrote. The engine runs on a thread of its own and is given
+/// [`WATCHDOG`] to reach the end of the input.
+///
+/// # Panics
+///
+/// Panics, naming the file the input was kept in, if the engine is not done
+/// in time or its loop ends by a panic. The thread is then left behind: a
+/// hung engine cannot be stopped from outside, and the test fails anyway.
+fn answer(name: &str, input: &[u8]) -> String {
+    let kept = kept_input(name);
+    std::fs::write(&kept, input).expect("the input can be kept");
+    let out = Captured::default();
+    let (done, finished) = mpsc::channel();
+    let (theirs, copy) = (out.clone(), input.to_vec());
+    thread::spawn(move || {
+        let read = run(Cursor::new(copy), Box::new(theirs));
+        let _ = done.send(read.is_ok());
+    });
+    match finished.recv_timeout(WATCHDOG) {
+        Ok(read) => assert!(read, "reading a buffer cannot fail"),
+        Err(RecvTimeoutError::Timeout) => panic!(
+            "stream {name}: the engine was not done after {} s: a hang, or a machine too \
+             busy to test on. Its input is in {}",
+            WATCHDOG.as_secs(),
+            kept.display()
+        ),
+        Err(RecvTimeoutError::Disconnected) => panic!(
+            "stream {name}: the engine's loop panicked. Its input is in {}",
+            kept.display()
+        ),
+    }
+    String::from_utf8(out.0.lock().unwrap().clone()).expect("output is text")
+}
+
+/// The watchdog itself: an engine that is done at once is not reported, and
+/// the input is where the message would say.
+#[test]
+fn a_finished_stream_passes_the_watchdog_and_keeps_its_input() {
+    let output = answer("watchdog", b"isready\nposition startpos\ngo depth 1\n");
+    let lines: Vec<&str> = output.lines().collect();
+    assert_eq!(lines.first(), Some(&"readyok"));
+    assert!(lines.last().unwrap().starts_with("bestmove "));
+    assert_eq!(
+        std::fs::read(kept_input("watchdog")).unwrap(),
+        b"isready\nposition startpos\ngo depth 1\n"
+    );
+}
+
 #[test]
 fn malformed_input_never_panics_and_is_always_answered() {
     let default_hook = panic::take_hook();
@@ -372,9 +440,7 @@ fn malformed_input_never_panics_and_is_always_answered() {
         input.extend_from_slice(b"stop\nisready\n");
         readies += 1;
 
-        let out = Captured::default();
-        run(Cursor::new(input), Box::new(out.clone())).expect("reading a buffer cannot fail");
-        let output = String::from_utf8(out.0.lock().unwrap().clone()).expect("output is text");
+        let output = answer(&index.to_string(), &input);
 
         assert_eq!(PANICS.load(Ordering::SeqCst), 0, "stream {index} panicked");
         assert!(

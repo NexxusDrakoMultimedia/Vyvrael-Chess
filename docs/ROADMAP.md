@@ -766,7 +766,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] The option `SearchStats` and its `info string` line (the hit rate
     of the transposition table joins in milestone 7)
 - **UCI fuzzing** (tests only; a defect found gets a fix commit of its own):
-  - [ ] A stream that hangs fails the test instead of stalling it
+  - [x] A stream that hangs fails the test instead of stalling it
   - [ ] Every `bestmove` of a malformed stream is legal
   - [ ] The command, FEN, move and option parsers fuzzed directly
   - [ ] Streams of mutated real sessions and long games
