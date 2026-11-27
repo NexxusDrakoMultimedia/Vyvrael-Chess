@@ -53,6 +53,10 @@ pub struct Report {
     pub nodes: u64,
     /// Time since the search began.
     pub elapsed: Duration,
+    /// How full the transposition table is, in slots per thousand
+    /// ([`TranspositionTable::hashfull`]), or `None` for a search without
+    /// a table.
+    pub hashfull: Option<u32>,
     /// The principal variation at that depth.
     pub pv: Vec<Move>,
 }
@@ -236,6 +240,7 @@ impl<'a> Search<'a> {
                 score: outcome.score,
                 nodes: self.nodes,
                 elapsed: start.elapsed(),
+                hashfull: self.table.as_deref().map(TranspositionTable::hashfull),
                 pv: outcome.pv.clone(),
             });
             let nothing_to_search = outcome.best_move.is_none();

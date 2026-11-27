@@ -119,6 +119,21 @@ impl TranspositionTable {
         self.slots.fill(EMPTY);
     }
 
+    /// How full the table is, in slots per thousand that hold a result:
+    /// the `hashfull` of the protocol. It is counted over the first
+    /// thousand slots (all of them in a smaller table), which is a fair
+    /// sample because a position's slot comes from the low bits of its
+    /// hash.
+    ///
+    /// Nothing ages in this table, so the figure only rises until
+    /// [`clear`](Self::clear).
+    #[must_use]
+    pub fn hashfull(&self) -> u32 {
+        let sample = &self.slots[..self.slots.len().min(1000)];
+        let used = sample.iter().filter(|slot| slot.bound.is_some()).count();
+        (used * 1000 / sample.len()) as u32
+    }
+
     fn index(&self, key: u64) -> usize {
         // The length is a power of two, so this keeps the low bits.
         (key as usize) & (self.slots.len() - 1)
@@ -247,6 +262,34 @@ mod tests {
         table.clear();
         assert_eq!(table.probe(42, 0), None);
         assert_eq!(table.probe(0, 0), None);
+    }
+
+    #[test]
+    fn hashfull_counts_used_slots_per_thousand() {
+        let mut table = TranspositionTable::new(1).unwrap();
+        assert_eq!(table.hashfull(), 0);
+        // Slots 0 to 249 of the first thousand.
+        for key in 0..250 {
+            table.store(key, 0, 1, 0, Bound::Exact, None);
+        }
+        assert_eq!(table.hashfull(), 250);
+        // The same positions again fill nothing more, and slots beyond the
+        // sample are not counted.
+        for key in (0..250).chain(1_000..2_000) {
+            table.store(key, 0, 2, 0, Bound::Exact, None);
+        }
+        assert_eq!(table.hashfull(), 250);
+        for key in 250..1_000 {
+            table.store(key, 0, 1, 0, Bound::Exact, None);
+        }
+        assert_eq!(table.hashfull(), 1000);
+        table.clear();
+        assert_eq!(table.hashfull(), 0);
+        // A table smaller than the sample: all of it is counted.
+        let mut least = TranspositionTable::new(0).unwrap();
+        assert_eq!(least.hashfull(), 0);
+        least.store(9, 0, 1, 0, Bound::Upper, None);
+        assert_eq!(least.hashfull(), 1000);
     }
 
     #[test]

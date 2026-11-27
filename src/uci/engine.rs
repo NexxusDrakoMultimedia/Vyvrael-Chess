@@ -402,10 +402,12 @@ impl Engine {
                     let started = Instant::now();
                     let mut reached = 0;
                     let mut reached_seldepth = 0;
+                    let mut reached_hashfull = None;
                     let mut iterations = Vec::new();
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
                         reached_seldepth = report.seldepth;
+                        reached_hashfull = report.hashfull;
                         iterations.push((report.depth, report.nodes));
                         send(&out, &info_line(report, show_wdl));
                     });
@@ -450,6 +452,9 @@ impl Engine {
                                                 score: varied.score,
                                                 nodes: search.nodes() + varied.nodes,
                                                 elapsed: started.elapsed(),
+                                                // The checks of a varied
+                                                // move use no table.
+                                                hashfull: reached_hashfull,
                                                 pv: vec![varied.best_move],
                                             },
                                             show_wdl,
@@ -488,6 +493,8 @@ impl Engine {
                                 score: weak.outcome.score,
                                 nodes: weak.nodes,
                                 elapsed: started.elapsed(),
+                                // A weakened search uses no table.
+                                hashfull: None,
                                 pv: weak.outcome.pv.clone(),
                             },
                             show_wdl,
@@ -1263,6 +1270,42 @@ mod tests {
         let words: Vec<&str> = line.unwrap().split(' ').collect();
         let at = words.iter().position(|&word| word == "nodes").unwrap();
         words[at + 1].parse().unwrap()
+    }
+
+    /// The `hashfull` of a line, if it has one.
+    fn hashfull(line: &str) -> Option<u32> {
+        let words: Vec<&str> = line.split(' ').collect();
+        let at = words.iter().position(|&word| word == "hashfull")?;
+        Some(words[at + 1].parse().unwrap())
+    }
+
+    /// Every `info` line of a full-strength search says how full the table
+    /// is: more as the search goes on and in the next search of the game,
+    /// nothing again after `ucinewgame`. A weakened search has no table
+    /// and says nothing.
+    #[test]
+    fn hashfull_follows_the_table() {
+        let go = "go depth 6";
+        let lines = played(&[go, go, "ucinewgame", "go depth 1"]);
+        let fills: Vec<u32> = lines
+            .iter()
+            .filter(|line| line.starts_with("info depth "))
+            .map(|line| hashfull(line).unwrap())
+            .collect();
+        // Six depths, six again, and one after the new game.
+        assert_eq!(fills.len(), 13);
+        assert!(fills[..12].is_sorted(), "{fills:?}");
+        assert_eq!(fills[0], 0);
+        assert!(fills[5] > 0 && fills[5] < 1000, "{fills:?}");
+        assert!(fills[6] >= fills[5]);
+        assert_eq!(fills[12], 0);
+        let weak = played(&["setoption name UCI_LimitStrength value true", "go depth 3"]);
+        let info: Vec<&String> = weak
+            .iter()
+            .filter(|line| line.starts_with("info depth "))
+            .collect();
+        assert!(!info.is_empty());
+        assert!(info.iter().all(|line| hashfull(line).is_none()), "{info:?}");
     }
 
     /// The transposition table is kept from one search of a game to the

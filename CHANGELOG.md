@@ -21,6 +21,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   it is the best move of the iteration before. The bench counts 206,097
   nodes. SPRT: H1 accepted (run `9710d85acf32`).
 
+- **`hashfull` in `info`** (item 2c): how full the transposition table
+  is, in slots per thousand, between `nps` and `time`. Nothing in the
+  table ages yet, so it rises through a game. `Report` gains the field
+  `hashfull`, `None` for a search without a table. The bench count is
+  unchanged.
+
 ### Changed
 
 - **The main search tries captures first** (milestone 7, item 1): captures

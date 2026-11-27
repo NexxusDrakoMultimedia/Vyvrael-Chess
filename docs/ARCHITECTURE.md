@@ -518,7 +518,8 @@ transposition table, pruning) come in milestone 7, one at a time.
 
 - **Iterative deepening.** `Search::iterate` searches depth 1, then 2, and so
   on until a limit is reached, calling a `report` callback with a `Report`
-  (depth, selective depth, score, nodes, elapsed time, principal variation)
+  (depth, selective depth, score, nodes, elapsed time, how full the
+  transposition table is, principal variation)
   after each completed depth, and returns the outcome of the deepest one that finished.
   - The selective depth is the deepest ply the iteration visited,
     quiescence included. The search writes it and never reads it, so it

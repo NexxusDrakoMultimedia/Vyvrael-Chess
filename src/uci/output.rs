@@ -21,7 +21,10 @@ pub fn score_text(score: Score) -> String {
 }
 
 /// The `info` line for one completed iteration: depth, selective depth,
-/// score, nodes, speed, time in milliseconds, and the principal variation.
+/// score, nodes, speed, how full the transposition table is, time in
+/// milliseconds, and the principal variation.
+///
+/// `hashfull` is left out for a search without a table.
 ///
 /// `seldepth` is left out when it is 0: the root had no legal move, or the
 /// line is for a move that was not found by one search from the root (a
@@ -45,8 +48,12 @@ pub fn info_line(report: &Report, show_wdl: bool) -> String {
     } else {
         String::new()
     };
+    let hashfull = match report.hashfull {
+        Some(per_mille) => format!(" hashfull {per_mille}"),
+        None => String::new(),
+    };
     let mut line = format!(
-        "info depth {}{seldepth} score {}{chances} nodes {} nps {per_second} time {}",
+        "info depth {}{seldepth} score {}{chances} nodes {} nps {per_second}{hashfull} time {}",
         report.depth,
         score_text(report.score),
         report.nodes,
@@ -101,6 +108,7 @@ mod tests {
             score: 31,
             nodes,
             elapsed,
+            hashfull: None,
             pv,
         }
     }
@@ -150,6 +158,26 @@ mod tests {
             info_line(&nothing, false),
             "info depth 5 score cp 31 nodes 1 nps 1000 time 1"
         );
+    }
+
+    /// With a table, how full it is goes between the speed and the time.
+    #[test]
+    fn hashfull_when_there_is_a_table() {
+        let plain = report(7, Duration::from_millis(2), vec![]);
+        for (hashfull, text) in [
+            (0, " hashfull 0"),
+            (37, " hashfull 37"),
+            (1000, " hashfull 1000"),
+        ] {
+            let with_table = Report {
+                hashfull: Some(hashfull),
+                ..plain.clone()
+            };
+            assert_eq!(
+                info_line(&with_table, false),
+                format!("info depth 5 seldepth 9 score cp 31 nodes 7 nps 3500{text} time 2")
+            );
+        }
     }
 
     /// With `UCI_ShowWDL` the chances follow the score, and nothing else

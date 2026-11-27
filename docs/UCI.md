@@ -28,9 +28,9 @@ info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
 go depth 3
-info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
-info depth 2 seldepth 9 score cp 3 nodes 407 nps 2506726 time 0 pv d2d4 b8c6
-info depth 3 seldepth 11 score cp 37 nodes 3142 nps 3714847 time 2 pv d2d4 d7d5 g1f3
+info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 hashfull 0 time 0 pv d2d4
+info depth 2 seldepth 9 score cp 3 nodes 407 nps 2506726 hashfull 0 time 0 pv d2d4 b8c6
+info depth 3 seldepth 11 score cp 37 nodes 3142 nps 3714847 hashfull 1 time 2 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
@@ -130,7 +130,7 @@ milestone 7.
 
 ### Output
 
-- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
+- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> hashfull <n> time <ms> pv <moves>`
   after every completed depth. `nodes` and `time` count from the start of the
   search. `seldepth` is the selective depth: how many plies from the root
   the deepest position of that iteration was, the captures played out
@@ -139,7 +139,13 @@ milestone 7.
   a repetition, the fifty-move rule) or a mate. It is left out
   when there is none to give: the position has no legal move, or the line
   is for a weakened move (see "Limited strength"). The extra line for a
-  varied move (see `Variety`) repeats that of the search's last depth. `score` is from the side to move's point of view; `mate n` counts
+  varied move (see `Variety`) repeats that of the search's last depth.
+  `hashfull` is how full the transposition table is, in slots per
+  thousand, counted over its first thousand slots. Nothing in the table
+  ages yet, so the figure rises through a game and goes back to 0 at
+  `ucinewgame` or with a new `Hash` size; it is not the share of entries
+  that are of use to the current search. It is left out for a weakened
+  move, whose search uses no table. `score` is from the side to move's point of view; `mate n` counts
   the engine's own moves and is negative when the engine is being mated.
 - `bestmove <move>` at the end. A position with no legal move (checkmate or
   stalemate) gives `bestmove 0000`.
@@ -235,7 +241,7 @@ strength.
 With `UCI_ShowWDL` on, an `info` line reads
 
 ```text
-info depth 3 seldepth 7 score cp 37 wdl 164 751 85 nodes 1248 nps 2500000 time 1 pv d2d4 d7d5 b1c3
+info depth 3 seldepth 7 score cp 37 wdl 164 751 85 nodes 1248 nps 2500000 hashfull 0 time 1 pv d2d4 d7d5 b1c3
 ```
 
 **The three numbers are a model, not a measurement.** They are a fixed
