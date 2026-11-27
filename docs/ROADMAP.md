@@ -772,7 +772,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] Streams of mutated real sessions and long games
   - [x] The release binary survives a fuzzed stream over pipes
 - **SPRT recorder:**
-  - [ ] `scripts/record_sprt.py` reads a run's notes and log
+  - [x] `scripts/record_sprt.py` reads a run's notes and log
   - [ ] It appends the result to `docs/testing/sprt-history.md`
   - [ ] A test that it reads what the match scripts really write
 - **EPD suite runner:**
