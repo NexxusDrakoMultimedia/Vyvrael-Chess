@@ -8,6 +8,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Changed
+
+- **The main search tries captures first** (milestone 7, item 1): captures
+  and promotions by most valuable victim and least valuable attacker, as
+  quiescence always has, then the quiet moves. The value found is the
+  same; the tree is far smaller (the bench counts 459,926 nodes, from
+  16,611,416). SPRT against the search before it: see
+  `docs/testing/sprt-history.md`.
+
 ### Fixed
 
 - **A clock within `Move Overhead` is no longer spent a millisecond at a

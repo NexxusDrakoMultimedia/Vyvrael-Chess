@@ -1173,10 +1173,10 @@ mod tests {
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
         assert_eq!(shown[4], "info string stats depth 2 nodes 222 ebf 10.57");
-        assert_eq!(shown[5], "info string stats depth 3 nodes 2728 ebf 12.28");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 2690 ebf 12.11");
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
-        assert!(shown[7].contains(" of 2971 ("));
+        assert!(shown[7].contains(" of 2933 ("));
         assert_eq!(shown[8], plain[3]);
         assert!(shown[8].starts_with("bestmove "));
         // The figures are those of the library's own search.

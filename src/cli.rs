@@ -525,10 +525,10 @@ total for the side to move: +0
         assert_eq!(lines.len(), 5, "{added}");
         assert_eq!(lines[0], "stats depth 1 nodes 21");
         assert_eq!(lines[1], "stats depth 2 nodes 222 ebf 10.57");
-        assert_eq!(lines[2], "stats depth 3 nodes 2728 ebf 12.28");
+        assert_eq!(lines[2], "stats depth 3 nodes 2690 ebf 12.11");
         assert!(lines[3].starts_with("stats cutoffs "), "{added}");
         assert!(lines[4].starts_with("stats qnodes "), "{added}");
-        assert!(lines[4].contains(" of 2971 ("), "{added}");
+        assert!(lines[4].contains(" of 2933 ("), "{added}");
         // The same on every run, and wherever the flag stands.
         assert_eq!(run_args(&["search", "--stats", "3"]).1, out);
         let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";

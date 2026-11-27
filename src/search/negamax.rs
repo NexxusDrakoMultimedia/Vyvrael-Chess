@@ -339,7 +339,9 @@ impl<'a> Search<'a> {
             };
         }
         self.nodes += 1;
-        for &mv in &pseudo_legal_moves(pos) {
+        // Captures and promotions first, most valuable victim first: see
+        // `ordering.rs`.
+        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -417,7 +419,9 @@ impl<'a> Search<'a> {
 
         let mut best = -INFINITY;
         let mut any_legal = false;
-        for &mv in &pseudo_legal_moves(pos) {
+        // Captures and promotions first, most valuable victim first: see
+        // `ordering.rs`.
+        for &mv in &captures_first(pos, &pseudo_legal_moves(pos)) {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);

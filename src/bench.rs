@@ -22,9 +22,10 @@ use crate::search::{Limits, Search};
 
 /// The depth every bench position is searched to, in plies.
 ///
-/// Chosen so that the whole bench takes a few seconds on the development
-/// machine with the search as it is before milestone 7 (no move ordering
-/// in the main search, so a deep search of a busy position is slow).
+/// Chosen when the main search had no move ordering and the whole bench
+/// took a few seconds at this depth. It now takes a fraction of a second;
+/// the depth stays through milestone 7 so that the node counts of its
+/// commits can be compared (see `docs/testing/bench-history.md`).
 pub const BENCH_DEPTH: u32 = 4;
 
 /// The positions of the bench, as FEN: an opening, middlegames with and

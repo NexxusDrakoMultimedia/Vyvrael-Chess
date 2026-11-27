@@ -30,8 +30,8 @@ fuzzing, small UCI additions) are complete and
 merged. Milestone 6 measured the engine on the project's ladder and
 calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
 speaks UCI, so it can be used in a GUI and in match tools. It is still weak
-and slow, because the main search has no move ordering or transposition table
-yet (milestone 7). Its strength on the project's own opponent ladder, an
+and slow, because the main search orders only its captures and has no
+transposition table yet (milestone 7, in progress). Its strength on the project's own opponent ladder, an
 ordering rather than an Elo, is in
 [docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md)
 (measured for the release; the milestone 6 measurement is beside it). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan

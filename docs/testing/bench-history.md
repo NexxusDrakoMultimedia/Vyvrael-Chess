@@ -21,3 +21,4 @@ How each row is measured, unless its notes say otherwise:
 | Date | Commit | Change | Bench nodes | Bench speed (nodes/s) | Perft 6 speed (nodes/s) | Notes |
 | --- | --- | --- | --: | --: | --: | --- |
 | 2026-11-22 | `f99cf07` | `bench` added (queued task 1) | 16,611,416 | 2,604,889 | 26,942,137 (4,419 ms) | First row. rustc 1.100.0. Before milestone 7: no move ordering in the main search and no transposition table. |
+| 2026-11-27 | (this commit) | The main search tries captures first (MVV-LVA with promotions; milestone 7, item 1) | 459,926 | 2,662,793 | not measured again (move generation is unchanged) | Search change: every pinned score and line is unchanged, only the counts fall. Speed is the median of three runs, not idle-checked, and of little meaning now that the bench takes 0.17 s. Kiwipete at depth 3: 46,307 nodes, from 4,513,442. |

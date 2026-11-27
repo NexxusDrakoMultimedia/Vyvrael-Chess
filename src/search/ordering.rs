@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Nexxus Drako Multimedia
 
-//! The order in which quiescence search tries captures.
+//! The order in which the search tries moves: captures first, the most
+//! promising of them first.
 //!
 //! Alpha-beta returns the same value whatever order moves are tried in, but
 //! the work it does depends heavily on the order: a good move tried first
@@ -9,6 +10,11 @@
 //! necessity. Trying captures in generation order, a busy middlegame
 //! position takes tens of millions of nodes to resolve; trying the most
 //! valuable victim first takes thousands.
+//!
+//! The main search uses the same order (since milestone 7): captures and
+//! promotions by their gain, then the quiet moves as generated. A capture
+//! is the likeliest move to refute the opponent's last one, and where it
+//! does not, it is cheap to find that out.
 
 use crate::board::{Move, MoveKind, PieceKind, Position, Square};
 use crate::movegen::MoveList;

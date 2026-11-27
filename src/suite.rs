@@ -241,8 +241,10 @@ mod tests {
     fn the_same_every_run_and_the_limit_is_used() {
         let (first, text) = output(SuiteLimit::Depth(2));
         assert_eq!(output(SuiteLimit::Depth(2)), (first, text));
-        let (few, _) = output(SuiteLimit::Nodes(50));
-        assert_eq!(output(SuiteLimit::Nodes(50)).0, few);
+        // The smallest node limit there is: each search ends as soon as
+        // its first depth is done.
+        let (few, _) = output(SuiteLimit::Nodes(1));
+        assert_eq!(output(SuiteLimit::Nodes(1)).0, few);
         let (deeper, _) = output(SuiteLimit::Depth(3));
         assert!(few.nodes < first.nodes && first.nodes < deeper.nodes);
         // A move time is a limit too: the first depth alone finds these.
