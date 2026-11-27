@@ -467,9 +467,13 @@ impl<'a> Search<'a> {
         // that already lies outside the window.
         let key = pos.hash();
         let mut table_move = None;
-        if let Some(table) = self.table.as_deref()
-            && let Some(known) = table.probe(key, ply)
-        {
+        let mut known = None;
+        if let Some(table) = self.table.as_deref() {
+            self.stats.table_probes += 1;
+            known = table.probe(key, ply);
+        }
+        if let Some(known) = known {
+            self.stats.table_hits += 1;
             // Whatever the depth it was found at, the move that was best
             // before is the one to try first now.
             table_move = known.best;
@@ -480,6 +484,7 @@ impl<'a> Search<'a> {
                     Bound::Upper => known.score <= alpha,
                 };
                 if settles {
+                    self.stats.table_cutoffs += 1;
                     return known.score;
                 }
             }
@@ -1653,6 +1658,38 @@ mod tests {
             (1, 1)
         );
         assert_eq!(stats.quiescence_first_move_rate(), Some(1000));
+    }
+
+    /// The table's counts: none without a table; with one, a probe for
+    /// every position of the main search below the root, the hits among
+    /// the probes and the cutoffs among the hits; and a table that already
+    /// holds the search's work knows more of what it is asked.
+    #[test]
+    fn the_table_is_counted() {
+        let pos = fen(KIWIPETE);
+        let mut plain = Search::new(&HandCrafted);
+        plain.fixed_depth(&pos, 3);
+        let none = plain.stats();
+        assert_eq!(
+            (none.table_probes, none.table_hits, none.table_cutoffs),
+            (0, 0, 0)
+        );
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut searcher = Search::new(&HandCrafted).with_table(&mut table);
+        searcher.fixed_depth(&pos, 3);
+        let (first, nodes) = (searcher.stats(), searcher.nodes());
+        // Every node is the root, a quiescence position or a probe.
+        assert_eq!(first.table_probes, nodes - 1 - first.quiescence_nodes);
+        assert!(first.table_probes > 0);
+        assert!(first.table_cutoffs <= first.table_hits);
+        assert!(first.table_hits <= first.table_probes);
+        searcher.fixed_depth(&pos, 3);
+        let again = searcher.stats();
+        assert!(
+            again.table_hits * first.table_probes > first.table_hits * again.table_probes,
+            "{first:?} {again:?}"
+        );
+        assert!(again.table_cutoffs > 0);
     }
 
     /// What holds whatever the position: the first-move cutoffs are among

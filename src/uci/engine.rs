@@ -1233,7 +1233,7 @@ mod tests {
         let plain = stable(&session(&["go depth 3"]));
         let on = "setoption name SearchStats value true";
         let shown = stable(&session(&[on, "go depth 3"]));
-        assert_eq!(shown.len(), plain.len() + 5, "{shown:?}");
+        assert_eq!(shown.len(), plain.len() + 6, "{shown:?}");
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
         assert_eq!(shown[4], "info string stats depth 2 nodes 113 ebf 5.38");
@@ -1241,8 +1241,9 @@ mod tests {
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
         assert!(shown[7].contains(" of 1248 ("));
-        assert_eq!(shown[8], plain[3]);
-        assert!(shown[8].starts_with("bestmove "));
+        assert!(shown[8].starts_with("info string stats table probes "));
+        assert_eq!(shown[9], plain[3]);
+        assert!(shown[9].starts_with("bestmove "));
         // The figures are those of the library's own search.
         let pos = Position::startpos();
         let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
@@ -1253,6 +1254,7 @@ mod tests {
         let own = stats_lines(&[], search.nodes(), &search.stats());
         assert_eq!(shown[6], format!("info string {}", own[0]));
         assert_eq!(shown[7], format!("info string {}", own[1]));
+        assert_eq!(shown[8], format!("info string {}", own[2]));
         // Limited strength: the option is accepted and nothing is added.
         let limited = [
             "setoption name Seed value 7",

@@ -21,6 +21,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   it is the best move of the iteration before. The bench counts 206,097
   nodes. SPRT: H1 accepted (run `9710d85acf32`).
 
+- **The table in the search statistics** (item 2c): `search --stats` and
+  the option `SearchStats` end with a line `stats table probes <n> hits
+  <n> (<share>) cutoffs <n> (<share>)`: how often the main search asked
+  the table, how often it knew the position, and how often that settled
+  it. `SearchStats` (the type) gains `table_probes`, `table_hits` and
+  `table_cutoffs`. The bench count is unchanged.
 - **`hashfull` in `info`** (item 2c): how full the transposition table
   is, in slots per thousand, between `nps` and `time`. Nothing in the
   table ages yet, so it rises through a game. `Report` gains the field

@@ -534,13 +534,14 @@ total for the side to move: +0
         assert!(err.starts_with("time: "));
         let added = out.strip_prefix(plain.as_str()).unwrap();
         let lines: Vec<&str> = added.lines().collect();
-        assert_eq!(lines.len(), 5, "{added}");
+        assert_eq!(lines.len(), 6, "{added}");
         assert_eq!(lines[0], "stats depth 1 nodes 21");
         assert_eq!(lines[1], "stats depth 2 nodes 113 ebf 5.38");
         assert_eq!(lines[2], "stats depth 3 nodes 1114 ebf 9.85");
         assert!(lines[3].starts_with("stats cutoffs "), "{added}");
         assert!(lines[4].starts_with("stats qnodes "), "{added}");
         assert!(lines[4].contains(" of 1248 ("), "{added}");
+        assert!(lines[5].starts_with("stats table probes "), "{added}");
         // The same on every run, and wherever the flag stands.
         assert_eq!(run_args(&["search", "--stats", "3"]).1, out);
         let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";

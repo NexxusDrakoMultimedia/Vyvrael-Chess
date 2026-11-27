@@ -29,6 +29,16 @@ pub struct SearchStats {
     pub quiescence_cutoffs: u64,
     /// Those of them where the first legal move tried did it.
     pub quiescence_first_move_cutoffs: u64,
+    /// Times the main search asked the transposition table about a
+    /// position (once per position it visits below the root, and never
+    /// without a table).
+    pub table_probes: u64,
+    /// Those of them where the table knew the position, at whatever depth:
+    /// a "hit", which at least gives a move to try first.
+    pub table_hits: u64,
+    /// Those of the hits that settled the position at once, because the
+    /// result was deep enough and its bound lay outside the window.
+    pub table_cutoffs: u64,
 }
 
 impl SearchStats {
@@ -40,6 +50,9 @@ impl SearchStats {
         stand_pat_cutoffs: 0,
         quiescence_cutoffs: 0,
         quiescence_first_move_cutoffs: 0,
+        table_probes: 0,
+        table_hits: 0,
+        table_cutoffs: 0,
     };
 
     /// How many in a thousand of the main search's cutoffs came from the
@@ -77,15 +90,17 @@ pub const fn per_mille(part: u64, whole: u64) -> Option<u64> {
 /// stats depth 3 nodes 2728 ebf 12.28
 /// stats cutoffs 180 firstmove 126 rate 70.0%
 /// stats qnodes 2500 of 2971 (84.1%) standpat 1900 qcutoffs 90 firstmove 81 rate 90.0%
+/// stats table probes 400 hits 100 (25.0%) cutoffs 40 (10.0%)
 /// ```
 ///
 /// `iterations` holds each completed depth with the node count the search
 /// had reached by then, as its reports give them. A `depth` line gives the
 /// nodes that iteration took by itself, and `ebf` (the effective branching
 /// factor) how many times more that was than the iteration before. The
-/// last two lines are the counts of `stats` and the first-move rates;
+/// last three lines are the counts of `stats` with their rates;
 /// `total_nodes` is the whole search's node count, which also includes an
-/// iteration that a limit interrupted and that has no `depth` line.
+/// iteration that a limit interrupted and that has no `depth` line. Both
+/// rates of the `table` line are shares of the probes.
 ///
 /// Only whole-number arithmetic is used, so the text is the same on every
 /// platform. A rate with nothing to divide by is shown as `-`.
@@ -95,7 +110,7 @@ pub fn stats_lines(
     total_nodes: u64,
     stats: &SearchStats,
 ) -> Vec<String> {
-    let mut lines = Vec::with_capacity(iterations.len() + 2);
+    let mut lines = Vec::with_capacity(iterations.len() + 3);
     let (mut before, mut previous) = (0, None);
     for &(depth, reached) in iterations {
         let nodes = reached.saturating_sub(before);
@@ -124,6 +139,14 @@ pub fn stats_lines(
         stats.quiescence_cutoffs,
         stats.quiescence_first_move_cutoffs,
         percent(stats.quiescence_first_move_rate())
+    ));
+    lines.push(format!(
+        "stats table probes {} hits {} ({}) cutoffs {} ({})",
+        stats.table_probes,
+        stats.table_hits,
+        percent(per_mille(stats.table_hits, stats.table_probes)),
+        stats.table_cutoffs,
+        percent(per_mille(stats.table_cutoffs, stats.table_probes))
     ));
     lines
 }
@@ -155,6 +178,9 @@ mod tests {
             stand_pat_cutoffs: 1_900,
             quiescence_cutoffs: 90,
             quiescence_first_move_cutoffs: 81,
+            table_probes: 400,
+            table_hits: 100,
+            table_cutoffs: 40,
         };
         // Nodes reached by the end of depths 1 to 3, and a total that
         // includes part of an interrupted fourth.
@@ -167,6 +193,7 @@ mod tests {
                 "stats depth 3 nodes 2728 ebf 12.28",
                 "stats cutoffs 180 firstmove 126 rate 70.0%",
                 "stats qnodes 2500 of 3000 (83.3%) standpat 1900 qcutoffs 90 firstmove 81 rate 90.0%",
+                "stats table probes 400 hits 100 (25.0%) cutoffs 40 (10.0%)",
             ]
         );
     }
@@ -180,9 +207,10 @@ mod tests {
                 "stats depth 1 nodes 1",
                 "stats cutoffs 0 firstmove 0 rate -",
                 "stats qnodes 0 of 1 (0.0%) standpat 0 qcutoffs 0 firstmove 0 rate -",
+                "stats table probes 0 hits 0 (-) cutoffs 0 (-)",
             ]
         );
-        assert_eq!(stats_lines(&[], 0, &SearchStats::ZERO).len(), 2);
+        assert_eq!(stats_lines(&[], 0, &SearchStats::ZERO).len(), 3);
         // An iteration that added no node gives the next one no factor.
         let flat = stats_lines(&[(1, 5), (2, 5), (3, 9)], 9, &SearchStats::ZERO);
         assert_eq!(flat[1], "stats depth 2 nodes 0 ebf 0.00");
