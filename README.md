@@ -74,7 +74,7 @@ is in [docs/UCI.md](docs/UCI.md).
   `engine.protocol` to `uci` in `config.yml`.
 
 Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
-`UCI_Elo` and `Move Overhead`:
+`UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
 
 - **`Seed`** (0 to 2147483647, default 0): the seed of the engine's
   strength-affecting randomness. 0 takes a new one from system entropy for

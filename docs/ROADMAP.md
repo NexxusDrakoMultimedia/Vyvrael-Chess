@@ -759,7 +759,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] The search records its selective depth
   - [x] `seldepth` in the `info` lines
   - [x] The score-to-WDL mapping
-  - [ ] The option `UCI_ShowWDL`
+  - [x] The option `UCI_ShowWDL`
 - **Search statistics:**
   - [ ] Cutoffs and first-move cutoffs counted in the search
   - [ ] `search --stats`: nodes per depth, branching factor, cutoff rates

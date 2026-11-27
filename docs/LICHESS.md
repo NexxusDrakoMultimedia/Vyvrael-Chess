@@ -158,8 +158,10 @@ lichess-bot is installed or set up afresh.
     (Vyvræl does not ponder; the default is `true`).
 12. **Set the engine options.** Under `engine: uci_options:`, keep only
     options Vyvræl offers: `Move Overhead: 100`, `Threads: 1`, `Hash: 64`,
-    and, from 0.1.0-alpha.2 on, `Variety: 10`. Delete `SyzygyPath` and
-    `UCI_ShowWDL`, which Vyvræl does not have, and change the default
+    and, from 0.1.0-alpha.2 on, `Variety: 10`. Delete `SyzygyPath`, which
+    Vyvræl does not have, and `UCI_ShowWDL` (Vyvræl has it after 0.1.0,
+    but its numbers are a model and not a measured win rate, so the bot
+    does not show them; see [UCI.md](UCI.md)), and change the default
     `Threads: 4`, which Vyvræl refuses. Leave `UCI_LimitStrength` out, so
     the bot plays at full strength, and leave `Seed` out, so every game takes
     its own seed (logged in lichess-bot's engine output). `Variety: 10` lets

@@ -22,6 +22,7 @@ option name Variety type spin default 0 min 0 max 100
 option name UCI_LimitStrength type check default false
 option name UCI_Elo type spin default 1360 min 1110 max 1630
 option name Move Overhead type spin default 30 min 0 max 5000
+option name UCI_ShowWDL type check default false
 info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
@@ -178,6 +179,7 @@ search.
 | `UCI_LimitStrength` | check | `false` | implemented, **calibrated provisionally** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
 | `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7 and after queued task 2. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
+| `UCI_ShowWDL` | check | `false` | implemented, **a model, not a measurement** | Standard UCI option. When `true`, every `info` line of a search gives `wdl <win> <draw> <loss>` after the score: chances per thousand for the side to move. See "Win, draw and loss" below. It changes nothing about the search. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
@@ -221,6 +223,42 @@ few centipawns of each other, so a large `Variety` plays odd but legal
 openings. `Variety` weakens play on purpose, so it is exempt from the rule
 that changes must pass an SPRT, and it must be 0 in any match that measures
 strength.
+
+### Win, draw and loss
+
+With `UCI_ShowWDL` on, an `info` line reads
+
+```text
+info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2971 nps 2500000 time 1 pv d2d4 d7d5 g1f3
+```
+
+**The three numbers are a model, not a measurement.** They are a fixed
+function of the centipawn score, of the shape engines usually use: one
+logistic curve for a win, its mirror image for a loss, and the draw is
+what is left.
+
+```text
+win  = 1000 / (1 + e^((200 - score) / 100))
+loss = 1000 / (1 + e^((200 + score) / 100))
+draw = 1000 - win - loss
+```
+
+each rounded to a whole number, for the side to move. So a level score
+reads 119 762 119, a pawn up (100) reads 269 684 47, and at 200 a win is
+given half the time. A forced mate is 1000 0 0, or 0 0 1000 for the side
+being mated.
+
+The constants 200 and 100 were chosen, not fitted. Nobody has counted how
+Vyvræl's games end from each score, so the numbers are not a win rate of
+this engine against any opponent, and a GUI that shows them as
+percentages shows the model. They would also be off in scale after any
+change to what a centipawn means in the evaluation (a tuned or neural
+evaluation, for example). The option exists because GUIs and lichess-bot
+can display the numbers; it is off by default. The figures are the same
+on every platform.
+
+The lines of a weakened move and of a varied move give the chances of
+the score they report, like any other line.
 
 ### Move Overhead
 

@@ -324,6 +324,7 @@ impl Engine {
         // their own, drawn only when it applies. With `Variety` 0 nothing
         // here changes the search or touches the generator.
         let variety = self.options.variety;
+        let show_wdl = self.options.show_wdl;
         let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
         let (search_limits, check_limits) = if varying {
             split_limits(limits, Instant::now())
@@ -345,7 +346,7 @@ impl Engine {
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
                         reached_seldepth = report.seldepth;
-                        send(&out, &info_line(report));
+                        send(&out, &info_line(report, show_wdl));
                     });
                     match variety_rng {
                         None => outcome,
@@ -375,14 +376,17 @@ impl Engine {
                                     // so a GUI records its score and line.
                                     send(
                                         &out,
-                                        &info_line(&Report {
-                                            depth: reached,
-                                            seldepth: reached_seldepth,
-                                            score: varied.score,
-                                            nodes: search.nodes() + varied.nodes,
-                                            elapsed: started.elapsed(),
-                                            pv: vec![varied.best_move],
-                                        }),
+                                        &info_line(
+                                            &Report {
+                                                depth: reached,
+                                                seldepth: reached_seldepth,
+                                                score: varied.score,
+                                                nodes: search.nodes() + varied.nodes,
+                                                elapsed: started.elapsed(),
+                                                pv: vec![varied.best_move],
+                                            },
+                                            show_wdl,
+                                        ),
                                     );
                                     Outcome {
                                         score: varied.score,
@@ -408,16 +412,19 @@ impl Engine {
                     );
                     send(
                         &out,
-                        &info_line(&Report {
-                            depth: weak.depth,
-                            // Not recorded for the passes of a weakened
-                            // search.
-                            seldepth: 0,
-                            score: weak.outcome.score,
-                            nodes: weak.nodes,
-                            elapsed: started.elapsed(),
-                            pv: weak.outcome.pv.clone(),
-                        }),
+                        &info_line(
+                            &Report {
+                                depth: weak.depth,
+                                // Not recorded for the passes of a weakened
+                                // search.
+                                seldepth: 0,
+                                score: weak.outcome.score,
+                                nodes: weak.nodes,
+                                elapsed: started.elapsed(),
+                                pv: weak.outcome.pv.clone(),
+                            },
+                            show_wdl,
+                        ),
                     );
                     weak.outcome
                 }
@@ -1099,6 +1106,44 @@ mod tests {
             .find_map(|line| line.strip_prefix("bestmove "))
             .unwrap()
             .to_string()
+    }
+
+    /// `UCI_ShowWDL` adds the chances after the score of every `info` line
+    /// of a search, weakened ones included, and changes nothing else: the
+    /// lines without them, and the move, are those of the plain search.
+    #[test]
+    fn show_wdl_adds_chances_and_changes_nothing_else() {
+        let on = "setoption name UCI_ShowWDL value true";
+        let limited = "setoption name UCI_LimitStrength value true";
+        for setup in [&[][..], &["setoption name Seed value 7", limited]] {
+            let mut plain: Vec<&str> = setup.to_vec();
+            plain.push("go depth 3");
+            let mut shown = vec![on];
+            shown.extend(&plain);
+            let (plain, shown) = (stable(&session(&plain)), stable(&session(&shown)));
+            assert_eq!(plain.len(), shown.len());
+            assert!(plain.iter().all(|line| !line.contains(" wdl ")));
+            let mut seen = 0;
+            for (plain, shown) in plain.iter().zip(&shown) {
+                if !plain.starts_with("info depth ") {
+                    assert_eq!(plain, shown);
+                    continue;
+                }
+                let words: Vec<&str> = shown.split(' ').collect();
+                let at = words.iter().position(|&word| word == "wdl").unwrap();
+                // Straight after `score cp <n>` or `score mate <n>`.
+                assert_eq!(words[at - 3], "score", "{shown}");
+                let chances: Vec<u32> = words[at + 1..at + 4]
+                    .iter()
+                    .map(|word| word.parse().unwrap())
+                    .collect();
+                assert_eq!(chances.iter().sum::<u32>(), 1000, "{shown}");
+                let without = [&words[..at], &words[at + 4..]].concat().join(" ");
+                assert_eq!(&without, plain);
+                seen += 1;
+            }
+            assert!(seen >= 1, "{shown:?}");
+        }
     }
 
     /// With `Variety` 0, the default, the root move is always the search's

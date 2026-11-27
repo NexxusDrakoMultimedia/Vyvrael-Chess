@@ -19,6 +19,11 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`UCI_ShowWDL`** (check, off by default): with it on, `info` lines give
+  `wdl <win> <draw> <loss>` after the score. The numbers come from a
+  fixed, documented model of the score and are not a measured win rate
+  (`docs/UCI.md`, "Win, draw and loss"). `info_line` takes the switch as
+  a second argument.
 - **`seldepth` in `info`:** each `info` line of a search gives the
   selective depth, the deepest ply that iteration reached with the
   captures played out. `Report`, the library's progress record, gains the
