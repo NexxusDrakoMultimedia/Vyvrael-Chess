@@ -302,7 +302,7 @@ class WhatTheScriptsWrite:
         run = record_sprt.read_run(Path(f"{stem}.notes.txt"))
         digest = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()  # noqa: E731
         # The day the run started (the date in the file names is the test's).
-        self.assertRegex(run.date, r"^d{4}-dd-dd$")
+        self.assertRegex(run.date, r"^\d{4}-\d\d-\d\d$")
         self.assertRegex(run.commit, r"^[0-9a-f]{12}$")
         self.assertEqual(run.test, ("Vyvrael dev-abc1234", digest(self.test_build)))
         self.assertEqual(run.base, ("Vyvrael 0.1.0-a1", digest(self.base_build)))
