@@ -214,6 +214,41 @@ mod tests {
         }
     }
 
+    /// Plays a game without increment against the plan alone: every move
+    /// takes exactly the time planned for it plus `overrun`, which stands
+    /// for all that the plan cannot see (the GUI, the first depth, the
+    /// clock being read only now and then). Returns the move on which the
+    /// flag falls, or `None` if it has not fallen after 10,000 moves.
+    fn moves_until_the_flag_falls(start: Duration, overrun: Duration) -> Option<u32> {
+        let mut left = start;
+        for played in 1..=10_000 {
+            let whole = u64::try_from(left.as_millis()).unwrap();
+            let go = clock(whole, whole, 0, 0);
+            let spent = time_for_move(&go, Color::White).unwrap() + overrun;
+            if spent >= left {
+                return Some(played);
+            }
+            left -= spent;
+        }
+        None
+    }
+
+    /// Known issue KI-12, reproduced: with no increment the plan itself
+    /// runs the clock out, even if nothing ever takes longer than planned.
+    /// A thirtieth of what is left brings the clock down to the overhead,
+    /// and from there the floor of a millisecond a move spends the rest.
+    #[test]
+    fn without_an_increment_the_plan_runs_the_clock_out() {
+        // One second a side ("1+0"), and a tenth of a second ("0.1+0").
+        assert_eq!(moves_until_the_flag_falls(ms(1_000), ms(0)), Some(150));
+        assert_eq!(moves_until_the_flag_falls(ms(100), ms(0)), Some(77));
+        // With half a millisecond a move unaccounted for it comes sooner:
+        // the soak test's loss on time at 1+0 was a 124-move game.
+        let half = Duration::from_micros(500);
+        assert_eq!(moves_until_the_flag_falls(ms(1_000), half), Some(123));
+        assert_eq!(moves_until_the_flag_falls(ms(100), half), Some(55));
+    }
+
     /// The overhead is whatever the caller says, not a fixed 30 ms.
     #[test]
     fn the_overhead_is_the_one_given() {

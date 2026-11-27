@@ -739,10 +739,10 @@ and not a measurement; SPRT results go into
 `docs/testing/sprt-history.md`; the suite runner is a command of the
 engine binary; `bench` refuses more than one thread.
 
-- [ ] This plan, and the `task/` branch prefix in `AGENTS.md`
-- [ ] Docs: fix the drift found on `main` while planning
+- [x] This plan, and the `task/` branch prefix in `AGENTS.md`
+- [x] Docs: fix the drift found on `main` while planning
 - **KI-12** (the maintainer runs the matches on the Windows workstation):
-  - [ ] A test that plays out a clock without increment against the time
+  - [x] A test that plays out a clock without increment against the time
     formula and pins how it runs out today
   - [ ] No time is planned once the clock is within `Move Overhead`: the
     move comes from the first depth alone
