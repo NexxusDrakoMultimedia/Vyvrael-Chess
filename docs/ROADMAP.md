@@ -1012,13 +1012,13 @@ How every search change is done:
 **Capture ordering and the table (the maintainer's order):**
 
 - [x] 1. MVV-LVA with promotions for the captures of the main search. The
-  baseline for everything after it. SPRT: awaited (the code is in; the
-  row in `sprt-history.md` follows the maintainer's run).
+  baseline for everything after it. SPRT [0, 10]: H1 accepted in 120
+  games (run `f38fad1831cb`).
 - [x] 2a. The transposition table: the table itself, sized by `Hash`,
   cleared at `ucinewgame`, probed and stored in the main search, with its
-  cutoffs. SPRT: awaited, after item 1's.
-- [x] 2b. The table's move tried first, at the root too. SPRT: awaited,
-  after item 2a's.
+  cutoffs. SPRT [0, 10]: H1 accepted in 344 games (run `ad16d90abf11`).
+- [x] 2b. The table's move tried first, at the root too. SPRT [0, 10]:
+  H1 accepted in 242 games (run `9710d85acf32`).
 - [ ] 2c. With the table, no SPRT (the bench count must not move): the
   button `Clear Hash`, `hashfull` in `info`, the table's hit rate in the
   search statistics, and `bench <depth> <threads> <hash>` using its hash

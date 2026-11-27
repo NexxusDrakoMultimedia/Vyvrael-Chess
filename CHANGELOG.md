@@ -15,10 +15,11 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   uses it when the position comes up again by another move order or in
   the next iteration. `Hash` now sizes it, `ucinewgame` empties it. The
   bench counts 394,939 nodes, from 459,926. SPRT against the search
-  before it: see `docs/testing/sprt-history.md`.
+  before it: H1 accepted (run `ad16d90abf11` in
+  `docs/testing/sprt-history.md`).
 - **The table's move is tried first** (item 2b), at the root too, where
   it is the best move of the iteration before. The bench counts 206,097
-  nodes. SPRT: see the same file.
+  nodes. SPRT: H1 accepted (run `9710d85acf32`).
 
 ### Changed
 
@@ -26,8 +27,8 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   and promotions by most valuable victim and least valuable attacker, as
   quiescence always has, then the quiet moves. The value found is the
   same; the tree is far smaller (the bench counts 459,926 nodes, from
-  16,611,416). SPRT against the search before it: see
-  `docs/testing/sprt-history.md`.
+  16,611,416). SPRT against the search before it: H1 accepted (run
+  `f38fad1831cb` in `docs/testing/sprt-history.md`).
 
 ### Fixed
 

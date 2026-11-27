@@ -37,3 +37,6 @@ How to read a row:
 
 | Date | Change | Test build | Base build | Bounds | alpha, beta | Conditions | Games | W - L - D | Elo | LLR | Outcome | Run |
 | --- | --- | --- | --- | --- | --- | --- | --: | --- | --- | --- | --- | --- |
+| 2026-11-27 | Captures first in the main search, MVV-LVA with promotions (milestone 7, item 1) | Vyvrael dev-db4342c (`a4958414db72`) | Vyvrael dev-d344d0a (`70c372e180a4`) | [0, 10] | 0.05, 0.05 | 10+0.1, Hash 64, 6 at once, cap 5000 rounds | 120 | 96 - 12 - 12 | 301.3 +/- 81.5 | 2.97 (-2.94, 2.94) | **H1 accepted** | `f38fad1831cb` |
+| 2026-11-27 | Transposition table in the main search (milestone 7, item 2a) | Vyvrael dev-573363b (`f1a140633b97`) | Vyvrael dev-db4342c (`a4958414db72`) | [0, 10] | 0.05, 0.05 | 10+0.1, Hash 64, 6 at once, cap 5000 rounds | 344 | 183 - 96 - 65 | 89.8 +/- 34.0 | 2.96 (-2.94, 2.94) | **H1 accepted** | `ad16d90abf11` |
+| 2026-11-27 | The table's move tried first (milestone 7, item 2b) | Vyvrael dev-7c396b9 (`eed1a7d9b36b`) | Vyvrael dev-573363b (`f1a140633b97`) | [0, 10] | 0.05, 0.05 | 10+0.1, Hash 64, 6 at once, cap 5000 rounds | 242 | 132 - 53 - 57 | 117.7 +/- 39.9 | 2.96 (-2.94, 2.94) | **H1 accepted** | `9710d85acf32` |
