@@ -781,7 +781,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] A test that it reads what the match scripts really write
 - **EPD suite runner:**
   - [x] `*.epd` ignored by git
-  - [ ] A legal move found from its SAN text
+  - [x] A legal move found from its SAN text
   - [ ] EPD records read
   - [ ] Positions scored by `bm` and `am`
   - [ ] The command `suite`

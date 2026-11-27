@@ -35,7 +35,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `rng` | implemented | The only source of randomness: `Rng` (SplitMix64) with `Rng::new`, `Rng::from_state`, `Rng::stream`, `next_u64`, `next_u32` and `next_below`; `DEFAULT_SEED`; the stream indices in `rng::stream`; `entropy_seed` and `SEED_MAX`; `mix64`. |
 | `board` | implemented | Board representation: `Color`, `Square`, `PieceKind`, `Piece`, `Bitboard`, `CastlingRights`, `Move`, `Position`, FEN parsing, validation and serialisation, Zobrist keys (`board::zobrist`), the position hash, make/unmake, coordinate-notation move parsing and a text diagram (`Position::diagram`). |
 | `attacks` | implemented | Attack tables: knight, king and pawn tables, slider attacks by ray scanning, and magic bitboards for bishops, rooks and queens. |
-| `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. |
+| `movegen` | implemented | Move generation: `MoveList`, `pseudo_legal_moves` (all pieces, pawns and castling) and `legal_moves`. `find_legal_move` and `find_san_move` turn outside text (UCI notation, standard algebraic notation) into a legal move or nothing. |
 | `cli` | implemented | Command line of the binary: engine identification, `perft`, `eval`, `search`, `bench`, `help`. |
 | `bench` | implemented | `bench(depth)`, `BenchResult`, `BENCH_POSITIONS`, `BENCH_DEPTH`: a fixed full-strength search workload whose node count is pinned. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
