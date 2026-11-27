@@ -6,7 +6,8 @@
 //!
 //! The scheme is deliberately plain. It gives every move an equal share of
 //! the time left plus most of the increment, and never promises more than
-//! is on the clock. Smarter schemes (stopping early when the best move is
+//! is on the clock less the overhead: once the clock is within the overhead
+//! it plans no time at all, and the move comes from the first search depth. Smarter schemes (stopping early when the best move is
 //! stable, thinking longer when the score drops) change how strongly the
 //! engine plays, so they wait for milestone 7 and an SPRT each.
 
@@ -33,8 +34,13 @@ pub const MOVES_ASSUMED: u64 = 30;
 /// - With a clock, the share is `remaining / moves + 3/4 increment`, where
 ///   `moves` is `movestogo` or [`MOVES_ASSUMED`]. It is capped at what is on
 ///   the clock less the overhead, so the engine cannot plan to lose on time.
-/// - There is always at least one millisecond: a move must be made even
-///   with nothing left.
+///   Where the cap allows any time at all, a move gets at least one
+///   millisecond.
+/// - With a clock at or below the overhead the answer is no time at all.
+///   The search always completes its first depth, so there is still a move,
+///   found as fast as the engine can; the reserve is not spent a
+///   millisecond at a time (known issue KI-12 was that it was).
+/// - A `movetime` at or below the overhead still gets one millisecond.
 #[must_use]
 pub fn time_for_move(params: &GoParams, side: Color, overhead: Duration) -> Option<Duration> {
     let floor = Duration::from_millis(1);
@@ -49,6 +55,9 @@ pub fn time_for_move(params: &GoParams, side: Color, overhead: Duration) -> Opti
     let moves = params.movestogo.map_or(MOVES_ASSUMED, u64::from).max(1);
     let share = (remaining / moves).saturating_add(increment / 4 * 3);
     let on_the_clock = Duration::from_millis(remaining).saturating_sub(overhead);
+    if on_the_clock.is_zero() {
+        return Some(Duration::ZERO);
+    }
     Some(Duration::from_millis(share).min(on_the_clock).max(floor))
 }
 
@@ -189,12 +198,18 @@ mod tests {
         // clock yet, so it cannot be spent.
         let go = clock(200, 200, 5_000, 5_000);
         assert_eq!(time_for_move(&go, Color::White), Some(ms(170)));
-        // Less than the overhead left, or a fallen flag: one millisecond.
+        // No more than the overhead left, or a fallen flag: no time at all,
+        // whatever the increment promises.
+        for (remaining, increment) in [(30, 0), (20, 0), (20, 5_000), (0, 0)] {
+            let go = clock(remaining, remaining, increment, increment);
+            assert_eq!(time_for_move(&go, Color::White), Some(ms(0)), "{go:?}");
+            assert_eq!(time_for_move(&go, Color::Black), Some(ms(0)), "{go:?}");
+        }
+        // One millisecond more than the overhead: that millisecond.
         assert_eq!(
-            time_for_move(&clock(20, 20, 0, 0), Color::White),
+            time_for_move(&clock(31, 31, 0, 0), Color::White),
             Some(ms(1))
         );
-        assert_eq!(time_for_move(&clock(0, 0, 0, 0), Color::Black), Some(ms(1)));
         // Whatever the numbers, the plan fits the clock.
         for remaining in [1, 29, 30, 31, 500, 60_000, 3_600_000, u64::MAX / 4] {
             for increment in [0, 100, 30_000, u64::MAX / 4] {
@@ -204,11 +219,9 @@ mod tests {
                         ..clock(remaining, remaining, increment, increment)
                     };
                     let time = time_for_move(&go, Color::White).unwrap();
-                    assert!(time >= ms(1));
-                    assert!(
-                        time <= ms(remaining).max(ms(1)),
-                        "{remaining} {increment} {movestogo:?}"
-                    );
+                    let note = format!("{remaining} {increment} {movestogo:?}");
+                    assert!(time <= ms(remaining).saturating_sub(OVERHEAD), "{note}");
+                    assert_eq!(time >= ms(1), remaining > 30, "{note}");
                 }
             }
         }
@@ -233,20 +246,23 @@ mod tests {
         None
     }
 
-    /// Known issue KI-12, reproduced: with no increment the plan itself
-    /// runs the clock out, even if nothing ever takes longer than planned.
-    /// A thirtieth of what is left brings the clock down to the overhead,
-    /// and from there the floor of a millisecond a move spends the rest.
+    /// Known issue KI-12 was that with no increment the plan itself ran the
+    /// clock out, even if nothing ever took longer than planned: a
+    /// thirtieth of what is left brought the clock down to the overhead,
+    /// and a floor of a millisecond a move then spent the rest (the flag
+    /// fell on move 150 from one second and on move 77 from a tenth).
     #[test]
-    fn without_an_increment_the_plan_runs_the_clock_out() {
+    fn without_an_increment_the_plan_keeps_the_overhead() {
         // One second a side ("1+0"), and a tenth of a second ("0.1+0").
-        assert_eq!(moves_until_the_flag_falls(ms(1_000), ms(0)), Some(150));
-        assert_eq!(moves_until_the_flag_falls(ms(100), ms(0)), Some(77));
-        // With half a millisecond a move unaccounted for it comes sooner:
-        // the soak test's loss on time at 1+0 was a 124-move game.
+        assert_eq!(moves_until_the_flag_falls(ms(1_000), ms(0)), None);
+        assert_eq!(moves_until_the_flag_falls(ms(100), ms(0)), None);
+        // What the plan cannot see still comes off the clock. With half a
+        // millisecond a move unaccounted for the reserve lasts 39 moves
+        // longer than it did (123 and 55 moves before): no plan can make a
+        // game without increment last for ever.
         let half = Duration::from_micros(500);
-        assert_eq!(moves_until_the_flag_falls(ms(1_000), half), Some(123));
-        assert_eq!(moves_until_the_flag_falls(ms(100), half), Some(55));
+        assert_eq!(moves_until_the_flag_falls(ms(1_000), half), Some(162));
+        assert_eq!(moves_until_the_flag_falls(ms(100), half), Some(94));
     }
 
     /// The overhead is whatever the caller says, not a fixed 30 ms.
@@ -266,7 +282,7 @@ mod tests {
             (250, 750, 59_750),
             (1_000, 1, 59_000),
             (5_000, 1, 55_000),
-            (60_000, 1, 1),
+            (60_000, 1, 0),
         ] {
             assert_eq!(
                 super::time_for_move(&movetime, Color::White, ms(overhead)),

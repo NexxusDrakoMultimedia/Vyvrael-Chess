@@ -660,7 +660,9 @@ and option is listed in [UCI.md](UCI.md).
 - **Time management** (`uci/time.rs`): `time_for_move` gives a move an equal
   share of the remaining time (over `movestogo`, or 30 moves) plus three
   quarters of the increment, capped at what is on the clock less the
-  overhead, which is the UCI option `Move Overhead` (30 ms by default). `limits_for` combines it with `depth`, `nodes` and `infinite`
+  overhead, which is the UCI option `Move Overhead` (30 ms by default). A
+  clock at or below the overhead gets no time, so the move comes from the
+  first depth, which the search always completes. `limits_for` combines it with `depth`, `nodes` and `infinite`
   into the search's `Limits`. The scheme is deliberately plain: schemes that
   react to the search change playing strength and wait for milestone 7.
 - **Options** (`uci/options.rs`): `Options` holds the value of every UCI

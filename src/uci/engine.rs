@@ -725,6 +725,14 @@ mod tests {
             assert!(started.elapsed() < Duration::from_secs(5), "{side}");
             assert!(lines.last().unwrap().starts_with("bestmove "));
         }
+        // A clock within `Move Overhead` (30 ms) gets no time at all: the
+        // move comes from the first depth alone, every time.
+        for go in ["go wtime 30 btime 600000", "go wtime 1 btime 600000 winc 9"] {
+            let lines = played(&[&format!("position fen {MIDDLEGAME} w - - 0 10"), go]);
+            assert_eq!(lines.len(), 2, "{go}: {lines:?}");
+            assert!(lines[0].starts_with("info depth 1 "));
+            assert!(lines[1].starts_with("bestmove "));
+        }
     }
 
     /// `Move Overhead` reaches the clock. With five seconds kept back from a

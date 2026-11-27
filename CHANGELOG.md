@@ -8,6 +8,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Fixed
+
+- **A clock within `Move Overhead` is no longer spent a millisecond at a
+  time** (known issue KI-12, narrowed). Once the clock is at or below the
+  overhead the engine plans no time and plays from the first search depth,
+  where before every move got at least a millisecond and a long game
+  without increment ran the clock out. Play with more than the overhead on
+  the clock is unchanged.
+
 ### Added
 
 - **A round-robin mode for baselines:** `match.sh roundrobin` and

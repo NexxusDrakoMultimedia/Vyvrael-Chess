@@ -75,7 +75,7 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 
 | Parameter | Status | Behaviour |
 | --- | --- | --- |
-| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less the `Move Overhead` (30 ms by default). A negative clock counts as zero. |
+| `wtime`, `btime`, `winc`, `binc` | implemented | The clocks and increments in milliseconds. The move gets `remaining / moves + 3/4 increment`, where `moves` is `movestogo` or 30, and never more than is on the clock less the `Move Overhead` (30 ms by default). A clock at or below the overhead gets no time: the move comes from the first search depth alone. A negative clock counts as zero. |
 | `movestogo` | implemented | Moves to the next time control. |
 | `movetime` | implemented | Think this long, less the `Move Overhead`. Takes precedence over the clocks. |
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
@@ -201,9 +201,12 @@ is the number of milliseconds kept back for that.
   what is on the clock less the overhead. An ordinary share of the time is
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
-- There is always at least one millisecond to move in. Without an
-  increment, a long game at a very short time control can still lose on
-  time; this is known issue KI-12 in [ROADMAP.md](ROADMAP.md).
+- Once the clock is at or below the overhead no time is planned at all:
+  the search completes its first depth, which it always does, and plays
+  from that. The overhead is a reserve that the plan does not spend. (Up
+  to 0.1.0 a move always got at least a millisecond, which spent it; see
+  known issue KI-12 in [ROADMAP.md](ROADMAP.md).) A `movetime` at or
+  below the overhead still gets one millisecond.
 - It does not change which move is chosen at a fixed depth or node count,
   only how long a search on the clock may run.
 
