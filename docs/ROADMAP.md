@@ -783,7 +783,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] `*.epd` ignored by git
   - [x] A legal move found from its SAN text
   - [x] EPD records read
-  - [ ] Positions scored by `bm` and `am`
+  - [x] Positions scored by `bm` and `am`
   - [ ] The command `suite`
   - [ ] `DATA.md`: the WAC and STS suites, confirmed on their official pages
 - [ ] End-of-branch doc drift pass

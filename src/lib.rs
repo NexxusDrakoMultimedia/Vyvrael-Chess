@@ -18,6 +18,7 @@ pub mod movegen;
 pub mod perft;
 pub mod rng;
 pub mod search;
+pub mod suite;
 pub mod uci;
 
 /// Engine name as reported to UCI front ends (`id name`).
