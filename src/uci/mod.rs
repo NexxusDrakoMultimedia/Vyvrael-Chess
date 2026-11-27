@@ -11,6 +11,7 @@ mod engine;
 mod options;
 mod output;
 mod time;
+mod wdl;
 
 pub use command::{Command, GoParams, parse};
 pub use engine::{Engine, run};
@@ -19,3 +20,4 @@ pub use options::{
 };
 pub use output::{bestmove_line, info_line, score_text};
 pub use time::{MOVES_ASSUMED, limits_for, time_for_move};
+pub use wdl::{WDL_HALF, WDL_SPREAD, wdl};

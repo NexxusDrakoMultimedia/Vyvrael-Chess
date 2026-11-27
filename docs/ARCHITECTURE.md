@@ -660,6 +660,11 @@ and option is listed in [UCI.md](UCI.md).
   before the first known command are skipped and unknown `go` words ignored.
 - **Output** (`uci/output.rs`): `info_line`, `bestmove_line` and
   `score_text` build the lines the engine sends.
+- **Win, draw and loss** (`uci/wdl.rs`): `wdl` turns a score into three
+  chances per thousand by a fixed model (two logistic curves, constants
+  `WDL_HALF` and `WDL_SPREAD`), not fitted to any games. Its exponential
+  uses only additions, multiplications and divisions, so the figures are
+  the same on every platform.
 - **Time management** (`uci/time.rs`): `time_for_move` gives a move an equal
   share of the remaining time (over `movestogo`, or 30 moves) plus three
   quarters of the increment, capped at what is on the clock less the
