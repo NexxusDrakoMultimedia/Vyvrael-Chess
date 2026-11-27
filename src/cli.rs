@@ -14,7 +14,7 @@ use crate::board::Position;
 use crate::eval::{Evaluator, HandCrafted, MAX_PHASE};
 use crate::perft::{divide, perft, perft_copy_make};
 use crate::search::{Limits, MAX_PLY, Report, Search};
-use crate::uci::score_text;
+use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -25,7 +25,7 @@ Usage:
                                            count leaf nodes from a position
   vyvrael eval [FEN]                       show the static evaluation
   vyvrael search <depth> [FEN]             search to a fixed depth
-  vyvrael bench [depth]                    a fixed search workload: nodes and speed
+  vyvrael bench [depth [threads [hash]]]   a fixed search workload: nodes and speed
   vyvrael help                             show this text
 
 perft counts the positions reachable in exactly <depth> moves from FEN (the
@@ -44,7 +44,9 @@ are in centipawns for the side to move, or shown as mate in N moves.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
-is the same on every run of the same build; the speed is not.
+is the same on every run of the same build; the speed is not. <threads> (1
+only) and <hash> (in MiB, 1 to 65536) are accepted in the form other engines
+use, `bench <depth> <threads> <hash>`, and have no effect yet.
 ";
 
 /// Exit status for success.
@@ -186,22 +188,30 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
 }
 
 fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
-    let depth = match args {
-        [] => Some(BENCH_DEPTH),
-        [text] => text
-            .parse::<u32>()
+    // Up to three numbers: the depth, then the threads and the hash size
+    // in MiB. The last two are checked against the ranges of the UCI
+    // options `Threads` and `Hash` and otherwise unused: there is one
+    // search thread and no transposition table yet.
+    let ranges = [(1, MAX_PLY as u32), (1, THREADS_MAX), (1, HASH_MAX)];
+    let in_range = |(text, (low, high)): (&String, &(u32, u32))| {
+        text.parse::<u32>()
             .ok()
-            .filter(|depth| (1..=MAX_PLY as u32).contains(depth)),
-        _ => None,
+            .filter(|value| (*low..=*high).contains(value))
     };
-    let Some(depth) = depth else {
+    let numbers: Option<Vec<u32>> = if args.len() > ranges.len() {
+        None
+    } else {
+        args.iter().zip(&ranges).map(in_range).collect()
+    };
+    let Some(numbers) = numbers else {
         writeln!(
             err,
-            "bench: expected nothing, or a depth from 1 to {MAX_PLY}"
+            "bench: expected up to three numbers: a depth from 1 to {MAX_PLY}, threads (1 only) and a hash size from 1 to {HASH_MAX}"
         )?;
         write!(err, "{USAGE}")?;
         return Ok(EXIT_USAGE);
     };
+    let depth = numbers.first().copied().unwrap_or(BENCH_DEPTH);
     let result = bench(depth);
     writeln!(
         out,
@@ -494,18 +504,53 @@ total for the side to move: +0
         assert_eq!(second.split_whitespace().next(), Some(words[0]));
     }
 
+    /// `bench <depth> <threads> <hash>`, the form other engines use: the
+    /// threads and the hash size are accepted and change nothing.
+    #[test]
+    fn bench_accepts_threads_and_a_hash_size() {
+        let nodes = |args: &[&str]| {
+            let (status, out, err) = run_args(args);
+            assert_eq!(status, EXIT_OK, "{args:?}");
+            assert!(err.is_empty(), "{args:?}");
+            assert_eq!(out.split_whitespace().count(), 4, "{args:?}");
+            out.split_whitespace().next().unwrap().to_owned()
+        };
+        let plain = nodes(&["bench", "2"]);
+        for args in [
+            &["bench", "2", "1"][..],
+            &["bench", "2", "1", "1"],
+            &["bench", "2", "1", "16"],
+            &["bench", "2", "1", "65536"],
+        ] {
+            assert_eq!(nodes(args), plain, "{args:?}");
+        }
+    }
+
     #[test]
     fn bench_rejects_bad_input() {
         for args in [
             &["bench", "0"][..],
             &["bench", "deep"],
             &["bench", "129"],
+            // More than the one thread there is, or none.
             &["bench", "2", "3"],
+            &["bench", "2", "0"],
+            &["bench", "2", "many"],
+            // A hash size outside the range of the option `Hash`.
+            &["bench", "2", "1", "0"],
+            &["bench", "2", "1", "65537"],
+            &["bench", "2", "1", "big"],
+            // A bad depth is not excused by what follows it.
+            &["bench", "0", "1", "16"],
+            // A fourth number.
+            &["bench", "2", "1", "16", "4"],
         ] {
             let (status, out, err) = run_args(args);
             assert_eq!(status, EXIT_USAGE, "{args:?}");
             assert!(out.is_empty());
-            assert!(err.contains("bench: expected nothing, or a depth from 1 to 128"));
+            assert!(err.contains(
+                "bench: expected up to three numbers: a depth from 1 to 128, threads (1 only) and a hash size from 1 to 65536"
+            ));
         }
     }
 

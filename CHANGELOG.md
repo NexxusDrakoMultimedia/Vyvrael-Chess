@@ -19,6 +19,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`bench <depth> <threads> <hash>`:** the bench accepts the threads (1
+  only) and a hash size after the depth, in the form other engines use.
+  Both are checked and have no effect yet. `bench` alone is unchanged:
+  the same line, the same 16,611,416 nodes.
 - **A round-robin mode for baselines:** `match.sh roundrobin` and
   `match.ps1 roundrobin` play every engine of the engine list (or those
   named with `--opponent`) and any Vyvræl builds given with `--build

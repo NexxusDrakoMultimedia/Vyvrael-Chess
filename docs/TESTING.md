@@ -54,7 +54,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `perft` | Start position depths 0 to 3 (1, 20, 400, 8,902); depth 1 equals the number of legal moves; `divide` sums to `perft`, lists each legal first move once and gives 600 for `e2e4` and 380 for `a2a3` at depth 3; depth 0 and checkmate edge cases; the position is restored. |
 | `cli` `search` | One line per depth and then the best move, identical on repeated runs; the exact first line from the start position; mates reported in moves with the right sign, stopping at the depth that proves them; checkmate and stalemate at the root; bad depths and FENs are usage errors. |
 | `cli` `eval` | The exact output for the start position; both points of view after 1.e4 (+40 for White, -40 for the side to move); quoted and unquoted FENs; material and phase lines for a lone queen; a bad FEN is a usage error. |
-| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, and refuses a bad depth or extra arguments. |
+| `cli` | No arguments writes only to stderr; `help` prints the usage text; unknown commands exit with status 2; `perft` from the start position and from a quoted or unquoted FEN; `--divide` output format, order and total; bad depths and FENs are usage errors; `bench` prints `<nodes> nodes <nps> nps` with the same count on every run, accepts `bench <depth> <threads> <hash>` with the same count whatever the hash size, and refuses a bad depth, more than one thread, a hash size outside the option's range and a fourth argument. |
 | `bench` | Every bench position is a valid FEN; the node count is the same over three runs; the speed is nodes over seconds, and 0 when no time was measured. |
 | `perft` copy-make | `perft_copy_make` gives the same counts as `perft` at every depth for three positions; the `--copy-make` flag works and cannot be combined with `--divide`. |
 | `eval` interface | `relative_to` flips the sign for Black; an evaluator works as a `Box<dyn Evaluator>` and reports from the side to move's view; an evaluator can be moved to another thread and shared by four threads at once. |
@@ -165,7 +165,7 @@ reproducible: the same position and depth always give the same lines.
 ## Bench
 
 ```sh
-cargo run --release -- bench [depth]
+cargo run --release -- bench [depth [threads [hash]]]
 ```
 
 searches the seven positions of `src/bench.rs` (an opening, middlegames
@@ -187,6 +187,19 @@ line:
   Compare speeds only on one machine, idle, over several runs.
 - The figures for each measured build, with perft speeds, are kept in
   [`testing/bench-history.md`](testing/bench-history.md).
+
+- **`bench <depth> <threads> <hash>`** is the form several other engines
+  share, accepted so that tools and habits carry over. The threads must be
+  1 and the hash size, in MiB, within the range of the option `Hash`; both
+  are checked and have no effect yet, because there is one search thread
+  and no transposition table. Once milestone 7 adds the table, the node
+  count is the same on every run *with the same arguments*, and the bench
+  without arguments uses a fixed size.
+- **OpenBench** runs `./binary bench` with no arguments and reads the last
+  `<n> nodes` and `<n> nps` it finds in the output (its "Requirements for
+  Public Engines" page and `Client/bench.py`, read on 2026-11-27). The
+  line above is what it expects. It also needs a makefile that builds the
+  engine as `make EXE=<name>`, which this repository does not have.
 
 The positions avoid Kiwipete, whose depth 4 alone takes about 25 seconds
 without move ordering (known issue KI-9). Queued task 2 widens the set once

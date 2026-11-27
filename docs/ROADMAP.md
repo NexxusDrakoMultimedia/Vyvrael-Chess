@@ -750,7 +750,7 @@ engine binary; `bench` refuses more than one thread.
     (moves every budget by about a millisecond, so it needs a
     non-regression SPRT)
   - [ ] The runs at 1+0 and 0.1+0 before and after, recorded; KI-12 removed
-- [ ] `bench [depth] [threads] [hash]`
+- [x] `bench [depth] [threads] [hash]`
 - **`d` and `eval` in UCI mode:**
   - [ ] The evaluation's report built in the `eval` module
   - [ ] A text diagram of a position
