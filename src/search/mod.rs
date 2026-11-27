@@ -11,6 +11,7 @@ mod negamax;
 mod ordering;
 mod score;
 mod stats;
+mod tt;
 mod variety;
 mod weaken;
 
@@ -21,6 +22,7 @@ pub use score::{
     DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,
 };
 pub use stats::{SearchStats, per_mille, stats_lines};
+pub use tt::{Bound, Entry, TranspositionTable};
 pub use variety::{
     VARIETY_FULL_MOVES, VARIETY_MAX, Varied, split_limits, varied_move, variety_applies,
 };
