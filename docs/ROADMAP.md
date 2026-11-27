@@ -753,7 +753,7 @@ engine binary; `bench` refuses more than one thread.
 - [x] `bench [depth] [threads] [hash]`
 - **`d` and `eval` in UCI mode:**
   - [x] The evaluation's report built in the `eval` module
-  - [ ] A text diagram of a position
+  - [x] A text diagram of a position
   - [ ] The two commands
 - **`info` fields:**
   - [ ] The search records its selective depth

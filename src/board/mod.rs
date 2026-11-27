@@ -9,6 +9,7 @@ mod attackers;
 mod bitboard;
 mod castling;
 mod color;
+mod diagram;
 mod fen;
 mod makemove;
 mod mv;
