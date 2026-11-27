@@ -19,6 +19,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Added
 
+- **`d` and `eval` in UCI mode:** `d` shows the current position (board,
+  FEN, hash key, checking pieces) and `eval` its static evaluation with
+  its parts. Both answer in `info string` lines, so standard output stays
+  protocol output, and neither disturbs a running search.
 - **`bench <depth> <threads> <hash>`:** the bench accepts the threads (1
   only) and a hash size after the depth, in the form other engines use.
   Both are checked and have no effect yet. `bench` alone is unchanged:

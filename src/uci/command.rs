@@ -58,6 +58,12 @@ pub enum Command {
         /// The value, or `None` if the command had no `value` part.
         value: Option<String>,
     },
+    /// `d`: show the current position. Not part of the protocol; a
+    /// convenience for a person at a terminal.
+    Display,
+    /// `eval`: show the static evaluation of the current position. Not part
+    /// of the protocol either.
+    Eval,
     /// `quit`: leave.
     Quit,
     /// A known command that cannot be understood; the text says why.
@@ -74,11 +80,19 @@ pub enum Command {
 /// command are skipped (`joho isready` is `isready`), any amount of white
 /// space separates words, and `go` parameters the engine does not know are
 /// ignored.
+///
+/// The two commands that are not part of the protocol, `d` and `eval`, are
+/// recognised only as the whole line, so that they cannot hide a protocol
+/// command on the same line (`d isready` is still `isready`) or be found by
+/// accident in the noise before one.
 #[must_use]
 pub fn parse(line: &str) -> Command {
     let words: Vec<&str> = line.split_whitespace().collect();
-    if words.is_empty() {
-        return Command::Empty;
+    match words[..] {
+        [] => return Command::Empty,
+        ["d"] => return Command::Display,
+        ["eval"] => return Command::Eval,
+        _ => {}
     }
     for (index, &word) in words.iter().enumerate() {
         let rest = &words[index + 1..];
@@ -210,6 +224,18 @@ mod tests {
         // The protocol's own example: unknown words before a command.
         assert_eq!(parse("joho isready"), Command::IsReady);
         assert_eq!(parse("xyz 12 quit"), Command::Quit);
+    }
+
+    /// `d` and `eval` are commands only when they are the whole line.
+    #[test]
+    fn display_and_eval_are_whole_lines() {
+        assert_eq!(parse("d"), Command::Display);
+        assert_eq!(parse("  eval 	"), Command::Eval);
+        assert_eq!(parse("d isready"), Command::IsReady);
+        assert_eq!(parse("eval stop"), Command::Stop);
+        for line in ["hello d", "d d", "eval e2e4", "D", "Eval", "debug eval"] {
+            assert_eq!(parse(line), Command::Unknown(line.to_owned()), "{line}");
+        }
     }
 
     #[test]

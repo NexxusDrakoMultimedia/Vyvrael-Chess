@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use super::{Command, GoParams, Options, bestmove_line, info_line, limits_for, parse};
 use crate::attacks::rook_attacks;
 use crate::board::{Bitboard, Position, Square};
-use crate::eval::default_evaluator;
+use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
 use crate::search::{
@@ -182,6 +182,8 @@ impl Engine {
                     Err(problem) => self.say(&format!("info string {problem}")),
                 }
             }
+            Command::Display => self.say_lines(&self.display()),
+            Command::Eval => self.say_lines(&eval::report(&self.position)),
             Command::Quit => {
                 self.end_search();
                 return false;
@@ -206,6 +208,36 @@ impl Engine {
 
     fn say(&self, line: &str) {
         send(&self.out, line);
+    }
+
+    /// Sends `lines` as `info string` lines, as one block: a search that is
+    /// running cannot put a line of its own in between.
+    fn say_lines(&self, lines: &[String]) {
+        let mut out = self.out.lock().unwrap_or_else(PoisonError::into_inner);
+        for line in lines {
+            let _ = writeln!(out, "info string {line}");
+        }
+        let _ = out.flush();
+    }
+
+    /// What `d` shows: the board, the FEN, the hash key and the pieces
+    /// giving check. It reads the position and changes nothing.
+    fn display(&self) -> Vec<String> {
+        let pos = &self.position;
+        let checkers: Vec<String> = pos
+            .checkers()
+            .into_iter()
+            .map(|sq| sq.to_string())
+            .collect();
+        let mut lines = pos.diagram();
+        lines.push(format!("fen: {pos}"));
+        lines.push(format!("key: {:016x}", pos.hash()));
+        lines.push(if checkers.is_empty() {
+            "checkers: -".to_owned()
+        } else {
+            format!("checkers: {}", checkers.join(" "))
+        });
+        lines
     }
 
     /// Stops the running search, if any, and waits until it has reported
@@ -1452,12 +1484,71 @@ mod tests {
         assert!(session(&["", "   "]).is_empty());
     }
 
+    /// `d` draws the position the next `go` would search.
+    #[test]
+    fn d_shows_the_board_the_fen_the_key_and_the_checkers() {
+        let lines = session(&["position startpos moves e2e4", "d"]);
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let key = Position::from_fen(after_e4).unwrap().hash();
+        assert_eq!(lines.len(), 12, "{lines:?}");
+        assert_eq!(lines[0], "info string 8 r n b q k b n r");
+        assert_eq!(lines[4], "info string 4 . . . . P . . .");
+        assert_eq!(lines[8], "info string + a b c d e f g h");
+        assert_eq!(lines[9], format!("info string fen: {after_e4}"));
+        assert_eq!(lines[10], format!("info string key: {key:016x}"));
+        assert_eq!(lines[11], "info string checkers: -");
+        // A double check: both checking pieces are named.
+        let double = "position fen 4k3/8/3N4/8/8/8/8/4R1K1 b - - 0 1";
+        let lines = session(&[double, "d"]);
+        assert_eq!(lines[11], "info string checkers: e1 d6");
+    }
+
+    /// `eval` sends what the `eval` command of the binary prints.
+    #[test]
+    fn eval_shows_the_evaluation_of_the_current_position() {
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        let expected: Vec<String> = eval::report(&Position::from_fen(after_e4).unwrap())
+            .iter()
+            .map(|line| format!("info string {line}"))
+            .collect();
+        assert_eq!(expected.len(), 7);
+        assert_eq!(session(&["position startpos moves e2e4", "eval"]), expected);
+        assert!(expected.contains(&"info string total for White: +40".to_owned()));
+    }
+
+    /// Neither command ends a search or changes what it finds, and their
+    /// blocks arrive whole.
+    #[test]
+    fn d_and_eval_leave_a_running_search_alone() {
+        let plain = played(&["go depth 3"]);
+        let (mut engine, captured) = engine();
+        engine.handle("go depth 3");
+        engine.handle("d");
+        engine.handle("eval");
+        engine.wait();
+        let lines = captured.lines();
+        let start = lines
+            .iter()
+            .position(|line| line == "info string 8 r n b q k b n r")
+            .unwrap();
+        assert_eq!(lines[start + 8], "info string + a b c d e f g h");
+        assert_eq!(lines[start + 11], "info string checkers: -");
+        let search: Vec<String> = lines
+            .iter()
+            .filter(|line| !line.starts_with("info string "))
+            .cloned()
+            .collect();
+        assert_eq!(stable(&search), plain);
+    }
+
     #[test]
     fn every_line_of_output_is_protocol() {
         let lines = session(&[
             "uci",
             "isready",
             "nonsense",
+            "d",
+            "eval",
             "position startpos moves e2e4",
             "go depth 2",
         ]);

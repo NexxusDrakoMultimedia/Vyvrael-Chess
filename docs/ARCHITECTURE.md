@@ -739,6 +739,8 @@ the evaluation through a trait, so the hand-crafted evaluation and the NNUE
 evaluation are interchangeable and can be compared by SPRT. Only the UCI
 layer writes to stdout; the other commands of the binary (`perft`, `eval`,
 `search`, `bench`, `help`) are separate and never run in the same process as the loop.
+The loop's own `d` and `eval` reuse `Position::diagram` and `eval::report`
+and send them as `info string` lines.
 
 ## RNG design
 

@@ -68,6 +68,34 @@ package name needs one.
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
+Two commands are not part of the protocol and are there for a person at a
+terminal. Both answer in `info string` lines, so that everything on
+standard output stays protocol output; both read the current position
+(the one the next `go` would search), change nothing, and are answered
+while a search runs without disturbing it. They are commands only when
+they are the whole line.
+
+| Command | Behaviour |
+| --- | --- |
+| `d` | The board (ranks 8 to 1, FEN letters, `.` for an empty square), then `fen:`, `key:` (the position's hash, 16 hexadecimal digits) and `checkers:` (the squares of the pieces giving check, or `-`). |
+| `eval` | The static evaluation with its parts: the seven lines that `vyvrael eval` prints (see "Command line and bench" in [ARCHITECTURE.md](ARCHITECTURE.md)). Nothing is searched. |
+
+```text
+d
+info string 8 r n b q k b n r
+info string 7 p p p p p p p p
+info string 6 . . . . . . . .
+info string 5 . . . . . . . .
+info string 4 . . . . . . . .
+info string 3 . . . . . . . .
+info string 2 P P P P P P P P
+info string 1 R N B Q K B N R
+info string + a b c d e f g h
+info string fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+info string key: <16 hexadecimal digits>
+info string checkers: -
+```
+
 Not offered: `debug`, `register`, `ponderhit`. They are answered with
 `info string unknown command: <line>`, which echoes the line.
 
