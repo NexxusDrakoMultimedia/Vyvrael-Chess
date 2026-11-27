@@ -780,7 +780,7 @@ engine binary; `bench` refuses more than one thread.
   - [x] It appends the result to `docs/testing/sprt-history.md`
   - [x] A test that it reads what the match scripts really write
 - **EPD suite runner:**
-  - [ ] `*.epd` ignored by git
+  - [x] `*.epd` ignored by git
   - [ ] A legal move found from its SAN text
   - [ ] EPD records read
   - [ ] Positions scored by `bm` and `am`

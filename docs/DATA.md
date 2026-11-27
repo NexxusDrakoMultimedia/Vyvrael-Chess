@@ -9,7 +9,7 @@ where it lives locally.
 - Large third-party artefacts are **never committed**. They live in the
   git-ignored directories `/data/`, `/nets/`, `/books/` (opening books) and
   `/tablebases/`, or outside the repository: the matches' opening file goes
-  under the installer's prefix (see its entry below). Git also ignores every `*.pgn` and `*.zst` file.
+  under the installer's prefix (see its entry below). Git also ignores every `*.pgn`, `*.zst` and `*.epd` file (games, archives, and position files such as opening sets and test suites).
 - Each artefact's licence is confirmed on its **official source page**, not a
   mirror, and the date it was checked is recorded.
 - Anything derived from data (opening files, test suites, training sets) must
