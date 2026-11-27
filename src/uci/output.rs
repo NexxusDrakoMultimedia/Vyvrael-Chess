@@ -77,6 +77,7 @@ mod tests {
     fn report(nodes: u64, elapsed: Duration, pv: Vec<Move>) -> Report {
         Report {
             depth: 5,
+            seldepth: 9,
             score: 31,
             nodes,
             elapsed,

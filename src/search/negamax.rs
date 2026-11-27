@@ -43,6 +43,10 @@ pub struct Outcome {
 pub struct Report {
     /// The depth just completed, in plies.
     pub depth: u32,
+    /// The selective depth: how many plies from the root the deepest
+    /// position of this iteration was, quiescence search included. It is 0
+    /// when the root has no legal move.
+    pub seldepth: u32,
     /// The score at that depth, for the side to move.
     pub score: Score,
     /// Positions visited since the search began, over all iterations.
@@ -74,6 +78,10 @@ pub struct Search<'a> {
     /// False while the first iteration runs, so that it always completes and
     /// there is always a move to play.
     limits_apply: bool,
+    /// The deepest ply visited since the last search from the root began.
+    /// It is only ever written here and read by [`Search::seldepth`]: the
+    /// search decides nothing by it.
+    seldepth: usize,
 }
 
 /// The stop flag and the clock are looked at once per this many nodes:
@@ -94,6 +102,7 @@ impl<'a> Search<'a> {
             stop_flag: None,
             stopped: false,
             limits_apply: true,
+            seldepth: 0,
         }
     }
 
@@ -194,6 +203,7 @@ impl<'a> Search<'a> {
             }
             report(&Report {
                 depth,
+                seldepth: self.seldepth(),
                 score: outcome.score,
                 nodes: self.nodes,
                 elapsed: start.elapsed(),
@@ -237,6 +247,17 @@ impl<'a> Search<'a> {
     const fn begin(&mut self) {
         self.nodes = 0;
         self.stopped = false;
+        self.seldepth = 0;
+    }
+
+    /// The selective depth of the current or most recent search from the
+    /// root: how many plies from it the deepest position visited was,
+    /// quiescence search included. Under [`Search::iterate`] it is that of
+    /// the iteration last started, which a limit may have interrupted; the
+    /// value of each completed iteration is in its [`Report`].
+    #[must_use]
+    pub const fn seldepth(&self) -> u32 {
+        self.seldepth as u32
     }
 
     /// How many positions the current or most recent search has visited.
@@ -292,6 +313,7 @@ impl<'a> Search<'a> {
     /// count carries on from one depth to the next.
     fn search_root(&mut self, pos: &Position, depth: u32) -> Outcome {
         self.pv[0].clear();
+        self.seldepth = 0;
         let mut alpha = -INFINITY;
         let mut best_move = None;
         let mut any_legal = false;
@@ -366,6 +388,7 @@ impl<'a> Search<'a> {
             // The value is ignored: every caller checks `stopped` first.
             return DRAW;
         }
+        self.seldepth = self.seldepth.max(ply);
         // The root is never scored as a draw here: a move must still be
         // chosen there. Everywhere else a drawn position ends the line.
         if self.is_draw(pos) {
@@ -443,6 +466,7 @@ impl Search<'_> {
         if self.should_stop() {
             return DRAW;
         }
+        self.seldepth = self.seldepth.max(ply);
         self.nodes += 1;
         // A capture can leave too little material to mate with. Repetition
         // and the fifty-move rule are not looked for here: captures cannot
@@ -1435,6 +1459,47 @@ mod tests {
         searcher.fixed_depth(&Position::startpos(), 1);
         // The root plus its 20 children.
         assert_eq!(searcher.nodes(), 21);
+    }
+
+    /// The selective depth is the deepest ply visited. In a quiet position
+    /// every line ends at the horizon, so it equals the depth; captures
+    /// played out in quiescence take it further.
+    #[test]
+    fn the_selective_depth_is_the_deepest_ply_visited() {
+        let mut searcher = Search::new(&HandCrafted);
+        assert_eq!(searcher.seldepth(), 0);
+        // After one move from the start position nothing can be captured.
+        searcher.fixed_depth(&Position::startpos(), 1);
+        assert_eq!(searcher.seldepth(), 1);
+        // After two there can be (1. e4 d5, and the pawns trade): the
+        // quiescence search goes below the depth asked for.
+        searcher.fixed_depth(&Position::startpos(), 2);
+        assert!(searcher.seldepth() > 2);
+        // Queen takes queen, king takes queen: two plies below a depth of
+        // one, both in quiescence.
+        let exchange = fen("3qk3/8/8/8/8/8/8/3QK3 w - - 0 1");
+        searcher.fixed_depth(&exchange, 1);
+        assert_eq!(searcher.seldepth(), 3);
+        // Each search from the root starts again from nothing.
+        searcher.fixed_depth(&Position::startpos(), 1);
+        assert_eq!(searcher.seldepth(), 1);
+        // No legal move: nothing below the root was visited.
+        searcher.fixed_depth(&fen("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1"), 3);
+        assert_eq!(searcher.seldepth(), 0);
+    }
+
+    /// Every report carries the selective depth of its own iteration, never
+    /// less than the depth while the search has moves to look at.
+    #[test]
+    fn each_report_has_the_selective_depth_of_its_iteration() {
+        let (_, reports, _) = iterate(ROOK_ENDGAME, Limits::depth(4));
+        assert_eq!(reports.len(), 4);
+        for report in &reports {
+            assert!(report.seldepth >= report.depth, "{report:?}");
+            assert!((report.seldepth as usize) <= MAX_PLY);
+        }
+        let (_, mated, _) = iterate("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", Limits::depth(3));
+        assert_eq!(mated[0].seldepth, 0);
     }
 
     #[test]

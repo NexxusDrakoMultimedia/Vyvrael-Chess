@@ -341,8 +341,10 @@ impl Engine {
                         .with_stop_flag(&stop);
                     let started = Instant::now();
                     let mut reached = 0;
+                    let mut reached_seldepth = 0;
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
+                        reached_seldepth = report.seldepth;
                         send(&out, &info_line(report));
                     });
                     match variety_rng {
@@ -375,6 +377,7 @@ impl Engine {
                                         &out,
                                         &info_line(&Report {
                                             depth: reached,
+                                            seldepth: reached_seldepth,
                                             score: varied.score,
                                             nodes: search.nodes() + varied.nodes,
                                             elapsed: started.elapsed(),
@@ -407,6 +410,9 @@ impl Engine {
                         &out,
                         &info_line(&Report {
                             depth: weak.depth,
+                            // Not recorded for the passes of a weakened
+                            // search.
+                            seldepth: 0,
                             score: weak.outcome.score,
                             nodes: weak.nodes,
                             elapsed: started.elapsed(),
