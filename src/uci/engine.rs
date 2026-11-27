@@ -1148,7 +1148,7 @@ mod tests {
         let (outcome, nodes) = direct(crate::board::START_FEN, 3);
         assert_eq!(lines.len(), 4, "{lines:?}");
         // The selective depths: quiescence goes deeper than the search.
-        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 7)]) {
+        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 6)]) {
             assert!(
                 line.starts_with(&format!("info depth {depth} seldepth {seldepth} score cp ")),
                 "{line}"
@@ -1253,11 +1253,11 @@ mod tests {
         assert_eq!(shown.len(), plain.len() + 6, "{shown:?}");
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
-        assert_eq!(shown[4], "info string stats depth 2 nodes 113 ebf 5.38");
-        assert_eq!(shown[5], "info string stats depth 3 nodes 1114 ebf 9.85");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 107 ebf 5.09");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 1087 ebf 10.15");
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
-        assert!(shown[7].contains(" of 1248 ("));
+        assert!(shown[7].contains(" of 1215 ("));
         assert!(shown[8].starts_with("info string stats table probes "));
         assert_eq!(shown[9], plain[3]);
         assert!(shown[9].starts_with("bestmove "));
@@ -1505,11 +1505,11 @@ mod tests {
                 );
                 // The last `info` line is for the move played.
                 // It keeps the selective depth of the search's last
-                // iteration (7, as the third line of the plain search says).
-                assert!(plain[2].starts_with("info depth 3 seldepth 7 "));
+                // iteration (6, as the third line of the plain search says).
+                assert!(plain[2].starts_with("info depth 3 seldepth 6 "));
                 let last_info = &lines[lines.len() - 2];
                 assert!(
-                    last_info.starts_with(&format!("info depth 3 seldepth 7 score cp {score} "))
+                    last_info.starts_with(&format!("info depth 3 seldepth 6 score cp {score} "))
                         && last_info.ends_with(&format!(" pv {played}")),
                     "{last_info}"
                 );

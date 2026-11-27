@@ -21,10 +21,15 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   it is the best move of the iteration before. The bench counts 206,097
   nodes. SPRT: H1 accepted (run `9710d85acf32`).
 
-- **Static exchange evaluation** (milestone 7, item 3, first part):
+- **Static exchange evaluation** (milestone 7, item 3):
   `search::see(position, move)` gives what a move wins or loses on its
   square if both sides keep capturing there, with x-rays, promotions and
-  en passant. Not used by the search yet, so nothing about play changes.
+  en passant. The search uses it for captures that lose material (queen
+  takes defended pawn): the main search tries them last, after the quiet
+  moves, and the quiescence search leaves them out unless the side to
+  move is in check. The bench counts 77,407 nodes, from 206,097, with
+  every pinned score and line unchanged. SPRT against the search before
+  it: see `docs/testing/sprt-history.md`.
 - **`Clear Hash`** (item 2c): a button option that empties the
   transposition table without starting a new game. It applies from the
   next search on. The library gains `uci::Button` and

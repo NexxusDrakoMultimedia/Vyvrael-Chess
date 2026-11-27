@@ -465,7 +465,9 @@ transposition table, pruning) come in milestone 7, one at a time.
     before). Then captures and promotions, most valuable victim first and
     by the cheapest attacker among equals (`ordering.rs`, the order
     quiescence has used from the start); quiet moves follow in generation
-    order. Ordering does not change the value alpha-beta
+    order; and last come the captures and promotions that lose material
+    by the static exchange evaluation, such as queen takes defended pawn.
+    Ordering does not change the value alpha-beta
     returns, only how much of the tree it has to look at. The rest of the
     ordering (killers, history) is added one SPRT at a time in milestone
     7.
@@ -627,6 +629,17 @@ transposition table, pruning) come in milestone 7, one at a time.
     both finished. So unlike the move ordering of the main search, which
     waits for milestone 7 and SPRT, this ordering is part of the core: without
     it the search does not finish.
+  - **Captures that lose material are left out** when the side to move is
+    not in check (since milestone 7): those whose static exchange
+    evaluation is below 0. Standing pat already says the position may be
+    left as it is, and a capture that loses material is not a way to show
+    that it is better than that. A capture of a piece worth at least the
+    capturing one cannot lose and is not worked out. In check every move
+    is tried, so a check is never mistaken for mate. Unlike ordering,
+    this can change the value quiescence returns: an exchange that loses
+    on its square can still win elsewhere, by a discovered attack for
+    one. That is the price of every such pruning, and its SPRT is the
+    judge of it.
   - No other pruning is used beyond alpha-beta and standing pat. Skipping
     captures that cannot help (delta pruning, static exchange evaluation) is
     left to milestone 7.

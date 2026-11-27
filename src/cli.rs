@@ -536,11 +536,11 @@ total for the side to move: +0
         let lines: Vec<&str> = added.lines().collect();
         assert_eq!(lines.len(), 6, "{added}");
         assert_eq!(lines[0], "stats depth 1 nodes 21");
-        assert_eq!(lines[1], "stats depth 2 nodes 113 ebf 5.38");
-        assert_eq!(lines[2], "stats depth 3 nodes 1114 ebf 9.85");
+        assert_eq!(lines[1], "stats depth 2 nodes 107 ebf 5.09");
+        assert_eq!(lines[2], "stats depth 3 nodes 1087 ebf 10.15");
         assert!(lines[3].starts_with("stats cutoffs "), "{added}");
         assert!(lines[4].starts_with("stats qnodes "), "{added}");
-        assert!(lines[4].contains(" of 1248 ("), "{added}");
+        assert!(lines[4].contains(" of 1215 ("), "{added}");
         assert!(lines[5].starts_with("stats table probes "), "{added}");
         // The same on every run, and wherever the flag stands.
         assert_eq!(run_args(&["search", "--stats", "3"]).1, out);

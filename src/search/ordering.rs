@@ -15,7 +15,14 @@
 //! promotions by their gain, then the quiet moves as generated. A capture
 //! is the likeliest move to refute the opponent's last one, and where it
 //! does not, it is cheap to find that out.
+//!
+//! "By their gain" looks only at what is taken. A capture that loses
+//! material once the opponent takes back (queen takes defended pawn) is
+//! told apart by the static exchange evaluation ([`see`]): the main search
+//! tries such captures last, after the quiet moves, and the quiescence
+//! search does not try them at all.
 
+use super::see::{exchange_value, see};
 use crate::board::{Move, MoveKind, PieceKind, Position, Square};
 use crate::movegen::MoveList;
 
@@ -55,17 +62,69 @@ fn priority(pos: &Position, mv: Move) -> i32 {
     (victim + promoted) * 8 - attacker
 }
 
-/// The moves of `moves`, most promising capture first.
+/// Whether `mv` loses material on its destination square once the
+/// exchange there is played out: a static exchange evaluation below 0.
+///
+/// Taking a piece worth at least the one that takes cannot lose, since at
+/// worst the taker is taken back. That settles most captures without
+/// working the exchange out.
+pub(super) fn loses_material(pos: &Position, mv: Move) -> bool {
+    if mv.promotion().is_none() {
+        let worth = |square| {
+            pos.piece_at(square)
+                .map_or(0, |piece| exchange_value(piece.kind))
+        };
+        let victim = match mv.kind() {
+            MoveKind::EnPassant => exchange_value(PieceKind::Pawn),
+            _ => worth(mv.to()),
+        };
+        if victim >= worth(mv.from()) {
+            return false;
+        }
+    }
+    see(pos, mv) < 0
+}
+
+/// How far below the quiet moves a losing capture is put.
+const LOSING: i32 = 1_000;
+
+/// [`priority`] for the main search: a capture or promotion that loses
+/// material comes after the quiet moves, the losing ones among themselves
+/// in their usual order.
+fn priority_by_exchange(pos: &Position, mv: Move) -> i32 {
+    let key = priority(pos, mv);
+    if key >= 0 && loses_material(pos, mv) {
+        key - LOSING
+    } else {
+        key
+    }
+}
+
+/// The moves of `moves`, most promising capture first, by what is taken
+/// alone. The order of the quiescence search.
+pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
+    sorted_by(pos, moves, priority)
+}
+
+/// The moves of `moves` as the main search tries them when it knows no
+/// move to try first: captures and promotions that do not lose material,
+/// most promising first, then the quiet moves, then the captures that
+/// lose material.
+pub(super) fn losing_captures_last(pos: &Position, moves: &MoveList) -> MoveList {
+    sorted_by(pos, moves, priority_by_exchange)
+}
+
+/// The moves of `moves`, highest `key` first.
 ///
 /// The sort is stable: moves of equal priority keep their generation order,
 /// so the result is fully determined by the position. It is an insertion
 /// sort on the stack, which suits the few dozen moves a position has and
 /// allocates nothing.
-pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
+fn sorted_by(pos: &Position, moves: &MoveList, key: fn(&Position, Move) -> i32) -> MoveList {
     let filler = Move::new(Square::A1, Square::A1, MoveKind::Quiet);
     let mut sorted = [(0i32, filler); MoveList::CAPACITY];
     for (count, &mv) in moves.iter().enumerate() {
-        let key = priority(pos, mv);
+        let key = key(pos, mv);
         let mut slot = count;
         while slot > 0 && sorted[slot - 1].0 < key {
             sorted[slot] = sorted[slot - 1];
@@ -82,7 +141,7 @@ pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
 
 /// The moves of `moves` in the order the main search tries them: `first`
 /// before all others, if it is one of them, then the rest as
-/// [`captures_first`] has them.
+/// [`losing_captures_last`] has them.
 ///
 /// `first` is the move the transposition table remembers as best for the
 /// position. It was best in an earlier, usually shallower, search, which
@@ -91,7 +150,7 @@ pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
 /// another position that happens to share the hash cannot put a move here
 /// that is not in the list.
 pub(super) fn table_move_first(pos: &Position, moves: &MoveList, first: Option<Move>) -> MoveList {
-    let sorted = captures_first(pos, moves);
+    let sorted = losing_captures_last(pos, moves);
     let Some(first) = first.filter(|mv| sorted.contains(mv)) else {
         return sorted;
     };
@@ -114,7 +173,7 @@ mod tests {
         // is the table's move.
         let pos = Position::from_fen("4k3/8/1q3r2/8/3Q4/8/1p6/4K3 w - - 0 1").unwrap();
         let moves = pseudo_legal_moves(&pos);
-        let plain = captures_first(&pos, &moves);
+        let plain = losing_captures_last(&pos, &moves);
         let quiet = *plain.iter().find(|mv| mv.to_string() == "e1e2").unwrap();
         let ordered = table_move_first(&pos, &moves, Some(quiet));
         assert_eq!(ordered.len(), plain.len());
@@ -170,6 +229,63 @@ mod tests {
         assert_eq!(moves[0], "e5d6");
     }
 
+    /// The main search's order: the queen takes the queen first, then come
+    /// the quiet moves, and last the two captures that lose the queen (the
+    /// rook and the pawn are both defended by the black queen), the rook
+    /// before the pawn.
+    #[test]
+    fn captures_that_lose_material_come_last() {
+        let pos = Position::from_fen("4k3/8/1q3r2/8/3Q4/8/1p6/4K3 w - - 0 1").unwrap();
+        let moves = pseudo_legal_moves(&pos);
+        let ordered: Vec<String> = losing_captures_last(&pos, &moves)
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(ordered.len(), moves.len());
+        assert_eq!(ordered[0], "d4b6");
+        assert_eq!(ordered[ordered.len() - 2..], ["d4f6", "d4b2"]);
+        let quiet = &ordered[1..ordered.len() - 2];
+        let by_victim = captures_first(&pos, &moves);
+        let generated: Vec<String> = by_victim.as_slice()[3..]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(quiet, generated);
+        // Without the black queen nothing is defended and nothing loses:
+        // the order is that of the victims.
+        let free = Position::from_fen("4k3/8/5r2/8/3Q4/8/1p6/4K3 w - - 0 1").unwrap();
+        let moves = pseudo_legal_moves(&free);
+        assert_eq!(
+            losing_captures_last(&free, &moves),
+            captures_first(&free, &moves)
+        );
+    }
+
+    #[test]
+    fn losing_material_is_a_matter_of_the_whole_exchange() {
+        let loses = |fen: &str, text: &str| {
+            let pos = Position::from_fen(fen).unwrap();
+            let moves = pseudo_legal_moves(&pos);
+            let mv = *moves.iter().find(|mv| mv.to_string() == text).unwrap();
+            loses_material(&pos, mv)
+        };
+        // Rook takes a defended pawn, and the same pawn undefended.
+        assert!(loses("4k3/8/4p3/3p4/8/8/8/3RK3 w - - 0 1", "d1d5"));
+        assert!(!loses("4k3/8/8/3p4/8/8/8/3RK3 w - - 0 1", "d1d5"));
+        // An even trade and a winning one do not lose, defended or not.
+        assert!(!loses("4k3/8/4p3/3n4/8/5B2/8/4K3 w - - 0 1", "f3d5"));
+        assert!(!loses("4k3/8/4p3/3r4/8/4N3/8/4K3 w - - 0 1", "e3d5"));
+        // A second attacker behind the first makes the capture good.
+        assert!(!loses("4k3/8/4p3/3p4/4P3/5B2/8/4K3 w - - 0 1", "e4d5"));
+        // A promotion on a square where the new queen is simply taken.
+        assert!(loses("1r6/3P4/8/8/8/8/8/k3K3 w - - 0 1", "d7d8q"));
+        assert!(!loses("8/3P4/8/8/8/8/8/k3K3 w - - 0 1", "d7d8q"));
+        // En passant met by a recapture is even.
+        assert!(!loses("4k3/2p5/8/3pP3/8/8/8/4K3 w - d6 0 1", "e5d6"));
+        // A quiet move is not asked about by the search, but has an answer.
+        assert!(loses("4k3/8/4p3/8/8/8/8/3RK3 w - - 0 1", "d1d5"));
+    }
+
     #[test]
     fn it_only_reorders() {
         for fen in [
@@ -181,6 +297,9 @@ mod tests {
             let sorted = captures_first(&pos, &generated);
             assert_eq!(sorted.len(), generated.len());
             assert!(generated.iter().all(|mv| sorted.contains(mv)));
+            let by_exchange = losing_captures_last(&pos, &generated);
+            assert_eq!(by_exchange.len(), generated.len());
+            assert!(generated.iter().all(|mv| by_exchange.contains(mv)));
             // Captures come before every quiet move.
             let first_quiet = sorted.iter().position(|mv| priority(&pos, *mv) < 0);
             if let Some(index) = first_quiet {
@@ -191,5 +310,6 @@ mod tests {
         let start = Position::startpos();
         let generated = pseudo_legal_moves(&start);
         assert_eq!(captures_first(&start, &generated), generated);
+        assert_eq!(losing_captures_last(&start, &generated), generated);
     }
 }

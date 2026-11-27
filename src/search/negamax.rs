@@ -14,7 +14,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::ordering::{captures_first, table_move_first};
+use super::ordering::{captures_first, loses_material, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
     fifty_moves_reached, insufficient_material, is_repetition, mated_in,
@@ -617,7 +617,12 @@ impl Search<'_> {
         // Most valuable victim first: see `ordering.rs` for why this is not
         // optional here.
         for &mv in &captures_first(pos, &moves) {
-            if !in_check && !is_tactical(mv) {
+            // Out of check, only captures and queen promotions, and of
+            // those only the ones that do not lose material on their
+            // square: a capture that loses is not a way to show that the
+            // position is better than it stands. In check every move is
+            // tried, since one of them has to be played.
+            if !in_check && (!is_tactical(mv) || loses_material(pos, mv)) {
                 continue;
             }
             let mut next = pos.clone();
@@ -1432,6 +1437,33 @@ mod tests {
             assert_ne!(best(text, depth), "e2e5", "depth {depth}");
             assert!(search(text, depth).score > 500, "depth {depth}");
         }
+    }
+
+    /// Out of check, a capture that loses material is not tried: the rook
+    /// could take a pawn that a pawn defends, and the position is simply
+    /// judged as it stands, in one node. In check it is tried like every
+    /// other move: here rook takes knight is the only way out, and leaving
+    /// it out would call the position mate.
+    #[test]
+    fn quiescence_leaves_out_captures_that_lose_material() {
+        let pos = fen("4k3/8/4p3/3p4/8/8/8/3RK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&pos, 0, -INFINITY, INFINITY);
+        assert_eq!(value, HandCrafted.evaluate(&pos));
+        assert_eq!(searcher.nodes(), 1);
+        // The same pawn without its defender is taken.
+        let free = fen("4k3/8/8/3p4/8/8/8/3RK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&free, 0, -INFINITY, INFINITY);
+        assert!(value > HandCrafted.evaluate(&free));
+        assert!(searcher.nodes() > 1);
+        let checked = fen("k4r2/8/8/8/8/8/5nPP/5RNK w - - 0 1");
+        assert!(checked.in_check());
+        assert_eq!(crate::movegen::legal_moves(&checked).len(), 1);
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&checked, 0, -INFINITY, INFINITY);
+        assert!(!crate::search::is_mate_score(value), "{value}");
+        assert!(searcher.nodes() > 1);
     }
 
     #[test]
