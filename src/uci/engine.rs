@@ -1253,11 +1253,11 @@ mod tests {
         assert_eq!(shown.len(), plain.len() + 6, "{shown:?}");
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
-        assert_eq!(shown[4], "info string stats depth 2 nodes 74 ebf 3.52");
-        assert_eq!(shown[5], "info string stats depth 3 nodes 636 ebf 8.59");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 76 ebf 3.61");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 649 ebf 8.53");
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
-        assert!(shown[7].contains(" of 731 ("));
+        assert!(shown[7].contains(" of 746 ("));
         assert!(shown[8].starts_with("info string stats table probes "));
         assert_eq!(shown[9], plain[3]);
         assert!(shown[9].starts_with("bestmove "));

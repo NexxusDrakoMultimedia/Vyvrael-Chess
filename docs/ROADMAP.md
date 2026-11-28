@@ -1052,10 +1052,18 @@ How every search change is done:
 
 - [x] 6. Killer moves: two per ply, kept for one search. SPRT
   [0, 10]: H1 accepted in 372 games (run `f1b57a770a57`).
-- [x] 7. The history heuristic: by side, origin and destination, with
+- [ ] 7. The history heuristic. SPRT.
+  **Parked.** Built as `db0d976` (by side, origin and destination, with
   punishment of the quiet moves tried before the one that cut off; kept
-  for one search; not used at the root. SPRT: awaited; if it does not
-  show a gain, its commit is reverted.
+  for one search; not used at the root; bench 60,070 from 61,760, and
+  899,248 from 943,287 at depth 6) and reverted. Its SPRT [0, 10] was
+  stopped by hand after 155 games (57 - 65 - 33, LLR -0.265; PGN
+  `33583770c654`), which says nothing either way: it was stopped
+  because a saving of about 5% of the nodes means a gain of a few Elo
+  at most, which those bounds cannot settle short of the cap, as item 4
+  showed. An interrupted run has no row in `sprt-history.md`. To be
+  tested again with bounds [0, 5] after late move reductions (item 10),
+  which reduce the moves that history puts last.
 
 **Windows, then pruning and reductions.** Principal variation search is
 proposed before null move and late move reductions, where the request

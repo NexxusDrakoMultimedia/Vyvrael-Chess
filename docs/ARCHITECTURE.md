@@ -465,11 +465,11 @@ transposition table, pruning) come in milestone 7, one at a time.
     before). Then captures and promotions, most valuable victim first and
     by the cheapest attacker among equals (`ordering.rs`, the order
     quiescence has used from the start); then the quiet moves, the two **killer moves** of the ply first and
-    the rest by their **history**; and last come the captures and promotions that lose material
+    the rest in generation order; and last come the captures and promotions that lose material
     by the static exchange evaluation, such as queen takes defended pawn.
     Ordering does not change the value alpha-beta
-    returns, only how much of the tree it has to look at. Each part of
-    the ordering was accepted by its own SPRT in milestone 7.
+    returns, only how much of the tree it has to look at. The rest of the
+    ordering (history) is added one SPRT at a time in milestone 7.
   - **Killer moves** (`Killers` in `ordering.rs`, since milestone 7): for
     each ply the search keeps the two quiet moves that most recently cut
     it off there, the newer first. A move that refutes one of the
@@ -481,20 +481,6 @@ transposition table, pruning) come in milestone 7, one at a time.
     nothing cuts off there, and neither does quiescence search. From
     the start position at depth 6 the first move tried gives 96.0% of
     the main search's cutoffs with them, from 55.8%.
-  - **The history heuristic** (`history.rs`, since milestone 7) orders
-    the quiet moves that are not killers. For each side, origin square
-    and destination square the search keeps a number. A quiet move that
-    cuts off gains 16 times the square of the remaining depth, at most
-    1,200; the quiet moves searched before it in that node lose as
-    much. Each step is reduced by the share of the limit (16,384) the
-    value has already reached, so no value passes the limit and old
-    results fade as new ones arrive. Quiet moves are tried highest
-    value first, and as generated where the values are equal, always
-    after the killers and before the captures that lose material. Like
-    the killers the table lasts for one search. The root's quiet moves
-    stay as generated: nothing cuts off there, and an order that
-    changed between iterations would change which of two equally good
-    root moves is found first.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.

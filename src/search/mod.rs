@@ -6,7 +6,6 @@
 //! See `docs/ARCHITECTURE.md` ("Search") for the design.
 
 mod draw;
-mod history;
 mod limits;
 mod negamax;
 mod ordering;

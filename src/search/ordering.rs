@@ -18,9 +18,7 @@
 //!
 //! Among the quiet moves the **killer moves** come first: the quiet moves
 //! that last cut off the search in another position at the same distance
-//! from the root ([`Killers`]). The rest follow by how well they have done
-//! in the search so far ([`History`]), and as generated where that does
-//! not tell them apart.
+//! from the root ([`Killers`]). The rest follow as generated.
 //!
 //! "By their gain" looks only at what is taken. A capture that loses
 //! material once the opponent takes back (queen takes defended pawn) is
@@ -28,7 +26,6 @@
 //! tries such captures last, after the quiet moves, and the quiescence
 //! search does not try them at all.
 
-use super::history::History;
 use super::see::{exchange_value, see};
 use crate::board::{Move, MoveKind, PieceKind, Position, Square};
 use crate::movegen::MoveList;
@@ -134,7 +131,8 @@ impl Killers {
     }
 
     /// How early `mv` is tried for being a killer: 1 for the first, 0 for
-    /// the second. `None` if it is not a killer.
+    /// the second, both above the other quiet moves (-1) and below every
+    /// capture and promotion (2 or more). `None` if it is not a killer.
     fn key(self, mv: Move) -> Option<i32> {
         if self.0[0] == Some(mv) {
             Some(1)
@@ -173,40 +171,24 @@ pub(super) fn captures_first(pos: &Position, moves: &MoveList) -> MoveList {
 /// lose material.
 #[cfg(test)]
 pub(super) fn losing_captures_last(pos: &Position, moves: &MoveList) -> MoveList {
-    main_search_order(pos, moves, Killers::NONE, None)
+    killers_after_captures(pos, moves, Killers::NONE)
 }
 
-/// The distance between the groups of moves in [`main_search_order`]: far
-/// more than any key inside a group, so that no history value can lift a
-/// quiet move above a killer or drop it below a losing capture.
-const BAND: i32 = 1 << 20;
-
-/// [`losing_captures_last`] with the quiet moves put in order: captures
-/// and promotions that do not lose material, then the killers, the newer
-/// first, then the other quiet moves, the one with the best `history`
-/// first and as generated among equals (all of them as generated without
-/// a `history`), then the captures that lose material.
+/// [`losing_captures_last`] with the killer moves ahead of the other quiet
+/// moves: captures and promotions that do not lose material, then the
+/// killers, the newer first, then the other quiet moves as generated, then
+/// the captures that lose material.
 ///
 /// A killer comes from another position. It counts only if this position
 /// has it and it is a quiet move here: one that is a capture here keeps
 /// its place among the captures.
-fn main_search_order(
-    pos: &Position,
-    moves: &MoveList,
-    killers: Killers,
-    history: Option<&History>,
-) -> MoveList {
-    let side = pos.side_to_move();
+fn killers_after_captures(pos: &Position, moves: &MoveList, killers: Killers) -> MoveList {
     sorted_by(moves, |mv| {
         let key = priority_by_exchange(pos, mv);
-        if key >= 0 {
-            BAND + key
-        } else if key < -1 {
-            key - BAND
-        } else if let Some(killer) = killers.key(mv) {
-            BAND / 2 + killer
+        if key == -1 {
+            killers.key(mv).unwrap_or(key)
         } else {
-            history.map_or(0, |history| history.value(side, mv))
+            key
         }
     })
 }
@@ -239,7 +221,7 @@ fn sorted_by(moves: &MoveList, key: impl Fn(Move) -> i32) -> MoveList {
 /// The moves of `moves` in the order the main search tries them: `first`
 /// before all others, if it is one of them, then the captures and
 /// promotions that do not lose material, the `killers`, the other quiet
-/// moves by their `history` and the captures that lose material.
+/// moves and the captures that lose material.
 ///
 /// `first` is the move the transposition table remembers as best for the
 /// position. It was best in an earlier, usually shallower, search, which
@@ -252,9 +234,8 @@ pub(super) fn table_move_first(
     moves: &MoveList,
     first: Option<Move>,
     killers: Killers,
-    history: Option<&History>,
 ) -> MoveList {
-    let sorted = main_search_order(pos, moves, killers, history);
+    let sorted = killers_after_captures(pos, moves, killers);
     let Some(first) = first.filter(|mv| sorted.contains(mv)) else {
         return sorted;
     };
@@ -279,7 +260,7 @@ mod tests {
         let moves = pseudo_legal_moves(&pos);
         let plain = losing_captures_last(&pos, &moves);
         let quiet = *plain.iter().find(|mv| mv.to_string() == "e1e2").unwrap();
-        let ordered = table_move_first(&pos, &moves, Some(quiet), Killers::NONE, None);
+        let ordered = table_move_first(&pos, &moves, Some(quiet), Killers::NONE);
         assert_eq!(ordered.len(), plain.len());
         assert_eq!(ordered.as_slice()[0], quiet);
         let rest: Vec<Move> = plain.iter().copied().filter(|mv| *mv != quiet).collect();
@@ -287,17 +268,14 @@ mod tests {
         // The move that is first anyway stays first, once.
         let best = plain.as_slice()[0];
         assert_eq!(
-            table_move_first(&pos, &moves, Some(best), Killers::NONE, None),
+            table_move_first(&pos, &moves, Some(best), Killers::NONE),
             plain
         );
         // No move, or a move the position does not have: the plain order.
-        assert_eq!(
-            table_move_first(&pos, &moves, None, Killers::NONE, None),
-            plain
-        );
+        assert_eq!(table_move_first(&pos, &moves, None, Killers::NONE), plain);
         let foreign = Move::new(Square::A1, Square::H8, MoveKind::Quiet);
         assert_eq!(
-            table_move_first(&pos, &moves, Some(foreign), Killers::NONE, None),
+            table_move_first(&pos, &moves, Some(foreign), Killers::NONE),
             plain
         );
     }
@@ -350,7 +328,7 @@ mod tests {
         let mut killers = Killers::NONE;
         killers.remember(older);
         killers.remember(newer);
-        let ordered = table_move_first(&pos, &moves, None, killers, None);
+        let ordered = table_move_first(&pos, &moves, None, killers);
         assert_eq!(ordered.as_slice()[..3], [wins, newer, older]);
         let rest: Vec<Move> = plain
             .iter()
@@ -360,64 +338,9 @@ mod tests {
         assert_eq!(ordered.as_slice()[3..], rest[..]);
         // The table's move still comes before everything, also when it is
         // a killer as well, and then it is tried once.
-        let both = table_move_first(&pos, &moves, Some(older), killers, None);
+        let both = table_move_first(&pos, &moves, Some(older), killers);
         assert_eq!(both.as_slice()[..3], [older, wins, newer]);
         assert_eq!(both.len(), plain.len());
-    }
-
-    /// The quiet moves that are not killers go by their history, the best
-    /// first, and those the history does not tell apart stay as generated.
-    /// No history value moves a quiet move out of its place between the
-    /// killers and the captures that lose material.
-    #[test]
-    fn the_other_quiet_moves_go_by_their_history() {
-        use super::super::history::HISTORY_MAX;
-        let pos = Position::from_fen("4k3/2p5/1p3r2/8/3Q4/8/8/4K3 w - - 0 1").unwrap();
-        let moves = pseudo_legal_moves(&pos);
-        let plain = losing_captures_last(&pos, &moves);
-        let named = |text: &str| *plain.iter().find(|mv| mv.to_string() == text).unwrap();
-        let (wins, loses) = (named("d4f6"), named("d4b6"));
-        let (killer, good, better, bad) =
-            (named("e1e2"), named("d4h4"), named("d4a1"), named("e1d1"));
-        let mut killers = Killers::NONE;
-        killers.remember(killer);
-        let side = pos.side_to_move();
-        let mut history = History::new();
-        // As far up and down as history goes.
-        for _ in 0..1_000 {
-            history.reward(side, better, 1_200);
-            history.punish(side, bad, 1_200);
-            // The killer and the captures are not ordered by history.
-            history.punish(side, killer, 1_200);
-            history.punish(side, wins, 1_200);
-            history.reward(side, loses, 1_200);
-        }
-        history.reward(side, good, 16);
-        assert!(history.value(side, better) > HISTORY_MAX - 1_200);
-        // The other side's history does not count.
-        history.reward(side.flip(), bad, 1_200);
-
-        let ordered = table_move_first(&pos, &moves, None, killers, Some(&history));
-        let last = ordered.len() - 1;
-        assert_eq!(ordered.as_slice()[..4], [wins, killer, better, good]);
-        assert_eq!(ordered.as_slice()[last - 1..], [bad, loses]);
-        // Everything between has no history and stands as generated.
-        let untouched: Vec<Move> = plain
-            .iter()
-            .copied()
-            .filter(|mv| ![wins, killer, better, good, bad, loses].contains(mv))
-            .collect();
-        assert_eq!(ordered.as_slice()[4..last - 1], untouched[..]);
-        // Without a history the quiet moves stand as generated.
-        let mut plain_with_killer = Killers::NONE;
-        plain_with_killer.remember(killer);
-        let unsorted = table_move_first(&pos, &moves, None, plain_with_killer, None);
-        let rest: Vec<Move> = plain
-            .iter()
-            .copied()
-            .filter(|mv| ![wins, killer].contains(mv))
-            .collect();
-        assert_eq!(unsorted.as_slice()[2..], rest[..]);
     }
 
     /// A killer comes from another position: it counts only where it is a
@@ -433,7 +356,7 @@ mod tests {
         // had as a quiet move: here the move is a capture, another move.
         killers.remember(Move::new(Square::A1, Square::H8, MoveKind::Quiet));
         killers.remember(Move::new(Square::D4, Square::B6, MoveKind::Quiet));
-        assert_eq!(table_move_first(&pos, &moves, None, killers, None), plain);
+        assert_eq!(table_move_first(&pos, &moves, None, killers), plain);
         // Quiet means neither a capture nor a promotion.
         let named = |text: &str| *plain.iter().find(|mv| mv.to_string() == text).unwrap();
         assert!(is_quiet(&pos, named("e1e2")));

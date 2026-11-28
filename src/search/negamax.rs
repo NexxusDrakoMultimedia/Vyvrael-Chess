@@ -14,7 +14,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::history::{History, bonus};
 use super::ordering::{Killers, captures_first, is_quiet, loses_material, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
@@ -98,9 +97,6 @@ pub struct Search<'a> {
     /// that last cut off the search at ply `p`. They last for one search,
     /// through all its iterations, and start empty in the next.
     killers: Vec<Killers>,
-    /// How well each quiet move has done in this search, wherever it was
-    /// played (see `history.rs`). Like the killers it lasts for one search.
-    history: History,
 }
 
 /// Which limits the search does not look at for the moment. The first
@@ -158,7 +154,6 @@ impl<'a> Search<'a> {
             stats: SearchStats::ZERO,
             table: None,
             killers: vec![Killers::NONE; MAX_PLY],
-            history: History::new(),
         }
     }
 
@@ -342,7 +337,6 @@ impl<'a> Search<'a> {
         self.seldepth = 0;
         self.stats = SearchStats::ZERO;
         self.killers.fill(Killers::NONE);
-        self.history.clear();
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -438,17 +432,8 @@ impl<'a> Search<'a> {
             .as_deref()
             .and_then(|table| table.probe(key, 0))
             .and_then(|known| known.best);
-        // No killer moves at the root, and the quiet moves as generated:
-        // nothing cuts off there, and a root order that changed from one
-        // iteration to the next would change which of two equally good
-        // moves is found first.
-        let moves = table_move_first(
-            pos,
-            &pseudo_legal_moves(pos),
-            table_move,
-            Killers::NONE,
-            None,
-        );
+        // No killer moves at the root: nothing cuts off there.
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, Killers::NONE);
         for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
@@ -571,18 +556,10 @@ impl<'a> Search<'a> {
         let mut best_move = None;
         let mut any_legal = false;
         // The table's move first, then captures and promotions, most
-        // valuable victim first, then this ply's killer moves, then the
-        // other quiet moves by their history: see `ordering.rs`.
+        // valuable victim first, then this ply's killer moves: see
+        // `ordering.rs`.
         let killers = self.killers[ply];
-        let moves = table_move_first(
-            pos,
-            &pseudo_legal_moves(pos),
-            table_move,
-            killers,
-            Some(&self.history),
-        );
-        // The quiet moves searched here that did not cut off.
-        let mut quiet_failures = MoveList::new();
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, killers);
         for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
@@ -612,20 +589,10 @@ impl<'a> Search<'a> {
                         self.stats.first_move_cutoffs += u64::from(first);
                         if is_quiet(pos, mv) {
                             self.killers[ply].remember(mv);
-                            // The move that cut off gains, and the quiet
-                            // moves tried in vain before it lose as much.
-                            let (side, step) = (pos.side_to_move(), bonus(depth));
-                            self.history.reward(side, mv, step);
-                            for &earlier in &quiet_failures {
-                                self.history.punish(side, earlier, step);
-                            }
                         }
                         break;
                     }
                 }
-            }
-            if is_quiet(pos, mv) {
-                quiet_failures.push(mv);
             }
         }
 
@@ -1486,7 +1453,7 @@ mod tests {
     fn a_long_first_iteration_can_be_stopped_after_its_first_move() {
         let pos = fen(MANY_QUEENS);
         // The first root move and what searching it alone costs and finds.
-        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None, Killers::NONE, None)
+        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None, Killers::NONE)
             .iter()
             .copied()
             .find(|&mv| legal_moves(&pos).contains(&mv))
@@ -1855,37 +1822,6 @@ mod tests {
         assert_eq!(searcher.killers, first);
         searcher.fixed_depth(&fen(ROOK_ENDGAME), 1);
         assert!(searcher.killers.iter().all(|at| *at == Killers::NONE));
-    }
-
-    /// The history table fills during a search, with rewards and with
-    /// punishments, for both sides, and lasts for that search only.
-    #[test]
-    fn history_is_gathered_during_a_search_and_kept_for_one() {
-        let pos = fen(crate::board::START_FEN);
-        let mut searcher = Search::new(&HandCrafted);
-        assert_eq!(searcher.history, History::new());
-        searcher.fixed_depth(&pos, 5);
-        // Every first move of either side, by what the search made of it.
-        let values = |searcher: &Search, pos: &Position| -> Vec<i32> {
-            legal_moves(pos)
-                .iter()
-                .map(|&mv| searcher.history.value(pos.side_to_move(), mv))
-                .collect()
-        };
-        let mut black = pos.clone();
-        let _undo = black.make_move(legal_moves(&pos).as_slice()[0]);
-        for side in [&pos, &black] {
-            let found = values(&searcher, side);
-            assert!(found.iter().any(|&value| value > 0), "{found:?}");
-            assert!(found.iter().any(|&value| value < 0), "{found:?}");
-        }
-        // The same search gathers the same history, and the next search
-        // of anything starts without it.
-        let first = searcher.history.clone();
-        searcher.fixed_depth(&pos, 5);
-        assert_eq!(searcher.history, first);
-        searcher.fixed_depth(&fen("7k/8/8/8/8/8/8/K7 w - - 0 1"), 1);
-        assert_eq!(searcher.history, History::new());
     }
 
     /// The statistics in cases small enough to check by hand.

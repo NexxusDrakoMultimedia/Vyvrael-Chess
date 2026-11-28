@@ -67,7 +67,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `eval` piece-square tables | Visual tables map to the right squares; Black uses each table flipped top to bottom; every table is left-right symmetric; the pawn table is zero on the back ranks, accelerates towards promotion in the endgame and prefers advanced centre pawns in the middlegame; the balance is White minus Black, zero at the start, and negates when colours are swapped and the board flipped; knights and bishops prefer the centre to the rim and development to the back rank; rooks prefer the seventh rank and central files; the queen's middlegame values are small and her endgame values favour the centre; the king scores best on g1 and b1 in the middlegame, both castled squares beat the home square, every step up the board is worse, and the centre is best in the endgame; every piece kind has a table. |
 | `eval::HandCrafted` | Colour symmetry on eight positions (a position and its colour-swapped mirror score the same for the side to move, and every part of the breakdown negates); the side to move only changes the sign; the start position is exactly level; the breakdown after 1.e4 adds up by hand; material outweighs placement; the total equals material plus the blend at the position's own phase for twelve positions covering seven different phases; one advanced king scored exactly at three phases (-7 with queens and rooks on, +18 with queens only, +44 with bare kings); `default_evaluator` is the hand-crafted one. |
 | `search` scores | The ranges nest (evaluations below `MATE_BOUND`, mates below `INFINITY`); `mated_in` and `mate_in` mirror each other; quicker mates and slower defeats score higher; ordinary scores are not mate scores; `moves_to_mate` counts full moves with the right sign. |
-| `search` negamax | Alpha-beta returns exactly the score of an unpruned minimax on nine positions (to depth 3 on quiet ones, depth 2 on busy middlegames, because unpruned minimax with a quiescence search at every leaf is very expensive there), visits no more nodes, restores the position, and names a move that leads to that score; pruning more than halves the work at depth 4 in a rook endgame; a hanging queen is taken; mate in one and mate in two are found at the right depth with the right score, and not one ply early; the losing side sees mate coming; checkmate and stalemate at the root; the three stalemating moves of a queen ending are avoided at depths 1 to 3 and no mate is reported before it is there; node counting; depth 0 is rejected. Killer moves: after a depth-5 search of the start position the root and the plies from the horizon down have none, plies 1 to 4 hold at least four between them, none a capture or a promotion; the same search finds the same ones, and the next search starts without any. History: the bonus is 16 times the depth squared, at most 1,200; a value is kept by side, origin and destination; a reward and an equal punishment nearly cancel; a thousand rewards or punishments approach the limit of 16,384 and never pass it; quiet moves that are not killers are tried best history first, the rest as generated, between the killers and the losing captures whatever the values, and as generated without a history; a depth-5 search of the start position leaves both sides with rewarded and punished first moves, the same search the same ones, and the next search starts empty. |
+| `search` negamax | Alpha-beta returns exactly the score of an unpruned minimax on nine positions (to depth 3 on quiet ones, depth 2 on busy middlegames, because unpruned minimax with a quiescence search at every leaf is very expensive there), visits no more nodes, restores the position, and names a move that leads to that score; pruning more than halves the work at depth 4 in a rook endgame; a hanging queen is taken; mate in one and mate in two are found at the right depth with the right score, and not one ply early; the losing side sees mate coming; checkmate and stalemate at the root; the three stalemating moves of a queen ending are avoided at depths 1 to 3 and no mate is reported before it is there; node counting; depth 0 is rejected. Killer moves: after a depth-5 search of the start position the root and the plies from the horizon down have none, plies 1 to 4 hold at least four between them, none a capture or a promotion; the same search finds the same ones, and the next search starts without any. |
 | `search` draws | Bare kings and single minor pieces are insufficient, anything that might mate is not; knights going out and back repeat the start position; the same placement with the other side to move does not; with a made-up history, a matching key an odd number of plies back or beyond the halfmove clock's reach does not count; empty and short histories are safe; the fifty-move threshold is 100 plies. In search: the losing side takes a repetition from the game history that it cannot see without it; a perpetual check with no game history is a draw by the hashes the search records on its own way down, both when the line returns to the root and when it returns to a position one ply below it, and those hashes are all taken back afterwards; the fifty-move rule ends a line that had a mate, except when the mate lands on the hundredth ply; bare material is a draw inside the tree, at the first node of every line (checked by node count). |
 | `search` principal variation | On five positions (to depth 3 or 4 on quiet ones, depth 2 on busy middlegames) the line starts with the best move, consists of legal moves, runs the full depth, and ends in a position whose quiescence value (seen from the root side) equals the reported score; the line of a mate in two is three plies and ends in checkmate; no line when the root has no legal move. |
 | `search` limits | `Limits` constructors and combinations. A node limit stops the search exactly at the limit and leaves the repetition history as it was; a search cut short at three different limits answers only from the root moves it finished, never from the one it was working on; a generous limit changes nothing; a raised stop flag ends the search before the first node while an unraised one does not disturb it; a deadline already passed ends the search within one check interval. |
@@ -134,23 +134,21 @@ Never update a pin just to get a green run.
 
 | Position | Depth | Score | Nodes |
 | --- | --- | --- | --- |
-| Start position | 4 | 0 | 4,028 |
+| Start position | 4 | 0 | 4,154 |
 | Kiwipete | 2 | +44 | 3,538 |
-| Position 3 | 5 | +107 | 6,096 |
+| Position 3 | 5 | +107 | 8,487 |
 | Position 4 | 2 | -418 | 968 |
 | Position 5 | 2 | +541 | 476 |
-| Position 6 | 2 | +22 | 805 |
-| Queen against two pawns | 4 | +683 | 2,632 |
+| Position 6 | 2 | +22 | 817 |
+| Queen against two pawns | 4 | +683 | 3,642 |
 
-These are the counts since the main search tries the quiet moves by
-their history (milestone 7, item 7). Scores are what they have been
-since milestone 4, and so are the lines but one: since the killer moves
-(item 6) the queen against two pawns is won by `e1d2 e8e7 e2e4 e7e6`,
-another line of the same value as `e1d2 e8e7 e2c4 e7f6` before, found
-first because the moves are tried in another order. Before the history
-the counts were 4,154, 3,538, 8,487, 968, 476, 817 and 3,642; before
-the killer moves 25,541, 3,538, 15,159, 968, 476, 1,301 and 10,055;
-before captures that lose
+These are the counts since the main search tries killer moves before the
+other quiet moves (milestone 7, item 6). Scores are what they have been
+since milestone 4, and so are the lines but one: the queen against two
+pawns is now won by `e1d2 e8e7 e2e4 e7e6`, another line of the same
+value as `e1d2 e8e7 e2c4 e7f6` before, found first because the moves
+are tried in another order. Before that item the counts were 25,541,
+3,538, 15,159, 968, 476, 1,301 and 10,055; before captures that lose
 material were tried last in the main search and left out of quiescence
 (item 3) 27,614, 13,161, 20,743, 2,322, 637, 4,563 and 11,155; and
 before the main search tried captures first (item 1) 28,793, 391,308,
@@ -169,7 +167,7 @@ vocabulary of UCI `info` lines, and then the best move:
 
 ```
 depth 1 score cp 40 nodes 21 pv d2d4
-depth 2 score cp 0 nodes 95 pv d2d4 d7d5
+depth 2 score cp 0 nodes 97 pv d2d4 d7d5
 bestmove d2d4
 ```
 
@@ -186,11 +184,11 @@ best move, each line starting with `stats`:
 
 ```
 stats depth 1 nodes 21
-stats depth 2 nodes 74 ebf 3.52
-stats depth 3 nodes 636 ebf 8.59
-stats depth 4 nodes 1469 ebf 2.30
-stats cutoffs 460 firstmove 428 rate 93.0%
-stats qnodes 1590 of 2200 (72.2%) standpat 1024 qcutoffs 43 firstmove 43 rate 100.0%
+stats depth 2 nodes 76 ebf 3.61
+stats depth 3 nodes 649 ebf 8.53
+stats depth 4 nodes 1495 ebf 2.30
+stats cutoffs 460 firstmove 427 rate 92.8%
+stats qnodes 1631 of 2241 (72.7%) standpat 1063 qcutoffs 44 firstmove 44 rate 100.0%
 stats table probes 606 hits 159 (26.2%) cutoffs 80 (13.2%)
 ```
 
@@ -245,7 +243,7 @@ strength, each as a new search with iterative deepening and a new, empty
 transposition table of the default size (16 MiB), and prints one line:
 
 ```
-60070 nodes 3388157 nps
+61760 nodes 3572089 nps
 ```
 
 - **The node count is the fingerprint of the search.** It depends on what
@@ -265,7 +263,7 @@ transposition table of the default size (16 MiB), and prints one line:
   the range of the option `Hash`, is the size of the transposition table
   each position gets. The node count is the same on every run *with the
   same arguments*: a smaller table forgets more, so another size can give
-  another count (60,106 with 1 MiB against 60,070 with 16). The bench
+  another count (61,796 with 1 MiB against 61,760 with 16). The bench
   without arguments always uses 16 MiB, the engine's default, and that is
   the count that is pinned. If there is no memory for the size asked for,
   the command says so and ends with status 1.
@@ -305,7 +303,7 @@ with `python3 -m unittest discover -s scripts/tests`.
 | `tests/uci.rs` | The real binary over real pipes. A whole conversation (`uci`, `isready`, `ucinewgame`, `position`, `go depth 3`, `quit`) gives the same node count and move as a direct library search, the name arrives in UTF-8, ten options are listed, nothing follows `quit` and nothing is written to stderr; during `go infinite` the first depth arrives at once, `isready` is answered and no `bestmove` is sent until `stop`, which is obeyed within five seconds; `quit` ends a running search and the process; the end of input lets a search finish; twelve lines of bad input (one blank, two not valid UTF-8, one `go` with no usable limit) and a `stop` produce ten refusals, leave the position unchanged and leave the engine alive; with arguments the binary is not a UCI engine. Reading blocks until a line arrives, so an engine that did not flush every line would hang these tests. |
 | `tests/uci_robustness.rs` | The UCI loop (`uci::run`, in the test process) under malformed and unexpected input from a seeded generator: eight streams of 400 lines, each from a generator drawn from the default seed's, of random bytes, scrambled words, `go` with odd limits, broken FENs, long random games and illegal moves, odd option values, commands cut short (some in the middle of a character), lines of up to about 300 KB and noise before a command. Nothing may panic on any thread, every `isready` is answered and every `go` gets exactly one `bestmove`; searches, refused FENs, illegal moves and unknown commands must each have occurred, so a generator that stopped producing them would fail. Each stream runs on a thread of its own with 180 seconds to finish: a hang fails the test and names the file the stream was kept in (every stream is written to Cargo's directory for test files, to be replayed with `vyvrael < file`); a second test shows that a stream that finishes passes and that its input is kept as sent. Beside each stream the test keeps a model of the position (a `position` command with anything wrong in it changes nothing, `ucinewgame` returns to the start) and checks every `bestmove`, in order, against the position of its `go`: a legal move of it, or `0000` when and only when it has none; more than 100 real moves and at least one `0000` are checked. A third test sends four streams of real sessions (the greeting, options with a fixed non-zero `Seed`, a new game, then a game's positions in order with a small search after each, by depth, nodes, move time or clock; `d`, `eval` and `isready` in between; the fifty-move counter at 99 and 120 and move number 65535 among the starts), an eighth of the lines damaged by a byte or two, one game in each stream of more than 1,200 plies. The engine is given a line at a time and each search with a small limit is waited for, others are stopped, so later depths, varied moves and weakened passes are reached. It checks the same things (no panic, every `isready` answered, every `bestmove` legal, more than 100 of them), that chances shown add up to 1000, and that statistics, a diagram, an evaluation, a varied move and a refused move list all occurred. Panics are counted on the engine's threads only, so one test failing does not fail another. A fourth test gives a 200-line malformed stream to the real binary over pipes, each pipe served by a thread of its own and the whole under the same watchdog (the process is killed if it is not done): it must leave with success, write nothing to standard error, answer every `isready`, end on `readyok`, and its moves are checked for legality like the others. |
 | `tests/parser_fuzz.rs` | The four parsers behind the UCI loop, called directly with generated text from the default seed, no engine in the way. Commands (30,000 lines of noise, damaged real commands and numbers in the wrong place): no panic, the same reading twice, only white space is empty, an unknown line is echoed whole, and all three of unknown, malformed and understood come up. FENs (30,000, damaged by up to three bytes or pure noise): what is accepted is consistent, writes itself as a FEN that reads back as the same position, and every legal move can be played; thousands are accepted and more than ten thousand refused. Move text (6,000 per position on seven positions): the answer is a legal move of the position or none. Option values (30,000, set one after another): a refusal changes nothing and is one line, and every value stays in its declared range. |
-| `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (60,070 at depth 4 over seven positions); see "Bench". |
+| `tests/bench.rs` | The node count of `vyvrael bench` at its default depth, pinned (61,760 at depth 4 over seven positions); see "Bench". |
 | `tests/search_pins.rs` | The score, total node count and principal variation of fixed-depth searches on seven positions (the six perft positions and one queen-against-pawns ending), and that searching twice gives the same result. See "Pinned search results" above. |
 | `tests/consistency.rs` | Walks the legal move tree of nine positions (the perft reference positions and two with en passant at the root) three or four plies deep, more than 300,000 positions. At every node: `is_consistent()` (views agree, stored hash equals a recompute); the FEN parses back to an identical position; the side to move cannot capture the king; legal moves are a subset of pseudo-legal moves; each move's notation parses back to the same move; a capture is reported exactly when the move is a capture; the en passant square changes the hash exactly when an en passant capture is legal; unmaking restores the previous position exactly. |
 | `tests/board_games.rs` | Two complete games played from the start position in UCI notation: the Opera Game (Morphy, Paris 1858; 33 plies, queenside castling) and a constructed 20-ply game covering en passant, capturing promotions to queen and knight, a rook captured on its home square and kingside castling by both sides. After every ply the position must be consistent, its hash must equal a from-scratch recompute, and its FEN must parse back to an identical position. Seven checkpoint FENs, including both final positions, are compared exactly. Then every move is unmade and each earlier position must be restored exactly. |
