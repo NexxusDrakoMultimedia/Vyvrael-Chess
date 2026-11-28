@@ -4,8 +4,8 @@
 # Installed from docs/proposals/release-workflow.yml with the maintainer's
 # approval (2026-11-22). It passed its trial on the test tag v0.1.0-rc.0 the
 # same day (run 44980221187). The pext build was added on 2026-11-28, with
-# the maintainer's approval, and has not run yet. What it does and why:
-# docs/proposals/release-workflow.md.
+# the maintainer's approval, and first ran with the tag v0.2.0 (run
+# 46159403261). What it does and why: docs/proposals/release-workflow.md.
 #
 # Builds the release binaries for a pushed version tag and creates a DRAFT
 # GitHub release with them. It never publishes; the maintainer does.
