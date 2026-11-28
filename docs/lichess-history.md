@@ -109,9 +109,8 @@ What the games show:
 - **Window:** from the upgrade on 2026-11-23 to the pre-release export on
   2026-11-28, made before the bot is stopped for 0.2.0. The first game was
   2026-11-23 17:21 UTC, the last 2026-11-24 18:45 UTC. The PGN does not
-  say which build played; that the game of 2026-11-23 was played after
-  the upgrade rests on the maintainer's statement of that day that
-  0.1.0-alpha.2 played none.
+  say which build played; the maintainer confirmed on 2026-11-28 that
+  both games were played with 0.1.0.
 - **Pre-release PGN:** `lichess_Vyvrael-Chess_2026-11-28.pgn`, 9 games,
   12,681 bytes, SHA-256
   `58f91202e019520d6739afcfabc0cb9a3f1fa1577e61f29173574a6aeb87ee70`.
