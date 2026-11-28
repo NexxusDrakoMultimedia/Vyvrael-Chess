@@ -944,8 +944,8 @@ added to the calibration table by a change that was not committed.
 | Total | 4,532 | 0 |
 
 **Not a build of the final release commit.** Two later commits touch
-the engine's source: `de208ab`, the first refit of `UCI_Elo`, and the
-commit of the extension on `task/uci-elo-upper-range`. Both change only
+the engine's source: `de208ab`, the first refit of `UCI_Elo`, and
+`5fa73f6`, its extension to six plies. Both change only
 the calibration of `UCI_Elo` (the table, the lookup, the default rating
 and their tests) and nothing else. Full-strength play is the same (the
 bench counts 28,175 nodes before and after each). The thirteen
