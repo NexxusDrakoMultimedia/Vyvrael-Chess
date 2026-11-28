@@ -30,13 +30,6 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   move is in check. The bench counts 77,407 nodes, from 206,097, with
   every pinned score and line unchanged. SPRT against the search before
   it: H1 accepted (run `9c8de5ceed4c`).
-- **Delta pruning** (milestone 7, item 4): out of check, the quiescence
-  search does not try a capture that could not lift the score to alpha
-  even if what it takes were won for nothing, with a margin of two pawns
-  to spare. Captures that give check are tried all the same. The bench
-  counts 64,509 nodes, from 77,407, with every pinned score and line
-  unchanged. SPRT against the search before it: see
-  `docs/testing/sprt-history.md`.
 - **`Clear Hash`** (item 2c): a button option that empties the
   transposition table without starting a new game. It applies from the
   next search on. The library gains `uci::Button` and
