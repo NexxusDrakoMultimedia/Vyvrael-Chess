@@ -702,12 +702,15 @@ fetched once, a failing engine did not stop the others, and the engine list
 was written with the 22 names installed. All 13 engines the installer then
 provided have therefore been installed on Linux at least once. What came
 later has not been run for real yet: CT800 1.46 on Linux, the `avx2` builds
-of Arasan, Stash and Weiss on Linux, and the whole Windows engine installer
-(only its files' digests were checked, by downloading each once on
-2026-11-21). The eleven engines of Ladder Baseline 3 have not been started
-either: their files' digests, and those of the programs inside the zips,
-were checked by downloading each once on 2026-11-22, and their options
-were read from each project's source at its tag. A real match
+of Arasan, Stash and Weiss on Linux. The Windows engine installer has
+been run since: all 40 names of its engine list, the eleven engines new
+in Ladder Baseline 3 among them, played 172 games each in that baseline
+on 2026-11-28 with no illegal move, crash or stall (see
+[`testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)). On Linux
+those eleven have not been started: their files' digests, and those of
+the programs inside the zips, were checked by downloading each once on
+2026-11-22, and their options were read from each project's source at
+its tag. A real match
 and a rating run with the bash scripts followed (see "Strength matches,
 SPRT and ratings"), with the `cutechess-cli` and Ordo that this script
 installed.
@@ -741,10 +744,28 @@ archives have not been fetched by the script. The Cute Chess and Ordo on
 the Windows workstation were installed by hand by the maintainer
 (confirmed 2026-11-23).
 
-## Opponent ladder (Ladder Baseline 2)
+## Opponent ladder (Ladder Baselines 2 and 3)
 
-The reference ladder is **Ladder Baseline 2 (current); Ladder Baseline 1 is
-kept as history.**
+There are two ladders in use. **Ladder Baseline 2** is the scale of
+`UCI_Elo` and of the results up to 0.1.0. **Ladder Baseline 3**
+(2026-11-28) is the round robin run again with more engines and with
+Vyvræl in it; it measured 0.2.0, and a later full-strength build can be
+rated with its games. Whether the scale of `UCI_Elo` moves to it is the
+maintainer's decision and still open. Ladder Baseline 1 is kept as
+history.
+
+- [`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)
+  records a round robin between 44 engines, played by the maintainer on
+  2026-11-28 with `match.ps1 roundrobin`: 29 of Baseline 2's engines,
+  eleven new ones and four Vyvræl builds (0.1.0-alpha.1, 0.1.0-alpha.2,
+  0.1.0 and a hand build of 0.2.0), 3,784 games, 172 per engine, at
+  Baseline 2's settings. Ordo's ratings are in
+  [`ladder-Baseline-3-ratings.txt`](testing/ladder-Baseline-3-ratings.txt)
+  and
+  [`ladder-Baseline-3-ratings.csv`](testing/ladder-Baseline-3-ratings.csv);
+  what it says about 0.2.0 is in
+  [`results-0.2.0.md`](testing/results-0.2.0.md). Its numbers are on its
+  own scale: they cannot be compared with Baseline 2's.
 
 - [`docs/testing/ladder-Baseline-2.md`](testing/ladder-Baseline-2.md)
   records a round robin between 30 engines of very different strength,
@@ -762,12 +783,13 @@ kept as history.**
   is the first ladder: 25 engines, one round. It is kept as history;
   0.1.0-alpha.1 was measured against it.
 
-**Vyvræl is in neither and has no rating in them.** The ladders are of other
-engines only. Their Ordo ratings are relative to the anchor engine
-(Stockfish 19 = 0) and describe only those engines. Vyvræl's own strength is
-measured (milestone 6, known issue KI-8) by gauntlets against the lower
-rungs, with a separate results file; it must not be inserted into a baseline
-file or inferred from it. A first snapshot of 0.1.0-alpha.1, from before
+**Vyvræl is in neither Baseline 1 nor Baseline 2 and has no rating in
+them.** Those two ladders are of other engines only. Their Ordo ratings are
+relative to the anchor engine (Stockfish 19 = 0) and describe only those
+engines. Against them Vyvræl's strength was measured (milestone 6, known
+issue KI-8) by gauntlets against the lower rungs, with a separate results
+file; it must not be inserted into those baseline files or inferred from
+them. Ladder Baseline 3 has Vyvræl's builds among its players by design. A first snapshot of 0.1.0-alpha.1, from before
 milestone 6 and against Ladder Baseline 1, is in
 [`results-0.1.0-alpha.1.md`](testing/results-0.1.0-alpha.1.md); the
 milestone 6 measurement of 0.1.0-alpha.2, against Ladder Baseline 2, is in
@@ -1039,11 +1061,11 @@ and the SPRT options belong to the other modes and are refused here, as
 `--build` is refused there. Rate the PGN with `rate.sh` / `rate.ps1` and
 the baseline's Ordo command (anchor Stockfish 19).
 
-Ladder Baseline 3, once milestone 7 and 0.2.0 are ready (see
-[ROADMAP.md](ROADMAP.md)): the installer's engine list, which already
-leaves out Arasan 26.1-1800 and adds Baseline 3's new engines, plus
-`--build` for 0.1.0-alpha.1, 0.1.0-alpha.2, 0.1.0 and 0.2.0, `--rounds 2`
-and a fixed `--seed`. On Windows every engine of the list installs; on
+Ladder Baseline 3 was run this way on 2026-11-28, on Windows (see
+[`testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)): the
+installer's engine list, which leaves out Arasan 26.1-1800 and adds
+Baseline 3's new engines, plus `-Build` for 0.1.0-alpha.1,
+0.1.0-alpha.2, 0.1.0 and 0.2.0, `-Rounds 2` and `-Seed 20261128`. On Windows every engine of the list installs; on
 Linux Orion 1.1, Ethereal 12.75 and Nostradamus 0.4 do not, so a Linux run
 would not be the same baseline.
 

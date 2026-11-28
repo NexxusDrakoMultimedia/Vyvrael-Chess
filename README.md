@@ -32,10 +32,10 @@ GUI and in match tools. Milestone 7 gave the search a transposition
 table, move ordering (the table's move, captures by what they win,
 killer moves), null-move pruning, late move reductions and reverse
 futility pruning, each accepted by an SPRT against the search before
-it. Its strength with them has not been measured against other engines
-yet; that of 0.1.0 on the project's own opponent ladder, an ordering
-rather than an Elo, is in
-[docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
+it. On the project's own opponent ladder it finished 19th of 44 engines,
+well above 0.1.0 and its alphas, which played in the same round robin:
+an ordering rather than an Elo, in
+[docs/testing/results-0.2.0.md](docs/testing/results-0.2.0.md). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
 and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
