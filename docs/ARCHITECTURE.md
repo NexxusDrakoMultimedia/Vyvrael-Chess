@@ -42,7 +42,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `suite` | implemented | `suite::run` searches every record of an EPD test suite for a depth, a node count or a time (`SuiteLimit`) and reports whether the move played is a `bm` move and not an `am` move; `suite::solve` does one line. A quick check of the search, not a measure of strength. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`; `report`, the evaluation and its parts as lines of text. |
-| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). Since milestone 7: move ordering in the main search (the table's move, captures by MVV-LVA, killer moves, losing captures last), the transposition table (`TranspositionTable`, `Bound`, `Entry`, `Search::with_table`), static exchange evaluation (`see`, `exchange_value`), null-move pruning, late move reductions, reverse futility pruning, search statistics (`SearchStats`, `stats_lines`), a mate limit (`Limits::mate`) and a restriction to some root moves (`Search::with_root_moves`). |
 | `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
@@ -178,6 +178,11 @@ from `board`.
   so **the search uses copy-make**. `make_move` and `unmake_move` remain: perft
   uses them, and they are the right tool wherever a move really must be taken
   back on the same position.
+  - `make_null_move` passes the turn without a move, for the search's
+    null-move pruning: the side to move changes, the en passant square
+    goes, the counters advance as for a quiet move and the hash stays
+    exact. It has no undo, since the search passes on a copy, and it must
+    not be used in check.
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.
@@ -272,6 +277,29 @@ on this square attack?".
     wrong attacks.
   - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
     the lookups move generation uses.
+  - *PEXT instead of the multiplication* (Cargo feature `pext`, since
+    milestone 7; off by default). The BMI2 instruction PEXT gathers the
+    bits of the occupancy that lie under the mask into the low bits of a
+    number, which is a slot of the square's slice directly:
+    `index = pext(occupied, mask)`. The tables hold the same attacks in
+    that order, the magic numbers are not used, and everything outside
+    `Entry::slot` is the same code, so the two builds find the same
+    moves and count the same nodes (perft and bench).
+    - Build it with
+      `RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release --features pext`,
+      or any other target that has BMI2. Without BMI2 the feature is
+      refused at compile time: there is no fallback at run time, and a
+      program built with it does not start on a processor without BMI2.
+    - It is the engine's one use of `unsafe`: the call of the intrinsic
+      `_pext_u64`, sound because the code is compiled only for targets
+      that have the instruction.
+    - PEXT is fast on Intel from Haswell and on AMD from Zen 3, and
+      slow (microcoded) on AMD before that, which is why magic
+      multiplication stays the default. On the Windows workstation
+      (Zen 3) perft 6 from the start position ran at 33.4 million nodes
+      a second with it against 32.0 million for the magic lookup in the
+      same `x86-64-v3` build, three runs each: about 4%. The search
+      spends most of its time elsewhere and gains less.
 
 - **Attack queries** (`board/attackers.rs`): `Position::attackers_to(square,
   occupied)` returns every piece of either colour attacking a square. It
@@ -428,8 +456,10 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
 ## Search
 
 Implemented in `src/search/`, which looks ahead to choose a move. This is
-the core only: the heuristics that make a search fast (move ordering, a
-transposition table, pruning) come in milestone 7, one at a time.
+the core first, and then the heuristics that make a search fast (move
+ordering, a transposition table, null-move pruning, late move
+reductions, reverse futility pruning), which milestone 7 added one at a
+time, each accepted by an SPRT.
 
 - **Scores** (`search/score.rs`) are the evaluator's `Score` (centipawns)
   extended with checkmate. `MATE` is 31,000 and `INFINITY`, the bound no score
@@ -459,8 +489,92 @@ transposition table, pruning) come in milestone 7, one at a time.
     otherwise, so stalemate is never mistaken for a win.
   - At depth 0 the quiescence search takes over (below), so positions are
     not judged in the middle of an exchange.
-  - Moves are searched in generation order. Ordering them well is what makes
-    alpha-beta efficient; it is deliberately left to milestone 7.
+  - The transposition table's move for the position is searched first,
+    if it has one: the move that was best in an earlier, usually
+    shallower, search (at the root, the best move of the iteration
+    before). Then captures and promotions, most valuable victim first and
+    by the cheapest attacker among equals (`ordering.rs`, the order
+    quiescence has used from the start); then the quiet moves, the two **killer moves** of the ply first and
+    the rest in generation order; and last come the captures and promotions that lose material
+    by the static exchange evaluation, such as queen takes defended pawn.
+    Ordering does not change the value alpha-beta
+    returns, only how much of the tree it has to look at. The history
+    heuristic was tried in milestone 7 and deferred (see
+    [ROADMAP.md](ROADMAP.md)): quiet moves after the killers stay in
+    generation order.
+  - **Killer moves** (`Killers` in `ordering.rs`, since milestone 7): for
+    each ply the search keeps the two quiet moves that most recently cut
+    it off there, the newer first. A move that refutes one of the
+    opponent's tries often refutes the next, since the positions differ
+    by that try alone. They are kept through the iterations of one
+    search and forgotten when the next begins, so a search is still a
+    function of the position and the table. A killer counts only in a
+    position that has it as a quiet move; the root keeps none, because
+    nothing cuts off there, and neither does quiescence search. When
+    they were added, the first move tried gave 96.0% of the main
+    search's cutoffs from the start position at depth 6, from 55.8%
+    (93.8% now, with the pruning added since).
+  - **Null-move pruning** (`null_move_cutoff` in `negamax.rs`, since
+    milestone 7). Before a position's moves are searched, the search
+    asks what would happen if the side to move passed
+    (`Position::make_null_move`): the opponent gets the move and the
+    position is searched 2 plies shallower than a move would be, and
+    one more for every 4 plies of depth, with a window of one point at
+    beta. If even that comes back at or above beta, the position is cut
+    off there: a real move will nearly always do at least as well as
+    passing. It is the first part of the search that is **not exact**:
+    it can change a score, which the heuristics before it could not.
+    The exception to "at least as well as passing" is zugzwang, so it
+    is hedged:
+    - not in check, not below depth 3, not when beta is a mate score,
+      and not straight after another null move;
+    - only when the static evaluation is already at or above beta;
+    - **not with pawns and king alone**, where zugzwang is common;
+    - **with one piece left, only after verification:** the position
+      is searched at the reduced depth, at least one ply, with real
+      moves only, and is cut off only if that too reaches beta. "Real
+      moves only" means no null move at that position and no reverse
+      futility pruning either, which would answer from the same
+      evaluation that allowed the null move; below it the search is
+      the ordinary one.
+    A mate score found behind a null move is not passed on: the cutoff
+    is then worth beta. The cutoff goes into the table as a lower
+    bound. When it was added, `bench 7` counted 1,026,110 nodes with it,
+    from 4,598,039 (218,088 now, with the reductions and pruning added
+    after it).
+  - **Late move reductions** (`search_reduced` and
+    `late_move_reduction` in `negamax.rs`, since milestone 7). The
+    moves of a position are tried best first as far as the search can
+    tell, so a quiet move far down the list is unlikely to be the best.
+    Such a move is first searched less deep, with a window of one point
+    at alpha: "does it beat what there is?". Usually it does not, and
+    the rest of its subtree is saved. If it does, it is searched again
+    at full depth with the whole window, so a good late move costs time
+    but is not missed.
+    - The reduction is `0.75 + ln(depth) * ln(moves before it) / 2.25`
+      plies, rounded down, and at least one ply is always left: one ply
+      for the first late moves at low depth, three for the eleventh move
+      at depth 10 (ten moves before it). The logarithms come from a table of whole numbers
+      (`LN_THOUSANDTHS`) and not from `ln`, so that the node counts are
+      the same on every machine.
+    - Not reduced: the first three moves of a position, captures and
+      promotions, moves that give check, any move when the side to move
+      is in check, anything below depth 3, and the root's moves.
+    - Like null-move pruning it is not exact, and it changed the first
+      pinned score (see "Pinned search results" in TESTING.md).
+    When it was added, `bench 8` counted 689,789 nodes with it, from
+    3,030,504; a depth-10 search of the start position 210,921, from
+    1,450,092 (191,706 now, with reverse futility pruning).
+  - **Reverse futility pruning** (`reverse_futility_cutoff` in
+    `negamax.rs`, since milestone 7). Up to 6 plies from the horizon, a
+    position whose static evaluation is at least 100 points above beta
+    for every ply of depth left is cut off without being searched, with
+    the evaluation less that margin as its score: the side to move is so
+    well off that the few moves left are not expected to bring it below
+    beta. Not in check and not when beta is a mate score. It is tried
+    before the null move, which needs a search to say much the same of
+    positions that are less clear, and like it is not exact. `bench 8`
+    counts 406,707 nodes with it, from 689,789.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.
@@ -492,7 +606,12 @@ transposition table, pruning) come in milestone 7, one at a time.
   over and does not list the captures played beyond it).
 
 - **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
-  depth, node count and deadline; the search stops at whichever comes first.
+  depth, node count, deadline and mate distance (`Limits::mate`, UCI
+  `go mate`: stop once an iteration shows a mate in that many moves or
+  fewer for the side to move); the search stops at whichever comes first.
+  `Search::with_root_moves` restricts the root to some moves (UCI
+  `searchmoves`); such a search does not store the root in the table.
+  A weakened search uses neither.
   A stop flag (an `AtomicBool` given with `with_stop_flag`) lets another
   thread end a running search, which is how UCI `stop` works.
   - The node limit is exact: the search stops at the first node beyond it.
@@ -510,7 +629,8 @@ transposition table, pruning) come in milestone 7, one at a time.
 
 - **Iterative deepening.** `Search::iterate` searches depth 1, then 2, and so
   on until a limit is reached, calling a `report` callback with a `Report`
-  (depth, selective depth, score, nodes, elapsed time, principal variation)
+  (depth, selective depth, score, nodes, elapsed time, how full the
+  transposition table is, principal variation)
   after each completed depth, and returns the outcome of the deepest one that finished.
   - The selective depth is the deepest ply the iteration visited,
     quiescence included. The search writes it and never reads it, so it
@@ -518,19 +638,77 @@ transposition table, pruning) come in milestone 7, one at a time.
   - It looks wasteful, but each level of the tree is many times larger than
     the last, so repeating the shallow levels costs little. In return the
     search can be stopped at any moment and still has a complete answer,
-    which is what playing to a clock needs. Later, the earlier iterations
-    will also feed move ordering (milestone 7).
-  - The first iteration always completes, whatever the limits, so there is
-    always a move to play. An interrupted iteration is discarded.
+    which is what playing to a clock needs. The earlier iterations
+    also feed move ordering, through the transposition table's move
+    (since milestone 7).
+  - The first iteration is shielded from the limits, so there is always a
+    move to play (`Shield` in `negamax.rs`). No limit applies until its
+    first legal root move has been searched. For the rest of it the node
+    limit still does not apply, and the stop flag and the clock are
+    looked at only once per 65,536 nodes (`FIRST_DEPTH_CHECK_INTERVAL`):
+    an ordinary first iteration, of some thousands of nodes at most, is
+    over before the first look and so always completes, while one that
+    takes tens of milliseconds or more (very many captures, all played
+    out by quiescence) is cut short. Its outcome is then the best of the
+    root moves that were finished, and it is not reported.
+  - An interrupted later iteration is discarded.
   - It ends early when the root has no legal move, and when a forced mate
     has been found within the depth searched, since a deeper search cannot
-    find a shorter one.
-  - With no ordering heuristics or tables yet, iterating to depth N gives
-    exactly the result of a direct depth-N search; a test relies on that.
+    find a shorter one, and when the mate asked for with `go mate` has
+    been found.
+  - Without a transposition table, iterating to depth N gives exactly the
+    result of a direct depth-N search; a test relies on that. With a
+    table (below) the earlier iterations leave what they found, which is
+    the point of iterating, and the node counts differ.
+- **Transposition table** (`search/tt.rs`, since milestone 7). The same
+  position is reached by many move orders and by every iteration. The
+  table keeps, by position hash, how deep a position was searched, the
+  score, whether the score is the value or only a lower or an upper
+  bound on it, and the best move.
+  - The main search asks the table after counting the node. A result at
+    least as deep as is needed settles the position if it is the value,
+    or a bound that already lies outside the window. The quiescence search does not ask, and the
+    root asks only for its move, never for a result. After searching,
+    the node stores what it found; the root stores its best move.
+  - It is a flat array of 16-byte slots indexed by the low bits of the
+    hash, each holding the whole hash. A newer result takes the slot
+    unless the slot holds the same position searched deeper.
+  - Mate scores count plies from the root, so they are stored as
+    distances from the position and turned back for whoever asks.
+  - A stored result ignores how the position was reached. So it is not
+    used from 90 half-moves without progress on, where the fifty-move
+    rule makes the count matter; repetitions are looked for before the
+    table is asked. What remains is the usual small risk of a value
+    found on one path being wrong on another.
+  - A cutoff from the table ends the line there, so the principal
+    variation the engine prints can be shorter than the depth.
+  - `Search::with_table` lends a table to a search; without one the
+    search is as before. The engine keeps one table for a game (sized by
+    `Hash`, emptied by `ucinewgame` and by the button `Clear Hash`) and lends it to every full-strength
+    search; `bench`, `search` and `suite` use a new one for each
+    position. The weakened search and the checks of a varied move use
+    none, so limited-strength play is what it was.
+  - A search with a table depends on what the table held, so it is a
+    function of the searches before it and no longer of the position
+    alone. The same commands in the same order still give the same
+    result.
+- **Static exchange evaluation** (`search/see.rs`, `search::see`). What a
+  move wins or loses on its destination square if both sides go on
+  capturing there, cheapest piece first, each free to stop when going on
+  would cost it. It is worked out on bitboards without making a move: the
+  balance after each capture is noted, then the list is walked back.
+  - Sliders behind a piece that has captured join in (x-rays), a pawn
+    that captures onto the last rank becomes a queen, en passant removes
+    the pawn it takes, and a king captures only what is not defended.
+  - Its values are its own (`exchange_value`): knight and bishop are
+    equal, so that bishop takes defended knight is an even trade.
+  - Pins and checks are not looked at. It is an estimate for ordering
+    and pruning, not a search.
 - **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
   and how many of them the first move tried gave, in the main search and
   in quiescence, the quiescence positions and those cut off as they
-  stood (`SearchStats`, read with `Search::stats`). Like the selective
+  stood, and the transposition table's probes, hits and cutoffs
+  (`SearchStats`, read with `Search::stats`). Like the selective
   depth they are written and never read by the search, so counting them
   cannot move a node count; they are always counted, and shown only when
   asked for. The share of cutoffs given by the first move is the measure
@@ -570,11 +748,23 @@ transposition table, pruning) come in milestone 7, one at a time.
     busy middlegame position (Kiwipete) took more than 20 million nodes to
     resolve, against 3,067 with this ordering, for the same value wherever
     both finished. So unlike the move ordering of the main search, which
-    waits for milestone 7 and SPRT, this ordering is part of the core: without
+    milestone 7 added by SPRT, this ordering is part of the core: without
     it the search does not finish.
-  - No other pruning is used beyond alpha-beta and standing pat. Skipping
-    captures that cannot help (delta pruning, static exchange evaluation) is
-    left to milestone 7.
+  - **Captures that lose material are left out** when the side to move is
+    not in check (since milestone 7): those whose static exchange
+    evaluation is below 0. Standing pat already says the position may be
+    left as it is, and a capture that loses material is not a way to show
+    that it is better than that. A capture of a piece worth at least the
+    capturing one cannot lose and is not worked out. In check every move
+    is tried, so a check is never mistaken for mate. Unlike ordering,
+    this can change the value quiescence returns: an exchange that loses
+    on its square can still win elsewhere, by a discovered attack for
+    one. That is the price of every such pruning, and its SPRT is the
+    judge of it.
+  - No other pruning is used in quiescence: alpha-beta, standing pat
+    and leaving out the losing captures are all. Delta pruning was tried
+    in milestone 7 and deferred, its SPRT undecided (see
+    [ROADMAP.md](ROADMAP.md)).
 
 ### Playing below full strength
 
@@ -680,14 +870,18 @@ and option is listed in [UCI.md](UCI.md).
   quarters of the increment, capped at what is on the clock less the
   overhead, which is the UCI option `Move Overhead` (30 ms by default). A
   clock at or below the overhead gets no time, so the move comes from the
-  first depth, which the search always completes. `limits_for` combines it with `depth`, `nodes` and `infinite`
+  first depth, which the search completes unless it is a very long one. `limits_for` combines it with `depth`, `nodes`, `mate` and `infinite`
   into the search's `Limits`. The scheme is deliberately plain: schemes that
-  react to the search change playing strength and wait for milestone 7.
+  react to the search change playing strength, so each needs an SPRT.
+  Milestone 7 added none; see "Ideas for later" in
+  [ROADMAP.md](ROADMAP.md).
 - **Options** (`uci/options.rs`): `Options` holds the value of every UCI
   option. `Options::declarations()` gives the `option` lines for `uci` and
-  `Options::set(name, value)` checks and stores a value; an option exists
-  only in those two places, so what the GUI is shown and what the engine
-  accepts cannot drift apart. A test sets every declared option to its
+  `Options::set(name, value)` checks and stores a value. A button
+  (`Clear Hash`) has no value: `Options::button(name)` recognises it and
+  the engine does what it stands for. An option exists only in that one
+  file, so what the GUI is shown and what the engine accepts cannot drift
+  apart. A test sets every declared option that has a value to its
   declared default and requires that nothing changes.
 - **The engine** (`uci/engine.rs`): `Engine` owns the current position, the
   hashes of the positions the game went through, and the running search.
@@ -738,8 +932,9 @@ and option is listed in [UCI.md](UCI.md).
   to a fixed depth and prints one line per depth and the best move, with
   timing on stderr so that stdout is identical on every run; `--stats`
   adds the lines of `search::stats_lines`. `bench [depth [threads [hash]]]`
-  runs `bench::bench` and prints `<nodes> nodes <nps> nps`; the threads
-  and the hash size are checked and have no effect yet. `suite <file>`
+  runs `bench::bench_with_hash` and prints `<nodes> nodes <nps> nps`; the
+  hash size is the size of the table each position gets (16 MiB if not
+  given), and the threads, of which there is one, change nothing. `suite <file>`
   with `--depth`, `--nodes` or `--movetime` reads an EPD file and gives it
   to `suite::run`. Exit status 2 means the command line was not
   understood, 1 that a file could not be read.

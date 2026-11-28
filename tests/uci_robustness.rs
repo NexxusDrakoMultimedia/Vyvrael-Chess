@@ -259,6 +259,7 @@ impl Generator {
             "UCI_LimitStrength",
             "UCI_Elo",
             "Move Overhead",
+            "Clear Hash",
             "Vyvr\u{e6}l",
             "hash",
             "NoSuchOption",

@@ -8,8 +8,121 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+### Added
+
+- **A transposition table** (milestone 7, item 2a). The search remembers
+  what it found for each position (depth, score, bound, best move) and
+  uses it when the position comes up again by another move order or in
+  the next iteration. `Hash` now sizes it, `ucinewgame` empties it. The
+  bench counts 394,939 nodes, from 459,926. SPRT against the search
+  before it: H1 accepted (run `ad16d90abf11` in
+  `docs/testing/sprt-history.md`).
+- **The table's move is tried first** (item 2b), at the root too, where
+  it is the best move of the iteration before. The bench counts 206,097
+  nodes. SPRT: H1 accepted (run `9710d85acf32`).
+
+- **Static exchange evaluation** (milestone 7, item 3):
+  `search::see(position, move)` gives what a move wins or loses on its
+  square if both sides keep capturing there, with x-rays, promotions and
+  en passant. The search uses it for captures that lose material (queen
+  takes defended pawn): the main search tries them last, after the quiet
+  moves, and the quiescence search leaves them out unless the side to
+  move is in check. The bench counts 77,407 nodes, from 206,097, with
+  every pinned score and line unchanged. SPRT against the search before
+  it: H1 accepted (run `9c8de5ceed4c`).
+- **Killer moves** (milestone 7, item 6): for each distance from the root
+  the search remembers the two quiet moves that last cut it off there and
+  tries them before the other quiet moves, after the captures that do
+  not lose material. The bench counts 61,760 nodes, from 77,407, and a
+  depth-6 search of the start position 58,264, from 176,611, with every
+  pinned score unchanged. SPRT against the search before it: H1
+  accepted (run `f1b57a770a57`).
+- **The Cargo feature `pext`** (milestone 7, item 17): slider attacks by
+  the BMI2 instruction PEXT instead of magic multiplication, for
+  processors where it is fast (Intel from Haswell, AMD from Zen 3).
+  Off by default; it needs a target with BMI2 and is refused at compile
+  time without one. Same moves and node counts as the default build;
+  perft about 4% faster on the Windows workstation.
+- **`go mate`** (milestone 7, item 18): `go mate N` searches until it
+  has found a mate in N moves or fewer for the side to move, and then
+  answers by itself. It combines with the other limits, and with none
+  of them it searches until that mate, a proved forced mate of any
+  length, or `stop`. Play is unchanged.
+- **`go searchmoves`** (milestone 7, item 18): the search can be
+  restricted to some moves of the position, as analysis GUIs ask. Words
+  that are no legal moves are reported and left out. Full-strength play
+  is unchanged (the bench still counts 28,175 nodes).
+- **Reverse futility pruning** (milestone 7, item 13): up to six plies
+  from the horizon, a position whose evaluation is at least a pawn above
+  beta for every ply left is cut off without being searched. Not in
+  check, and not at a position that is being searched to verify a null
+  move. The bench counts 28,175 nodes, from 41,161, and at depth 8
+  406,707, from 689,789, with every pinned score and line unchanged.
+  SPRT against the search before it: H1 accepted (run `25da9526092d`).
+- **Late move reductions** (milestone 7, item 10): a quiet move that
+  comes late in a position's list is first searched less deep, and
+  searched again in full only if it turns out better than expected. Not
+  for captures, promotions, checks, moves out of check or the first
+  three moves. The bench counts 41,161 nodes, from 51,272, and at depth
+  8 689,789, from 3,030,504. One pinned score changes (queen against
+  two pawns at depth 4: +689, from +683). SPRT against the search
+  before it: H1 accepted (run `00e8619ba2cf`).
+- **Null-move pruning** (milestone 7, item 9): where the side to move
+  already stands at or above beta, the search first lets it pass and
+  looks shallower; if the opponent cannot bring the score below beta
+  even then, the position is cut off. Not in check, not with pawns and
+  king alone, and with one piece left only after a verification search,
+  because the idea fails in zugzwang. The bench counts 51,272 nodes,
+  from 61,760, and at depth 7 1,026,110, from 4,598,039; every pinned
+  score and line is unchanged. SPRT against the search before it: H1
+  accepted (run `023be622299e`).
+- **`Position::make_null_move`**: passes the turn without a move, with the
+  hash kept exact, for the null-move pruning of milestone 7.
+- **`Clear Hash`** (item 2c): a button option that empties the
+  transposition table without starting a new game. It applies from the
+  next search on. The library gains `uci::Button` and
+  `Options::button`.
+- **The table in the search statistics** (item 2c): `search --stats` and
+  the option `SearchStats` end with a line `stats table probes <n> hits
+  <n> (<share>) cutoffs <n> (<share>)`: how often the main search asked
+  the table, how often it knew the position, and how often that settled
+  it. `SearchStats` (the type) gains `table_probes`, `table_hits` and
+  `table_cutoffs`. The bench count is unchanged.
+- **`hashfull` in `info`** (item 2c): how full the transposition table
+  is, in slots per thousand, between `nps` and `time`. Nothing in the
+  table ages yet, so it rises through a game. `Report` gains the field
+  `hashfull`, `None` for a search without a table. The bench count is
+  unchanged.
+
+### Changed
+
+- The `help` text for `search --stats` names all the statistics it
+  prints: the quiescence share and the transposition table line were
+  missing.
+- **The main search tries captures first** (milestone 7, item 1): captures
+  and promotions by most valuable victim and least valuable attacker, as
+  quiescence always has, then the quiet moves. The value found is the
+  same; the tree is far smaller (the bench counts 459,926 nodes, from
+  16,611,416). SPRT against the search before it: H1 accepted (run
+  `f38fad1831cb` in `docs/testing/sprt-history.md`).
+
 ### Fixed
 
+- **Known issue KI-9 is closed**: the search is no longer slow for lack
+  of move ordering. The first move tried gives 90% to 98% of the main
+  search's cutoffs, from 22% before milestone 7.
+- **`stop` and the clock reach a long first depth** (milestone 7, item 5;
+  known issue KI-10, now narrowed). The first search depth used to be
+  completed whatever happened, which in positions with very many
+  captures could take seconds. Now only its first root move is
+  guaranteed; after that `stop` and the clock are looked at once every
+  65,536 positions, and a first depth still running then is cut short
+  and the best move so far is played. An ordinary first depth is over
+  long before that and completes as before, and a node limit never cuts
+  it short. With nine queens a side and 50 ms to move the answer comes
+  after about 0.3 s, from 4.8 s. Fixed-depth searching is unchanged (the
+  bench still counts 77,407 nodes). The weakened search
+  (`UCI_LimitStrength`) is not covered: its first pass still completes.
 - **A clock within `Move Overhead` is no longer spent a millisecond at a
   time** (known issue KI-12, narrowed). Once the clock is at or below the
   overhead the engine plans no time and plays from the first search depth,
@@ -57,8 +170,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   protocol output, and neither disturbs a running search.
 - **`bench <depth> <threads> <hash>`:** the bench accepts the threads (1
   only) and a hash size after the depth, in the form other engines use.
-  Both are checked and have no effect yet. `bench` alone is unchanged:
-  the same line, the same 16,611,416 nodes.
+  The hash size is the size of the transposition table each position
+  gets; `bench` alone uses 16 MiB, and its count is the one that is
+  pinned.
 - **A round-robin mode for baselines:** `match.sh roundrobin` and
   `match.ps1 roundrobin` play every engine of the engine list (or those
   named with `--opponent`) and any Vyvræl builds given with `--build

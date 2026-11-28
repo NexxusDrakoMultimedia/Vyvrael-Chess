@@ -4,8 +4,9 @@
 //! Pinned results of fixed-depth searches.
 //!
 //! A fixed-depth search uses no clock and no randomness, so its score, best
-//! move and node count are fully determined by the code. These values were
-//! **recorded from this implementation** on 2026-11-20; they are not an
+//! move and node count are fully determined by the code. These values are
+//! **recorded from this implementation** (first on 2026-11-20, last
+//! updated on 2026-11-28 with milestone 7's search); they are not an
 //! independent reference the way perft counts are. Their job is to notice
 //! change: any edit to move generation order, evaluation or search that
 //! alters what the engine does at fixed depth will fail here.
@@ -25,50 +26,50 @@ const PINS: [(&str, u32, i32, u64, &str); 7] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         4,
         0,
-        28_793,
+        2_419,
         "d2d4 d7d5 b1c3 b8c6",
     ),
     (
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
         2,
         44,
-        391_308,
+        3_538,
         "e2a6 b4c3",
     ),
     (
         "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
         5,
         107,
-        63_892,
+        2_844,
         "b4f4 h4g3 f4f7 c7c6 f7g7",
     ),
     (
         "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
         2,
         -418,
-        23_562,
+        968,
         "c4c5 b6c5",
     ),
     (
         "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
         2,
         541,
-        5_857,
+        187,
         "d7c8q d8c8",
     ),
     (
         "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
         2,
         22,
-        27_964,
+        817,
         "c3d5 e7d8",
     ),
     (
         "4k3/8/3p4/4p3/8/8/4Q3/4K3 w - - 0 1",
         4,
-        683,
-        15_714,
-        "e1d2 e8e7 e2c4 e7f6",
+        689,
+        3_533,
+        "e2g4 e8e7 g4f5 e7d8",
     ),
 ];
 

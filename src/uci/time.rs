@@ -7,9 +7,11 @@
 //! The scheme is deliberately plain. It gives every move an equal share of
 //! the time left plus most of the increment, and never promises more than
 //! is on the clock less the overhead: once the clock is within the overhead
-//! it plans no time at all, and the move comes from the first search depth. Smarter schemes (stopping early when the best move is
-//! stable, thinking longer when the score drops) change how strongly the
-//! engine plays, so they wait for milestone 7 and an SPRT each.
+//! it plans no time at all, and the move comes from the first search depth.
+//! Smarter schemes (stopping early when the best move is stable, thinking
+//! longer when the score drops) change how strongly the engine plays, so
+//! each needs an SPRT; none is built yet (see "Ideas for later" in
+//! `docs/ROADMAP.md`).
 
 use std::time::{Duration, Instant};
 
@@ -37,7 +39,8 @@ pub const MOVES_ASSUMED: u64 = 30;
 ///   Where the cap allows any time at all, a move gets at least one
 ///   millisecond.
 /// - With a clock at or below the overhead the answer is no time at all.
-///   The search always completes its first depth, so there is still a move,
+///   The search still searches at least its first root move, and nearly
+///   always its whole first depth, so there is still a move,
 ///   found as fast as the engine can; the reserve is not spent a
 ///   millisecond at a time (known issue KI-12 was that it was).
 /// - A `movetime` at or below the overhead still gets one millisecond.
@@ -79,6 +82,7 @@ pub fn limits_for(params: &GoParams, side: Color, now: Instant, overhead: Durati
         depth: params.depth,
         nodes: params.nodes,
         deadline,
+        mate: params.mate,
     }
 }
 
@@ -331,8 +335,15 @@ mod tests {
                 depth: Some(7),
                 nodes: Some(1_000),
                 deadline: Some(now + ms(1_000)),
+                mate: None,
             }
         );
+        // A mate to find is passed on, with or without other limits.
+        let mate = GoParams {
+            mate: Some(3),
+            ..GoParams::default()
+        };
+        assert_eq!(limits_for(&mate, Color::White, now), Limits::mate(3));
         // No clock: no deadline.
         let depth_only = GoParams {
             depth: Some(3),

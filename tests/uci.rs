@@ -17,7 +17,8 @@ use std::time::{Duration, Instant};
 use vyvrael::board::Position;
 use vyvrael::eval::HandCrafted;
 use vyvrael::movegen::find_legal_move;
-use vyvrael::search::{Limits, Search};
+use vyvrael::search::{Limits, Search, TranspositionTable};
+use vyvrael::uci::HASH_DEFAULT;
 
 /// A running engine process and both ends of its pipes.
 struct Engine {
@@ -108,7 +109,7 @@ fn a_whole_conversation() {
             .iter()
             .filter(|line| line.starts_with("option name "))
             .count(),
-        9
+        10
     );
     assert!(hello.contains(&"option name Variety type spin default 0 min 0 max 100".to_string()));
     assert!(
@@ -136,7 +137,12 @@ fn a_whole_conversation() {
         let mv = find_legal_move(&pos, text).unwrap();
         let _undo = pos.make_move(mv);
     }
-    let mut direct = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+    // With an empty table of the default size, as the engine has for the
+    // first search of a game.
+    let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+    let mut direct = Search::new(&HandCrafted)
+        .with_limits(Limits::depth(3))
+        .with_table(&mut table);
     let outcome = direct.iterate(&pos, &mut |_| {});
     assert_eq!(search.len(), 4, "{search:?}");
     assert!(search[2].contains(&format!(" nodes {} ", direct.nodes())));
@@ -248,6 +254,72 @@ fn bad_input_is_survived() {
     let (ok, _, stderr) = engine.finish();
     assert!(ok);
     assert!(stderr.is_empty(), "{stderr}");
+}
+
+/// `go searchmoves` over the real pipes: the answer is one of the moves
+/// named, and a word that is no legal move is reported.
+#[test]
+fn searchmoves_restricts_the_answer() {
+    let mut engine = Engine::start();
+    engine.send("position startpos moves e2e4");
+    engine.send("go depth 3 searchmoves a7a6 e2e4 h7h5");
+    let lines = engine.lines_until("bestmove");
+    assert_eq!(
+        lines[0],
+        "info string go: searchmoves: e2e4 is not a legal move here; left out"
+    );
+    let best = lines.last().unwrap().strip_prefix("bestmove ").unwrap();
+    assert!(["a7a6", "h7h5"].contains(&best), "{lines:?}");
+    // Without the restriction it plays something else.
+    engine.send("go depth 3");
+    let free = engine.lines_until("bestmove").pop().unwrap();
+    assert!(
+        !["bestmove a7a6", "bestmove h7h5"].contains(&free.as_str()),
+        "{free}"
+    );
+    engine.send("quit");
+    assert!(engine.finish().0);
+}
+
+/// `go mate` answers by itself as soon as it has the mate, with nothing
+/// else to end the search; where there is no such mate, another limit or
+/// `stop` ends it.
+#[test]
+fn go_mate_answers_when_the_mate_is_found() {
+    let mut engine = Engine::start();
+    engine.send("position fen 7k/8/8/8/8/8/R7/1R4K1 w - - 0 1");
+    engine.send("go mate 2");
+    let lines = engine.lines_until("bestmove");
+    let shown = &lines[lines.len() - 2];
+    assert!(shown.contains(" score mate 2 "), "{lines:?}");
+    assert_ne!(lines.last().unwrap(), "bestmove 0000");
+    // There is no mate in one: the search ends on the mate in two it
+    // proves, or on the move time.
+    let started = Instant::now();
+    engine.send("go mate 1 movetime 300");
+    let lines = engine.lines_until("bestmove");
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(lines.iter().all(|line| !line.contains(" score mate 1 ")));
+    // No mate at all, and no other limit: it searches until `stop`.
+    engine.send("position startpos");
+    engine.send("go mate 3");
+    assert!(engine.line().starts_with("info depth 1 "));
+    engine.send("isready");
+    let seen = engine.lines_until("readyok");
+    assert!(
+        seen.iter().all(|line| !line.starts_with("bestmove")),
+        "{seen:?}"
+    );
+    engine.send("stop");
+    assert!(
+        engine
+            .lines_until("bestmove")
+            .pop()
+            .unwrap()
+            .starts_with("bestmove ")
+    );
+    engine.send("quit");
+    assert!(engine.finish().0);
 }
 
 #[test]

@@ -16,15 +16,17 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::{Command, GoParams, Options, bestmove_line, info_line, limits_for, parse};
+use super::{
+    Button, Command, GoParams, HASH_DEFAULT, Options, bestmove_line, info_line, limits_for, parse,
+};
 use crate::attacks::rook_attacks;
-use crate::board::{Bitboard, Position, Square};
+use crate::board::{Bitboard, Move, Position, Square};
 use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
 use crate::search::{
-    Limits, Outcome, Report, Search, Weakening, split_limits, stats_lines, varied_move,
-    variety_applies, weakened_move,
+    Limits, Outcome, Report, Search, TranspositionTable, Weakening, split_limits, stats_lines,
+    varied_move, variety_applies, weakened_move,
 };
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
@@ -69,10 +71,23 @@ pub struct Engine {
     stop: Arc<AtomicBool>,
     /// The search thread, if a `go` has been given. It may have finished.
     worker: Option<JoinHandle<()>>,
-    /// Whether the running search reports only when told to stop.
+    /// Whether the running search may never end by itself: it reports only
+    /// when told to stop (`go infinite`), or when it has found the mate it
+    /// was sent for and nothing else limits it. [`Engine::wait`] stops
+    /// such a search.
     until_stopped: bool,
     /// The values of the UCI options.
     options: Options,
+    /// The transposition table, kept from one search of a game to the
+    /// next. The search thread holds it for as long as a full-strength
+    /// search runs.
+    table: Arc<Mutex<TranspositionTable>>,
+    /// The size the table was made with, in MiB: the option `Hash` as it
+    /// was when a search last started.
+    table_mb: u32,
+    /// Whether `Clear Hash` was pressed since the last search started: the
+    /// table is emptied before the next one.
+    clear_table: bool,
     /// The seed of strength-affecting randomness: the option `Seed`, or
     /// one from system entropy while `Seed` is 0.
     seed: u32,
@@ -99,6 +114,15 @@ impl Engine {
             worker: None,
             until_stopped: false,
             options: Options::default(),
+            // If even the default size cannot be had, a table of one slot
+            // still lets the engine play.
+            table: Arc::new(Mutex::new(
+                TranspositionTable::new(HASH_DEFAULT)
+                    .or_else(|| TranspositionTable::new(0))
+                    .expect("memory for a table of one slot"),
+            )),
+            table_mb: HASH_DEFAULT,
+            clear_table: false,
             seed,
             rng: Rng::stream(seed, stream::STRENGTH),
         }
@@ -169,6 +193,15 @@ impl Engine {
                 self.end_search();
                 self.position = Position::startpos();
                 self.history.clear();
+                // What was learnt about the last game's positions says
+                // nothing reliable about the next one's, and a game must be
+                // repeatable from its own moves. No search is running: it
+                // was ended above.
+                self.table
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear();
+                self.clear_table = false;
                 // Every game starts its random sequence afresh, so that any
                 // game can be replayed by itself from one logged number.
                 // With a chosen seed that is the same seed again; without
@@ -185,11 +218,16 @@ impl Engine {
             Command::Stop => self.end_search(),
             Command::SetOption { name, value } => {
                 // An option applies from the next search on; a running one
-                // keeps the values it started with.
+                // keeps the values it started with. So does a button: the
+                // running search holds the table, which is emptied before
+                // the next one starts.
                 let previous = self.options.seed;
-                match self.options.set(&name, value.as_deref()) {
-                    Ok(()) => self.reseed(previous),
-                    Err(problem) => self.say(&format!("info string {problem}")),
+                match Options::button(&name) {
+                    Some(Button::ClearHash) => self.clear_table = true,
+                    None => match self.options.set(&name, value.as_deref()) {
+                        Ok(()) => self.reseed(previous),
+                        Err(problem) => self.say(&format!("info string {problem}")),
+                    },
                 }
             }
             Command::Display => self.say_lines(&self.display()),
@@ -297,10 +335,74 @@ impl Engine {
         self.history = history;
     }
 
+    /// Makes the table the size `Hash` asks for, if it is not, and empties
+    /// it if `Clear Hash` was pressed. Called with no search running. A
+    /// new table is empty; if there is no memory for it the old one stays,
+    /// and `Hash` is put back to its size.
+    fn fit_table(&mut self) {
+        if std::mem::take(&mut self.clear_table) {
+            self.table
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+        }
+        let wanted = self.options.hash_mb;
+        if wanted == self.table_mb {
+            return;
+        }
+        match TranspositionTable::new(wanted) {
+            Some(table) => {
+                *self.table.lock().unwrap_or_else(PoisonError::into_inner) = table;
+                self.table_mb = wanted;
+            }
+            None => {
+                self.say(&format!(
+                    "info string Hash: no memory for {wanted} MiB; it stays at {} MiB",
+                    self.table_mb
+                ));
+                self.options.hash_mb = self.table_mb;
+            }
+        }
+    }
+
+    /// The moves a `go searchmoves` restricts the search to: those of the
+    /// words sent that are legal moves of the position. Each word that is
+    /// not is reported and left out. Empty, for a search of every move,
+    /// when none was sent, when none is legal, and when the strength is
+    /// limited (a weakened search chooses among all moves).
+    fn root_moves(&self, words: &[String]) -> Vec<Move> {
+        if words.is_empty() {
+            return Vec::new();
+        }
+        if self.options.limit_strength {
+            self.say("info string go: searchmoves is not used with UCI_LimitStrength");
+            return Vec::new();
+        }
+        let mut moves = Vec::new();
+        for word in words {
+            match find_legal_move(&self.position, word) {
+                Some(mv) => {
+                    if !moves.contains(&mv) {
+                        moves.push(mv);
+                    }
+                }
+                None => self.say(&format!(
+                    "info string go: searchmoves: {word} is not a legal move here; left out"
+                )),
+            }
+        }
+        if moves.is_empty() {
+            self.say("info string go: searchmoves names no legal move; searching all moves");
+        }
+        moves
+    }
+
     /// `go`: starts a search of the current position on its own thread. A
     /// search still running is ended first.
     fn go(&mut self, params: &GoParams) {
         self.end_search();
+        self.fit_table();
+        let table = Arc::clone(&self.table);
         self.stop.store(false, Ordering::Relaxed);
         let limits = limits_for(
             params,
@@ -310,6 +412,11 @@ impl Engine {
         );
         // With nothing to end it, a search is `infinite` in all but name.
         let until_stopped = params.infinite || limits == Limits::NONE;
+        // A search with nothing but a mate to find answers when it finds
+        // it, which may be never: at the end of the input it is stopped
+        // like an infinite one.
+        let endless = limits.depth.is_none() && limits.nodes.is_none() && limits.deadline.is_none();
+        let root_moves = self.root_moves(&params.searchmoves);
 
         let out = Arc::clone(&self.out);
         let stop = Arc::clone(&self.stop);
@@ -332,7 +439,10 @@ impl Engine {
         let variety = self.options.variety;
         let show_wdl = self.options.show_wdl;
         let search_stats = self.options.search_stats;
-        let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
+        // Not with `searchmoves`: a varied move is chosen among all moves.
+        let varying = !self.options.limit_strength
+            && root_moves.is_empty()
+            && variety_applies(&self.position, variety);
         let (search_limits, check_limits) = if varying {
             split_limits(limits, Instant::now())
         } else {
@@ -343,17 +453,22 @@ impl Engine {
             let evaluator = default_evaluator();
             let outcome = match weakened {
                 None => {
+                    let mut table = table.lock().unwrap_or_else(PoisonError::into_inner);
                     let mut search = Search::new(evaluator.as_ref())
                         .with_history(&history)
                         .with_limits(search_limits)
-                        .with_stop_flag(&stop);
+                        .with_root_moves(&root_moves)
+                        .with_stop_flag(&stop)
+                        .with_table(&mut table);
                     let started = Instant::now();
                     let mut reached = 0;
                     let mut reached_seldepth = 0;
+                    let mut reached_hashfull = None;
                     let mut iterations = Vec::new();
                     let outcome = search.iterate(&position, &mut |report| {
                         reached = report.depth;
                         reached_seldepth = report.seldepth;
+                        reached_hashfull = report.hashfull;
                         iterations.push((report.depth, report.nodes));
                         send(&out, &info_line(report, show_wdl));
                     });
@@ -398,6 +513,9 @@ impl Engine {
                                                 score: varied.score,
                                                 nodes: search.nodes() + varied.nodes,
                                                 elapsed: started.elapsed(),
+                                                // The checks of a varied
+                                                // move use no table.
+                                                hashfull: reached_hashfull,
                                                 pv: vec![varied.best_move],
                                             },
                                             show_wdl,
@@ -436,6 +554,8 @@ impl Engine {
                                 score: weak.outcome.score,
                                 nodes: weak.nodes,
                                 elapsed: started.elapsed(),
+                                // A weakened search uses no table.
+                                hashfull: None,
                                 pv: weak.outcome.pv.clone(),
                             },
                             show_wdl,
@@ -458,7 +578,7 @@ impl Engine {
         match spawned {
             Ok(worker) => {
                 self.worker = Some(worker);
-                self.until_stopped = until_stopped;
+                self.until_stopped = until_stopped || endless;
             }
             Err(problem) => {
                 self.say(&format!(
@@ -552,9 +672,14 @@ mod tests {
         captured.lines()
     }
 
+    /// The library's own search of `fen` to `depth`, as the engine makes
+    /// the first search of a game: with an empty table of the default size.
     fn direct(fen: &str, depth: u32) -> (Outcome, u64) {
         let pos = Position::from_fen(fen).unwrap();
-        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+        let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+        let mut search = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
         let outcome = search.iterate(&pos, &mut |_| {});
         (outcome, search.nodes())
     }
@@ -1067,7 +1192,7 @@ mod tests {
         let (outcome, nodes) = direct(crate::board::START_FEN, 3);
         assert_eq!(lines.len(), 4, "{lines:?}");
         // The selective depths: quiescence goes deeper than the search.
-        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 8)]) {
+        for (line, (depth, seldepth)) in lines.iter().zip([(1, 1), (2, 4), (3, 6)]) {
             assert!(
                 line.starts_with(&format!("info depth {depth} seldepth {seldepth} score cp ")),
                 "{line}"
@@ -1169,23 +1294,28 @@ mod tests {
         let plain = stable(&session(&["go depth 3"]));
         let on = "setoption name SearchStats value true";
         let shown = stable(&session(&[on, "go depth 3"]));
-        assert_eq!(shown.len(), plain.len() + 5, "{shown:?}");
+        assert_eq!(shown.len(), plain.len() + 6, "{shown:?}");
         assert_eq!(shown[..3], plain[..3]);
         assert_eq!(shown[3], "info string stats depth 1 nodes 21");
-        assert_eq!(shown[4], "info string stats depth 2 nodes 222 ebf 10.57");
-        assert_eq!(shown[5], "info string stats depth 3 nodes 2728 ebf 12.28");
+        assert_eq!(shown[4], "info string stats depth 2 nodes 76 ebf 3.61");
+        assert_eq!(shown[5], "info string stats depth 3 nodes 649 ebf 8.53");
         assert!(shown[6].starts_with("info string stats cutoffs "));
         assert!(shown[7].starts_with("info string stats qnodes "));
-        assert!(shown[7].contains(" of 2971 ("));
-        assert_eq!(shown[8], plain[3]);
-        assert!(shown[8].starts_with("bestmove "));
+        assert!(shown[7].contains(" of 746 ("));
+        assert!(shown[8].starts_with("info string stats table probes "));
+        assert_eq!(shown[9], plain[3]);
+        assert!(shown[9].starts_with("bestmove "));
         // The figures are those of the library's own search.
         let pos = Position::startpos();
-        let mut search = Search::new(&HandCrafted).with_limits(Limits::depth(3));
+        let mut table = TranspositionTable::new(HASH_DEFAULT).unwrap();
+        let mut search = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(3))
+            .with_table(&mut table);
         let _ = search.iterate(&pos, &mut |_| {});
         let own = stats_lines(&[], search.nodes(), &search.stats());
         assert_eq!(shown[6], format!("info string {}", own[0]));
         assert_eq!(shown[7], format!("info string {}", own[1]));
+        assert_eq!(shown[8], format!("info string {}", own[2]));
         // Limited strength: the option is accepted and nothing is added.
         let limited = [
             "setoption name Seed value 7",
@@ -1195,6 +1325,162 @@ mod tests {
         let mut with_stats = vec![on];
         with_stats.extend(limited);
         assert_eq!(stable(&session(&with_stats)), stable(&session(&limited)));
+    }
+
+    /// The node count of the last `info depth` line of `lines`.
+    fn last_nodes(lines: &[String]) -> u64 {
+        let line = lines.iter().rfind(|line| line.starts_with("info depth "));
+        let words: Vec<&str> = line.unwrap().split(' ').collect();
+        let at = words.iter().position(|&word| word == "nodes").unwrap();
+        words[at + 1].parse().unwrap()
+    }
+
+    /// The `hashfull` of a line, if it has one.
+    fn hashfull(line: &str) -> Option<u32> {
+        let words: Vec<&str> = line.split(' ').collect();
+        let at = words.iter().position(|&word| word == "hashfull")?;
+        Some(words[at + 1].parse().unwrap())
+    }
+
+    /// Every `info` line of a full-strength search says how full the table
+    /// is: more as the search goes on and in the next search of the game,
+    /// nothing again after `ucinewgame`. A weakened search has no table
+    /// and says nothing.
+    #[test]
+    fn hashfull_follows_the_table() {
+        let go = "go depth 6";
+        let lines = played(&[go, go, "ucinewgame", "go depth 1"]);
+        let fills: Vec<u32> = lines
+            .iter()
+            .filter(|line| line.starts_with("info depth "))
+            .map(|line| hashfull(line).unwrap())
+            .collect();
+        // Six depths, six again, and one after the new game.
+        assert_eq!(fills.len(), 13);
+        assert!(fills[..12].is_sorted(), "{fills:?}");
+        assert_eq!(fills[0], 0);
+        assert!(fills[5] > 0 && fills[5] < 1000, "{fills:?}");
+        assert!(fills[6] >= fills[5]);
+        assert_eq!(fills[12], 0);
+        let weak = played(&["setoption name UCI_LimitStrength value true", "go depth 3"]);
+        let info: Vec<&String> = weak
+            .iter()
+            .filter(|line| line.starts_with("info depth "))
+            .collect();
+        assert!(!info.is_empty());
+        assert!(info.iter().all(|line| hashfull(line).is_none()), "{info:?}");
+    }
+
+    /// The transposition table is kept from one search of a game to the
+    /// next and emptied by `ucinewgame`: the same search again is quicker,
+    /// and after a new game it is the first search again, line for line.
+    #[test]
+    fn the_table_lasts_a_game_and_a_new_game_empties_it() {
+        let go = "go depth 5";
+        let first = stable(&played(&[go]));
+        let twice = stable(&played(&[go, go]));
+        assert_eq!(twice[..first.len()], first[..]);
+        let again = &twice[first.len()..];
+        assert_eq!(again.last(), first.last());
+        assert!(last_nodes(again) * 4 < last_nodes(&first), "{again:?}");
+        // A new game in between: the seed line it logs, then the first
+        // search once more.
+        let renewed = stable(&played(&[
+            "setoption name Seed value 5",
+            go,
+            "ucinewgame",
+            go,
+        ]));
+        let seed = "info string rng seed 5 (Seed)";
+        assert_eq!(renewed[0], seed);
+        assert_eq!(renewed[1..=first.len()], first[..]);
+        assert_eq!(renewed[first.len() + 1], seed);
+        assert_eq!(renewed[first.len() + 2..], first[..]);
+    }
+
+    /// `Clear Hash` empties the table: the search after it is the first
+    /// search of the game again, line for line, in any letter case and
+    /// whatever value is sent along. It says nothing and changes no
+    /// option. Pressed during a search, it leaves that search alone and
+    /// empties the table before the next one.
+    #[test]
+    fn clear_hash_empties_the_table() {
+        let go = "go depth 5";
+        let first = played(&[go]);
+        for press in [
+            "setoption name Clear Hash",
+            "setoption name clear hash",
+            "setoption name Clear Hash value true",
+        ] {
+            let lines = played(&[go, press, go]);
+            assert_eq!(lines.len(), 2 * first.len(), "{press}");
+            assert_eq!(lines[..first.len()], first[..], "{press}");
+            assert_eq!(lines[first.len()..], first[..], "{press}");
+        }
+        // Pressed once, it empties once.
+        let twice = played(&[go, go]);
+        let pressed = played(&[go, "setoption name Clear Hash", go, go]);
+        assert_eq!(pressed[first.len()..], twice[..]);
+        // Before any search, and before a new game, it changes nothing.
+        let press = "setoption name Clear Hash";
+        assert_eq!(played(&[press, go]), first);
+        let (mut engine, captured) = engine();
+        engine.handle(press);
+        assert_eq!(engine.options, Options::default());
+        assert!(captured.lines().is_empty());
+        // During a search: the search goes on with what it knows, and the
+        // next one starts from nothing.
+        engine.handle("go infinite");
+        // Deep enough for the table to hold something that shows.
+        let started = Instant::now();
+        while captured.lines().len() < 6 {
+            assert!(started.elapsed() < Duration::from_secs(60), "no depth 6");
+            thread::sleep(Duration::from_millis(1));
+        }
+        engine.handle(press);
+        assert!(engine.clear_table);
+        engine.handle("stop");
+        engine.wait();
+        assert!(engine.table.lock().unwrap().hashfull() > 0);
+        let before = captured.lines().len();
+        engine.handle(go);
+        engine.wait();
+        assert_eq!(stable(&captured.lines()[before..]), first);
+        assert!(!engine.clear_table);
+    }
+
+    /// `Hash` sizes the table from the next search on. A new size is a new,
+    /// empty table; the same size again keeps what the table holds.
+    #[test]
+    fn hash_sizes_the_table() {
+        let (mut engine, captured) = engine();
+        assert_eq!(engine.table_mb, HASH_DEFAULT);
+        let slots = |engine: &Engine| engine.table.lock().unwrap().len();
+        assert_eq!(slots(&engine), 1 << 20);
+        engine.handle("setoption name Hash value 2");
+        // Not yet: an option applies from the next search.
+        assert_eq!(slots(&engine), 1 << 20);
+        engine.handle("go depth 4");
+        engine.wait();
+        assert_eq!((engine.table_mb, slots(&engine)), (2, 1 << 17));
+        let first = last_nodes(&captured.lines());
+        // The same size named again: the table is kept, so the search is
+        // quicker.
+        engine.handle("setoption name Hash value 2");
+        engine.handle("go depth 4");
+        engine.wait();
+        assert!(last_nodes(&captured.lines()) * 2 < first);
+        // Another size: an empty table, and the first search's work again.
+        engine.handle("setoption name Hash value 1");
+        engine.handle("go depth 4");
+        engine.wait();
+        assert_eq!((engine.table_mb, slots(&engine)), (1, 1 << 16));
+        assert_eq!(last_nodes(&captured.lines()), first);
+        // A size that is refused changes nothing.
+        engine.handle("setoption name Hash value 0");
+        engine.handle("go depth 1");
+        engine.wait();
+        assert_eq!(engine.table_mb, 1);
     }
 
     /// With `Variety` 0, the default, the root move is always the search's
@@ -1263,11 +1549,11 @@ mod tests {
                 );
                 // The last `info` line is for the move played.
                 // It keeps the selective depth of the search's last
-                // iteration (8, as the third line of the plain search says).
-                assert!(plain[2].starts_with("info depth 3 seldepth 8 "));
+                // iteration (6, as the third line of the plain search says).
+                assert!(plain[2].starts_with("info depth 3 seldepth 6 "));
                 let last_info = &lines[lines.len() - 2];
                 assert!(
-                    last_info.starts_with(&format!("info depth 3 seldepth 8 score cp {score} "))
+                    last_info.starts_with(&format!("info depth 3 seldepth 6 score cp {score} "))
                         && last_info.ends_with(&format!(" pv {played}")),
                     "{last_info}"
                 );
@@ -1415,7 +1701,7 @@ mod tests {
             "go depth 2",
         ]);
         assert!(
-            lines[1].starts_with("info depth 2 seldepth 3 score cp 0 "),
+            lines[1].starts_with("info depth 2 seldepth 1 score cp 0 "),
             "{lines:?}"
         );
         assert_eq!(lines.last().unwrap(), "bestmove g8h8");
@@ -1462,6 +1748,86 @@ mod tests {
         // Proven at depth 3, where the search stops by itself.
         assert_eq!(lines.len(), 4, "{lines:?}");
         assert!(lines[2].starts_with("info depth 3 seldepth 4 score mate 2 "));
+    }
+
+    /// `go searchmoves` restricts the search to the moves named: the
+    /// answer and every line shown start with one of them.
+    #[test]
+    fn searchmoves_restricts_the_search() {
+        let free = session(&["go depth 3"]);
+        assert_eq!(free.last().unwrap(), "bestmove d2d4");
+        let lines = session(&["go depth 3 searchmoves a2a3 h2h4"]);
+        assert_eq!(lines.len(), 4, "{lines:?}");
+        let best = lines.last().unwrap().strip_prefix("bestmove ").unwrap();
+        assert!(["a2a3", "h2h4"].contains(&best), "{best}");
+        for line in &lines[..3] {
+            let first = line
+                .split(" pv ")
+                .nth(1)
+                .unwrap()
+                .split(' ')
+                .next()
+                .unwrap();
+            assert!(["a2a3", "h2h4"].contains(&first), "{line}");
+        }
+        // One move: that move. The order of the parameters does not matter.
+        let one = session(&["go searchmoves g1f3 depth 2"]);
+        assert_eq!(one.last().unwrap(), "bestmove g1f3");
+        // The next search is not restricted any more.
+        let again = session(&["go searchmoves a2a3 depth 2", "go depth 3"]);
+        assert_eq!(again.last().unwrap(), "bestmove d2d4");
+    }
+
+    /// A word of `searchmoves` that is no legal move is reported and left
+    /// out; if none is left, every move is searched.
+    #[test]
+    fn searchmoves_that_are_not_legal_are_reported() {
+        let lines = session(&["go depth 2 searchmoves e2e5 a2a3 xyz a2a3"]);
+        assert_eq!(
+            lines[..2],
+            [
+                "info string go: searchmoves: e2e5 is not a legal move here; left out",
+                "info string go: searchmoves: xyz is not a legal move here; left out",
+            ]
+        );
+        assert_eq!(lines.last().unwrap(), "bestmove a2a3");
+        let none = session(&["go depth 2 searchmoves e7e5"]);
+        assert_eq!(
+            none[..2],
+            [
+                "info string go: searchmoves: e7e5 is not a legal move here; left out",
+                "info string go: searchmoves names no legal move; searching all moves",
+            ]
+        );
+        assert_eq!(none.last().unwrap(), "bestmove d2d4");
+        // A move that is illegal only because it leaves the king in check.
+        let pinned = session(&[
+            "position fen 4k3/4r3/8/8/8/8/4N3/4K3 w - - 0 1",
+            "go depth 2 searchmoves e2c3 e1d1",
+        ]);
+        assert!(
+            pinned[0].contains("e2c3 is not a legal move here"),
+            "{pinned:?}"
+        );
+        assert_eq!(pinned.last().unwrap(), "bestmove e1d1");
+    }
+
+    /// A weakened search chooses among all moves and says so.
+    #[test]
+    fn searchmoves_is_not_used_with_limited_strength() {
+        let lines = session(&[
+            "setoption name UCI_LimitStrength value true",
+            "setoption name Seed value 7",
+            "ucinewgame",
+            "go depth 2 searchmoves a2a3",
+        ]);
+        assert!(
+            lines.contains(
+                &"info string go: searchmoves is not used with UCI_LimitStrength".to_string()
+            ),
+            "{lines:?}"
+        );
+        assert!(lines.last().unwrap().starts_with("bestmove "));
     }
 
     #[test]

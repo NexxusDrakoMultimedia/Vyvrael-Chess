@@ -29,9 +29,12 @@ preparation for milestone 7 (search statistics, a test-suite runner, more
 fuzzing, small UCI additions) are complete and
 merged. Milestone 6 measured the engine on the project's ladder and
 calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
-speaks UCI, so it can be used in a GUI and in match tools. It is still weak
-and slow, because the main search has no move ordering or transposition table
-yet (milestone 7). Its strength on the project's own opponent ladder, an
+speaks UCI, so it can be used in a GUI and in match tools. It is still weak:
+milestone 7 (complete and merged, not yet released) gave the search a transposition table, move
+ordering (the table's move, captures by what they win, killer moves),
+null-move pruning, late move reductions and reverse futility pruning,
+and its strength with them has not been measured against other
+engines yet. Its strength on the project's own opponent ladder, an
 ordering rather than an Elo, is in
 [docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md)
 (measured for the release; the milestone 6 measurement is beside it). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
@@ -76,8 +79,8 @@ is in [docs/UCI.md](docs/UCI.md).
 - **lichess-bot:** set `engine.name` to the binary name and
   `engine.protocol` to `uci` in `config.yml`.
 
-Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
-`UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
+Options of its own, besides `Hash`, `Clear Hash`, `Threads`,
+`UCI_LimitStrength`, `UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
 
 - **`SearchStats`** (off by default): a diagnostic that sends a search's
   statistics as `info string` lines; see [docs/UCI.md](docs/UCI.md).

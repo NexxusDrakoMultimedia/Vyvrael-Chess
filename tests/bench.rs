@@ -10,9 +10,10 @@
 
 use vyvrael::bench::{BENCH_DEPTH, BENCH_POSITIONS, bench};
 
-/// The count of `vyvrael bench` at the default depth, first recorded on
-/// 2026-11-22 before `Seed` and `Variety` were added.
-const BENCH_NODES: u64 = 16_611_416;
+/// The count of `vyvrael bench` at the default depth. It was 16,611,416
+/// from 2026-11-22 until milestone 7 began to change the search;
+/// `docs/testing/bench-history.md` has every value since.
+const BENCH_NODES: u64 = 28_175;
 
 #[test]
 fn the_bench_node_count_is_pinned() {

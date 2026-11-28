@@ -14,10 +14,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::ordering::captures_first;
+use super::ordering::{Killers, captures_first, is_quiet, loses_material, table_move_first};
 use super::{
-    DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, fifty_moves_reached, insufficient_material,
-    is_repetition, mated_in,
+    Bound, DRAW, INFINITY, Limits, MATE, MATE_BOUND, MAX_PLY, SearchStats, TranspositionTable,
+    fifty_moves_reached, insufficient_material, is_repetition, mated_in, moves_to_mate,
 };
 use crate::attacks::knight_attacks;
 use crate::board::{Color, Move, MoveKind, PieceKind, Position, Square};
@@ -53,6 +53,10 @@ pub struct Report {
     pub nodes: u64,
     /// Time since the search began.
     pub elapsed: Duration,
+    /// How full the transposition table is, in slots per thousand
+    /// ([`TranspositionTable::hashfull`]), or `None` for a search without
+    /// a table.
+    pub hashfull: Option<u32>,
     /// The principal variation at that depth.
     pub pv: Vec<Move>,
 }
@@ -70,14 +74,17 @@ pub struct Search<'a> {
     /// that move followed by its child's line.
     pv: Vec<Vec<Move>>,
     limits: Limits,
+    /// The only moves searched at the root, if any are named (see
+    /// [`Search::with_root_moves`]); empty for all of them.
+    root_moves: Vec<Move>,
     /// Set from outside (another thread) to end the search early.
     stop_flag: Option<&'a AtomicBool>,
     /// Latched once any limit is hit: from then on every node returns at
     /// once and the search unwinds.
     stopped: bool,
-    /// False while the first iteration runs, so that it always completes and
-    /// there is always a move to play.
-    limits_apply: bool,
+    /// What the first iteration is spared, so that there is always a move
+    /// to play.
+    shield: Shield,
     /// The deepest ply visited since the last search from the root began.
     /// It is only ever written here and read by [`Search::seldepth`]: the
     /// search decides nothing by it.
@@ -85,7 +92,154 @@ pub struct Search<'a> {
     /// Counts of what the search did. Like `seldepth`, written here and
     /// read only from outside, by [`Search::stats`].
     stats: SearchStats,
+    /// What earlier searching found out about positions, if the caller
+    /// lent a table (see [`Search::with_table`]). Without one every
+    /// position is searched afresh.
+    table: Option<&'a mut TranspositionTable>,
+    /// The killer moves of each ply: `killers[p]` holds the quiet moves
+    /// that last cut off the search at ply `p`. They last for one search,
+    /// through all its iterations, and start empty in the next.
+    killers: Vec<Killers>,
+    /// `no_null[p]` is set while the position at ply `p` must not try a
+    /// null move: it was reached by one, or it is being searched to verify
+    /// one.
+    no_null: Vec<bool>,
+    /// `verifying[p]` is set while the position at ply `p` is searched to
+    /// verify a null move: its own moves must then really be searched, so
+    /// nothing may cut it off from its evaluation alone.
+    verifying: Vec<bool>,
+    /// Whether null-move pruning is used at all. Always true outside the
+    /// tests, which compare the search with and without it.
+    null_moves: bool,
+    /// What null-move pruning did in this search. Not part of the
+    /// statistics that are shown; the tests read it.
+    nulls: NullCounts,
+    /// Whether reverse futility pruning is used. Always true outside the
+    /// tests.
+    futility: bool,
+    /// How many positions it cut off in this search. For the tests.
+    futile: u64,
+    /// Whether late moves are searched less deep. Always true outside
+    /// the tests, which compare the search with and without it.
+    reductions: bool,
+    /// How many moves were searched reduced in this search, and how many
+    /// of them had to be searched again in full. For the tests, like
+    /// `nulls`.
+    reduced: (u64, u64),
 }
+
+/// Counts of null-move pruning in one search.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NullCounts {
+    /// Null moves searched.
+    tried: u64,
+    /// Those whose reduced search came back at or above beta.
+    failed_high: u64,
+    /// Of those, the ones checked by a search without the null move
+    /// because the side to move had a single piece left.
+    verified: u64,
+    /// Nodes cut off in the end.
+    cutoffs: u64,
+}
+
+/// A move is reduced from this depth up: below it there is nothing to
+/// take off without falling into quiescence search.
+const LMR_MIN_DEPTH: u32 = 3;
+
+/// The first moves of a position are never reduced: this many are
+/// searched in full before any is.
+const LMR_FULL_MOVES: u32 = 3;
+
+/// The natural logarithm of 1 to 63, times 1,000 and rounded. A table of
+/// whole numbers and not a call of `ln`, so that the reductions, and with
+/// them every node count, are the same on every machine.
+const LN_THOUSANDTHS: [u32; 63] = [
+    0, 693, 1099, 1386, 1609, 1792, 1946, 2079, 2197, 2303, 2398, 2485, 2565, 2639, 2708, 2773,
+    2833, 2890, 2944, 2996, 3045, 3091, 3135, 3178, 3219, 3258, 3296, 3332, 3367, 3401, 3434, 3466,
+    3497, 3526, 3555, 3584, 3611, 3638, 3664, 3689, 3714, 3738, 3761, 3784, 3807, 3829, 3850, 3871,
+    3892, 3912, 3932, 3951, 3970, 3989, 4007, 4025, 4043, 4060, 4078, 4094, 4111, 4127, 4143,
+];
+
+/// How many plies less a late quiet move is searched: the move that is
+/// tried after `searched` others, at `depth`. It is
+/// `0.75 + ln(depth) * ln(searched) / 2.25`, rounded down: one ply for
+/// the first late moves at low depth, more the later the move and the
+/// deeper the search, since both make it likelier that the move changes
+/// nothing. Always at least one ply is left to search.
+fn late_move_reduction(depth: u32, searched: u32) -> u32 {
+    let ln = |n: u32| LN_THOUSANDTHS[n.clamp(1, 63) as usize - 1];
+    let reduction = (1_687_500 + ln(depth) * ln(searched)) / 2_250_000;
+    reduction.min(depth.saturating_sub(2))
+}
+
+/// Reverse futility pruning is used up to this depth: further from the
+/// horizon too much can still happen for the evaluation to be trusted.
+const RFP_MAX_DEPTH: u32 = 6;
+
+/// How far above beta the evaluation must be, per ply of depth left, for
+/// reverse futility pruning: about a pawn for each move the opponent has
+/// to change things with.
+const RFP_MARGIN: Score = 100;
+
+/// A null move is tried from this depth up. Below it the reduced search
+/// would be a quiescence search of a position hardly different from the
+/// one whose evaluation already said "at least beta".
+const NULL_MIN_DEPTH: u32 = 3;
+
+/// How much shallower the search after a null move is than the search of
+/// a real move would be, at `depth`: two plies, and one more for every
+/// four plies of depth. The deeper the search, the more it can afford to
+/// take on trust.
+const fn null_reduction(depth: u32) -> u32 {
+    2 + depth / 4
+}
+
+/// The pieces of the side to move that are not pawns or the king.
+fn pieces_of_mover(pos: &Position) -> u32 {
+    let side = pos.side_to_move();
+    [
+        PieceKind::Knight,
+        PieceKind::Bishop,
+        PieceKind::Rook,
+        PieceKind::Queen,
+    ]
+    .iter()
+    .map(|&kind| pos.pieces_of(side, kind).count())
+    .sum()
+}
+
+/// Which limits the search does not look at for the moment. The first
+/// iteration of [`Search::iterate`] must leave a move to play, so nothing
+/// may end it before one root move has been searched to the end; after
+/// that the clock and the stop flag may, and the answer is then the best
+/// of the root moves that were finished.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shield {
+    /// Every limit applies: every search but the first iteration.
+    Nothing,
+    /// No limit applies: the first iteration, until its first legal root
+    /// move has been searched.
+    Everything,
+    /// The node limit does not apply, and the stop flag and the clock are
+    /// looked at only once per [`FIRST_DEPTH_CHECK_INTERVAL`] nodes: the
+    /// rest of the first iteration. A node limit asks for a reproducible
+    /// search, and what one gives stays as it was: the whole first depth.
+    NodeLimit,
+}
+
+/// How often the stop flag and the clock are looked at during the first
+/// iteration, once its first root move is done. A first depth is nearly
+/// always far shorter than this (tens to a few thousand nodes) and then
+/// completes whatever the clock says, as it always has, so that a move
+/// played with no time left is still the best of all the moves at one
+/// ply. Only a first depth that takes tens of milliseconds, in a position
+/// with very many captures, can be cut short.
+const FIRST_DEPTH_CHECK_INTERVAL: u64 = 1 << 16;
+
+/// From this many half-moves without a capture or a pawn move, a result in
+/// the table is not taken on trust: it was found with another count, and
+/// the fifty-move rule is about to make the count matter.
+const FIFTY_MOVE_GUARD: u16 = 90;
 
 /// The stop flag and the clock are looked at once per this many nodes:
 /// reading them at every node would cost more than the search itself.
@@ -102,11 +256,22 @@ impl<'a> Search<'a> {
             // One line per ply, plus one for the child of the deepest node.
             pv: vec![Vec::new(); MAX_PLY + 2],
             limits: Limits::NONE,
+            root_moves: Vec::new(),
             stop_flag: None,
             stopped: false,
-            limits_apply: true,
+            shield: Shield::Nothing,
             seldepth: 0,
             stats: SearchStats::ZERO,
+            table: None,
+            killers: vec![Killers::NONE; MAX_PLY],
+            no_null: vec![false; MAX_PLY + 2],
+            verifying: vec![false; MAX_PLY + 2],
+            null_moves: true,
+            nulls: NullCounts::default(),
+            futility: true,
+            futile: 0,
+            reductions: true,
+            reduced: (0, 0),
         }
     }
 
@@ -124,6 +289,34 @@ impl<'a> Search<'a> {
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Search<'a> {
         self.limits = limits;
+        self
+    }
+
+    /// Restricts the search to these moves of the position searched (UCI
+    /// `searchmoves`): the outcome is the best of them, and the others are
+    /// not looked at. An empty list restricts nothing.
+    ///
+    /// The moves must be legal in that position. A restricted search does
+    /// not record the root in the table, where its result would pass for
+    /// the value of the position.
+    #[must_use]
+    pub fn with_root_moves(mut self, moves: &[Move]) -> Search<'a> {
+        self.root_moves = moves.to_vec();
+        self
+    }
+
+    /// Lends the search a transposition table: it uses what the table
+    /// knows and adds what it finds. The table outlives the search, so the
+    /// next search, of the next move of the game, starts with it.
+    ///
+    /// A search with a table is no longer a function of the position alone:
+    /// what it visits depends on what the table held. It is still
+    /// repeatable, since the same searches in the same order fill the table
+    /// the same way, and a new table makes it a function of the position
+    /// again.
+    #[must_use]
+    pub fn with_table(mut self, table: &'a mut TranspositionTable) -> Search<'a> {
+        self.table = Some(table);
         self
     }
 
@@ -147,12 +340,20 @@ impl<'a> Search<'a> {
         if self.stopped {
             return true;
         }
-        if !self.limits_apply {
+        if self.shield == Shield::Everything {
             return false;
         }
-        if self.limits.nodes.is_some_and(|limit| self.nodes >= limit) {
+        let first_depth = self.shield == Shield::NodeLimit;
+        let counted_out =
+            !first_depth && self.limits.nodes.is_some_and(|limit| self.nodes >= limit);
+        let interval = if first_depth {
+            FIRST_DEPTH_CHECK_INTERVAL
+        } else {
+            CHECK_INTERVAL
+        };
+        if counted_out {
             self.stopped = true;
-        } else if self.nodes.is_multiple_of(CHECK_INTERVAL) {
+        } else if self.nodes.is_multiple_of(interval) {
             let flagged = self
                 .stop_flag
                 .is_some_and(|flag| flag.load(Ordering::Relaxed));
@@ -183,10 +384,15 @@ impl<'a> Search<'a> {
     /// complete answer from the previous depth, which is what playing to a
     /// clock requires.
     ///
-    /// The first iteration always completes, whatever the limits, so the
-    /// outcome always names a move if one exists. An iteration that a limit
-    /// interrupts is thrown away. The search also ends early once it has
-    /// found a forced mate that fits inside the depth just searched, because
+    /// The outcome always names a move if one exists: no limit ends the
+    /// first iteration before its first legal root move has been searched,
+    /// and a node limit never ends it at all. The stop flag and the clock
+    /// may end it after that first move, where it is a long one (they are
+    /// looked at rarely during it); the outcome is then the best of
+    /// the root moves that were finished, [`Search::was_stopped`] is true
+    /// and nothing is reported. A later iteration that a limit interrupts
+    /// is thrown away. The search also ends early once it has found a
+    /// forced mate that fits inside the depth just searched, because
     /// searching deeper cannot find a shorter one.
     ///
     /// Each call is a new search: the node count and the stopped state start
@@ -200,9 +406,16 @@ impl<'a> Search<'a> {
             .map_or(MAX_PLY as u32, |depth| depth.clamp(1, MAX_PLY as u32));
         let mut best: Option<Outcome> = None;
         for depth in 1..=deepest {
-            self.limits_apply = depth > 1;
+            self.shield = if depth == 1 {
+                Shield::Everything
+            } else {
+                Shield::Nothing
+            };
             let outcome = self.search_root(pos, depth);
             if self.stopped {
+                // Only the first iteration can be cut short with nothing
+                // before it, and then it has finished at least one move.
+                best = best.or(Some(outcome));
                 break;
             }
             report(&Report {
@@ -211,19 +424,26 @@ impl<'a> Search<'a> {
                 score: outcome.score,
                 nodes: self.nodes,
                 elapsed: start.elapsed(),
+                hashfull: self.table.as_deref().map(TranspositionTable::hashfull),
                 pv: outcome.pv.clone(),
             });
             let nothing_to_search = outcome.best_move.is_none();
             // A mate score counts plies from the root; within `depth` it was
             // found by the full-width search and is the shortest there is.
             let mate_found = MATE - outcome.score.abs() <= depth as Score;
+            // The mate that was asked for (`Limits::mate`), however deep
+            // the search had to look to see it.
+            let mate_wanted = self.limits.mate.is_some_and(|within| {
+                moves_to_mate(outcome.score)
+                    .is_some_and(|moves| moves > 0 && moves.unsigned_abs() <= within)
+            });
             best = Some(outcome);
-            if nothing_to_search || mate_found || self.limit_reached_now() {
+            if nothing_to_search || mate_found || mate_wanted || self.limit_reached_now() {
                 break;
             }
         }
-        self.limits_apply = true;
-        best.expect("the first iteration is never interrupted")
+        self.shield = Shield::Nothing;
+        best.expect("the first iteration is not interrupted before its first move")
     }
 
     /// Whether `pos` is drawn by rule, so that searching it is pointless:
@@ -248,11 +468,17 @@ impl<'a> Search<'a> {
 
     /// Starts a new search: forgets the node count and the stopped state of
     /// the one before. The game history and the limits are kept.
-    const fn begin(&mut self) {
+    fn begin(&mut self) {
         self.nodes = 0;
         self.stopped = false;
         self.seldepth = 0;
         self.stats = SearchStats::ZERO;
+        self.killers.fill(Killers::NONE);
+        self.no_null.fill(false);
+        self.verifying.fill(false);
+        self.nulls = NullCounts::default();
+        self.reduced = (0, 0);
+        self.futile = 0;
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -339,7 +565,22 @@ impl<'a> Search<'a> {
             };
         }
         self.nodes += 1;
-        for &mv in &pseudo_legal_moves(pos) {
+        // The best move of the iteration before, which the table holds,
+        // then captures and promotions: see `ordering.rs`. The root is
+        // never settled from the table, only ordered by it.
+        let key = pos.hash();
+        let table_move = self
+            .table
+            .as_deref()
+            .and_then(|table| table.probe(key, 0))
+            .and_then(|known| known.best);
+        // No killer moves at the root: nothing cuts off there.
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, Killers::NONE);
+        let restricted = !self.root_moves.is_empty();
+        for &mv in &moves {
+            if restricted && !self.root_moves.contains(&mv) {
+                continue;
+            }
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -355,6 +596,11 @@ impl<'a> Search<'a> {
                 // nothing.
                 break;
             }
+            if self.shield == Shield::Everything {
+                // There is a move to play now: the stop flag and the clock
+                // may end the first iteration from here on.
+                self.shield = Shield::NodeLimit;
+            }
             // The first legal move is always taken, so a best move exists
             // whenever any legal move does.
             if best_move.is_none() || score > alpha {
@@ -362,6 +608,14 @@ impl<'a> Search<'a> {
                 best_move = Some(mv);
                 self.update_pv(0, mv);
             }
+        }
+        // Remember the root's best move for the next iteration and the next
+        // search of the game. Not after a stop: the move may be the best
+        // of only the moves that were searched.
+        if let (Some(table), false) = (self.table.as_deref_mut(), self.stopped || restricted)
+            && best_move.is_some()
+        {
+            table.store(key, 0, depth, alpha, Bound::Exact, best_move);
         }
         match best_move {
             Some(_) => Outcome {
@@ -415,9 +669,63 @@ impl<'a> Search<'a> {
         }
         self.nodes += 1;
 
+        // Has this position been searched at least this deep before? Then
+        // what was found may settle it: its value, or a bound on the value
+        // that already lies outside the window.
+        let key = pos.hash();
+        let mut table_move = None;
+        let mut known = None;
+        if let Some(table) = self.table.as_deref() {
+            self.stats.table_probes += 1;
+            known = table.probe(key, ply);
+        }
+        if let Some(known) = known {
+            self.stats.table_hits += 1;
+            // Whatever the depth it was found at, the move that was best
+            // before is the one to try first now.
+            table_move = known.best;
+            if known.depth >= depth && pos.halfmove_clock() < FIFTY_MOVE_GUARD {
+                let settles = match known.bound {
+                    Bound::Exact => true,
+                    Bound::Lower => known.score >= beta,
+                    Bound::Upper => known.score <= alpha,
+                };
+                if settles {
+                    self.stats.table_cutoffs += 1;
+                    return known.score;
+                }
+            }
+        }
+
+        if !self.verifying[ply]
+            && let Some(score) = self.reverse_futility_cutoff(pos, depth, beta)
+        {
+            self.futile += 1;
+            return score;
+        }
+        if let Some(score) = self.null_move_cutoff(pos, depth, ply, beta) {
+            if let Some(table) = self.table.as_deref_mut() {
+                table.store(key, ply, depth, score, Bound::Lower, table_move);
+            }
+            return score;
+        }
+        if self.stopped {
+            return DRAW;
+        }
+
+        let alpha_at_first = alpha;
         let mut best = -INFINITY;
+        let mut best_move = None;
         let mut any_legal = false;
-        for &mv in &pseudo_legal_moves(pos) {
+        // The table's move first, then captures and promotions, most
+        // valuable victim first, then this ply's killer moves: see
+        // `ordering.rs`.
+        let killers = self.killers[ply];
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, killers);
+        // Late moves may be reduced, but not to get out of a check.
+        let may_reduce = self.reductions && depth >= LMR_MIN_DEPTH && !pos.in_check();
+        let mut searched = 0;
+        for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -427,7 +735,14 @@ impl<'a> Search<'a> {
             }
             let first = !any_legal;
             any_legal = true;
-            let score = -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha);
+            let reduce =
+                may_reduce && searched >= LMR_FULL_MOVES && is_quiet(pos, mv) && !next.in_check();
+            let score = if reduce {
+                self.search_reduced(&next, depth, ply, alpha, beta, searched)
+            } else {
+                -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha)
+            };
+            searched += 1;
             self.keys.pop();
             if self.stopped {
                 return DRAW;
@@ -437,27 +752,191 @@ impl<'a> Search<'a> {
                 best = score;
                 if score > alpha {
                     alpha = score;
+                    best_move = Some(mv);
                     self.update_pv(ply, mv);
                     if alpha >= beta {
                         // The opponent has a better option elsewhere and
                         // will never let the game reach this position.
                         self.stats.cutoffs += 1;
                         self.stats.first_move_cutoffs += u64::from(first);
+                        if is_quiet(pos, mv) {
+                            self.killers[ply].remember(mv);
+                        }
                         break;
                     }
                 }
             }
         }
 
-        if any_legal {
-            best
-        } else {
-            no_moves_score(pos, ply)
+        if !any_legal {
+            return no_moves_score(pos, ply);
         }
+        // Remember the result. It is the value if some move raised alpha
+        // without reaching beta; a move that reached beta shows only that
+        // the value is at least that; and if no move raised alpha, only
+        // that it is at most the best seen.
+        if let Some(table) = self.table.as_deref_mut() {
+            let bound = if best >= beta {
+                Bound::Lower
+            } else if best > alpha_at_first {
+                Bound::Exact
+            } else {
+                Bound::Upper
+            };
+            table.store(key, ply, depth, best, bound, best_move);
+        }
+        best
     }
 }
 
 impl Search<'_> {
+    /// Late move reductions: the value, for the side that moved, of the
+    /// position `next` after a late quiet move, searched less deep than
+    /// the `depth - 1` plies an early move gets (see
+    /// [`late_move_reduction`]).
+    ///
+    /// The moves are tried best first as far as the search can tell: the
+    /// table's move, the captures that win, the killers. A quiet move that
+    /// comes after `searched` others is unlikely to be the best, so it is
+    /// first only asked, at reduced depth and with a window of one point,
+    /// whether it beats alpha. Usually it does not and the rest of its
+    /// subtree is saved. If it does, the doubt was wrong and the move is
+    /// searched again at full depth with the whole window, so a good late
+    /// move costs time but is not missed for being late.
+    ///
+    /// The caller does not reduce captures and promotions, moves that
+    /// give check, moves out of check, the first moves of a position, or
+    /// anything at low depth.
+    fn search_reduced(
+        &mut self,
+        next: &Position,
+        depth: u32,
+        ply: usize,
+        alpha: Score,
+        beta: Score,
+        searched: u32,
+    ) -> Score {
+        let reduction = late_move_reduction(depth, searched);
+        if reduction > 0 {
+            self.reduced.0 += 1;
+            let shallow = depth - 1 - reduction;
+            let score = -self.negamax(next, shallow, ply + 1, -alpha - 1, -alpha);
+            if self.stopped || score <= alpha {
+                return score;
+            }
+            self.reduced.1 += 1;
+        }
+        -self.negamax(next, depth - 1, ply + 1, -beta, -alpha)
+    }
+
+    /// Reverse futility pruning: near the horizon, a position whose static
+    /// evaluation is far above beta is cut off without being searched.
+    /// Returns the score to cut off with, or `None`.
+    ///
+    /// "Far" is [`RFP_MARGIN`] for every ply of depth left: the side to
+    /// move is so well off that the few moves left to search are not
+    /// expected to bring it below beta, whatever they are. It is the
+    /// mirror image of futility pruning, which gives up on moves that
+    /// cannot lift a bad position to alpha.
+    ///
+    /// - **Only up to [`RFP_MAX_DEPTH`]:** with more moves to come, more
+    ///   than the margin can change.
+    /// - **Not in check:** the evaluation of a position in check says
+    ///   little, and there may be a mate.
+    /// - **Not when beta is a mate score:** an evaluation proves no mate.
+    ///
+    /// The score returned is the evaluation less the margin: still at
+    /// least beta, and not more than the pruning itself vouches for.
+    fn reverse_futility_cutoff(&self, pos: &Position, depth: u32, beta: Score) -> Option<Score> {
+        if !self.futility || depth > RFP_MAX_DEPTH || beta.abs() >= MATE_BOUND || pos.in_check() {
+            return None;
+        }
+        let margin = RFP_MARGIN * depth as Score;
+        let cautious = self.evaluator.evaluate(pos) - margin;
+        (cautious >= beta).then_some(cautious)
+    }
+
+    /// Whether a null move may be tried in `pos`: see
+    /// [`Search::null_move_cutoff`] for what each condition is for.
+    fn null_move_applies(&self, pos: &Position, depth: u32, ply: usize, beta: Score) -> bool {
+        self.null_moves
+            && depth >= NULL_MIN_DEPTH
+            && !self.no_null[ply]
+            && beta.abs() < MATE_BOUND
+            && !pos.in_check()
+            && pieces_of_mover(pos) > 0
+            && self.evaluator.evaluate(pos) >= beta
+    }
+
+    /// Null-move pruning: if the side to move could pass and still be at
+    /// least as well off as `beta`, a real move will nearly always do at
+    /// least as well, so the position is not searched. Returns the score
+    /// to cut off with, or `None` to search the position as usual (also
+    /// after a stop: the caller checks `stopped`).
+    ///
+    /// "Could pass" is found out by giving the opponent the move and
+    /// searching [`null_reduction`] plies shallower than usual, with a
+    /// window of one point at beta, since only "at least beta or not" is
+    /// asked. It is a large saving and it takes something on trust (as
+    /// reverse futility pruning and late move reductions do), so it is
+    /// hedged:
+    ///
+    /// - **Not in check:** passing would leave the king to be taken.
+    /// - **Not when the evaluation is below beta:** a side that stands
+    ///   worse than beta at rest will seldom prove beta by passing.
+    /// - **Not twice running, and not at low depth or with a mate score
+    ///   as beta:** two passes search the same position again shallower,
+    ///   and a mate is not proved by a reduced search.
+    /// - **Not with pawns and king alone.** The reasoning fails exactly in
+    ///   zugzwang, where every move makes things worse and passing would
+    ///   be best, and pawn endgames are full of it.
+    /// - **With one piece left, only after verification.** Zugzwang is
+    ///   still common there, so the fail-high is checked by searching the
+    ///   position itself at the reduced depth, at least one ply, with
+    ///   real moves only: no null move there, and no reverse futility
+    ///   pruning, which would answer from the same evaluation that
+    ///   allowed the null move. (Below that position the search is the
+    ///   ordinary one.)
+    fn null_move_cutoff(
+        &mut self,
+        pos: &Position,
+        depth: u32,
+        ply: usize,
+        beta: Score,
+    ) -> Option<Score> {
+        if !self.null_move_applies(pos, depth, ply, beta) {
+            return None;
+        }
+        let reduced = depth.saturating_sub(1 + null_reduction(depth));
+        let mut next = pos.clone();
+        next.make_null_move();
+        self.nulls.tried += 1;
+        self.keys.push(pos.hash());
+        self.no_null[ply + 1] = true;
+        let score = -self.negamax(&next, reduced, ply + 1, -beta, -beta + 1);
+        self.no_null[ply + 1] = false;
+        self.keys.pop();
+        if self.stopped || score < beta {
+            return None;
+        }
+        self.nulls.failed_high += 1;
+        if pieces_of_mover(pos) == 1 {
+            self.nulls.verified += 1;
+            (self.no_null[ply], self.verifying[ply]) = (true, true);
+            // At least a ply: at depth 0 it would be a quiescence search,
+            // which stands pat on the evaluation and tries no quiet move.
+            let verified = self.negamax(pos, reduced.max(1), ply, beta - 1, beta);
+            (self.no_null[ply], self.verifying[ply]) = (false, false);
+            if self.stopped || verified < beta {
+                return None;
+            }
+        }
+        self.nulls.cutoffs += 1;
+        // A mate seen behind a null move is not a mate: the opponent did
+        // not really pass.
+        Some(if score >= MATE_BOUND { beta } else { score })
+    }
+
     /// Quiescence search: the value of `pos` once the captures have been
     /// played out, within the window `alpha..beta`.
     ///
@@ -489,7 +968,7 @@ impl Search<'_> {
         // A capture can leave too little material to mate with. Repetition
         // and the fifty-move rule are not looked for here: captures cannot
         // lead to either, and the quiet moves that get out of a check are
-        // left to the main search, which tests for both one ply deeper.
+        // few and are not tested for them.
         if ply > 0 && insufficient_material(pos) {
             return DRAW;
         }
@@ -524,7 +1003,12 @@ impl Search<'_> {
         // Most valuable victim first: see `ordering.rs` for why this is not
         // optional here.
         for &mv in &captures_first(pos, &moves) {
-            if !in_check && !is_tactical(mv) {
+            // Out of check, only captures and queen promotions, and of
+            // those only the ones that do not lose material on their
+            // square: a capture that loses is not a way to show that the
+            // position is better than it stands. In check every move is
+            // tried, since one of them has to be played.
+            if !in_check && (!is_tactical(mv) || loses_material(pos, mv)) {
                 continue;
             }
             let mut next = pos.clone();
@@ -885,8 +1369,8 @@ mod tests {
     /// leads to the reported score.
     #[test]
     fn the_principal_variation_explains_the_score() {
-        // Busy middlegames are searched less deep: without move ordering
-        // (milestone 7) every extra ply there costs a great deal.
+        // Busy middlegames are searched less deep, which keeps this test
+        // quick.
         let positions = [
             (
                 "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -1166,8 +1650,9 @@ mod tests {
         (outcome, reports, searcher.was_stopped())
     }
 
-    /// With no ordering tricks or tables, deepening to depth N must give
-    /// exactly what a direct depth-N search gives.
+    /// Without a table, deepening to depth N gives what a direct depth-N
+    /// search gives in these positions (the killer moves kept from the
+    /// shallower iterations do not change the result here).
     #[test]
     fn iterating_to_a_depth_equals_searching_that_depth() {
         for text in [
@@ -1244,12 +1729,21 @@ mod tests {
         assert_eq!(outcome, search(ROOK_ENDGAME, 3));
     }
 
+    /// A first iteration of ordinary length completes even with a one-node
+    /// limit, a raised stop flag or a passed deadline. Kiwipete's is on the
+    /// long side of ordinary: longer than the interval between looks at
+    /// the clock in the rest of the search.
     #[test]
-    fn the_first_iteration_always_completes() {
-        // A node limit smaller than one iteration, and a raised stop flag.
+    fn an_ordinary_first_iteration_always_completes() {
+        let whole = search(KIWIPETE, 1);
+        let mut direct = Search::new(&HandCrafted);
+        direct.fixed_depth(&fen(KIWIPETE), 1);
+        assert!(direct.nodes() > CHECK_INTERVAL);
+        assert!(direct.nodes() < FIRST_DEPTH_CHECK_INTERVAL);
+
         let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(1));
         assert_eq!(reports.len(), 1);
-        assert_eq!(outcome, search(KIWIPETE, 1));
+        assert_eq!(outcome, whole);
         // The limit is noticed between iterations, so no second one is
         // started only to be thrown away: nothing was interrupted.
         assert!(!stopped);
@@ -1258,12 +1752,82 @@ mod tests {
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
         let mut count = 0;
         let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| count += 1);
-        assert_eq!(count, 1);
-        assert!(legal_moves(&fen(KIWIPETE)).contains(&outcome.best_move.unwrap()));
+        assert_eq!((count, &outcome), (1, &whole));
+        assert!(!searcher.was_stopped());
 
-        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
-        let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| {});
-        assert_eq!(outcome, search(KIWIPETE, 1));
+        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::until(Instant::now()));
+        assert_eq!((reports.len(), &outcome), (1, &whole));
+        assert!(!stopped);
+    }
+
+    /// Eight queens a side: the first depth takes some 600,000 positions,
+    /// nearly all of them in quiescence search. (With nine a side it takes
+    /// millions, and seconds: that was known issue KI-10.)
+    const MANY_QUEENS: &str = "qqqqkqqq/q7/8/8/8/8/Q7/QQQQKQQQ w - - 0 1";
+
+    /// Where the first iteration is long, the stop flag and the clock end
+    /// it once the first root move has been searched: the answer is then
+    /// that move with its exact value, or the best of the first few, and
+    /// no report is made.
+    #[test]
+    fn a_long_first_iteration_can_be_stopped_after_its_first_move() {
+        let pos = fen(MANY_QUEENS);
+        // The first root move and what searching it alone costs and finds.
+        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None, Killers::NONE)
+            .iter()
+            .copied()
+            .find(|&mv| legal_moves(&pos).contains(&mv))
+            .unwrap();
+        let mut next = pos.clone();
+        let _undo = next.make_move(first);
+        let mut child = Search::new(&HandCrafted);
+        child.keys.push(pos.hash());
+        let first_score = -child.negamax(&next, 0, 1, -INFINITY, INFINITY);
+        let first_nodes = child.nodes() + 1;
+        let mut direct = Search::new(&HandCrafted);
+        direct.fixed_depth(&pos, 1);
+        assert!(direct.nodes() > first_nodes + 2 * FIRST_DEPTH_CHECK_INTERVAL);
+
+        let flag = AtomicBool::new(true);
+        let mut by_flag = Search::new(&HandCrafted).with_stop_flag(&flag);
+        let late = Limits::until(Instant::now());
+        let mut by_clock = Search::new(&HandCrafted).with_limits(late);
+        for searcher in [&mut by_flag, &mut by_clock] {
+            let mut count = 0;
+            let outcome = searcher.iterate(&pos, &mut |_| count += 1);
+            assert!(searcher.was_stopped());
+            assert_eq!(count, 0, "an interrupted iteration is not reported");
+            // It went on to the end of the first move and at most to the
+            // next look at the flag and the clock.
+            assert!(searcher.nodes() >= first_nodes);
+            assert!(searcher.nodes() <= first_nodes + FIRST_DEPTH_CHECK_INTERVAL);
+            assert!(legal_moves(&pos).contains(&outcome.best_move.unwrap()));
+            assert!(outcome.score >= first_score);
+            if outcome.best_move == Some(first) {
+                assert_eq!(outcome.score, first_score);
+            }
+            assert_eq!(outcome.pv.first(), outcome.best_move.as_ref());
+            assert_eq!(searcher.keys, [], "the path was unwound");
+        }
+        // And the search can be used again: stopped is not a lasting state.
+        flag.store(false, Ordering::Relaxed);
+        by_flag.limits = Limits::depth(1);
+        let mut count = 0;
+        let whole = by_flag.iterate(&fen(ROOK_ENDGAME), &mut |_| count += 1);
+        assert_eq!((count, whole), (1, search(ROOK_ENDGAME, 1)));
+        assert!(!by_flag.was_stopped());
+    }
+
+    /// A node limit asks for a reproducible search: it does not end the
+    /// first iteration even where that is long.
+    #[test]
+    fn a_node_limit_never_ends_the_first_iteration() {
+        let mut direct = Search::new(&HandCrafted);
+        let whole = direct.fixed_depth(&fen(MANY_QUEENS), 1);
+        assert!(direct.nodes() > 2 * FIRST_DEPTH_CHECK_INTERVAL);
+        let (outcome, reports, stopped) = iterate(MANY_QUEENS, Limits::nodes(1));
+        assert_eq!((reports.len(), outcome), (1, whole));
+        assert!(!stopped);
     }
 
     /// A `Search` is not used up by a search that was cut short: the next
@@ -1339,6 +1903,33 @@ mod tests {
             assert_ne!(best(text, depth), "e2e5", "depth {depth}");
             assert!(search(text, depth).score > 500, "depth {depth}");
         }
+    }
+
+    /// Out of check, a capture that loses material is not tried: the rook
+    /// could take a pawn that a pawn defends, and the position is simply
+    /// judged as it stands, in one node. In check it is tried like every
+    /// other move: here rook takes knight is the only way out, and leaving
+    /// it out would call the position mate.
+    #[test]
+    fn quiescence_leaves_out_captures_that_lose_material() {
+        let pos = fen("4k3/8/4p3/3p4/8/8/8/3RK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&pos, 0, -INFINITY, INFINITY);
+        assert_eq!(value, HandCrafted.evaluate(&pos));
+        assert_eq!(searcher.nodes(), 1);
+        // The same pawn without its defender is taken.
+        let free = fen("4k3/8/8/3p4/8/8/8/3RK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&free, 0, -INFINITY, INFINITY);
+        assert!(value > HandCrafted.evaluate(&free));
+        assert!(searcher.nodes() > 1);
+        let checked = fen("k4r2/8/8/8/8/8/5nPP/5RNK w - - 0 1");
+        assert!(checked.in_check());
+        assert_eq!(crate::movegen::legal_moves(&checked).len(), 1);
+        let mut searcher = Search::new(&HandCrafted);
+        let value = searcher.quiesce(&checked, 0, -INFINITY, INFINITY);
+        assert!(!crate::search::is_mate_score(value), "{value}");
+        assert!(searcher.nodes() > 1);
     }
 
     #[test]
@@ -1525,6 +2116,481 @@ mod tests {
         assert_eq!(mated[0].seldepth, 0);
     }
 
+    /// Killer moves are quiet moves of the plies between the root and the
+    /// horizon, and they last for one search.
+    #[test]
+    fn killers_are_quiet_moves_kept_for_one_search() {
+        let mut searcher = Search::new(&HandCrafted);
+        searcher.fixed_depth(&fen(crate::board::START_FEN), 5);
+        // Nothing cuts off at the root, and below ply 4 there is only
+        // quiescence search, which keeps none.
+        assert_eq!(searcher.killers[0], Killers::NONE);
+        assert!(searcher.killers[5..].iter().all(|at| *at == Killers::NONE));
+        let kept: Vec<Move> = searcher.killers[1..5]
+            .iter()
+            .flat_map(|at| at.moves())
+            .flatten()
+            .collect();
+        assert!(kept.len() >= 4, "{kept:?}");
+        for mv in kept {
+            assert!(!mv.is_capture() && mv.promotion().is_none(), "{mv}");
+        }
+        // They are found again by the same search, and the next search of
+        // anything starts without them.
+        let first = searcher.killers.clone();
+        searcher.fixed_depth(&fen(crate::board::START_FEN), 5);
+        assert_eq!(searcher.killers, first);
+        searcher.fixed_depth(&fen(ROOK_ENDGAME), 1);
+        assert!(searcher.killers.iter().all(|at| *at == Killers::NONE));
+    }
+
+    #[test]
+    fn the_null_move_reduction_grows_with_depth() {
+        assert_eq!(null_reduction(3), 2);
+        assert_eq!(null_reduction(4), 3);
+        assert_eq!(null_reduction(7), 3);
+        assert_eq!(null_reduction(8), 4);
+        assert_eq!(null_reduction(16), 6);
+    }
+
+    #[test]
+    fn the_pieces_of_the_mover_are_counted_without_pawns_and_king() {
+        let count = |text: &str| pieces_of_mover(&fen(text));
+        assert_eq!(count(crate::board::START_FEN), 7);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/4K3 w - - 0 1"), 0);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/R3K3 w - - 0 1"), 1);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/R3K3 b - - 0 1"), 0);
+        assert_eq!(count("qnb1k3/8/8/8/8/8/8/R3K3 b - - 0 1"), 3);
+    }
+
+    /// Each guard of the null move, one at a time, on a position where
+    /// White is a queen up and a null move is in order.
+    #[test]
+    fn a_null_move_is_tried_only_where_it_is_safe() {
+        let ahead = fen("r3k3/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let stands = HandCrafted.evaluate(&ahead);
+        assert!(stands > 500);
+        assert!(searcher.null_move_applies(&ahead, 3, 1, 0));
+        assert!(searcher.null_move_applies(&ahead, 9, 4, stands));
+        // Too shallow; the evaluation below beta; a mate score as beta.
+        assert!(!searcher.null_move_applies(&ahead, 2, 1, 0));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, stands + 1));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, -MATE_BOUND));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, -MATE));
+        // Reached by a null move, or being verified.
+        searcher.no_null[1] = true;
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
+        assert!(searcher.null_move_applies(&ahead, 3, 2, 0));
+        searcher.no_null[1] = false;
+        // In check, however far ahead.
+        let checked = fen("4r1k1/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        assert!(checked.in_check());
+        assert!(!searcher.null_move_applies(&checked, 3, 1, 0));
+        // Pawns and king alone, however far ahead.
+        let pawns = fen("4k3/8/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+        assert!(HandCrafted.evaluate(&pawns) > 500);
+        assert!(!searcher.null_move_applies(&pawns, 3, 1, 0));
+        // Switched off.
+        searcher.null_moves = false;
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
+    }
+
+    /// The verification of a null move searches the position's own moves:
+    /// neither the null move nor reverse futility pruning may answer it.
+    /// White has a rook and stands far above beta, so that reverse
+    /// futility pruning would cut the verification off at once if it were
+    /// allowed to.
+    #[test]
+    fn a_null_move_is_verified_by_searching_real_moves() {
+        let pos = fen("8/8/8/4k3/8/8/4K3/R7 w - - 0 1");
+        let (depth, ply, beta) = (6, 1, 0);
+        let reduced = depth - 1 - null_reduction(depth);
+        assert!((1..=RFP_MAX_DEPTH).contains(&reduced));
+        let stands = HandCrafted.evaluate(&pos);
+        assert!(stands - RFP_MARGIN * reduced as Score >= beta, "{stands}");
+        assert_eq!(pieces_of_mover(&pos), 1);
+        // What the null move's own search costs.
+        let mut alone = Search::new(&HandCrafted);
+        let mut passed = pos.clone();
+        passed.make_null_move();
+        alone.keys.push(pos.hash());
+        alone.no_null[ply + 1] = true;
+        let score = -alone.negamax(&passed, reduced, ply + 1, -beta, -beta + 1);
+        assert!(score >= beta);
+        let null_nodes = alone.nodes();
+
+        let mut searcher = Search::new(&HandCrafted);
+        let cutoff = searcher.null_move_cutoff(&pos, depth, ply, beta);
+        assert!(searcher.nulls.verified >= 1);
+        // The verification visited the position and at least one position
+        // after each of its legal moves, unless one of them cut it off:
+        // far more than the single node of an answer by evaluation.
+        let verification_nodes = searcher.nodes() - null_nodes;
+        assert!(verification_nodes > 3, "{verification_nodes}");
+        // And it agrees with a plain search of the same thing.
+        let mut plain = Search::new(&HandCrafted);
+        (plain.null_moves, plain.futility) = (false, false);
+        let real = plain.negamax(&pos, reduced, ply, beta - 1, beta);
+        assert_eq!(cutoff.is_some(), real >= beta);
+        // The flags are down again afterwards.
+        assert!(searcher.verifying.iter().all(|&set| !set));
+        assert!(searcher.no_null.iter().all(|&set| !set));
+    }
+
+    /// A fixed-depth search with and without null-move pruning, both
+    /// without late move reductions and reverse futility pruning, so that null moves are measured by
+    /// themselves.
+    fn with_and_without_null_moves(text: &str, depth: u32) -> [(Outcome, u64, NullCounts); 2] {
+        [true, false].map(|null_moves| {
+            let mut searcher = Search::new(&HandCrafted);
+            (searcher.reductions, searcher.futility) = (false, false);
+            searcher.null_moves = null_moves;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.nulls)
+        })
+    }
+
+    /// Null-move pruning saves a large part of the work in ordinary
+    /// positions. It is not exact, so the move and score may differ from
+    /// the search without it; what it costs or gains in play is for its
+    /// SPRT to say.
+    #[test]
+    fn null_moves_save_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                5,
+            ),
+            (
+                "r1bq1rk1/pp2ppbp/2np1np1/8/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 0 9",
+                5,
+            ),
+        ] {
+            let [(with, fewer, nulls), (without, nodes, none)] =
+                with_and_without_null_moves(text, depth);
+            assert_eq!(none, NullCounts::default(), "{text}");
+            assert!(nulls.tried > 0 && nulls.cutoffs > 0, "{text}: {nulls:?}");
+            assert!(nulls.cutoffs <= nulls.failed_high && nulls.failed_high <= nulls.tried);
+            // With every piece on the board nothing needs verifying.
+            assert_eq!(nulls.verified, 0, "{text}");
+            assert!(
+                fewer * 4 < nodes * 3,
+                "{text}: {fewer} with, {nodes} without"
+            );
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// With pawns and kings alone no null move is tried, so the search is
+    /// the same search, node for node; with a single piece, every null
+    /// move that fails high is verified.
+    #[test]
+    fn null_moves_keep_out_of_the_endgames_where_zugzwang_lives() {
+        for text in [
+            "8/8/8/3k4/8/3K4/3P4/8 w - - 0 1",
+            "8/5p2/5k2/8/5K2/8/4P3/8 b - - 0 1",
+            "8/pp3k2/8/8/8/8/PP3K2/8 w - - 0 1",
+        ] {
+            let [(with, nodes, nulls), (without, plain, _)] = with_and_without_null_moves(text, 7);
+            assert_eq!(nulls, NullCounts::default(), "{text}");
+            assert_eq!((with, nodes), (without, plain), "{text}");
+        }
+        // A rook each: the side to move has one piece wherever it is not
+        // the lone king's turn.
+        let [(_, _, nulls), _] = with_and_without_null_moves(ROOK_ENDGAME, 7);
+        assert!(nulls.failed_high > 0, "{nulls:?}");
+        assert_eq!(nulls.verified, nulls.failed_high);
+        assert!(nulls.cutoffs <= nulls.verified);
+    }
+
+    /// Mates are found at the same depth and distance with null moves: a
+    /// mate is never taken from behind a null move.
+    #[test]
+    fn null_moves_do_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_null_moves(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    #[test]
+    fn late_moves_are_reduced_more_the_later_and_the_deeper() {
+        // The formula, at a few points worked out by hand.
+        assert_eq!(late_move_reduction(3, 3), 1);
+        assert_eq!(late_move_reduction(4, 10), 2);
+        assert_eq!(late_move_reduction(6, 6), 2);
+        assert_eq!(late_move_reduction(8, 4), 2);
+        assert_eq!(late_move_reduction(10, 10), 3);
+        assert_eq!(late_move_reduction(16, 40), 5);
+        assert_eq!(late_move_reduction(32, 40), 6);
+        // Never less the later the move or the deeper the search, always
+        // something from the first late move on, and always a ply left.
+        for depth in LMR_MIN_DEPTH..=MAX_PLY as u32 {
+            for searched in LMR_FULL_MOVES..=250 {
+                let reduction = late_move_reduction(depth, searched);
+                assert!(reduction >= 1, "{depth} {searched}");
+                assert!(depth - 1 - reduction >= 1, "{depth} {searched}");
+                assert!(reduction >= late_move_reduction(depth, searched - 1));
+                assert!(reduction >= late_move_reduction(depth - 1, searched).min(depth - 3));
+            }
+        }
+        // Past the end of the table the last entry counts.
+        assert_eq!(late_move_reduction(63, 63), late_move_reduction(200, 200));
+        // Too shallow to take anything off.
+        assert_eq!(late_move_reduction(2, 30), 0);
+        assert_eq!(late_move_reduction(1, 30), 0);
+        // The table is the logarithm it says it is.
+        for (index, &entry) in LN_THOUSANDTHS.iter().enumerate() {
+            let exact = (f64::from(index as u32 + 1).ln() * 1_000.0).round();
+            assert!((f64::from(entry) - exact).abs() <= 1.0, "{index}");
+        }
+    }
+
+    /// A fixed-depth search with and without late move reductions, both
+    /// without null moves and reverse futility pruning: the outcome, the nodes, and the moves reduced
+    /// and searched again.
+    fn with_and_without_reductions(text: &str, depth: u32) -> [(Outcome, u64, (u64, u64)); 2] {
+        [true, false].map(|reductions| {
+            let mut searcher = Search::new(&HandCrafted);
+            (searcher.null_moves, searcher.futility) = (false, false);
+            searcher.reductions = reductions;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.reduced)
+        })
+    }
+
+    /// Late move reductions save a large part of the work, and only some
+    /// of the reduced moves have to be searched again.
+    #[test]
+    fn late_move_reductions_save_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 6),
+            (KIWIPETE, 5),
+            (ROOK_ENDGAME, 7),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                5,
+            ),
+        ] {
+            let [(with, fewer, (reduced, again)), (without, nodes, none)] =
+                with_and_without_reductions(text, depth);
+            assert_eq!(none, (0, 0), "{text}");
+            assert!(reduced > 0, "{text}");
+            assert!(again * 2 < reduced, "{text}: {again} of {reduced}");
+            assert!(
+                fewer * 4 < nodes * 3,
+                "{text}: {fewer} with, {nodes} without"
+            );
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// Mates are found with the same score and move: the moves that give
+    /// check, and the moves out of check, are never reduced.
+    #[test]
+    fn late_move_reductions_do_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_reductions(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    /// Each condition of reverse futility pruning, on a position where
+    /// White is a queen up.
+    #[test]
+    fn reverse_futility_pruning_needs_a_margin_for_every_ply() {
+        let ahead = fen("r3k3/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let stands = HandCrafted.evaluate(&ahead);
+        let cut = |searcher: &Search, depth: u32, beta: Score| {
+            searcher.reverse_futility_cutoff(&ahead, depth, beta)
+        };
+        // Exactly the margin above beta is enough; one point less is not.
+        for depth in 1..=RFP_MAX_DEPTH {
+            let margin = RFP_MARGIN * depth as Score;
+            assert_eq!(
+                cut(&searcher, depth, stands - margin),
+                Some(stands - margin)
+            );
+            assert_eq!(cut(&searcher, depth, stands - margin + 1), None);
+            // Further above beta, the score is still the cautious one.
+            assert_eq!(cut(&searcher, depth, -400), Some(stands - margin));
+        }
+        // Too deep, however far ahead; and no mate is claimed.
+        assert_eq!(cut(&searcher, RFP_MAX_DEPTH + 1, -5_000), None);
+        assert_eq!(cut(&searcher, 1, -MATE_BOUND), None);
+        assert_eq!(cut(&searcher, 1, -MATE), None);
+        // In check.
+        let checked = fen("4r1k1/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        assert!(checked.in_check() && HandCrafted.evaluate(&checked) > 300);
+        assert_eq!(searcher.reverse_futility_cutoff(&checked, 1, -5_000), None);
+        // Switched off.
+        searcher.futility = false;
+        assert_eq!(cut(&searcher, 1, -5_000), None);
+    }
+
+    /// A fixed-depth search with and without reverse futility pruning,
+    /// both without null moves and reductions: the outcome, the nodes and
+    /// the positions it cut off.
+    fn with_and_without_futility(text: &str, depth: u32) -> [(Outcome, u64, u64); 2] {
+        [true, false].map(|futility| {
+            let mut searcher = Search::new(&HandCrafted);
+            (searcher.null_moves, searcher.reductions) = (false, false);
+            searcher.futility = futility;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.futile)
+        })
+    }
+
+    #[test]
+    fn reverse_futility_pruning_saves_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 5),
+            (KIWIPETE, 4),
+            (ROOK_ENDGAME, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                4,
+            ),
+        ] {
+            let [(with, fewer, cut), (without, nodes, none)] =
+                with_and_without_futility(text, depth);
+            assert_eq!(none, 0, "{text}");
+            assert!(cut > 0, "{text}");
+            assert!(fewer < nodes, "{text}: {fewer} with, {nodes} without");
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// Mates are found with the same score and move: nothing is pruned in
+    /// check or against a mate score.
+    #[test]
+    fn reverse_futility_pruning_does_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_futility(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    /// With root moves named, the search answers with the best of them
+    /// and its value, looks at no other, and leaves the root out of the
+    /// table.
+    #[test]
+    fn a_search_can_be_restricted_to_some_root_moves() {
+        // The queen can be taken; restricted to two quiet moves, the
+        // search must make do with the better of those.
+        let pos = fen("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
+        let free = search("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1", 3);
+        assert_eq!(free.best_move.unwrap().to_string(), "d1d5");
+        let named: Vec<Move> = legal_moves(&pos)
+            .iter()
+            .copied()
+            .filter(|mv| ["e1e2", "d1a1"].contains(&mv.to_string().as_str()))
+            .collect();
+        assert_eq!(named.len(), 2);
+        // What each is worth by itself.
+        let worth = |mv: Move| {
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            let mut child = Search::new(&HandCrafted);
+            child.keys.push(pos.hash());
+            -child.negamax(&next, 2, 1, -INFINITY, INFINITY)
+        };
+        let best = named.iter().copied().max_by_key(|&mv| worth(mv)).unwrap();
+
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut searcher = Search::new(&HandCrafted)
+            .with_root_moves(&named)
+            .with_table(&mut table);
+        let outcome = searcher.fixed_depth(&pos, 3);
+        assert_eq!(outcome.best_move, Some(best));
+        assert_eq!(outcome.score, worth(best));
+        assert!(outcome.score < free.score);
+        assert_eq!(outcome.pv.first(), Some(&best));
+        drop(searcher);
+        assert_eq!(table.probe(pos.hash(), 0), None, "the root is not recorded");
+        // One move named: that move, whatever it is worth.
+        let only = [named[0]];
+        let mut searcher = Search::new(&HandCrafted).with_root_moves(&only);
+        assert_eq!(searcher.fixed_depth(&pos, 2).best_move, Some(named[0]));
+        // Iterating, every depth answers within the list.
+        let mut searcher = Search::new(&HandCrafted)
+            .with_root_moves(&named)
+            .with_limits(Limits::depth(4));
+        let mut firsts = Vec::new();
+        let outcome = searcher.iterate(&pos, &mut |report| firsts.push(report.pv[0]));
+        assert_eq!(firsts.len(), 4);
+        assert!(firsts.iter().all(|mv| named.contains(mv)));
+        assert!(named.contains(&outcome.best_move.unwrap()));
+        // No list is no restriction.
+        let mut searcher = Search::new(&HandCrafted).with_root_moves(&[]);
+        assert_eq!(searcher.fixed_depth(&pos, 3), free);
+    }
+
+    /// A mate limit ends the iteration as soon as a mate that short is
+    /// seen, and only then.
+    #[test]
+    fn a_mate_limit_ends_the_search_when_the_mate_is_found() {
+        // Depth 1 already sees a mate in two here, through quiescence
+        // search; unlimited, the search goes on to depth 3 to prove it.
+        let seen_early = "3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1";
+        let mate = |within| Limits {
+            depth: Some(12),
+            ..Limits::mate(within)
+        };
+        let (outcome, reports, stopped) = iterate(seen_early, mate(2));
+        assert_eq!((reports.len(), outcome.score), (1, mate_in(3)));
+        assert!(!stopped);
+        // More moves allowed: the same.
+        assert_eq!(iterate(seen_early, mate(5)).1.len(), 1);
+        // A mate in one was asked for and there is none: the search goes
+        // on as it would have, to where the mate in two is proved.
+        let (outcome, reports, _) = iterate(seen_early, mate(1));
+        assert_eq!((reports.len(), outcome.score), (3, mate_in(3)));
+        // Being mated is not the mate that was asked for.
+        let lost = "7k/1R6/8/8/8/8/R7/6K1 b - - 0 1";
+        let (outcome, reports, _) = iterate(lost, mate(1));
+        assert_eq!(outcome.score, mated_in(2));
+        assert_eq!(
+            reports.last().unwrap().depth,
+            2,
+            "ended as without the limit"
+        );
+        // No mate anywhere: the other limits end the search.
+        let (outcome, reports, _) = iterate(
+            ROOK_ENDGAME,
+            Limits {
+                depth: Some(3),
+                ..Limits::mate(4)
+            },
+        );
+        assert_eq!(reports.len(), 3);
+        assert!(!crate::search::is_mate_score(outcome.score));
+    }
+
     /// The statistics in cases small enough to check by hand.
     #[test]
     fn the_statistics_count_cutoffs_and_quiescence_nodes() {
@@ -1567,6 +2633,38 @@ mod tests {
         assert_eq!(stats.quiescence_first_move_rate(), Some(1000));
     }
 
+    /// The table's counts: none without a table; with one, a probe for
+    /// every position of the main search below the root, the hits among
+    /// the probes and the cutoffs among the hits; and a table that already
+    /// holds the search's work knows more of what it is asked.
+    #[test]
+    fn the_table_is_counted() {
+        let pos = fen(KIWIPETE);
+        let mut plain = Search::new(&HandCrafted);
+        plain.fixed_depth(&pos, 3);
+        let none = plain.stats();
+        assert_eq!(
+            (none.table_probes, none.table_hits, none.table_cutoffs),
+            (0, 0, 0)
+        );
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut searcher = Search::new(&HandCrafted).with_table(&mut table);
+        searcher.fixed_depth(&pos, 3);
+        let (first, nodes) = (searcher.stats(), searcher.nodes());
+        // Every node is the root, a quiescence position or a probe.
+        assert_eq!(first.table_probes, nodes - 1 - first.quiescence_nodes);
+        assert!(first.table_probes > 0);
+        assert!(first.table_cutoffs <= first.table_hits);
+        assert!(first.table_hits <= first.table_probes);
+        searcher.fixed_depth(&pos, 3);
+        let again = searcher.stats();
+        assert!(
+            again.table_hits * first.table_probes > first.table_hits * again.table_probes,
+            "{first:?} {again:?}"
+        );
+        assert!(again.table_cutoffs > 0);
+    }
+
     /// What holds whatever the position: the first-move cutoffs are among
     /// the cutoffs, the quiescence nodes among the nodes, and each search
     /// starts counting from nothing.
@@ -1586,6 +2684,113 @@ mod tests {
             searcher.fixed_depth(&pos, 2);
             assert_eq!((searcher.stats(), searcher.nodes()), (stats, nodes));
         }
+    }
+
+    /// A search with a table and one without, each iterating to `depth`.
+    /// Both are exact searches, without null moves, reductions and reverse
+    /// futility pruning: only of an exact search can it be asked that a table changes no answer.
+    fn with_and_without_a_table(text: &str, depth: u32) -> ((Outcome, u64), (Outcome, u64)) {
+        let pos = fen(text);
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut helped = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
+        (helped.null_moves, helped.reductions, helped.futility) = (false, false, false);
+        let with = (helped.iterate(&pos, &mut |_| {}), helped.nodes());
+        let mut plain = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+        (plain.null_moves, plain.reductions, plain.futility) = (false, false, false);
+        let without = (plain.iterate(&pos, &mut |_| {}), plain.nodes());
+        (with, without)
+    }
+
+    /// The table saves work and changes no answer: the same score and the
+    /// same first move as the search without it, in fewer positions.
+    #[test]
+    fn a_table_saves_work_and_changes_no_answer() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 5),
+            (KIWIPETE, 4),
+            (ROOK_ENDGAME, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                4,
+            ),
+            ("4k3/8/3p4/4p3/8/8/4Q3/4K3 w - - 0 1", 5),
+        ] {
+            let ((with, fewer), (without, nodes)) = with_and_without_a_table(text, depth);
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+            assert!(fewer < nodes, "{text}: {fewer} with, {nodes} without");
+        }
+    }
+
+    /// Mates are found at the same distance with a table, where the scores
+    /// it hands back were stored at other distances from the root.
+    #[test]
+    fn a_table_keeps_mate_distances_right() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("8/8/8/8/8/5k2/8/3q1K2 w - - 0 1", 6),
+        ] {
+            let ((with, _), (without, _)) = with_and_without_a_table(text, depth);
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    /// The table outlives a search. The same position searched again finds
+    /// its answer almost at once, and after `clear` the work is the first
+    /// search's again, node for node.
+    #[test]
+    fn a_table_is_kept_between_searches_until_it_is_cleared() {
+        let pos = fen(KIWIPETE);
+        let mut table = TranspositionTable::new(1).unwrap();
+        let search = |table: &mut TranspositionTable| {
+            let mut searcher = Search::new(&HandCrafted)
+                .with_limits(Limits::depth(3))
+                .with_table(table);
+            (searcher.iterate(&pos, &mut |_| {}), searcher.nodes())
+        };
+        let (first, nodes) = search(&mut table);
+        let (again, fewer) = search(&mut table);
+        assert_eq!(
+            (again.score, again.best_move),
+            (first.score, first.best_move)
+        );
+        assert!(fewer * 4 < nodes, "{fewer} against {nodes}");
+        table.clear();
+        assert_eq!(search(&mut table), (first, nodes));
+    }
+
+    /// Near the fifty-move rule the table is not believed: a value found
+    /// with a low count would hide the draw that the count is about to
+    /// force. Rook against bare king, 98 half-moves in: a mate in two that
+    /// the hundredth half-move turns into a draw.
+    #[test]
+    fn a_table_does_not_hide_the_fifty_move_rule() {
+        let mut table = TranspositionTable::new(1).unwrap();
+        let won = |clock: u32| fen(&format!("7k/8/5K2/8/8/8/8/R7 w - - {clock} 60"));
+        // Fill the table from the position with a count of 0.
+        let mut filling = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .with_table(&mut table);
+        let fresh = filling.iterate(&won(0), &mut |_| {});
+        assert!(crate::search::is_mate_score(fresh.score), "{}", fresh.score);
+        // The count is not part of the hash: the same table, the same
+        // squares, and a search that must still see the draw.
+        let late = won(98);
+        assert_eq!(late.hash(), won(0).hash());
+        let mut helped = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .with_table(&mut table);
+        let with = helped.iterate(&late, &mut |_| {});
+        let without = Search::new(&HandCrafted)
+            .with_limits(Limits::depth(5))
+            .iterate(&late, &mut |_| {});
+        assert_eq!(with.score, without.score);
+        assert!(!crate::search::is_mate_score(with.score), "{}", with.score);
     }
 
     #[test]

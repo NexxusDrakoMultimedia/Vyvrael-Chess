@@ -9,13 +9,13 @@
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-use crate::bench::{BENCH_DEPTH, bench};
+use crate::bench::{BENCH_DEPTH, bench_with_hash};
 use crate::board::Position;
 use crate::eval::{self, HandCrafted};
 use crate::perft::{divide, perft, perft_copy_make};
-use crate::search::{Limits, MAX_PLY, Report, Search, stats_lines};
+use crate::search::{Limits, MAX_PLY, Report, Search, TranspositionTable, stats_lines};
 use crate::suite::{self, SuiteLimit};
-use crate::uci::{HASH_MAX, THREADS_MAX, score_text};
+use crate::uci::{HASH_DEFAULT, HASH_MAX, THREADS_MAX, score_text};
 use crate::{ENGINE_AUTHOR, ENGINE_NAME, ENGINE_VERSION};
 
 /// Usage text for the binary.
@@ -45,13 +45,16 @@ search runs the search to <depth> plies from FEN (the start position if
 omitted) and prints one line per completed depth, then the best move. Scores
 are in centipawns for the side to move, or shown as mate in N moves. With
 --stats it then prints the nodes each depth took, the effective branching
-factor and how often the first move tried gave the cutoff.
+factor, how often the first move tried gave the cutoff, the share of the
+nodes in quiescence search and how often the transposition table knew a
+position or settled it.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count
-is the same on every run of the same build; the speed is not. <threads> (1
-only) and <hash> (in MiB, 1 to 65536) are accepted in the form other engines
-use, `bench <depth> <threads> <hash>`, and have no effect yet.
+is the same on every run of the same build with the same arguments; the
+speed is not. <threads> (1 only) and <hash> are accepted in the form other
+engines use, `bench <depth> <threads> <hash>`: <hash> is the size of the
+transposition table in MiB (1 to 65536; 16 if not given).
 
 suite searches every position of an EPD file, each to the depth, node count
 or time in milliseconds given, and says for each whether the move found is
@@ -165,7 +168,15 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
     let start = Instant::now();
     let mut lines = Vec::new();
     let mut iterations = Vec::new();
-    let mut searcher = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+    // As the engine searches the first move of a game: with an empty
+    // table of its default size.
+    let Some(mut table) = TranspositionTable::new(HASH_DEFAULT) else {
+        writeln!(err, "search: no memory for the transposition table")?;
+        return Ok(EXIT_FAILURE);
+    };
+    let mut searcher = Search::new(&HandCrafted)
+        .with_limits(Limits::depth(depth))
+        .with_table(&mut table);
     let outcome = searcher.iterate(&pos, &mut |report| {
         lines.push(progress_line(report));
         iterations.push((report.depth, report.nodes));
@@ -201,9 +212,8 @@ fn run_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::
 
 fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::Result<u8> {
     // Up to three numbers: the depth, then the threads and the hash size
-    // in MiB. The last two are checked against the ranges of the UCI
-    // options `Threads` and `Hash` and otherwise unused: there is one
-    // search thread and no transposition table yet.
+    // in MiB, checked against the ranges of the UCI options `Threads` and
+    // `Hash`. There is one search thread, so the threads change nothing.
     let ranges = [(1, MAX_PLY as u32), (1, THREADS_MAX), (1, HASH_MAX)];
     let in_range = |(text, (low, high)): (&String, &(u32, u32))| {
         text.parse::<u32>()
@@ -224,7 +234,11 @@ fn run_bench(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> io::R
         return Ok(EXIT_USAGE);
     };
     let depth = numbers.first().copied().unwrap_or(BENCH_DEPTH);
-    let result = bench(depth);
+    let hash_mb = numbers.get(2).copied().unwrap_or(HASH_DEFAULT);
+    let Some(result) = bench_with_hash(depth, hash_mb) else {
+        writeln!(err, "bench: no memory for tables of {hash_mb} MiB")?;
+        return Ok(EXIT_FAILURE);
+    };
     writeln!(
         out,
         "{} nodes {} nps",
@@ -522,13 +536,14 @@ total for the side to move: +0
         assert!(err.starts_with("time: "));
         let added = out.strip_prefix(plain.as_str()).unwrap();
         let lines: Vec<&str> = added.lines().collect();
-        assert_eq!(lines.len(), 5, "{added}");
+        assert_eq!(lines.len(), 6, "{added}");
         assert_eq!(lines[0], "stats depth 1 nodes 21");
-        assert_eq!(lines[1], "stats depth 2 nodes 222 ebf 10.57");
-        assert_eq!(lines[2], "stats depth 3 nodes 2728 ebf 12.28");
+        assert_eq!(lines[1], "stats depth 2 nodes 76 ebf 3.61");
+        assert_eq!(lines[2], "stats depth 3 nodes 649 ebf 8.53");
         assert!(lines[3].starts_with("stats cutoffs "), "{added}");
         assert!(lines[4].starts_with("stats qnodes "), "{added}");
-        assert!(lines[4].contains(" of 2971 ("), "{added}");
+        assert!(lines[4].contains(" of 746 ("), "{added}");
+        assert!(lines[5].starts_with("stats table probes "), "{added}");
         // The same on every run, and wherever the flag stands.
         assert_eq!(run_args(&["search", "--stats", "3"]).1, out);
         let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
@@ -692,8 +707,9 @@ total for the side to move: +0
         assert_eq!(second.split_whitespace().next(), Some(words[0]));
     }
 
-    /// `bench <depth> <threads> <hash>`, the form other engines use: the
-    /// threads and the hash size are accepted and change nothing.
+    /// `bench <depth> <threads> <hash>`, the form other engines use. The
+    /// threads change nothing; the hash size is the table's, and the
+    /// default size gives the count of the bench without arguments.
     #[test]
     fn bench_accepts_threads_and_a_hash_size() {
         let nodes = |args: &[&str]| {
@@ -704,13 +720,11 @@ total for the side to move: +0
             out.split_whitespace().next().unwrap().to_owned()
         };
         let plain = nodes(&["bench", "2"]);
-        for args in [
-            &["bench", "2", "1"][..],
-            &["bench", "2", "1", "1"],
-            &["bench", "2", "1", "16"],
-            &["bench", "2", "1", "65536"],
-        ] {
-            assert_eq!(nodes(args), plain, "{args:?}");
+        assert_eq!(nodes(&["bench", "2", "1"]), plain);
+        assert_eq!(nodes(&["bench", "2", "1", "16"]), plain);
+        // Other sizes run; their counts are their own.
+        for size in ["1", "2", "64"] {
+            assert!(nodes(&["bench", "2", "1", size]).parse::<u64>().unwrap() > 0);
         }
     }
 

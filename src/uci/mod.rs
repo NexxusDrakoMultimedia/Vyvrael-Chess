@@ -16,7 +16,7 @@ mod wdl;
 pub use command::{Command, GoParams, parse};
 pub use engine::{Engine, run};
 pub use options::{
-    HASH_DEFAULT, HASH_MAX, MOVE_OVERHEAD_DEFAULT, MOVE_OVERHEAD_MAX, Options, THREADS_MAX,
+    Button, HASH_DEFAULT, HASH_MAX, MOVE_OVERHEAD_DEFAULT, MOVE_OVERHEAD_MAX, Options, THREADS_MAX,
 };
 pub use output::{bestmove_line, info_line, score_text};
 pub use time::{MOVES_ASSUMED, limits_for, time_for_move};

@@ -17,7 +17,8 @@ use crate::board::Move;
 use crate::epd::EpdRecord;
 use crate::eval::default_evaluator;
 use crate::movegen::find_san_move;
-use crate::search::{Limits, Search};
+use crate::search::{Limits, Search, TranspositionTable};
+use crate::uci::HASH_DEFAULT;
 
 /// How long each position of a suite is searched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +96,13 @@ pub fn solve(line: &str, limit: SuiteLimit) -> (Option<EpdRecord>, Verdict) {
         SuiteLimit::MoveTime(time) => Limits::until(Instant::now() + time),
     };
     let evaluator = default_evaluator();
+    // A new table for each position: one position's search must not
+    // depend on the positions before it in the file.
+    let mut table = TranspositionTable::new(HASH_DEFAULT);
     let mut search = Search::new(evaluator.as_ref()).with_limits(limits);
+    if let Some(table) = table.as_mut() {
+        search = search.with_table(table);
+    }
     let played = search.iterate(&record.position, &mut |_| {}).best_move;
     let solved =
         played.is_some_and(|mv| (best.is_empty() || best.contains(&mv)) && !avoid.contains(&mv));
@@ -241,8 +248,10 @@ mod tests {
     fn the_same_every_run_and_the_limit_is_used() {
         let (first, text) = output(SuiteLimit::Depth(2));
         assert_eq!(output(SuiteLimit::Depth(2)), (first, text));
-        let (few, _) = output(SuiteLimit::Nodes(50));
-        assert_eq!(output(SuiteLimit::Nodes(50)).0, few);
+        // The smallest node limit there is: each search ends as soon as
+        // its first depth is done.
+        let (few, _) = output(SuiteLimit::Nodes(1));
+        assert_eq!(output(SuiteLimit::Nodes(1)).0, few);
         let (deeper, _) = output(SuiteLimit::Depth(3));
         assert!(few.nodes < first.nodes && first.nodes < deeper.nodes);
         // A move time is a limit too: the first depth alone finds these.

@@ -17,8 +17,8 @@ them.
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
-| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | not started |
-| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
+| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | done, merged into `main` on 2026-11-28; items 4, 7, 8, 11, 12 and 14 to 16 of its checklist are deferred beyond it, and its strength measurement (KI-8) is still to run |
+| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate`, `searchmoves` and reverse futility pruning done in milestone 7; the other search features deferred beyond it (see its checklist); pondering and the `tune` tool not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -125,14 +125,13 @@ Limitations in the code as it stands, each with what it affects and when it
 is due to be fixed. An entry is removed in the commit that fixes it. Where
 the design behind an issue is explained elsewhere, it is in
 [ARCHITECTURE.md](ARCHITECTURE.md) (KI-2, KI-8), [UCI.md](UCI.md) (KI-10) or
-[TESTING.md](TESTING.md) (KI-8, KI-9, KI-11, KI-12, KI-13).
+[TESTING.md](TESTING.md) (KI-8, KI-11, KI-12, KI-13).
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
-| KI-10 | **The first depth cannot be interrupted, and it can be slow.** The search always completes depth 1 so that there is a move to play, and ignores the clock and `stop` until then. Depth 1 includes an unpruned quiescence search, which in a position with very many captures takes long: about 25 ms with two queens a side, about 10 s in an artificial position with nine queens a side. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, until depth 1 is done. In ordinary positions depth 1 takes well under a millisecond. | Milestone 7: move ordering and pruning in quiescence search shrink depth 1; then let `stop` and the clock apply once the first root move is done. |
-| KI-9 | **Search is slow without move ordering.** The main search tries moves in generation order, so alpha-beta prunes poorly. On a busy middlegame (Kiwipete) a depth-3 search visits 4.5 million nodes and takes about 1.5 s on the development machine (see the measurement table in `docs/TESTING.md`). | The engine plays, but shallowly for the time it uses. Results are correct. | Milestone 7: move ordering, the transposition table and the other heuristics, each measured by SPRT. |
-| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play has not changed since: the bench still counts 16,611,416 nodes): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-10 | **The first root move of the first depth cannot be interrupted, and neither can the weakened search's first pass.** The search ignores the clock and `stop` until one root move of depth 1 has been searched, so that there is a move to play. That move includes a quiescence search, which in a position with very many captures takes long: about 0.3 s in an artificial position with nine queens a side. (The whole first depth takes about 5 s there; since milestone 7 `stop` and the clock cut it short after the first move.) With `UCI_LimitStrength` on, the first pass over all the root moves still always completes: over two minutes in that position. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, meanwhile. In ordinary positions depth 1 takes well under a millisecond. | Not planned. Pruning in quiescence search shrinks it (delta pruning is parked in milestone 7); the weakened search's first pass could be given the ordinary search's rule. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play did not change from then until milestone 7 began: the bench counted 16,611,416 nodes throughout): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. **It is out of date now:** milestone 7 has begun to change the search. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 | KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine kept spending at least a millisecond a move however little was left, so a long enough game at a tiny time control lost on time. **Narrowed on the preparation branch:** a clock within `Move Overhead` now gets no time, so the plan no longer spends the reserve; what the plan cannot see (the first depth, the GUI) still comes off the clock. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | The preparation branch before milestone 7: next, the overhead is taken off the clock before it is shared out; the entry goes once runs at 1+0 and 0.1+0 on the Windows workstation show the effect. |
 | KI-13 | **A failed rating leaves Ordo's empty output files behind.** When Ordo fails (for example on games that are not connected), `rate.ps1` and `rate.sh` stop with Ordo's status, but the text and CSV files Ordo had already created stay in place, empty. | A stray pair of empty `-ratings.txt` and `.csv` files next to the PGNs after a failed rating; the next run with the same `-Out` overwrites them. Seen in the smoke test (TESTING.md). | Not scheduled: the maintainer decides. A fix would remove the two files when Ordo fails, if the script created them. |
@@ -434,9 +433,10 @@ Decided by the maintainer (all but the first point on 2026-11-21):
 What the builds depend on:
 
 - The `pext` build needs sliding-piece attacks by PEXT in the
-  engine, which is to be added in milestone 7 behind a feature, with magic
-  bitboards staying the default and perft required to match on both paths.
-  Until that exists there is no such build.
+  engine. Milestone 7 added them behind the Cargo feature `pext` (item
+  17), with magic bitboards staying the default and perft matching on
+  both paths. The release workflow does not build it yet, so there is
+  no such release file until it does.
 - The benchmark of queued task 2 measures the three builds against each
   other on both of the maintainer's machines.
 
@@ -668,7 +668,8 @@ it will really be, not one that is slow mainly for lack of them.
 - [ ] **The usual causes, in this order, as the profile points:**
   allocation or cloning in the hot path; copy-make on a large position;
   move generation; evaluation recomputed at every node instead of updated;
-  the transposition table (there is none yet); how often the clock is read;
+  the transposition table (its size, its replacement rule, how it is
+  probed); how often the clock is read;
   quiescence search; debug assertions or bounds checks left in release.
 - [ ] **One change per commit, with bench nodes and speed before and
   after** in the message. A pure speed change keeps the bench node count
@@ -699,15 +700,16 @@ commands `d` and `eval` in UCI mode.
 
 **[B], with and after milestone 7:**
 
-- [ ] A `Clear Hash` button option and `hashfull` in `info`, with the
-  transposition table.
-- [ ] Further search features, each its own commit and its own SPRT, after
-  the transposition table, MVV-LVA, killers and history, null move and
-  late move reductions: principal variation search, aspiration windows,
-  reverse futility pruning, check extensions, internal iterative
-  reduction, countermove and continuation history. Their order is
-  proposed when milestone 7 starts.
-- [ ] `go mate` and `searchmoves`: protocol features with no effect on
+- [x] A `Clear Hash` button option and `hashfull` in `info`, with the
+  transposition table (milestone 7, item 2c).
+- [ ] Further search features, each its own commit and its own SPRT:
+  principal variation search, aspiration windows, reverse futility
+  pruning, check extensions, internal iterative reduction, countermove
+  and continuation history. They are items 8 and 11 to 16 of milestone
+  7's checklist. Reverse futility pruning is done there (item 13); the
+  others, and the history heuristic (item 7), are deferred beyond
+  milestone 7 (see that checklist).
+- [x] `go mate` and `searchmoves`: protocol features with no effect on
   strength, tested in `tests/uci.rs`, bench node count unchanged.
 - [ ] Pondering (`Ponder`, `go ponder`, `ponderhit`), tested by the
   integration tests and by real games in `cutechess-cli`, then described
@@ -975,6 +977,177 @@ behind a feature, for the optional `pext` release build (see
 the same counts on both paths. It is a speed change that leaves the search
 tree alone, so it is checked by perft and by an unchanged node count, not by
 SPRT.
+
+### Chunk checklist
+
+Branch `milestone/7-search-heuristics`, started 2026-11-27 from `main`.
+
+Items 1 to 4 are the order the maintainer set on 2026-11-20; the rest was
+proposed by the agent and confirmed by the maintainer on 2026-11-27, with
+the reason for each place. The maintainer also agreed that up to three
+features may be built ahead of their SPRTs, each on the one before, and
+tested in order: one that fails is dropped and what was built on it is
+rebuilt.
+
+How every search change is done:
+
+- **One feature, one commit, one SPRT** against the commit before it, on
+  the Windows workstation with `match.ps1 sprt`, both builds `avx2`,
+  10+0.1, Hash 64, `alpha` and `beta` 0.05, a cap of 5,000 rounds. Bounds
+  `[0, 10]` while changes are worth tens of Elo (items 1 to 9), `[0, 5]`
+  after. The agent gives the command and the two builds; the maintainer
+  runs it and sends the notes and the log back.
+- **The result is a row of
+  [`testing/sprt-history.md`](testing/sprt-history.md)**, written by
+  `scripts/record_sprt.py`, and its summary line goes into the commit
+  message. H1 accepted: the change stays. H0 accepted: it is reverted.
+  Undecided is not a pass: the cap is raised and the test run again, or
+  the change is dropped.
+- **The bench node count moves with every one of them.** The commit
+  updates the pin in `tests/bench.rs` and adds a row to
+  [`testing/bench-history.md`](testing/bench-history.md). `vyvrael search
+  --stats` before and after goes into the commit message: the first-move
+  cutoff rate and the branching factor are what these changes are for.
+- A change that is not meant to alter the search (a speed change, a
+  protocol feature, a diagnostic) keeps the bench count and says so.
+
+**Capture ordering and the table (the maintainer's order):**
+
+- [x] 1. MVV-LVA with promotions for the captures of the main search. The
+  baseline for everything after it. SPRT [0, 10]: H1 accepted in 120
+  games (run `f38fad1831cb`).
+- [x] 2a. The transposition table: the table itself, sized by `Hash`,
+  cleared at `ucinewgame`, probed and stored in the main search, with its
+  cutoffs. SPRT [0, 10]: H1 accepted in 344 games (run `ad16d90abf11`).
+- [x] 2b. The table's move tried first, at the root too. SPRT [0, 10]:
+  H1 accepted in 242 games (run `9710d85acf32`).
+- [x] 2c. With the table, no SPRT (the bench count did not move, 206,097):
+  the button `Clear Hash`, `hashfull` in `info`, the table's hit rate in
+  the search statistics, and `bench <depth> <threads> <hash>` using its
+  hash size (the bench without arguments keeps a fixed one).
+- [x] 3. Static exchange evaluation, for ordering captures and for
+  leaving losing ones out of quiescence. Kept only if its SPRT shows a
+  gain. SPRT [0, 10]: H1 accepted in 1,160 games (run `9c8de5ceed4c`).
+- [ ] 4. Delta pruning in quiescence, last of the four, with its own SPRT.
+  **Parked.** Built as `4bfd377` (margin 200, captures that give check
+  exempt; bench 64,509 from 77,407) and reverted in `2bdb660`: its SPRT
+  [0, 10] was undecided at the cap, 3898 - 3748 - 2354 in 10,000 games,
+  LLR 0.229 (run `d35a397d5e43`). The figures point at a gain of about
+  5 Elo, which those bounds cannot settle. Deferred beyond this
+  milestone with the other small items (see below).
+
+**KI-10, once quiescence is pruned:**
+
+- [x] 5. `stop` and the clock apply once the first root move of depth 1
+  is done. Not a change to what a fixed-depth search finds, so the bench
+  count stays; tested with the many-queens positions of KI-10. Done with
+  two refinements. During the rest of the first depth they are looked at
+  only once per 65,536 nodes, so that an ordinary first depth still
+  always completes and a move played with no time left is as good as it
+  was; and a node limit still never ends the first depth. Nine queens a
+  side with 50 ms to move: an answer after about 0.3 s, from 4.8 s.
+  KI-10 is not removed but narrowed: the first root move itself (that
+  0.3 s) and the weakened search's first pass remain.
+
+**Quiet-move ordering** (before the pruning that relies on it):
+
+- [x] 6. Killer moves: two per ply, kept for one search. SPRT
+  [0, 10]: H1 accepted in 372 games (run `f1b57a770a57`).
+- [ ] 7. The history heuristic. SPRT.
+  **Parked.** Built as `db0d976` (by side, origin and destination, with
+  punishment of the quiet moves tried before the one that cut off; kept
+  for one search; not used at the root; bench 60,070 from 61,760, and
+  899,248 from 943,287 at depth 6) and reverted. Its SPRT [0, 10] was
+  stopped by hand after 155 games (57 - 65 - 33, LLR -0.265; PGN
+  `33583770c654`), which says nothing either way: it was stopped
+  because a saving of about 5% of the nodes means a gain of a few Elo
+  at most, which those bounds cannot settle short of the cap, as item 4
+  showed. An interrupted run has no row in `sprt-history.md`. Put back
+  on top of late move reductions (item 10) and measured, it does not
+  save nodes there (the bench at depth 9 takes 9% more), which settles
+  nothing since it changes which moves are reduced. Deferred beyond
+  this milestone with the other small items (see below).
+
+**Windows, then pruning and reductions.** Principal variation search is
+proposed before null move and late move reductions, where the request
+listed it after them: reductions are searched with a zero window and
+re-searched on a fail high, which is the machinery of principal
+variation search, so building it first keeps the reductions' commit to
+the reductions.
+
+- [ ] 8. Principal variation search. SPRT. **Deferred**, built and
+  measured but not committed: by itself it is a small and uneven gain
+  (the bench falls from 51,272 nodes to 47,073 and `bench 7` by 14%,
+  but the start position at depth 6 takes 22,549 nodes with it against
+  22,066 without, and without a table it costs nodes), which bounds of
+  [0, 10] would not settle (see items 4 and 7). Late move reductions
+  turned out not to need it: a reduced move is searched with a window
+  of one point and searched again in full, which is all of its
+  machinery they use. Deferred beyond this milestone with the other
+  small items (see below).
+- [x] 9. Null-move pruning, with its guards (not in check, not in a pawn
+  endgame, a verification where zugzwang threatens). Built before item
+  8: it does not need principal variation search, and it is the largest
+  gain left, where item 8 alone is a small one that bounds of [0, 10]
+  would not settle quickly (see items 4 and 7). From depth 3, reduction
+  2 + depth / 4, only with the evaluation at or above beta, verified
+  with one piece left. SPRT [0, 10]: H1 accepted in 198 games (run
+  `023be622299e`).
+- [x] 10. Late move reductions: quiet moves from the fourth on, from
+  depth 3, by `0.75 + ln(depth) * ln(move) / 2.25` plies; without
+  principal variation search (see item 8) and without history (see
+  item 7). SPRT [0, 5]: H1 accepted in 620 games (run `00e8619ba2cf`).
+- [ ] 11. Aspiration windows at the root. SPRT. Deferred (see below).
+- [ ] 12. Check extensions. SPRT. Deferred (see below).
+- [x] 13. Reverse futility pruning: up to depth 6, margin 100 a ply, not
+  in check. Built before items 11 and 12, as the largest gain left
+  among the items not yet built. With it the verification of a null
+  move was made to search real moves (`d36ea97`): reverse
+  futility pruning could answer that search from the evaluation alone.
+  SPRT [0, 5], of both together: H1 accepted in 698 games (run
+  `25da9526092d`).
+- [ ] 14. Internal iterative reduction. SPRT. Deferred (see below).
+- [ ] 15. The countermove heuristic. SPRT. Deferred (see below).
+- [ ] 16. Continuation history. SPRT. Deferred (see below).
+
+**The small items are deferred** (the maintainer's decision, 2026-11-28):
+items 4, 7, 8, 11, 12, 14, 15 and 16 are not part of this milestone any
+more. Each is expected to be worth a few Elo by itself. The accepted
+items were all worth 28 Elo or more and took 120 to 1,160 games to
+show it; a change worth about 5 Elo needs some 20,000 games at bounds
+of [0, 5], about a day of the Windows workstation each, and item 4
+spent eleven hours to stay undecided. They stay on this list, unticked,
+for a later pass over the search, where they can be tested at a faster
+time control or together. Nothing of them is in the code: the two that
+were committed (items 4 and 7) were reverted.
+
+**Not search changes:**
+
+- [x] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
+  Magic bitboards stay the default; perft matches on both paths and the
+  bench count is the same. No SPRT. The whole test suite passes on the
+  PEXT build; CI does not build it (the workflows are not touched), and
+  no release file is built with it yet.
+- [x] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
+  bench count unchanged, tested in `tests/uci.rs`. Neither is used by a
+  weakened search (`UCI_LimitStrength`).
+
+**At the end:**
+
+- [x] KI-9: the measurement of `TESTING.md` taken again, and the entry
+  removed: the first move tried gives 90% to 98% of the main search's
+  cutoffs, from 22% when the milestone began ("Search statistics" in
+  TESTING.md).
+- [ ] KI-8: the commands for measuring strength and `UCI_Elo` again
+  against Ladder Baseline 2; the maintainer runs them, and the results
+  are written up under `docs/testing/`.
+- [ ] End-of-milestone doc drift pass, an independent review, the merge
+  into `main`.
+
+Pondering and the `tune` tool of the [B] list are not in this milestone:
+pondering touches time management and the search thread and gets a
+branch of its own, and the tuner waits for the maintainer's word on
+where it fits.
 
 ## Decisions for milestones 4 to 6
 

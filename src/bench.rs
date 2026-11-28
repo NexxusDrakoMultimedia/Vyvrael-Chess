@@ -18,13 +18,15 @@ use std::time::{Duration, Instant};
 
 use crate::board::Position;
 use crate::eval::default_evaluator;
-use crate::search::{Limits, Search};
+use crate::search::{Limits, Search, TranspositionTable};
+use crate::uci::HASH_DEFAULT;
 
 /// The depth every bench position is searched to, in plies.
 ///
-/// Chosen so that the whole bench takes a few seconds on the development
-/// machine with the search as it is before milestone 7 (no move ordering
-/// in the main search, so a deep search of a busy position is slow).
+/// Chosen when the main search had no move ordering and the whole bench
+/// took a few seconds at this depth. It now takes a fraction of a second;
+/// the depth stays through milestone 7 so that the node counts of its
+/// commits can be compared (see `docs/testing/bench-history.md`).
 pub const BENCH_DEPTH: u32 = 4;
 
 /// The positions of the bench, as FEN: an opening, middlegames with and
@@ -70,25 +72,44 @@ impl BenchResult {
 }
 
 /// Searches every bench position to `depth` plies, with iterative deepening
-/// as in a game, and counts the positions visited.
+/// as in a game, and counts the positions visited. Each position gets a
+/// new transposition table of the engine's default size, [`HASH_DEFAULT`],
+/// so the count belongs to the build and not to a setting.
+///
+/// # Panics
+///
+/// Panics if a bench position is not a valid FEN, which the tests rule out,
+/// or if there is no memory for a table of the default size.
+#[must_use]
+pub fn bench(depth: u32) -> BenchResult {
+    bench_with_hash(depth, HASH_DEFAULT).expect("memory for the bench's table")
+}
+
+/// [`bench`] with tables of `hash_mb` MiB, or `None` if there is no memory
+/// for one. The node count can differ from one table size to another: a
+/// smaller table forgets more.
 ///
 /// # Panics
 ///
 /// Panics if a bench position is not a valid FEN, which the tests rule out.
 #[must_use]
-pub fn bench(depth: u32) -> BenchResult {
+pub fn bench_with_hash(depth: u32, hash_mb: u32) -> Option<BenchResult> {
     let evaluator = default_evaluator();
     let mut nodes = 0;
     let mut elapsed = Duration::ZERO;
     for fen in BENCH_POSITIONS {
         let pos = Position::from_fen(fen).expect("the bench positions are valid");
-        let mut search = Search::new(evaluator.as_ref()).with_limits(Limits::depth(depth));
+        // A new table for each position, as a new game has.
+        let mut table = TranspositionTable::new(hash_mb)?;
+        let mut search = Search::new(evaluator.as_ref())
+            .with_limits(Limits::depth(depth))
+            .with_table(&mut table);
         let start = Instant::now();
         let _ = search.iterate(&pos, &mut |_| {});
         elapsed += start.elapsed();
         nodes += search.nodes();
     }
-    BenchResult { nodes, elapsed }
+    Some(BenchResult { nodes, elapsed })
 }
 
 #[cfg(test)]
@@ -110,6 +131,21 @@ mod tests {
         for _ in 0..2 {
             assert_eq!(bench(3).nodes, first);
         }
+    }
+
+    /// The hash size reaches the tables: the default size is the plain
+    /// bench, a table of one slot remembers next to nothing and so visits
+    /// more, and a size no machine has is an answer. (Depth 5, not the
+    /// default 4: since the search reduces late moves, what it visits at
+    /// low depth depends on the table in more ways than how much is
+    /// remembered, and at depth 4 the one slot happens to visit a little
+    /// less. From depth 5 it visits far more.)
+    #[test]
+    fn the_hash_size_is_used() {
+        let plain = bench(5).nodes;
+        assert_eq!(bench_with_hash(5, HASH_DEFAULT).unwrap().nodes, plain);
+        assert!(bench_with_hash(5, 0).unwrap().nodes > plain);
+        assert_eq!(bench_with_hash(1, u32::MAX), None);
     }
 
     #[test]

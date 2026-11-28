@@ -224,15 +224,18 @@ Two settings keep time back, and they add up:
   there is. Its default is 2000.
 
 Why err on the large side: a bot that loses on time is worse than one that
-thinks a little less, and Vyvræl always finishes its first search depth
+thinks a little less, and Vyvræl always finishes the first move of its first search depth
 before it looks at the clock (known issue KI-10 in
 [ROADMAP.md](ROADMAP.md)), which in rare positions takes far longer than
 usual. If the bot still loses on time, raise the values; lower them only
 after many games without a time loss.
 
-That known issue applies to the casual bot for as long as it runs a build
-from before milestone 7, which is where it is fixed: in a position with very
-many captures the engine can overrun its time for the move. Until then
+Milestone 7 narrows that known issue but does not remove it. A build from
+before milestone 7 (0.1.0 and the alphas) always completes its whole first
+search depth, so in a position with very many captures it can overrun its
+time for the move by seconds. From milestone 7 on the clock applies once
+the first root move of that depth is done; with `UCI_LimitStrength` on,
+the first pass over all the moves still always completes. Either way
 `Move Overhead` and watching for losses on time are the whole mitigation.
 
 ## Anti-abuse

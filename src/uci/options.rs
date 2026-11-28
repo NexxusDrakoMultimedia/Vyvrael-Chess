@@ -4,8 +4,9 @@
 //! The engine's UCI options: their names, types, limits and current values.
 //!
 //! Every option is declared in [`Options::declarations`] and set in
-//! [`Options::set`], and nowhere else, so the list a GUI is shown and the
-//! list the engine accepts cannot drift apart. `docs/UCI.md` documents each.
+//! [`Options::set`] (or, for a button, recognised by [`Options::button`]),
+//! and nowhere else, so the list a GUI is shown and the list the engine
+//! accepts cannot drift apart. `docs/UCI.md` documents each.
 
 use std::time::Duration;
 
@@ -27,11 +28,19 @@ pub const MOVE_OVERHEAD_DEFAULT: u32 = 30;
 /// Largest `Move Overhead` that can be asked for, in milliseconds.
 pub const MOVE_OVERHEAD_MAX: u32 = 5_000;
 
-/// The current value of every option.
+/// An option of type `button`: it has no value, and sending its name is
+/// pressing it. What a press does is the engine's business.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Button {
+    /// `Clear Hash`: empty the transposition table.
+    ClearHash,
+}
+
+/// The current value of every option that has one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Options {
-    /// `Hash`: transposition table size in mebibytes. Stored but not used
-    /// yet: there is no transposition table before milestone 7.
+    /// `Hash`: transposition table size in mebibytes. The engine makes the
+    /// table this size when the next search starts.
     pub hash_mb: u32,
     /// `Threads`: number of search threads. Only 1 is possible until there
     /// is a parallel search.
@@ -95,7 +104,18 @@ impl Options {
             spin("Move Overhead", MOVE_OVERHEAD_DEFAULT, 0, MOVE_OVERHEAD_MAX),
             check("UCI_ShowWDL", false),
             check("SearchStats", false),
+            button("Clear Hash"),
         ]
+    }
+
+    /// The button called `name` (letter case does not matter), if it is
+    /// one. A value sent with a button is not looked at.
+    #[must_use]
+    pub fn button(name: &str) -> Option<Button> {
+        match name.to_ascii_lowercase().as_str() {
+            "clear hash" => Some(Button::ClearHash),
+            _ => None,
+        }
     }
 
     /// The time kept back from every time limit: `Move Overhead` as a
@@ -110,9 +130,10 @@ impl Options {
     ///
     /// # Errors
     ///
-    /// Returns a message for the GUI if there is no such option or the
-    /// value is missing, of the wrong type or out of range. Nothing is
-    /// changed in that case.
+    /// Returns a message for the GUI if there is no such option, the
+    /// value is missing, of the wrong type or out of range, or the option
+    /// is a button, which has no value to set (see [`Options::button`]).
+    /// Nothing is changed in that case.
     pub fn set(&mut self, name: &str, value: Option<&str>) -> Result<(), String> {
         match name.to_ascii_lowercase().as_str() {
             "hash" => self.hash_mb = parse_spin("Hash", value, 1, HASH_MAX)?,
@@ -128,10 +149,16 @@ impl Options {
             }
             "uci_showwdl" => self.show_wdl = parse_check("UCI_ShowWDL", value)?,
             "searchstats" => self.search_stats = parse_check("SearchStats", value)?,
+            "clear hash" => return Err("Clear Hash: a button has no value to set".to_string()),
             _ => return Err(format!("unknown option: {name}")),
         }
         Ok(())
     }
+}
+
+/// The declaration of a button.
+fn button(name: &str) -> String {
+    format!("option name {name} type button")
 }
 
 /// The declaration of an on/off option.
@@ -195,9 +222,17 @@ mod tests {
         words[at + 1].to_string()
     }
 
+    /// The declared options that have a value: all but the buttons.
+    fn valued() -> Vec<(String, String)> {
+        declared()
+            .into_iter()
+            .filter(|(_, kind)| kind != "button")
+            .collect()
+    }
+
     #[test]
     fn every_declared_option_can_be_set_to_its_default() {
-        for (name, _) in declared() {
+        for (name, _) in valued() {
             let default = declared_default(&name);
             let mut options = Options::default();
             assert_eq!(options.set(&name, Some(&default)), Ok(()), "{name}");
@@ -214,9 +249,14 @@ mod tests {
             assert_eq!(options.set(name, Some("32")), Ok(()), "{name}");
         }
         assert_eq!(options.hash_mb, 32);
-        // Every option, in three spellings, accepts its declared default.
-        for (name, _) in declared() {
-            let default = declared_default(&name);
+        // Every option, in three spellings, accepts its declared default,
+        // and every button is recognised.
+        for (name, kind) in declared() {
+            let default = if kind == "button" {
+                String::new()
+            } else {
+                declared_default(&name)
+            };
             let alternating: String = name
                 .chars()
                 .enumerate()
@@ -230,7 +270,12 @@ mod tests {
                 .collect();
             for spelling in [name.to_uppercase(), name.to_lowercase(), alternating] {
                 let mut options = Options::default();
-                assert_eq!(options.set(&spelling, Some(&default)), Ok(()), "{spelling}");
+                if kind == "button" {
+                    assert!(Options::button(&spelling).is_some(), "{spelling}");
+                } else {
+                    assert_eq!(Options::button(&spelling), None, "{spelling}");
+                    assert_eq!(options.set(&spelling, Some(&default)), Ok(()), "{spelling}");
+                }
             }
         }
     }
@@ -442,9 +487,47 @@ mod tests {
                 "UCI_Elo",
                 "Move Overhead",
                 "UCI_ShowWDL",
-                "SearchStats"
+                "SearchStats",
+                "Clear Hash"
             ]
         );
+    }
+
+    /// `Clear Hash` is a button: declared without a default, recognised by
+    /// its name in any letter case and in full only, and not something
+    /// that can be set.
+    #[test]
+    fn clear_hash_is_a_button() {
+        assert_eq!(
+            Options::declarations()[9],
+            "option name Clear Hash type button"
+        );
+        let buttons: Vec<(String, String)> = declared()
+            .into_iter()
+            .filter(|(_, kind)| kind == "button")
+            .collect();
+        assert_eq!(buttons, [("Clear Hash".to_string(), "button".to_string())]);
+        for name in ["Clear Hash", "clear hash", "CLEAR HASH"] {
+            assert_eq!(Options::button(name), Some(Button::ClearHash), "{name}");
+        }
+        for name in [
+            "ClearHash",
+            "Clear",
+            "Hash",
+            "Clear Hash ",
+            "Clear  Hash",
+            "",
+        ] {
+            assert_eq!(Options::button(name), None, "{name:?}");
+        }
+        let mut options = Options::default();
+        for value in [None, Some("true"), Some("1")] {
+            assert_eq!(
+                options.set("Clear Hash", value),
+                Err("Clear Hash: a button has no value to set".to_string())
+            );
+        }
+        assert_eq!(options, Options::default());
     }
 
     #[test]
@@ -453,7 +536,7 @@ mod tests {
             Options::declarations()[7],
             "option name UCI_ShowWDL type check default false"
         );
-        assert_eq!(Options::declarations().len(), 9);
+        assert_eq!(Options::declarations().len(), 10);
         let mut options = Options::default();
         assert!(!options.show_wdl);
         assert_eq!(options.set("UCI_ShowWDL", Some("true")), Ok(()));

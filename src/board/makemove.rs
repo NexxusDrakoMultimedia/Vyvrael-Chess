@@ -135,6 +135,34 @@ impl Position {
         undo
     }
 
+    /// Passes the turn without moving a piece (a "null move"). This is not
+    /// a move of chess: the search uses it to ask what the side to move
+    /// could do with a free move (null-move pruning).
+    ///
+    /// The other side is to move, there is no en passant square any more,
+    /// and the counters advance as for a quiet piece move. The hash is
+    /// kept exact. There is no way to take it back: the caller passes on
+    /// a copy of the position.
+    ///
+    /// The side to move must not be in check, or the result is a position
+    /// in which the king can be taken; that is not checked here.
+    pub fn make_null_move(&mut self) {
+        if let Some(file) = self.hashed_en_passant_file() {
+            self.hash ^= zobrist::en_passant(file);
+        }
+        self.en_passant = None;
+        self.halfmove_clock = self.halfmove_clock.saturating_add(1);
+        if self.side_to_move == Color::Black {
+            self.fullmove_number = self.fullmove_number.wrapping_add(1);
+        }
+        self.side_to_move = self.side_to_move.flip();
+        self.hash ^= zobrist::black_to_move();
+        debug_assert!(
+            self.is_consistent(),
+            "make_null_move corrupted the position"
+        );
+    }
+
     /// Takes back `mv`, which must be the most recent move made on this
     /// position, using the [`Undo`] that [`Position::make_move`] returned for
     /// it. The position is restored exactly, including counters and hash.
@@ -301,6 +329,52 @@ mod tests {
             capture(Square::H8, Square::H1),
             "r3k3/8/8/8/8/8/8/R3K2r w Qq - 0 2",
         );
+    }
+
+    /// A null move gives the position a fresh parse of the expected FEN
+    /// gives, hash included: the other side to move, the counters of a
+    /// quiet move, the pieces and castling rights untouched.
+    #[test]
+    fn a_null_move_passes_the_turn_and_nothing_else() {
+        for (before, after) in [
+            (
+                "r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R w KQkq - 3 12",
+                "r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R b KQkq - 4 12",
+            ),
+            // Black passes: the fullmove number goes up.
+            (
+                "r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R b Kq - 0 12",
+                "r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R w Kq - 1 13",
+            ),
+            // An en passant square that could not be used, so was not in
+            // the hash, and one that could, whose key must leave it.
+            (
+                "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+                "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2",
+            ),
+            (
+                "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+                "4k3/8/8/3pP3/8/8/8/4K3 b - - 1 1",
+            ),
+        ] {
+            let mut pos = Position::from_fen(before).unwrap();
+            pos.make_null_move();
+            assert_eq!(pos, Position::from_fen(after).unwrap(), "{before}");
+            assert_eq!(pos.hash(), pos.compute_hash(), "{before}");
+        }
+        // Passing twice gives the first position back but for the counters
+        // (and an en passant square, had there been one).
+        let start = Position::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+        let mut twice = start.clone();
+        twice.make_null_move();
+        assert_ne!(twice.hash(), start.hash());
+        twice.make_null_move();
+        assert_eq!(twice.hash(), start.hash());
+        assert_eq!((twice.halfmove_clock(), twice.fullmove_number()), (2, 2));
+        // The clock stops at its limit, as with moves.
+        let mut late = Position::from_fen("4k3/8/8/8/8/8/8/4K2R w - - 65535 900").unwrap();
+        late.make_null_move();
+        assert_eq!(late.halfmove_clock(), u16::MAX);
     }
 
     #[test]

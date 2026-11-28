@@ -24,13 +24,14 @@ option name UCI_Elo type spin default 1360 min 1110 max 1630
 option name Move Overhead type spin default 30 min 0 max 5000
 option name UCI_ShowWDL type check default false
 option name SearchStats type check default false
+option name Clear Hash type button
 info string rng seed 1463767669 (system entropy)
 uciok
 position startpos moves e2e4 e7e5
 go depth 3
-info depth 1 seldepth 3 score cp 40 nodes 34 nps 1700000 time 0 pv d2d4
-info depth 2 seldepth 9 score cp 3 nodes 559 nps 2506726 time 0 pv d2d4 b8c6
-info depth 3 seldepth 13 score cp 37 nodes 7556 nps 3714847 time 2 pv d2d4 d7d5 g1f3
+info depth 1 seldepth 3 score cp 40 nodes 32 nps 1700000 hashfull 0 time 0 pv d2d4
+info depth 2 seldepth 7 score cp 3 nodes 173 nps 2506726 hashfull 0 time 0 pv d2d4 b8c6
+info depth 3 seldepth 7 score cp 37 nodes 1502 nps 3714847 hashfull 1 time 0 pv d2d4 d7d5 g1f3
 bestmove d2d4
 quit
 ```
@@ -66,7 +67,7 @@ package name needs one.
 | `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
 | `position [startpos \| fen <fen>] [moves ...]` | implemented | Ends any running search first (it reports its `bestmove`). Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
-| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is always finished first (see "The first depth" below). |
+| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is finished first, unless it is a very long one (see "The first depth" below). |
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
@@ -110,27 +111,43 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `movetime` | implemented | Think this long, less the `Move Overhead`. Takes precedence over the clocks. |
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
-| `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
-| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
+| `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way (also one left with none once what is not offered is ignored, such as `go ponder`). |
+| `searchmoves` | implemented | Search only the moves that follow, up to the next parameter: `go depth 12 searchmoves e2e4 d2d4`. The answer is the best of them. A word that is not a legal move of the position is reported with `info string` and left out; if none is left, every move is searched. A restricted search does not record the position's result in the hash table, where it would pass for the result of all moves. Not used with `UCI_LimitStrength` (said with `info string`), and `Variety` does not apply to a restricted search. |
+| `mate` | implemented | `go mate 3` searches for a mate in 3 moves or fewer for the side to move and answers as soon as an iteration shows one, however deep it had to look. It is one more limit: with `depth`, `nodes`, `movetime` or the clocks the search also ends where they say, and with none of them it goes on until that mate is found, until the search has proved a forced mate within its depth (a longer one than asked for, or one against the side to move: there is nothing more to find then, and every search ends there), or until `stop` comes. A mate that is merely seen against the side to move, or a longer one, ends nothing early. With `UCI_LimitStrength` no mate is looked for: the weakened search does its passes and answers, and a `go mate` alone does not wait for `stop`. The engine's search is selective, so it does not prove that there is no mate in that many moves. |
+| `ponder` | not offered | Ignored, as the protocol asks for unknown words. |
 
 Several limits may be combined; the search stops at whichever comes first.
 
 ### The first depth
 
-**The first depth is always completed**, whatever the clock, the node limit
-or `stop` say, so that there is always a move to play. Normally that takes
-well under a millisecond. In a position with very many captures available
-it can take much longer, because quiescence search there is not yet pruned:
-tens of milliseconds in a middlegame with two queens a side, and seconds in
-artificial positions with many queens. Until it is done `stop` and `quit`
-are not obeyed and, because the engine waits for the search to end before
-it reads on, nothing else is answered either. This is known issue KI-10 in
-[ROADMAP.md](ROADMAP.md); it goes away with the search heuristics of
-milestone 7.
+**The first depth is completed** whatever the clock or `stop` say, so that
+there is always a move to play, unless it is a very long one. Normally it
+takes well under a millisecond and a few thousand positions at most. The
+rules:
+
+- Nothing ends the search before the **first root move** of the first
+  depth has been searched: until then `stop`, `quit` and the clock are
+  not obeyed and, because the engine waits for the search to end before
+  it reads on, nothing else is answered either.
+- After that first move `stop` and the clock are looked at once every
+  65,536 positions (some tens of milliseconds) for the rest of the first
+  depth. An ordinary first depth is over long before the first look. A
+  long one is cut short there: the move played is the best of the root
+  moves searched so far, and no `info depth 1` line is printed for it.
+- A node limit never cuts the first depth short, so `go nodes` stays
+  reproducible.
+
+A first depth is long only where very many captures are available,
+because the quiescence search plays them out: in an artificial position
+with nine queens a side it takes about five seconds, and its first move
+about 0.3 seconds. Up to 0.1.0 the whole first depth was always
+completed. What is left is known issue KI-10 in [ROADMAP.md](ROADMAP.md):
+the first root move, and the weakened search (`UCI_LimitStrength`), whose
+first pass over all the moves still always completes.
 
 ### Output
 
-- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> time <ms> pv <moves>`
+- `info depth <d> seldepth <s> score <cp x \| mate n> nodes <n> nps <n> hashfull <n> time <ms> pv <moves>`
   after every completed depth. `nodes` and `time` count from the start of the
   search. `seldepth` is the selective depth: how many plies from the root
   the deepest position of that iteration was, the captures played out
@@ -139,7 +156,13 @@ milestone 7.
   a repetition, the fifty-move rule) or a mate. It is left out
   when there is none to give: the position has no legal move, or the line
   is for a weakened move (see "Limited strength"). The extra line for a
-  varied move (see `Variety`) repeats that of the search's last depth. `score` is from the side to move's point of view; `mate n` counts
+  varied move (see `Variety`) repeats that of the search's last depth.
+  `hashfull` is how full the transposition table is, in slots per
+  thousand, counted over its first thousand slots. Nothing in the table
+  ages yet, so the figure rises through a game and goes back to 0 at
+  `ucinewgame` or with a new `Hash` size; it is not the share of entries
+  that are of use to the current search. It is left out for a weakened
+  move, whose search uses no table. `score` is from the side to move's point of view; `mate n` counts
   the engine's own moves and is negative when the engine is being mated.
 - `bestmove <move>` at the end. A position with no legal move (checkmate or
   stalemate) gives `bestmove 0000`.
@@ -175,7 +198,8 @@ search.
 
 | Option | Type | Default | Status | Behaviour |
 | --- | --- | --- | --- | --- |
-| `Hash` | spin | `16` (1 to 65536) | implemented, **no effect yet** | Transposition table size in MiB. The value is checked and stored, but there is no transposition table before milestone 7, so it changes nothing. It is offered now because match tools set it. |
+| `Hash` | spin | `16` (1 to 65536) | implemented | Transposition table size in MiB. The table holds 65,536 positions to the MiB, and their number is a power of two, so a size that is not one is rounded down. A new size takes effect at the next search and starts with an empty table; if there is no memory for it, the engine says so with `info string` and keeps the table it has. The table is emptied by `ucinewgame` and by `Clear Hash`, and is used by full-strength play only. |
+| `Clear Hash` | button | none | implemented | `setoption name Clear Hash` empties the transposition table, as `ucinewgame` does, without starting a new game: the next search knows nothing of the ones before it. Like every option it applies from the next search on, so pressed during a search it leaves that search alone. It has no value, and one sent with it is not looked at. Nothing is answered. |
 | `Threads` | spin | `1` (1 to 1) | implemented | Number of search threads. The search is single-threaded, so 1 is the only value: `Threads=1` from a match tool is accepted, and a larger number is refused with an `info string`. The maximum rises when a parallel search exists. |
 | `Seed` | spin | `0` (0 to 2147483647) | implemented | Seed of strength-affecting randomness. `0` takes a new seed from system entropy when the engine starts and at every `ucinewgame`; any other value is that seed. Setting it back to `0` takes a fresh entropy seed. The maximum is the largest signed 32-bit number, which Cute Chess can store; entropy seeds stay from 1 to it, so a logged seed can always be given back. It replaces `DeterministicRNG` and `RngSeed` (0.1.0-alpha.1). |
 | `Variety` | spin | `0` (0 to 100) | implemented | Centipawns. In the first 12 full moves, at full strength, play at random among the best move and the moves a second search checks to be within this many centipawns of it, weighted towards the best. Never when the best score is a mate. `0` always plays the best move. It weakens play on purpose. See "Variety" below. |
@@ -185,7 +209,7 @@ search.
 | `UCI_Elo` | spin | `1360` (1110 to 1630) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for 0.1.0-alpha.2 and measured again after milestone 7 and after queued task 2. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
 | `UCI_ShowWDL` | check | `false` | implemented, **a model, not a measurement** | Standard UCI option. When `true`, every `info` line of a search gives `wdl <win> <draw> <loss>` after the score: chances per thousand for the side to move. See "Win, draw and loss" below. It changes nothing about the search. |
-| `SearchStats` | check | `false` | implemented, a diagnostic | When `true`, a full-strength search sends its statistics as `info string stats ...` lines just before `bestmove`: the nodes each depth took, the effective branching factor, and how often the first move tried gave the cutoff. They are explained under "Running a search by hand" in [TESTING.md](TESTING.md), where `vyvrael search --stats` prints the same lines. It changes nothing about the search, which counts these in any case; a weakened search (`UCI_LimitStrength`) sends none, and with `Variety` the checks of a varied move are not counted. Leave it off in matches: it only fills their logs. |
+| `SearchStats` | check | `false` | implemented, a diagnostic | When `true`, a full-strength search sends its statistics as `info string stats ...` lines just before `bestmove`: the nodes each depth took, the effective branching factor, how often the first move tried gave the cutoff, and how often the transposition table knew a position or settled it. They are explained under "Running a search by hand" in [TESTING.md](TESTING.md), where `vyvrael search --stats` prints the same lines. It changes nothing about the search, which counts these in any case; a weakened search (`UCI_LimitStrength`) sends none, and with `Variety` the checks of a varied move are not counted. Leave it off in matches: it only fills their logs. |
 | `SyzygyPath` | string | empty | optional (milestone 10) | Path to Syzygy tablebases, only if that milestone is approved. |
 
 Strength limiting uses randomness to weaken play, so it is governed by
@@ -235,7 +259,7 @@ strength.
 With `UCI_ShowWDL` on, an `info` line reads
 
 ```text
-info depth 3 seldepth 8 score cp 37 wdl 164 751 85 nodes 2971 nps 2500000 time 1 pv d2d4 d7d5 b1c3
+info depth 3 seldepth 6 score cp 37 wdl 164 751 85 nodes 746 nps 2500000 hashfull 0 time 1 pv d2d4 d7d5 b1c3
 ```
 
 **The three numbers are a model, not a measurement.** They are a fixed
@@ -279,8 +303,8 @@ is the number of milliseconds kept back for that.
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
 - Once the clock is at or below the overhead no time is planned at all:
-  the search completes its first depth, which it always does, and plays
-  from that. The overhead is a reserve that the plan does not spend. (Up
+  the search completes its first depth (see "The first depth" above)
+  and plays from that. The overhead is a reserve that the plan does not spend. (Up
   to 0.1.0 a move always got at least a millisecond, which spent it; see
   known issue KI-12 in [ROADMAP.md](ROADMAP.md).) A `movetime` at or
   below the overhead still gets one millisecond.
@@ -308,7 +332,7 @@ this means for a GUI:
   are scored in passes of increasing depth and the choice is made from the
   last pass that finished, so short of time the engine looks less far, but
   it has always looked at every move. The first pass (one ply) always
-  completes, as the first depth of the ordinary search does.
+  completes, whatever the clock says (known issue KI-10).
 - The moves are random, so two games differ unless `Seed` is fixed.
   `ucinewgame` starts the random sequence again, from the chosen seed or
   from a new logged entropy seed, so each game can be replayed by itself,

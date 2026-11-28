@@ -14,8 +14,8 @@
 //! What keeps it safe:
 //!
 //! - It is never used when the best score is a mate, for or against.
-//! - A move is only played after a **second check**: an exact search of it
-//!   to the depth the best move was found at, whose score must be within
+//! - A move is only played after a **second check**: a search of that move
+//!   alone, with the full window, to the depth the best move was found at, whose score must be within
 //!   `Variety` of the best move's. A move whose check a limit cuts short is
 //!   never played. Before the check, a cheap quiescence-only score of every
 //!   root move picks which moves are worth checking at all.
@@ -41,7 +41,7 @@ pub const VARIETY_FULL_MOVES: u16 = 12;
 
 /// How far below the best a move's cheap score may be, beyond `Variety`,
 /// for it to be checked at all. Quiescence alone misjudges quiet moves, so
-/// the cut is generous; the check that follows is exact.
+/// the cut is generous; the check that follows is a full search of the move.
 const PREFILTER_MARGIN: Score = 100;
 
 /// Whether `Variety` set to `variety` applies in `pos`: it is above 0 and
@@ -72,11 +72,13 @@ pub fn split_limits(limits: Limits, now: Instant) -> (Limits, Limits) {
         depth: limits.depth,
         nodes: search_nodes,
         deadline: search_deadline,
+        mate: limits.mate,
     };
     let check = Limits {
         depth: None,
         nodes: limits.nodes.map(|nodes| nodes - nodes * 2 / 3),
         deadline: limits.deadline,
+        mate: None,
     };
     (search, check)
 }
@@ -145,6 +147,7 @@ pub fn varied_move(
             depth: None,
             nodes: limits.nodes.map(|limit| limit.saturating_sub(*nodes)),
             deadline: limits.deadline,
+            mate: None,
         };
         let mut search = Search::new(evaluator)
             .with_history(&keys)
@@ -520,6 +523,7 @@ mod tests {
             depth: Some(5),
             nodes: Some(9_000),
             deadline: Some(now + Duration::from_millis(900)),
+            mate: None,
         };
         let (search, check) = split_limits(limits, now);
         assert_eq!(search.depth, Some(5));

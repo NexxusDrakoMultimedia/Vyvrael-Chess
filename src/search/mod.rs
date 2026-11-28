@@ -10,7 +10,9 @@ mod limits;
 mod negamax;
 mod ordering;
 mod score;
+mod see;
 mod stats;
+mod tt;
 mod variety;
 mod weaken;
 
@@ -20,7 +22,9 @@ pub use negamax::{Outcome, Report, Search};
 pub use score::{
     DRAW, INFINITY, MATE, MATE_BOUND, MAX_PLY, is_mate_score, mate_in, mated_in, moves_to_mate,
 };
+pub use see::{exchange_value, see};
 pub use stats::{SearchStats, per_mille, stats_lines};
+pub use tt::{Bound, Entry, TranspositionTable};
 pub use variety::{
     VARIETY_FULL_MOVES, VARIETY_MAX, Varied, split_limits, varied_move, variety_applies,
 };
