@@ -44,8 +44,8 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   king alone, and with one piece left only after a verification search,
   because the idea fails in zugzwang. The bench counts 51,272 nodes,
   from 61,760, and at depth 7 1,026,110, from 4,598,039; every pinned
-  score and line is unchanged. SPRT against the search before it: see
-  `docs/testing/sprt-history.md`.
+  score and line is unchanged. SPRT against the search before it: H1
+  accepted (run `023be622299e`).
 - **`Position::make_null_move`**: passes the turn without a move, with the
   hash kept exact, for the null-move pruning of milestone 7.
 - **`Clear Hash`** (item 2c): a button option that empties the

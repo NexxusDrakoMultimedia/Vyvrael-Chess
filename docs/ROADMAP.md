@@ -1079,8 +1079,8 @@ the reductions.
   gain left, where item 8 alone is a small one that bounds of [0, 10]
   would not settle quickly (see items 4 and 7). From depth 3, reduction
   2 + depth / 4, only with the evaluation at or above beta, verified
-  with one piece left. SPRT: awaited; if it does not show a gain, its
-  commit is reverted.
+  with one piece left. SPRT [0, 10]: H1 accepted in 198 games (run
+  `023be622299e`).
 - [ ] 10. Late move reductions. SPRT.
 - [ ] 11. Aspiration windows at the root. SPRT.
 - [ ] 12. Check extensions. SPRT.
