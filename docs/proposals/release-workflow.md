@@ -11,11 +11,9 @@ was published. The maintainer then deleted the draft, the tag and the test
 branch. Agents do not edit `.github/workflows` without the maintainer's
 approval.
 
-**Since 2026-11-28 the proposal is ahead of the installed file:** it adds
-the `pext` build for 0.2.0 (see "The pext build" below). That change has
-not run yet. The maintainer installs it by copying
-`docs/proposals/release-workflow.yml` over `.github/workflows/release.yml`
-and putting the installed file's own header comment back.
+**The `pext` build for 0.2.0 was added on 2026-11-28** (see "The pext
+build" below), to this proposal and, with the maintainer's approval given
+that day, to the installed file. That change has not run yet.
 
 The workflow is [`release-workflow.yml`](release-workflow.yml). From 0.1.0
 it builds the release binaries that were built by hand up to 0.1.0-alpha.2,
@@ -23,7 +21,7 @@ and it creates a **draft** GitHub release with them. It never publishes: the
 maintainer checks the draft and publishes it. The whole procedure around it
 is in [RELEASING.md](../RELEASING.md).
 
-## The pext build (proposed 2026-11-28, for 0.2.0)
+## The pext build (added 2026-11-28, for 0.2.0)
 
 Milestone 7 added sliding-piece attacks by the BMI2 instruction PEXT
 behind the Cargo feature `pext` (see "Magic bitboards" in

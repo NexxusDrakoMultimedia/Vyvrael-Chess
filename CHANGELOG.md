@@ -177,6 +177,9 @@ release with a `pext` build beside `avx2` and plain. Release notes:
 
 ### Changed
 
+- **The release workflow builds a `pext` file** for Windows and Linux,
+  beside `avx2` and plain, and runs the engine's tests on that build
+  before it does. Six binaries in a release, from four.
 - The `help` text for `search --stats` names all the statistics it
   prints: the quiescence share and the transposition table line were
   missing.

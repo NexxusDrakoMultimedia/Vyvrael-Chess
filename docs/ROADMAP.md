@@ -435,10 +435,10 @@ What the builds depend on:
 - The `pext` build needs sliding-piece attacks by PEXT in the
   engine. Milestone 7 added them behind the Cargo feature `pext` (item
   17), with magic bitboards staying the default and perft matching on
-  both paths. The installed release workflow does not build it yet: the change
-  is proposed in
-  [`proposals/release-workflow.md`](proposals/release-workflow.md)
-  (2026-11-28) for the maintainer to install before the tag of 0.2.0.
+  both paths. The release workflow builds it since 2026-11-28 (see
+  [`proposals/release-workflow.md`](proposals/release-workflow.md));
+  that change runs for the first time with the tag of 0.2.0, or on a
+  test tag before it.
 - The benchmark of queued task 2 measures the three builds against each
   other on both of the maintainer's machines.
 

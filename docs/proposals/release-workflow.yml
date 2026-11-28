@@ -5,9 +5,8 @@
 # .github/workflows/release.yml on 2026-11-22 with the maintainer's approval
 # and passed its trial on the test tag v0.1.0-rc.0 the same day. Agents do
 # not edit .github/workflows without the maintainer's approval.
-# Since 2026-11-28 this file is ahead of the installed one: it adds the
-# pext build for 0.2.0, which the maintainer installs by copying it (see
-# "The pext build" in the document below).
+# The pext build for 0.2.0 was added here and to the installed file on
+# 2026-11-28, with the maintainer's approval; it has not run yet.
 # What it does and why: docs/proposals/release-workflow.md.
 #
 # Builds the release binaries for a pushed version tag and creates a DRAFT
