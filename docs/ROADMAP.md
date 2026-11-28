@@ -17,7 +17,7 @@ them.
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
-| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | in progress (started 2026-11-27) |
+| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | done, merged into `main` on 2026-11-28; items 4, 7, 8, 11, 12 and 14 to 16 of its checklist are deferred beyond it, and its strength measurement (KI-8) is still to run |
 | - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate`, `searchmoves` and reverse futility pruning done in milestone 7; the other search features deferred beyond it (see its checklist); pondering and the `tune` tool not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |

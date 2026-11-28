@@ -30,7 +30,7 @@ fuzzing, small UCI additions) are complete and
 merged. Milestone 6 measured the engine on the project's ladder and
 calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
 speaks UCI, so it can be used in a GUI and in match tools. It is still weak:
-milestone 7 (in progress) gave the search a transposition table, move
+milestone 7 (complete and merged, not yet released) gave the search a transposition table, move
 ordering (the table's move, captures by what they win, killer moves),
 null-move pruning, late move reductions and reverse futility pruning,
 and its strength with them has not been measured against other
