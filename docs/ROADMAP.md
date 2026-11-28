@@ -1072,7 +1072,16 @@ re-searched on a fail high, which is the machinery of principal
 variation search, so building it first keeps the reductions' commit to
 the reductions.
 
-- [ ] 8. Principal variation search. SPRT.
+- [ ] 8. Principal variation search. SPRT. **Deferred**, built and
+  measured but not committed: by itself it is a small and uneven gain
+  (the bench falls from 51,272 nodes to 47,073 and `bench 7` by 14%,
+  but the start position at depth 6 takes 22,549 nodes with it against
+  22,073 without, and without a table it costs nodes), which bounds of
+  [0, 10] would not settle (see items 4 and 7). Late move reductions
+  turned out not to need it: a reduced move is searched with a window
+  of one point and searched again in full, which is all of its
+  machinery they use. To be built and tested with bounds [0, 5] with
+  the other parked items.
 - [x] 9. Null-move pruning, with its guards (not in check, not in a pawn
   endgame, a verification where zugzwang threatens). Built before item
   8: it does not need principal variation search, and it is the largest
@@ -1081,7 +1090,11 @@ the reductions.
   2 + depth / 4, only with the evaluation at or above beta, verified
   with one piece left. SPRT [0, 10]: H1 accepted in 198 games (run
   `023be622299e`).
-- [ ] 10. Late move reductions. SPRT.
+- [x] 10. Late move reductions: quiet moves from the fourth on, from
+  depth 3, by `0.75 + ln(depth) * ln(move) / 2.25` plies; without
+  principal variation search (see item 8) and without history (see
+  item 7). SPRT: awaited; if it does not show a gain, its commit is
+  reverted.
 - [ ] 11. Aspiration windows at the root. SPRT.
 - [ ] 12. Check extensions. SPRT.
 - [ ] 13. Reverse futility pruning. SPRT.

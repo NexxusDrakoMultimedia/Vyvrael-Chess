@@ -107,6 +107,13 @@ pub struct Search<'a> {
     /// What null-move pruning did in this search. Not part of the
     /// statistics that are shown; the tests read it.
     nulls: NullCounts,
+    /// Whether late moves are searched less deep. Always true outside
+    /// the tests, which compare the search with and without it.
+    reductions: bool,
+    /// How many moves were searched reduced in this search, and how many
+    /// of them had to be searched again in full. For the tests, like
+    /// `nulls`.
+    reduced: (u64, u64),
 }
 
 /// Counts of null-move pruning in one search.
@@ -121,6 +128,36 @@ struct NullCounts {
     verified: u64,
     /// Nodes cut off in the end.
     cutoffs: u64,
+}
+
+/// A move is reduced from this depth up: below it there is nothing to
+/// take off without falling into quiescence search.
+const LMR_MIN_DEPTH: u32 = 3;
+
+/// The first moves of a position are never reduced: this many are
+/// searched in full before any is.
+const LMR_FULL_MOVES: u32 = 3;
+
+/// The natural logarithm of 1 to 63, times 1,000 and rounded. A table of
+/// whole numbers and not a call of `ln`, so that the reductions, and with
+/// them every node count, are the same on every machine.
+const LN_THOUSANDTHS: [u32; 63] = [
+    0, 693, 1099, 1386, 1609, 1792, 1946, 2079, 2197, 2303, 2398, 2485, 2565, 2639, 2708, 2773,
+    2833, 2890, 2944, 2996, 3045, 3091, 3135, 3178, 3219, 3258, 3296, 3332, 3367, 3401, 3434, 3466,
+    3497, 3526, 3555, 3584, 3611, 3638, 3664, 3689, 3714, 3738, 3761, 3784, 3807, 3829, 3850, 3871,
+    3892, 3912, 3932, 3951, 3970, 3989, 4007, 4025, 4043, 4060, 4078, 4094, 4111, 4127, 4143,
+];
+
+/// How many plies less a late quiet move is searched: the move that is
+/// tried after `searched` others, at `depth`. It is
+/// `0.75 + ln(depth) * ln(searched) / 2.25`, rounded down: one ply for
+/// the first late moves at low depth, more the later the move and the
+/// deeper the search, since both make it likelier that the move changes
+/// nothing. Always at least one ply is left to search.
+fn late_move_reduction(depth: u32, searched: u32) -> u32 {
+    let ln = |n: u32| LN_THOUSANDTHS[n.clamp(1, 63) as usize - 1];
+    let reduction = (1_687_500 + ln(depth) * ln(searched)) / 2_250_000;
+    reduction.min(depth.saturating_sub(2))
 }
 
 /// A null move is tried from this depth up. Below it the reduced search
@@ -208,6 +245,8 @@ impl<'a> Search<'a> {
             no_null: vec![false; MAX_PLY + 2],
             null_moves: true,
             nulls: NullCounts::default(),
+            reductions: true,
+            reduced: (0, 0),
         }
     }
 
@@ -393,6 +432,7 @@ impl<'a> Search<'a> {
         self.killers.fill(Killers::NONE);
         self.no_null.fill(false);
         self.nulls = NullCounts::default();
+        self.reduced = (0, 0);
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -626,6 +666,9 @@ impl<'a> Search<'a> {
         // `ordering.rs`.
         let killers = self.killers[ply];
         let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, killers);
+        // Late moves may be reduced, but not to get out of a check.
+        let may_reduce = self.reductions && depth >= LMR_MIN_DEPTH && !pos.in_check();
+        let mut searched = 0;
         for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
@@ -636,7 +679,14 @@ impl<'a> Search<'a> {
             }
             let first = !any_legal;
             any_legal = true;
-            let score = -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha);
+            let reduce =
+                may_reduce && searched >= LMR_FULL_MOVES && is_quiet(pos, mv) && !next.in_check();
+            let score = if reduce {
+                self.search_reduced(&next, depth, ply, alpha, beta, searched)
+            } else {
+                -self.negamax(&next, depth - 1, ply + 1, -beta, -alpha)
+            };
+            searched += 1;
             self.keys.pop();
             if self.stopped {
                 return DRAW;
@@ -684,6 +734,45 @@ impl<'a> Search<'a> {
 }
 
 impl Search<'_> {
+    /// Late move reductions: the value, for the side that moved, of the
+    /// position `next` after a late quiet move, searched less deep than
+    /// the `depth - 1` plies an early move gets (see
+    /// [`late_move_reduction`]).
+    ///
+    /// The moves are tried best first as far as the search can tell: the
+    /// table's move, the captures that win, the killers. A quiet move that
+    /// comes after `searched` others is unlikely to be the best, so it is
+    /// first only asked, at reduced depth and with a window of one point,
+    /// whether it beats alpha. Usually it does not and the rest of its
+    /// subtree is saved. If it does, the doubt was wrong and the move is
+    /// searched again at full depth with the whole window, so a good late
+    /// move costs time but is not missed for being late.
+    ///
+    /// The caller does not reduce captures and promotions, moves that
+    /// give check, moves out of check, the first moves of a position, or
+    /// anything at low depth.
+    fn search_reduced(
+        &mut self,
+        next: &Position,
+        depth: u32,
+        ply: usize,
+        alpha: Score,
+        beta: Score,
+        searched: u32,
+    ) -> Score {
+        let reduction = late_move_reduction(depth, searched);
+        if reduction > 0 {
+            self.reduced.0 += 1;
+            let shallow = depth - 1 - reduction;
+            let score = -self.negamax(next, shallow, ply + 1, -alpha - 1, -alpha);
+            if self.stopped || score <= alpha {
+                return score;
+            }
+            self.reduced.1 += 1;
+        }
+        -self.negamax(next, depth - 1, ply + 1, -beta, -alpha)
+    }
+
     /// Whether a null move may be tried in `pos`: see
     /// [`Search::null_move_cutoff`] for what each condition is for.
     fn null_move_applies(&self, pos: &Position, depth: u32, ply: usize, beta: Score) -> bool {
@@ -2016,10 +2105,13 @@ mod tests {
         assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
     }
 
-    /// A fixed-depth search with and without null-move pruning.
+    /// A fixed-depth search with and without null-move pruning, both
+    /// without late move reductions, so that null moves are measured by
+    /// themselves.
     fn with_and_without_null_moves(text: &str, depth: u32) -> [(Outcome, u64, NullCounts); 2] {
         [true, false].map(|null_moves| {
             let mut searcher = Search::new(&HandCrafted);
+            searcher.reductions = false;
             searcher.null_moves = null_moves;
             let outcome = searcher.fixed_depth(&fen(text), depth);
             (outcome, searcher.nodes(), searcher.nulls)
@@ -2091,6 +2183,95 @@ mod tests {
             ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
         ] {
             let [(with, _, _), (without, _, _)] = with_and_without_null_moves(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    #[test]
+    fn late_moves_are_reduced_more_the_later_and_the_deeper() {
+        // The formula, at a few points worked out by hand.
+        assert_eq!(late_move_reduction(3, 3), 1);
+        assert_eq!(late_move_reduction(4, 10), 2);
+        assert_eq!(late_move_reduction(6, 6), 2);
+        assert_eq!(late_move_reduction(8, 4), 2);
+        assert_eq!(late_move_reduction(10, 10), 3);
+        assert_eq!(late_move_reduction(16, 40), 5);
+        assert_eq!(late_move_reduction(32, 40), 6);
+        // Never less the later the move or the deeper the search, always
+        // something from the first late move on, and always a ply left.
+        for depth in LMR_MIN_DEPTH..=MAX_PLY as u32 {
+            for searched in LMR_FULL_MOVES..=250 {
+                let reduction = late_move_reduction(depth, searched);
+                assert!(reduction >= 1, "{depth} {searched}");
+                assert!(depth - 1 - reduction >= 1, "{depth} {searched}");
+                assert!(reduction >= late_move_reduction(depth, searched - 1));
+                assert!(reduction >= late_move_reduction(depth - 1, searched).min(depth - 3));
+            }
+        }
+        // Past the end of the table the last entry counts.
+        assert_eq!(late_move_reduction(63, 63), late_move_reduction(200, 200));
+        // Too shallow to take anything off.
+        assert_eq!(late_move_reduction(2, 30), 0);
+        assert_eq!(late_move_reduction(1, 30), 0);
+        // The table is the logarithm it says it is.
+        for (index, &entry) in LN_THOUSANDTHS.iter().enumerate() {
+            let exact = (f64::from(index as u32 + 1).ln() * 1_000.0).round();
+            assert!((f64::from(entry) - exact).abs() <= 1.0, "{index}");
+        }
+    }
+
+    /// A fixed-depth search with and without late move reductions, both
+    /// without null moves: the outcome, the nodes, and the moves reduced
+    /// and searched again.
+    fn with_and_without_reductions(text: &str, depth: u32) -> [(Outcome, u64, (u64, u64)); 2] {
+        [true, false].map(|reductions| {
+            let mut searcher = Search::new(&HandCrafted);
+            searcher.null_moves = false;
+            searcher.reductions = reductions;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.reduced)
+        })
+    }
+
+    /// Late move reductions save a large part of the work, and only some
+    /// of the reduced moves have to be searched again.
+    #[test]
+    fn late_move_reductions_save_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 6),
+            (KIWIPETE, 5),
+            (ROOK_ENDGAME, 7),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                5,
+            ),
+        ] {
+            let [(with, fewer, (reduced, again)), (without, nodes, none)] =
+                with_and_without_reductions(text, depth);
+            assert_eq!(none, (0, 0), "{text}");
+            assert!(reduced > 0, "{text}");
+            assert!(again * 2 < reduced, "{text}: {again} of {reduced}");
+            assert!(
+                fewer * 4 < nodes * 3,
+                "{text}: {fewer} with, {nodes} without"
+            );
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// Mates are found with the same score and move: the moves that give
+    /// check, and the moves out of check, are never reduced.
+    #[test]
+    fn late_move_reductions_do_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_reductions(text, depth);
             assert!(crate::search::is_mate_score(without.score), "{text}");
             assert_eq!(with.score, without.score, "{text}");
             assert_eq!(with.best_move, without.best_move, "{text}");
@@ -2193,14 +2374,18 @@ mod tests {
     }
 
     /// A search with a table and one without, each iterating to `depth`.
+    /// Both are exact searches, without null moves and reductions: only
+    /// of an exact search can it be asked that a table changes no answer.
     fn with_and_without_a_table(text: &str, depth: u32) -> ((Outcome, u64), (Outcome, u64)) {
         let pos = fen(text);
         let mut table = TranspositionTable::new(1).unwrap();
         let mut helped = Search::new(&HandCrafted)
             .with_limits(Limits::depth(depth))
             .with_table(&mut table);
+        (helped.null_moves, helped.reductions) = (false, false);
         let with = (helped.iterate(&pos, &mut |_| {}), helped.nodes());
         let mut plain = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
+        (plain.null_moves, plain.reductions) = (false, false);
         let without = (plain.iterate(&pos, &mut |_| {}), plain.nodes());
         (with, without)
     }

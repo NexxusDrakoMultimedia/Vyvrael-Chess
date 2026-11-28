@@ -135,12 +135,16 @@ mod tests {
 
     /// The hash size reaches the tables: the default size is the plain
     /// bench, a table of one slot remembers next to nothing and so visits
-    /// more, and a size no machine has is an answer.
+    /// more, and a size no machine has is an answer. (Depth 5, not the
+    /// default 4: since the search reduces late moves, what it visits at
+    /// low depth depends on the table in more ways than how much is
+    /// remembered, and at depth 4 the one slot happens to visit a little
+    /// less. From depth 5 it visits far more.)
     #[test]
     fn the_hash_size_is_used() {
-        let plain = bench(4).nodes;
-        assert_eq!(bench_with_hash(4, HASH_DEFAULT).unwrap().nodes, plain);
-        assert!(bench_with_hash(4, 0).unwrap().nodes > plain);
+        let plain = bench(5).nodes;
+        assert_eq!(bench_with_hash(5, HASH_DEFAULT).unwrap().nodes, plain);
+        assert!(bench_with_hash(5, 0).unwrap().nodes > plain);
         assert_eq!(bench_with_hash(1, u32::MAX), None);
     }
 

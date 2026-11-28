@@ -25,7 +25,7 @@ const PINS: [(&str, u32, i32, u64, &str); 7] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         4,
         0,
-        4_106,
+        2_419,
         "d2d4 d7d5 b1c3 b8c6",
     ),
     (
@@ -39,7 +39,7 @@ const PINS: [(&str, u32, i32, u64, &str); 7] = [
         "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
         5,
         107,
-        4_876,
+        3_152,
         "b4f4 h4g3 f4f7 c7c6 f7g7",
     ),
     (
@@ -66,9 +66,9 @@ const PINS: [(&str, u32, i32, u64, &str); 7] = [
     (
         "4k3/8/3p4/4p3/8/8/4Q3/4K3 w - - 0 1",
         4,
-        683,
-        3_642,
-        "e1d2 e8e7 e2e4 e7e6",
+        689,
+        3_551,
+        "e2g4 e8e7 g4f5 e7d8",
     ),
 ];
 

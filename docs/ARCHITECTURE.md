@@ -508,6 +508,28 @@ transposition table, pruning) come in milestone 7, one at a time.
     A mate score found behind a null move is not passed on: the cutoff
     is then worth beta. The cutoff goes into the table as a lower
     bound. `bench 7` counts 1,026,110 nodes with it, from 4,598,039.
+  - **Late move reductions** (`search_reduced` and
+    `late_move_reduction` in `negamax.rs`, since milestone 7). The
+    moves of a position are tried best first as far as the search can
+    tell, so a quiet move far down the list is unlikely to be the best.
+    Such a move is first searched less deep, with a window of one point
+    at alpha: "does it beat what there is?". Usually it does not, and
+    the rest of its subtree is saved. If it does, it is searched again
+    at full depth with the whole window, so a good late move costs time
+    but is not missed.
+    - The reduction is `0.75 + ln(depth) * ln(moves before it) / 2.25`
+      plies, rounded down, and at least one ply is always left: one ply
+      for the first late moves at low depth, three for the tenth move
+      at depth 10. The logarithms come from a table of whole numbers
+      (`LN_THOUSANDTHS`) and not from `ln`, so that the node counts are
+      the same on every machine.
+    - Not reduced: the first three moves of a position, captures and
+      promotions, moves that give check, any move when the side to move
+      is in check, anything below depth 3, and the root's moves.
+    - Like null-move pruning it is not exact, and it changed the first
+      pinned score (see "Search regression pins" in TESTING.md).
+    `bench 8` counts 689,789 nodes with it, from 3,030,504; a depth-10
+    search of the start position 210,921, from 1,450,092.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.

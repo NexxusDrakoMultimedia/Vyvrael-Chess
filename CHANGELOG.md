@@ -37,6 +37,14 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **Late move reductions** (milestone 7, item 10): a quiet move that
+  comes late in a position's list is first searched less deep, and
+  searched again in full only if it turns out better than expected. Not
+  for captures, promotions, checks, moves out of check or the first
+  three moves. The bench counts 41,161 nodes, from 51,272, and at depth
+  8 689,789, from 3,030,504. One pinned score changes (queen against
+  two pawns at depth 4: +689, from +683). SPRT against the search
+  before it: see `docs/testing/sprt-history.md`.
 - **Null-move pruning** (milestone 7, item 9): where the side to move
   already stands at or above beta, the search first lets it pass and
   looks shallower; if the opponent cannot bring the score below beta
