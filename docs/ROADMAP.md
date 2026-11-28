@@ -1101,8 +1101,8 @@ the reductions.
   among the items not yet built. With it the verification of a null
   move was made to search real moves (`d36ea97`): reverse
   futility pruning could answer that search from the evaluation alone.
-  SPRT, of both together: awaited; if it does not show a gain, both
-  commits are reverted.
+  SPRT [0, 5], of both together: H1 accepted in 698 games (run
+  `25da9526092d`).
 - [ ] 14. Internal iterative reduction. SPRT. Deferred (see below).
 - [ ] 15. The countermove heuristic. SPRT. Deferred (see below).
 - [ ] 16. Continuation history. SPRT. Deferred (see below).
