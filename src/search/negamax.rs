@@ -74,6 +74,9 @@ pub struct Search<'a> {
     /// that move followed by its child's line.
     pv: Vec<Vec<Move>>,
     limits: Limits,
+    /// The only moves searched at the root, if any are named (see
+    /// [`Search::with_root_moves`]); empty for all of them.
+    root_moves: Vec<Move>,
     /// Set from outside (another thread) to end the search early.
     stop_flag: Option<&'a AtomicBool>,
     /// Latched once any limit is hit: from then on every node returns at
@@ -249,6 +252,7 @@ impl<'a> Search<'a> {
             // One line per ply, plus one for the child of the deepest node.
             pv: vec![Vec::new(); MAX_PLY + 2],
             limits: Limits::NONE,
+            root_moves: Vec::new(),
             stop_flag: None,
             stopped: false,
             shield: Shield::Nothing,
@@ -280,6 +284,19 @@ impl<'a> Search<'a> {
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Search<'a> {
         self.limits = limits;
+        self
+    }
+
+    /// Restricts the search to these moves of the position searched (UCI
+    /// `searchmoves`): the outcome is the best of them, and the others are
+    /// not looked at. An empty list restricts nothing.
+    ///
+    /// The moves must be legal in that position. A restricted search does
+    /// not record the root in the table, where its result would pass for
+    /// the value of the position.
+    #[must_use]
+    pub fn with_root_moves(mut self, moves: &[Move]) -> Search<'a> {
+        self.root_moves = moves.to_vec();
         self
     }
 
@@ -547,7 +564,11 @@ impl<'a> Search<'a> {
             .and_then(|known| known.best);
         // No killer moves at the root: nothing cuts off there.
         let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, Killers::NONE);
+        let restricted = !self.root_moves.is_empty();
         for &mv in &moves {
+            if restricted && !self.root_moves.contains(&mv) {
+                continue;
+            }
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -579,7 +600,7 @@ impl<'a> Search<'a> {
         // Remember the root's best move for the next iteration and the next
         // search of the game. Not after a stop: the move may be the best
         // of only the moves that were searched.
-        if let (Some(table), false) = (self.table.as_deref_mut(), self.stopped)
+        if let (Some(table), false) = (self.table.as_deref_mut(), self.stopped || restricted)
             && best_move.is_some()
         {
             table.store(key, 0, depth, alpha, Bound::Exact, best_move);
@@ -2408,6 +2429,61 @@ mod tests {
             assert_eq!(with.score, without.score, "{text}");
             assert_eq!(with.best_move, without.best_move, "{text}");
         }
+    }
+
+    /// With root moves named, the search answers with the best of them
+    /// and its value, looks at no other, and leaves the root out of the
+    /// table.
+    #[test]
+    fn a_search_can_be_restricted_to_some_root_moves() {
+        // The queen can be taken; restricted to two quiet moves, the
+        // search must make do with the better of those.
+        let pos = fen("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
+        let free = search("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1", 3);
+        assert_eq!(free.best_move.unwrap().to_string(), "d1d5");
+        let named: Vec<Move> = legal_moves(&pos)
+            .iter()
+            .copied()
+            .filter(|mv| ["e1e2", "d1a1"].contains(&mv.to_string().as_str()))
+            .collect();
+        assert_eq!(named.len(), 2);
+        // What each is worth by itself.
+        let worth = |mv: Move| {
+            let mut next = pos.clone();
+            let _undo = next.make_move(mv);
+            let mut child = Search::new(&HandCrafted);
+            child.keys.push(pos.hash());
+            -child.negamax(&next, 2, 1, -INFINITY, INFINITY)
+        };
+        let best = named.iter().copied().max_by_key(|&mv| worth(mv)).unwrap();
+
+        let mut table = TranspositionTable::new(1).unwrap();
+        let mut searcher = Search::new(&HandCrafted)
+            .with_root_moves(&named)
+            .with_table(&mut table);
+        let outcome = searcher.fixed_depth(&pos, 3);
+        assert_eq!(outcome.best_move, Some(best));
+        assert_eq!(outcome.score, worth(best));
+        assert!(outcome.score < free.score);
+        assert_eq!(outcome.pv.first(), Some(&best));
+        drop(searcher);
+        assert_eq!(table.probe(pos.hash(), 0), None, "the root is not recorded");
+        // One move named: that move, whatever it is worth.
+        let only = [named[0]];
+        let mut searcher = Search::new(&HandCrafted).with_root_moves(&only);
+        assert_eq!(searcher.fixed_depth(&pos, 2).best_move, Some(named[0]));
+        // Iterating, every depth answers within the list.
+        let mut searcher = Search::new(&HandCrafted)
+            .with_root_moves(&named)
+            .with_limits(Limits::depth(4));
+        let mut firsts = Vec::new();
+        let outcome = searcher.iterate(&pos, &mut |report| firsts.push(report.pv[0]));
+        assert_eq!(firsts.len(), 4);
+        assert!(firsts.iter().all(|mv| named.contains(mv)));
+        assert!(named.contains(&outcome.best_move.unwrap()));
+        // No list is no restriction.
+        let mut searcher = Search::new(&HandCrafted).with_root_moves(&[]);
+        assert_eq!(searcher.fixed_depth(&pos, 3), free);
     }
 
     /// The statistics in cases small enough to check by hand.

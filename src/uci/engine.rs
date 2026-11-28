@@ -20,7 +20,7 @@ use super::{
     Button, Command, GoParams, HASH_DEFAULT, Options, bestmove_line, info_line, limits_for, parse,
 };
 use crate::attacks::rook_attacks;
-use crate::board::{Bitboard, Position, Square};
+use crate::board::{Bitboard, Move, Position, Square};
 use crate::eval::{self, default_evaluator};
 use crate::movegen::find_legal_move;
 use crate::rng::{Rng, entropy_seed, stream};
@@ -364,6 +364,38 @@ impl Engine {
         }
     }
 
+    /// The moves a `go searchmoves` restricts the search to: those of the
+    /// words sent that are legal moves of the position. Each word that is
+    /// not is reported and left out. Empty, for a search of every move,
+    /// when none was sent, when none is legal, and when the strength is
+    /// limited (a weakened search chooses among all moves).
+    fn root_moves(&self, words: &[String]) -> Vec<Move> {
+        if words.is_empty() {
+            return Vec::new();
+        }
+        if self.options.limit_strength {
+            self.say("info string go: searchmoves is not used with UCI_LimitStrength");
+            return Vec::new();
+        }
+        let mut moves = Vec::new();
+        for word in words {
+            match find_legal_move(&self.position, word) {
+                Some(mv) => {
+                    if !moves.contains(&mv) {
+                        moves.push(mv);
+                    }
+                }
+                None => self.say(&format!(
+                    "info string go: searchmoves: {word} is not a legal move here; left out"
+                )),
+            }
+        }
+        if moves.is_empty() {
+            self.say("info string go: searchmoves names no legal move; searching all moves");
+        }
+        moves
+    }
+
     fn go(&mut self, params: &GoParams) {
         self.end_search();
         self.fit_table();
@@ -377,6 +409,7 @@ impl Engine {
         );
         // With nothing to end it, a search is `infinite` in all but name.
         let until_stopped = params.infinite || limits == Limits::NONE;
+        let root_moves = self.root_moves(&params.searchmoves);
 
         let out = Arc::clone(&self.out);
         let stop = Arc::clone(&self.stop);
@@ -399,7 +432,10 @@ impl Engine {
         let variety = self.options.variety;
         let show_wdl = self.options.show_wdl;
         let search_stats = self.options.search_stats;
-        let varying = !self.options.limit_strength && variety_applies(&self.position, variety);
+        // Not with `searchmoves`: a varied move is chosen among all moves.
+        let varying = !self.options.limit_strength
+            && root_moves.is_empty()
+            && variety_applies(&self.position, variety);
         let (search_limits, check_limits) = if varying {
             split_limits(limits, Instant::now())
         } else {
@@ -414,6 +450,7 @@ impl Engine {
                     let mut search = Search::new(evaluator.as_ref())
                         .with_history(&history)
                         .with_limits(search_limits)
+                        .with_root_moves(&root_moves)
                         .with_stop_flag(&stop)
                         .with_table(&mut table);
                     let started = Instant::now();
@@ -1704,6 +1741,86 @@ mod tests {
         // Proven at depth 3, where the search stops by itself.
         assert_eq!(lines.len(), 4, "{lines:?}");
         assert!(lines[2].starts_with("info depth 3 seldepth 4 score mate 2 "));
+    }
+
+    /// `go searchmoves` restricts the search to the moves named: the
+    /// answer and every line shown start with one of them.
+    #[test]
+    fn searchmoves_restricts_the_search() {
+        let free = session(&["go depth 3"]);
+        assert_eq!(free.last().unwrap(), "bestmove d2d4");
+        let lines = session(&["go depth 3 searchmoves a2a3 h2h4"]);
+        assert_eq!(lines.len(), 4, "{lines:?}");
+        let best = lines.last().unwrap().strip_prefix("bestmove ").unwrap();
+        assert!(["a2a3", "h2h4"].contains(&best), "{best}");
+        for line in &lines[..3] {
+            let first = line
+                .split(" pv ")
+                .nth(1)
+                .unwrap()
+                .split(' ')
+                .next()
+                .unwrap();
+            assert!(["a2a3", "h2h4"].contains(&first), "{line}");
+        }
+        // One move: that move. The order of the parameters does not matter.
+        let one = session(&["go searchmoves g1f3 depth 2"]);
+        assert_eq!(one.last().unwrap(), "bestmove g1f3");
+        // The next search is not restricted any more.
+        let again = session(&["go searchmoves a2a3 depth 2", "go depth 3"]);
+        assert_eq!(again.last().unwrap(), "bestmove d2d4");
+    }
+
+    /// A word of `searchmoves` that is no legal move is reported and left
+    /// out; if none is left, every move is searched.
+    #[test]
+    fn searchmoves_that_are_not_legal_are_reported() {
+        let lines = session(&["go depth 2 searchmoves e2e5 a2a3 xyz a2a3"]);
+        assert_eq!(
+            lines[..2],
+            [
+                "info string go: searchmoves: e2e5 is not a legal move here; left out",
+                "info string go: searchmoves: xyz is not a legal move here; left out",
+            ]
+        );
+        assert_eq!(lines.last().unwrap(), "bestmove a2a3");
+        let none = session(&["go depth 2 searchmoves e7e5"]);
+        assert_eq!(
+            none[..2],
+            [
+                "info string go: searchmoves: e7e5 is not a legal move here; left out",
+                "info string go: searchmoves names no legal move; searching all moves",
+            ]
+        );
+        assert_eq!(none.last().unwrap(), "bestmove d2d4");
+        // A move that is illegal only because it leaves the king in check.
+        let pinned = session(&[
+            "position fen 4k3/4r3/8/8/8/8/4N3/4K3 w - - 0 1",
+            "go depth 2 searchmoves e2c3 e1d1",
+        ]);
+        assert!(
+            pinned[0].contains("e2c3 is not a legal move here"),
+            "{pinned:?}"
+        );
+        assert_eq!(pinned.last().unwrap(), "bestmove e1d1");
+    }
+
+    /// A weakened search chooses among all moves and says so.
+    #[test]
+    fn searchmoves_is_not_used_with_limited_strength() {
+        let lines = session(&[
+            "setoption name UCI_LimitStrength value true",
+            "setoption name Seed value 7",
+            "ucinewgame",
+            "go depth 2 searchmoves a2a3",
+        ]);
+        assert!(
+            lines.contains(
+                &"info string go: searchmoves is not used with UCI_LimitStrength".to_string()
+            ),
+            "{lines:?}"
+        );
+        assert!(lines.last().unwrap().starts_with("bestmove "));
     }
 
     #[test]

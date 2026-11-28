@@ -256,6 +256,31 @@ fn bad_input_is_survived() {
     assert!(stderr.is_empty(), "{stderr}");
 }
 
+/// `go searchmoves` over the real pipes: the answer is one of the moves
+/// named, and a word that is no legal move is reported.
+#[test]
+fn searchmoves_restricts_the_answer() {
+    let mut engine = Engine::start();
+    engine.send("position startpos moves e2e4");
+    engine.send("go depth 3 searchmoves a7a6 e2e4 h7h5");
+    let lines = engine.lines_until("bestmove");
+    assert_eq!(
+        lines[0],
+        "info string go: searchmoves: e2e4 is not a legal move here; left out"
+    );
+    let best = lines.last().unwrap().strip_prefix("bestmove ").unwrap();
+    assert!(["a7a6", "h7h5"].contains(&best), "{lines:?}");
+    // Without the restriction it plays something else.
+    engine.send("go depth 3");
+    let free = engine.lines_until("bestmove").pop().unwrap();
+    assert!(
+        !["bestmove a7a6", "bestmove h7h5"].contains(&free.as_str()),
+        "{free}"
+    );
+    engine.send("quit");
+    assert!(engine.finish().0);
+}
+
 #[test]
 fn with_arguments_it_is_not_a_uci_engine() {
     let output = Command::new(env!("CARGO_BIN_EXE_vyvrael"))

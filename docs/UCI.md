@@ -112,7 +112,8 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
 | `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
-| `ponder`, `searchmoves`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
+| `searchmoves` | implemented | Search only the moves that follow, up to the next parameter: `go depth 12 searchmoves e2e4 d2d4`. The answer is the best of them. A word that is not a legal move of the position is reported with `info string` and left out; if none is left, every move is searched. A restricted search does not record the position's result in the hash table, where it would pass for the result of all moves. Not used with `UCI_LimitStrength` (said with `info string`), and `Variety` does not apply to a restricted search. |
+| `ponder`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
 
 Several limits may be combined; the search stops at whichever comes first.
 

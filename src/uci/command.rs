@@ -9,7 +9,7 @@
 
 /// The limits a `go` command sets. Times are in milliseconds, as the
 /// protocol sends them. Anything not sent is `None`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GoParams {
     /// White's remaining time.
     pub wtime: Option<u64>,
@@ -29,6 +29,9 @@ pub struct GoParams {
     pub movetime: Option<u64>,
     /// Search until told to stop.
     pub infinite: bool,
+    /// Search only these moves of the position, as sent (`searchmoves`).
+    /// Empty when the parameter was not given: every move is searched.
+    pub searchmoves: Vec<String>,
 }
 
 /// One command from the GUI.
@@ -133,6 +136,23 @@ fn parse_position(words: &[&str]) -> Command {
     }
 }
 
+/// The words that begin a parameter of `go`. A list of `searchmoves` ends
+/// at the next of them.
+const GO_WORDS: [&str; 12] = [
+    "searchmoves",
+    "ponder",
+    "wtime",
+    "btime",
+    "winc",
+    "binc",
+    "movestogo",
+    "depth",
+    "nodes",
+    "mate",
+    "movetime",
+    "infinite",
+];
+
 fn parse_go(words: &[&str]) -> GoParams {
     /// A number for a `go` parameter. GUIs send negative clock times when a
     /// flag has fallen; those count as zero.
@@ -157,6 +177,16 @@ fn parse_go(words: &[&str]) -> GoParams {
             "movetime" => set(&mut params.movetime, number(value)),
             "infinite" => {
                 params.infinite = true;
+                false
+            }
+            "searchmoves" => {
+                // Every word up to the next parameter is one of the moves.
+                while let Some(word) = words.get(index + 1)
+                    && !GO_WORDS.contains(word)
+                {
+                    params.searchmoves.push((*word).to_string());
+                    index += 1;
+                }
                 false
             }
             _ => false,
@@ -375,16 +405,38 @@ mod tests {
     }
 
     #[test]
-    fn go_ignores_what_it_does_not_know() {
-        // Not offered: pondering, restricting the moves, mate search.
-        assert_eq!(go("go ponder depth 4").depth, Some(4));
+    fn go_reads_the_moves_to_search() {
+        let moves = |line: &str| go(line).searchmoves;
+        assert!(moves("go depth 4").is_empty());
+        assert_eq!(moves("go searchmoves e2e4 d2d4"), ["e2e4", "d2d4"]);
+        // The list ends at the next parameter, wherever it stands.
         assert_eq!(
             go("go searchmoves e2e4 d2d4 depth 4"),
             GoParams {
                 depth: Some(4),
+                searchmoves: vec!["e2e4".to_string(), "d2d4".to_string()],
                 ..GoParams::default()
             }
         );
+        let mixed = go("go wtime 1000 searchmoves a7a8q infinite");
+        assert_eq!(mixed.searchmoves, ["a7a8q"]);
+        assert!(mixed.infinite && mixed.wtime == Some(1000));
+        // Whatever stands there is kept as sent: the engine checks it
+        // against the position. An empty list is no list.
+        assert_eq!(moves("go searchmoves e2e4 nonsense"), ["e2e4", "nonsense"]);
+        assert!(moves("go searchmoves depth 2").is_empty());
+        assert!(moves("go searchmoves").is_empty());
+        // Given twice, the lists add up.
+        assert_eq!(
+            moves("go searchmoves a2a3 depth 1 searchmoves b2b3"),
+            ["a2a3", "b2b3"]
+        );
+    }
+
+    #[test]
+    fn go_ignores_what_it_does_not_know() {
+        // Not offered: pondering, mate search.
+        assert_eq!(go("go ponder depth 4").depth, Some(4));
         assert_eq!(go("go mate 3"), GoParams::default());
         // A parameter without a usable value is skipped, and what follows
         // it is still read.

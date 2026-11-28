@@ -37,6 +37,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **`go searchmoves`** (milestone 7, item 18): the search can be
+  restricted to some moves of the position, as analysis GUIs ask. Words
+  that are no legal moves are reported and left out. Full-strength play
+  is unchanged (the bench still counts 28,175 nodes).
 - **Reverse futility pruning** (milestone 7, item 13): up to six plies
   from the horizon, a position whose evaluation is at least a pawn above
   beta for every ply left is cut off without being searched. Not in
