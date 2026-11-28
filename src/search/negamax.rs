@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use super::ordering::{Killers, captures_first, is_quiet, loses_material, table_move_first};
 use super::{
-    Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
+    Bound, DRAW, INFINITY, Limits, MATE, MATE_BOUND, MAX_PLY, SearchStats, TranspositionTable,
     fifty_moves_reached, insufficient_material, is_repetition, mated_in,
 };
 use crate::attacks::knight_attacks;
@@ -97,6 +97,57 @@ pub struct Search<'a> {
     /// that last cut off the search at ply `p`. They last for one search,
     /// through all its iterations, and start empty in the next.
     killers: Vec<Killers>,
+    /// `no_null[p]` is set while the position at ply `p` must not try a
+    /// null move: it was reached by one, or it is being searched to verify
+    /// one.
+    no_null: Vec<bool>,
+    /// Whether null-move pruning is used at all. Always true outside the
+    /// tests, which compare the search with and without it.
+    null_moves: bool,
+    /// What null-move pruning did in this search. Not part of the
+    /// statistics that are shown; the tests read it.
+    nulls: NullCounts,
+}
+
+/// Counts of null-move pruning in one search.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NullCounts {
+    /// Null moves searched.
+    tried: u64,
+    /// Those whose reduced search came back at or above beta.
+    failed_high: u64,
+    /// Of those, the ones checked by a search without the null move
+    /// because the side to move had a single piece left.
+    verified: u64,
+    /// Nodes cut off in the end.
+    cutoffs: u64,
+}
+
+/// A null move is tried from this depth up. Below it the reduced search
+/// would be a quiescence search of a position hardly different from the
+/// one whose evaluation already said "at least beta".
+const NULL_MIN_DEPTH: u32 = 3;
+
+/// How much shallower the search after a null move is than the search of
+/// a real move would be, at `depth`: two plies, and one more for every
+/// four plies of depth. The deeper the search, the more it can afford to
+/// take on trust.
+const fn null_reduction(depth: u32) -> u32 {
+    2 + depth / 4
+}
+
+/// The pieces of the side to move that are not pawns or the king.
+fn pieces_of_mover(pos: &Position) -> u32 {
+    let side = pos.side_to_move();
+    [
+        PieceKind::Knight,
+        PieceKind::Bishop,
+        PieceKind::Rook,
+        PieceKind::Queen,
+    ]
+    .iter()
+    .map(|&kind| pos.pieces_of(side, kind).count())
+    .sum()
 }
 
 /// Which limits the search does not look at for the moment. The first
@@ -154,6 +205,9 @@ impl<'a> Search<'a> {
             stats: SearchStats::ZERO,
             table: None,
             killers: vec![Killers::NONE; MAX_PLY],
+            no_null: vec![false; MAX_PLY + 2],
+            null_moves: true,
+            nulls: NullCounts::default(),
         }
     }
 
@@ -337,6 +391,8 @@ impl<'a> Search<'a> {
         self.seldepth = 0;
         self.stats = SearchStats::ZERO;
         self.killers.fill(Killers::NONE);
+        self.no_null.fill(false);
+        self.nulls = NullCounts::default();
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -551,6 +607,16 @@ impl<'a> Search<'a> {
             }
         }
 
+        if let Some(score) = self.null_move_cutoff(pos, depth, ply, beta) {
+            if let Some(table) = self.table.as_deref_mut() {
+                table.store(key, ply, depth, score, Bound::Lower, table_move);
+            }
+            return score;
+        }
+        if self.stopped {
+            return DRAW;
+        }
+
         let alpha_at_first = alpha;
         let mut best = -INFINITY;
         let mut best_move = None;
@@ -618,6 +684,80 @@ impl<'a> Search<'a> {
 }
 
 impl Search<'_> {
+    /// Whether a null move may be tried in `pos`: see
+    /// [`Search::null_move_cutoff`] for what each condition is for.
+    fn null_move_applies(&self, pos: &Position, depth: u32, ply: usize, beta: Score) -> bool {
+        self.null_moves
+            && depth >= NULL_MIN_DEPTH
+            && !self.no_null[ply]
+            && beta.abs() < MATE_BOUND
+            && !pos.in_check()
+            && pieces_of_mover(pos) > 0
+            && self.evaluator.evaluate(pos) >= beta
+    }
+
+    /// Null-move pruning: if the side to move could pass and still be at
+    /// least as well off as `beta`, a real move will nearly always do at
+    /// least as well, so the position is not searched. Returns the score
+    /// to cut off with, or `None` to search the position as usual (also
+    /// after a stop: the caller checks `stopped`).
+    ///
+    /// "Could pass" is found out by giving the opponent the move and
+    /// searching [`null_reduction`] plies shallower than usual, with a
+    /// window of one point at beta, since only "at least beta or not" is
+    /// asked. It is the largest saving in the search and the one place
+    /// where it takes something on trust, so it is hedged:
+    ///
+    /// - **Not in check:** passing would leave the king to be taken.
+    /// - **Not when the evaluation is below beta:** a side that stands
+    ///   worse than beta at rest will seldom prove beta by passing.
+    /// - **Not twice running, and not at low depth or with a mate score
+    ///   as beta:** two passes search the same position again shallower,
+    ///   and a mate is not proved by a reduced search.
+    /// - **Not with pawns and king alone.** The reasoning fails exactly in
+    ///   zugzwang, where every move makes things worse and passing would
+    ///   be best, and pawn endgames are full of it.
+    /// - **With one piece left, only after verification.** Zugzwang is
+    ///   still common there, so the fail-high is checked by searching the
+    ///   position itself at the reduced depth with real moves only.
+    fn null_move_cutoff(
+        &mut self,
+        pos: &Position,
+        depth: u32,
+        ply: usize,
+        beta: Score,
+    ) -> Option<Score> {
+        if !self.null_move_applies(pos, depth, ply, beta) {
+            return None;
+        }
+        let reduced = depth.saturating_sub(1 + null_reduction(depth));
+        let mut next = pos.clone();
+        next.make_null_move();
+        self.nulls.tried += 1;
+        self.keys.push(pos.hash());
+        self.no_null[ply + 1] = true;
+        let score = -self.negamax(&next, reduced, ply + 1, -beta, -beta + 1);
+        self.no_null[ply + 1] = false;
+        self.keys.pop();
+        if self.stopped || score < beta {
+            return None;
+        }
+        self.nulls.failed_high += 1;
+        if pieces_of_mover(pos) == 1 {
+            self.nulls.verified += 1;
+            self.no_null[ply] = true;
+            let verified = self.negamax(pos, reduced, ply, beta - 1, beta);
+            self.no_null[ply] = false;
+            if self.stopped || verified < beta {
+                return None;
+            }
+        }
+        self.nulls.cutoffs += 1;
+        // A mate seen behind a null move is not a mate: the opponent did
+        // not really pass.
+        Some(if score >= MATE_BOUND { beta } else { score })
+    }
+
     /// Quiescence search: the value of `pos` once the captures have been
     /// played out, within the window `alpha..beta`.
     ///
@@ -1822,6 +1962,139 @@ mod tests {
         assert_eq!(searcher.killers, first);
         searcher.fixed_depth(&fen(ROOK_ENDGAME), 1);
         assert!(searcher.killers.iter().all(|at| *at == Killers::NONE));
+    }
+
+    #[test]
+    fn the_null_move_reduction_grows_with_depth() {
+        assert_eq!(null_reduction(3), 2);
+        assert_eq!(null_reduction(4), 3);
+        assert_eq!(null_reduction(7), 3);
+        assert_eq!(null_reduction(8), 4);
+        assert_eq!(null_reduction(16), 6);
+    }
+
+    #[test]
+    fn the_pieces_of_the_mover_are_counted_without_pawns_and_king() {
+        let count = |text: &str| pieces_of_mover(&fen(text));
+        assert_eq!(count(crate::board::START_FEN), 7);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/4K3 w - - 0 1"), 0);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/R3K3 w - - 0 1"), 1);
+        assert_eq!(count("4k3/pppp4/8/8/8/8/PPPP4/R3K3 b - - 0 1"), 0);
+        assert_eq!(count("qnb1k3/8/8/8/8/8/8/R3K3 b - - 0 1"), 3);
+    }
+
+    /// Each guard of the null move, one at a time, on a position where
+    /// White is a queen up and a null move is in order.
+    #[test]
+    fn a_null_move_is_tried_only_where_it_is_safe() {
+        let ahead = fen("r3k3/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let stands = HandCrafted.evaluate(&ahead);
+        assert!(stands > 500);
+        assert!(searcher.null_move_applies(&ahead, 3, 1, 0));
+        assert!(searcher.null_move_applies(&ahead, 9, 4, stands));
+        // Too shallow; the evaluation below beta; a mate score as beta.
+        assert!(!searcher.null_move_applies(&ahead, 2, 1, 0));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, stands + 1));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, -MATE_BOUND));
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, -MATE));
+        // Reached by a null move, or being verified.
+        searcher.no_null[1] = true;
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
+        assert!(searcher.null_move_applies(&ahead, 3, 2, 0));
+        searcher.no_null[1] = false;
+        // In check, however far ahead.
+        let checked = fen("4r1k1/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        assert!(checked.in_check());
+        assert!(!searcher.null_move_applies(&checked, 3, 1, 0));
+        // Pawns and king alone, however far ahead.
+        let pawns = fen("4k3/8/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+        assert!(HandCrafted.evaluate(&pawns) > 500);
+        assert!(!searcher.null_move_applies(&pawns, 3, 1, 0));
+        // Switched off.
+        searcher.null_moves = false;
+        assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
+    }
+
+    /// A fixed-depth search with and without null-move pruning.
+    fn with_and_without_null_moves(text: &str, depth: u32) -> [(Outcome, u64, NullCounts); 2] {
+        [true, false].map(|null_moves| {
+            let mut searcher = Search::new(&HandCrafted);
+            searcher.null_moves = null_moves;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.nulls)
+        })
+    }
+
+    /// Null-move pruning saves a large part of the work in ordinary
+    /// positions. It is not exact, so the move and score may differ from
+    /// the search without it; what it costs or gains in play is for its
+    /// SPRT to say.
+    #[test]
+    fn null_moves_save_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                5,
+            ),
+            (
+                "r1bq1rk1/pp2ppbp/2np1np1/8/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 0 9",
+                5,
+            ),
+        ] {
+            let [(with, fewer, nulls), (without, nodes, none)] =
+                with_and_without_null_moves(text, depth);
+            assert_eq!(none, NullCounts::default(), "{text}");
+            assert!(nulls.tried > 0 && nulls.cutoffs > 0, "{text}: {nulls:?}");
+            assert!(nulls.cutoffs <= nulls.failed_high && nulls.failed_high <= nulls.tried);
+            // With every piece on the board nothing needs verifying.
+            assert_eq!(nulls.verified, 0, "{text}");
+            assert!(
+                fewer * 4 < nodes * 3,
+                "{text}: {fewer} with, {nodes} without"
+            );
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// With pawns and kings alone no null move is tried, so the search is
+    /// the same search, node for node; with a single piece, every null
+    /// move that fails high is verified.
+    #[test]
+    fn null_moves_keep_out_of_the_endgames_where_zugzwang_lives() {
+        for text in [
+            "8/8/8/3k4/8/3K4/3P4/8 w - - 0 1",
+            "8/5p2/5k2/8/5K2/8/4P3/8 b - - 0 1",
+            "8/pp3k2/8/8/8/8/PP3K2/8 w - - 0 1",
+        ] {
+            let [(with, nodes, nulls), (without, plain, _)] = with_and_without_null_moves(text, 7);
+            assert_eq!(nulls, NullCounts::default(), "{text}");
+            assert_eq!((with, nodes), (without, plain), "{text}");
+        }
+        // A rook each: the side to move has one piece wherever it is not
+        // the lone king's turn.
+        let [(_, _, nulls), _] = with_and_without_null_moves(ROOK_ENDGAME, 7);
+        assert!(nulls.failed_high > 0, "{nulls:?}");
+        assert_eq!(nulls.verified, nulls.failed_high);
+        assert!(nulls.cutoffs <= nulls.verified);
+    }
+
+    /// Mates are found at the same depth and distance with null moves: a
+    /// mate is never taken from behind a null move.
+    #[test]
+    fn null_moves_do_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_null_moves(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
     }
 
     /// The statistics in cases small enough to check by hand.

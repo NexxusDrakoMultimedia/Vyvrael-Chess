@@ -486,6 +486,28 @@ transposition table, pruning) come in milestone 7, one at a time.
     nothing cuts off there, and neither does quiescence search. From
     the start position at depth 6 the first move tried gives 96.0% of
     the main search's cutoffs with them, from 55.8%.
+  - **Null-move pruning** (`null_move_cutoff` in `negamax.rs`, since
+    milestone 7). Before a position's moves are searched, the search
+    asks what would happen if the side to move passed
+    (`Position::make_null_move`): the opponent gets the move and the
+    position is searched 2 plies shallower than a move would be, and
+    one more for every 4 plies of depth, with a window of one point at
+    beta. If even that comes back at or above beta, the position is cut
+    off there: a real move will nearly always do at least as well as
+    passing. It is the first part of the search that is **not exact**:
+    it can change a score, which the heuristics before it could not.
+    The exception to "at least as well as passing" is zugzwang, so it
+    is hedged:
+    - not in check, not below depth 3, not when beta is a mate score,
+      and not straight after another null move;
+    - only when the static evaluation is already at or above beta;
+    - **not with pawns and king alone**, where zugzwang is common;
+    - **with one piece left, only after verification:** the position
+      is searched at the reduced depth with real moves only, and is cut
+      off only if that too reaches beta.
+    A mate score found behind a null move is not passed on: the cutoff
+    is then worth beta. The cutoff goes into the table as a lower
+    bound. `bench 7` counts 1,026,110 nodes with it, from 4,598,039.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.

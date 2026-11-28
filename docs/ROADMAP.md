@@ -1073,8 +1073,14 @@ variation search, so building it first keeps the reductions' commit to
 the reductions.
 
 - [ ] 8. Principal variation search. SPRT.
-- [ ] 9. Null-move pruning, with its guards (not in check, not in a pawn
-  endgame, a verification where zugzwang threatens). SPRT.
+- [x] 9. Null-move pruning, with its guards (not in check, not in a pawn
+  endgame, a verification where zugzwang threatens). Built before item
+  8: it does not need principal variation search, and it is the largest
+  gain left, where item 8 alone is a small one that bounds of [0, 10]
+  would not settle quickly (see items 4 and 7). From depth 3, reduction
+  2 + depth / 4, only with the evaluation at or above beta, verified
+  with one piece left. SPRT: awaited; if it does not show a gain, its
+  commit is reverted.
 - [ ] 10. Late move reductions. SPRT.
 - [ ] 11. Aspiration windows at the root. SPRT.
 - [ ] 12. Check extensions. SPRT.
