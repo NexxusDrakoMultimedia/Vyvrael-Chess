@@ -1027,6 +1027,13 @@ How every search change is done:
   leaving losing ones out of quiescence. Kept only if its SPRT shows a
   gain. SPRT [0, 10]: H1 accepted in 1,160 games (run `9c8de5ceed4c`).
 - [ ] 4. Delta pruning in quiescence, last of the four, with its own SPRT.
+  **Parked.** Built as `4bfd377` (margin 200, captures that give check
+  exempt; bench 64,509 from 77,407) and reverted in `2bdb660`: its SPRT
+  [0, 10] was undecided at the cap, 3898 - 3748 - 2354 in 10,000 games,
+  LLR 0.229 (run `d35a397d5e43`). The figures point at a gain of about
+  5 Elo, which those bounds cannot settle. To be tested again with
+  bounds [0, 5], against the search as it then is, once the items that
+  use those bounds are reached (item 10 onwards).
 
 **KI-10, once quiescence is pruned:**
 
