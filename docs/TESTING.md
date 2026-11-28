@@ -943,16 +943,44 @@ added to the calibration table by a change that was not committed.
 | `UCI_Elo` calibration, the extension: six gauntlets and six head-to-heads at limited strength, up to six plies (the same section, "The extension") | 2,160 | 0 |
 | Total | 4,532 | 0 |
 
-**Not a build of the final release commit.** Two later commits touch
-the engine's source: `de208ab`, the first refit of `UCI_Elo`, and
+**Those builds are not of the final release commit.** Two later commits
+touch the engine's source: `de208ab`, the first refit of `UCI_Elo`, and
 `5fa73f6`, its extension to six plies. Both change only
 the calibration of `UCI_Elo` (the table, the lookup, the default rating
 and their tests) and nothing else. Full-strength play is the same (the
 bench counts 28,175 nodes before and after each). The thirteen
 weakenings of the final table are the ones these games were played
-with, each under a temporary name or an earlier number. The release
-check with a build of the final commit is still to be run by the
-maintainer; the release notes say so.
+with, each under a temporary name or an earlier number.
+
+**The check with a build of the final source,** run by the maintainer on
+2026-11-28, 14:54 to 15:14 UTC, from the clean commit `6a453c2` on
+`main`: an `avx2` build of that commit, built by hand
+(`vyvrael-0.2.0-avx2-6a453c2.exe`, SHA-256
+`1a667424c30065d1c05f43700717300917a810e001f4ce9225f5cd779ba4fd15`,
+bench 28,175 nodes), named `Vyvrael 0.2.0-rc` in the games so that they
+are not taken for the measured build's. No commit after `6a453c2`
+touches the engine's source. At 10+0.1 with Ladder Baseline 3's
+settings, `-Deterministic`, six games at a time:
+
+| Run | Games | Illegal moves, crashes, stalls, time losses |
+| --- | --: | --: |
+| Self-play, the build under two names (`-Seed 20261201`) | 40 | 0 |
+| Full strength against MinimalChess 0.6, Tantabus 1.0.2, Stockfish 19-2400, Blunder 5.0.0 and Vice 1.1 (`-Seed 20261202`) | 100 | 0 |
+| `UCI_Elo` 1670, the top setting (six plies), against Stockfish 19-1800, Rustic Alpha 3.0.6 and Vice 1.1 (`-Seed 20261203`) | 60 | 0 |
+| `UCI_Elo` 1080, the default (three plies), against CT800 1.46-1500, Nostradamus 0.4 and Stockfish 19-1320 (`-Seed 20261204`) | 60 | 0 |
+| Total | 260 | 0 |
+
+No engine lost on time or made an illegal move, and `cutechess-cli`
+ended no process by force. The two limited settings looked six and three
+plies ahead, as the table says. This is a check that games complete, not
+a measurement: twenty games against an opponent say nothing about a
+rating. SHA-256 of the PGNs (`2026-11-29-...-relcheck.pgn`, not
+committed): self-play
+`dd53e1f44e7c5c5b2d2212eebe9a20d4a2f4d0392dee399b31ccec0bd5eb066a`, full
+strength
+`8c81fe0044713df994bbb80a875d85f6f6e04ee7632974dd63ea01c36d47dc1b`, 1670
+`740f33a6bf9b8951aaea841854f05799fccf3ea240e92725fde563cb1dc8c264`, 1080
+`da431480bcde5152ac1332cea04d9cbef83498342e2144103ac3d110a062bb19`.
 
 **The alpha checks are checks that games complete, not measurements of
 strength.** Forty or forty-eight games against five or six opponents say
