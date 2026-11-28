@@ -20,7 +20,7 @@ option name Threads type spin default 1 min 1 max 1
 option name Seed type spin default 0 min 0 max 2147483647
 option name Variety type spin default 0 min 0 max 100
 option name UCI_LimitStrength type check default false
-option name UCI_Elo type spin default 1110 min 750 max 1380
+option name UCI_Elo type spin default 1080 min 720 max 1670
 option name Move Overhead type spin default 30 min 0 max 5000
 option name UCI_ShowWDL type check default false
 option name SearchStats type check default false
@@ -206,7 +206,7 @@ search.
 | `EvalFile` | string | to be decided | planned (milestone 9) | Path to an NNUE network file. |
 | `UseNNUE` | check | to be decided | planned (milestone 9) | Select the NNUE or the hand-crafted evaluation. |
 | `UCI_LimitStrength` | check | `false` | implemented, **calibrated provisionally** | Standard UCI option. When `true`, play at the rating in `UCI_Elo` instead of full strength. When `false`, play is unchanged, down to the node count. See "Limited strength" below. |
-| `UCI_Elo` | spin | `1110` (750 to 1380) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to seven measured settings. Provisional: measured for the build of 0.2.0 and measured again after queued task 2. Up to 0.1.0 the range was 1110 to 1630, on another ladder's scale. |
+| `UCI_Elo` | spin | `1080` (720 to 1670) | implemented, **calibrated provisionally** | Standard UCI option. Target rating used when `UCI_LimitStrength` is `true`; ignored otherwise. A rating on the scale of the reference ladder (see "Limited strength" below), not a Lichess, CCRL or FIDE rating. The range is what the weakening was measured to cover; the mapping is fitted to thirteen measured settings, of two to six plies. Nothing can be played between 1670 and full strength, about 2,080 on the same scale (known issue KI-14). Provisional: measured for the build of 0.2.0 and measured again after queued task 2. Up to 0.1.0 the range was 1110 to 1630, on another ladder's scale. |
 | `Move Overhead` | spin | `30` (0 to 5000) | implemented | Milliseconds kept back from every time limit, for delays the engine cannot see. See "Move Overhead" below. |
 | `UCI_ShowWDL` | check | `false` | implemented, **a model, not a measurement** | Standard UCI option. When `true`, every `info` line of a search gives `wdl <win> <draw> <loss>` after the score: chances per thousand for the side to move. See "Win, draw and loss" below. It changes nothing about the search. |
 | `SearchStats` | check | `false` | implemented, a diagnostic | When `true`, a full-strength search sends its statistics as `info string stats ...` lines just before `bestmove`: the nodes each depth took, the effective branching factor, how often the first move tried gave the cutoff, and how often the transposition table knew a position or settled it. They are explained under "Running a search by hand" in [TESTING.md](TESTING.md), where `vyvrael search --stats` prints the same lines. It changes nothing about the search, which counts these in any case; a weakened search (`UCI_LimitStrength`) sends none, and with `Variety` the checks of a varied move are not counted. Leave it off in matches: it only fills their logs. |
@@ -338,32 +338,59 @@ this means for a GUI:
   from a new logged entropy seed, so each game can be replayed by itself,
   given the same commands and limits that do not depend on the clock
   (`nodes`, or time that is never used up).
-- **The rating is calibrated provisionally.** Seven settings of the
-  weakening were measured against the reference ladder with the build
-  of 0.2.0, and `UCI_Elo` is mapped through them:
+- **The rating is calibrated provisionally.** Thirteen settings of the
+  weakening, of two to six plies, were measured against the reference
+  ladder with the build of 0.2.0, and `UCI_Elo` is mapped through them.
+  What the engine plays at some ratings:
 
-  | `UCI_Elo` | Plies | Largest misjudgement (cp) | In 0.1.0 this was |
+  | `UCI_Elo` | Plies | Largest misjudgement (cp) | In 0.1.0 this play was |
   | --: | --: | --: | --: |
-  | 750 | 2 | 300 | 1110 |
-  | 910 | 2 | 230 | 1150 |
-  | 950 | 2 | 171 | 1220 |
-  | 1020 | 2 | 112 | 1330 |
-  | 1100 | 3 | 151 | 1350 |
-  | 1180 | 3 | 90 | 1410 |
-  | 1380 | 3 | 20 | 1630 |
+  | 720 | 2 | 300 | 1110 |
+  | 880 | 2 | 230 | 1150 |
+  | 920 | 2 | 171 | 1220 |
+  | 990 | 2 | 112 | 1330 |
+  | 1070 | 3 | 151 | 1350 |
+  | 1140 | 3 | 90 | 1410 |
+  | 1279 | 3 | 42 | |
+  | 1280 | 4 | 60 | |
+  | 1409 | 4 | 31 | |
+  | 1410 | 5 | 40 | |
+  | 1539 | 5 | 12 | |
+  | 1540 | 6 | 30 | |
+  | 1670 | 6 | 5 | |
 
-  Between two of these at the same depth the misjudgement is interpolated
-  in a straight line. From 1021 to 1099, where the depth changes, the
-  engine plays as 1020: up to 79 points weak for the number, never
-  stronger than a higher setting. The default, 1110, plays nearly as the
-  default of 0.1.0 (1360 then) did. Nothing below 750 can be played: the
-  weakest setting already beats the two lowest rungs of the ladder in
-  most games. **The numbers changed in 0.2.0** because the scale did (see
-  below): a setting carried over from 0.1.0 plays stronger than it did,
-  or is refused if it is above 1380. The measurement and its limits are
-  in [TESTING.md](TESTING.md), "Calibration of `UCI_Elo` (0.2.0)". It
-  holds for the build measured and is measured again after queued
-  task 2.
+  The measured settings do not line up by depth: a deeper search with
+  much misjudgement rated below a shallower one with little, so the
+  rating ranges measured for the depths overlap (three plies 1070 to
+  1340, four 1280 to 1500, five 1410 to 1570, six 1540 to 1670). Where
+  two overlap, the deeper one plays the rating, and within a depth the
+  misjudgement is interpolated in a straight line between the two
+  measured settings around the rating. So a higher rating never looks
+  less far, and nothing is played that was not measured or does not lie
+  between two measured settings of the same depth. The strongest
+  measured settings of three, four and five plies (20, 10 and 5
+  centipawns, rated 1340, 1500 and 1570) are therefore not played
+  themselves: those ratings belong to the next depth. That includes the
+  play that was 1630 in 0.1.0 (three plies, 20 centipawns).
+
+  From 991 to 1069, between the measured ranges of two and three plies,
+  the engine plays as 990: up to 79 points weak for the number, never
+  stronger than a higher setting. The default, 1080 (three plies, 143
+  centipawns), plays nearly as the default of 0.1.0 (1360 then) did.
+  Nothing below 720 can be played: the weakest setting already beats the
+  two lowest rungs of the ladder in most games. Nothing between 1670 and
+  full strength (about 2,080 on the same scale) can be played either:
+  deeper settings take too long a move for the way the weakened search
+  works (known issue KI-14 in [ROADMAP.md](ROADMAP.md)). The six-ply
+  settings were measured at 10 seconds plus 0.1 a move, where they
+  sometimes ran short of time for a move and looked five or four plies
+  ahead; with
+  more time they play a little stronger than their number, with less
+  weaker. **The numbers changed in 0.2.0** because the scale did (see
+  below): a setting carried over from 0.1.0 is still accepted and plays
+  stronger than it did. The measurement and its limits are in
+  [TESTING.md](TESTING.md), "Calibration of `UCI_Elo` (0.2.0)". It holds
+  for the build measured and is measured again after queued task 2.
 
 **What scale `UCI_Elo` is on.** Its numbers are ratings on the scale of the
 reference ladder, Ladder Baseline 3 (Ladder Baseline 2 up to 0.1.0), as
@@ -373,7 +400,7 @@ as the anchor, shifted by a fixed 3,500 points so that Stockfish 19 is
 FIDE ratings and cannot be converted to them. The scale is stretched by
 lopsided results, most visibly at the low end: the limited engines of the
 ladder rate far below the numbers in their names (Stockfish 19-1320 is
-about 1,170 on this scale). A setting of 1,200 means about as strong as an
+about 1,160 on this scale). A setting of 1,200 means about as strong as an
 engine rated 1,200 on this ladder, not a 1,200 player. The calibration
 maps the settings onto this scale (see [TESTING.md](TESTING.md),
 "The scale of `UCI_Elo`").

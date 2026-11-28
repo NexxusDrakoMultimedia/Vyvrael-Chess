@@ -23,8 +23,8 @@ known issue KI-8 after milestone 7.
   `347a54f1fde36398a9d7d35181970963bf80fa3b7cbb2268cb131686567e095c`.
   It is the same search and build level as the `avx2` release file, not
   the workflow's binary itself: the release's source differs from it
-  only in the numbers of `UCI_Elo`, refitted afterwards. The bench
-  counts 28,175 nodes for both.
+  only in the calibration of `UCI_Elo` (its table, lookup and default),
+  measured afterwards. The bench counts 28,175 nodes for both.
 - **Run:** Ladder Baseline 3, 2026-11-28, the Windows workstation. Its
   setup, tools, failures, engine binaries and the SHA-256 of its PGN are
   in [ladder-Baseline-3.md](ladder-Baseline-3.md); they are not repeated
@@ -157,8 +157,10 @@ Four games each (two openings, sides swapped). In the order of the ladder:
   ([results-0.1.0.md](results-0.1.0.md)) and at -1973.7 here, the same
   engine on two ladders. Compare builds within one ladder only.
 - **`UCI_Elo` is not measured here.** Every Vyvræl build played at full
-  strength. The settings were measured the same day with the same build
-  and refitted on this ladder's scale (see "Calibration of `UCI_Elo`
-  (0.2.0)" in [TESTING.md](../TESTING.md)); on that scale (Ordo + 3,500)
-  full strength is about 2,080, far above the highest setting, 1380.
+  strength. The settings were measured the same day, with the same build
+  and a second one of the same source, and fitted on this ladder's scale
+  (see "Calibration of `UCI_Elo` (0.2.0)" in
+  [TESTING.md](../TESTING.md)); on that scale (Ordo + 3,500) full
+  strength is about 2,080, about 410 points above the highest setting,
+  1670.
 - **Not comparable with results from another machine or other settings.**

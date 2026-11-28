@@ -791,14 +791,22 @@ happen: the engine may prefer the second-best quiet move, but it does not
 leave a queen hanging unless the noise is that large. Forced mates are
 judged exactly, for and against.
 
-`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (750) to
-`ELO_MAX` (1380) to a depth and a noise through a table of seven
-weakenings, measured again for 0.2.0 (`CALIBRATION` in
-`search/weaken.rs`): two plies from 750 to 1099, three from 1100, with
-the noise interpolated in a straight line between points of the same
-depth and held at the last two-ply point (112 centipawns) from 1021 to
-1099. `ELO_MIN` and `ELO_MAX`
-are read from the table. The ratings are on the reference ladder's scale
+`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (720) to
+`ELO_MAX` (1670) to a depth and a noise through a table of thirteen
+weakenings measured for 0.2.0 (`CALIBRATION` in `search/weaken.rs`). The
+points are grouped by depth, and the groups' rating ranges overlap,
+because a deeper search with much noise rated below a shallower one with
+little: two plies 720 to 990, three 1070 to 1340, four 1280 to 1500,
+five 1410 to 1570, six 1540 to 1670. A rating gets the depth of the
+deepest group whose range holds it (two plies up to 1069, three from
+1070, four from 1280, five from 1410, six from 1540) and a noise
+interpolated in a straight line between the two points of that group
+around it, rounded towards more noise. From 991 to 1069 no group's range
+holds the rating, and it gets the weakening of the last two-ply point
+(112 centipawns). A higher rating never gets a shallower depth, nor more
+noise at the same depth, and nothing is extrapolated. `ELO_MIN` and
+`ELO_MAX` are read from the table; `ELO_DEFAULT` is 1080 (three plies,
+143 centipawns). The ratings are on the reference ladder's scale
 (see [UCI.md](UCI.md), "Limited strength"). **The calibration is
 provisional:** measured for one build, and measured again after queued
 task 2 (benchmark and speed-up; see

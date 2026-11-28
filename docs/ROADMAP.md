@@ -58,7 +58,9 @@ milestone 5; **0.1.0-alpha.2** follows step 2; **0.1.0** follows step 3;
 **0.2.0** follows step 5. The
 casual-only Lichess bot starts once the maintainer has tagged
 0.1.0-alpha.1, so it runs alongside all of the steps above; rated play
-waits for 0.2.0 and the branding.
+waits for the branding and the maintainer's open choices, and is not
+taken up with 0.2.0: the bot stays casual with that release (the
+maintainer, 2026-11-28).
 
 ## Milestone 0: setup
 
@@ -124,17 +126,28 @@ What milestone 1 leaves open is recorded under "Known issues" below.
 Limitations in the code as it stands, each with what it affects and when it
 is due to be fixed. An entry is removed in the commit that fixes it. Where
 the design behind an issue is explained elsewhere, it is in
-[ARCHITECTURE.md](ARCHITECTURE.md) (KI-2, KI-8), [UCI.md](UCI.md) (KI-10) or
-[TESTING.md](TESTING.md) (KI-8, KI-11, KI-12, KI-13).
+[ARCHITECTURE.md](ARCHITECTURE.md) (KI-2, KI-8), [UCI.md](UCI.md) (KI-10,
+KI-14) or [TESTING.md](TESTING.md) (KI-8, KI-11, KI-12, KI-13, KI-14).
+
+**Left for after 0.2.0** (the maintainer, 2026-11-29): KI-2, KI-10,
+KI-11, KI-12 and KI-13 are not fixed before the release, because a
+change to the engine now would un-measure it: the rating and the
+calibration hold for the build measured. KI-12 and the rest of KI-10
+come first after the release; this replaces what the "Fix planned"
+cells of those two rows and the list under "Milestones 6 to 10" say
+about when. KI-14 and KI-15 were recorded while the
+release was prepared and wait likewise.
 
 | # | Issue | Effect today | Fix planned |
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first root move of the first depth cannot be interrupted, and neither can the weakened search's first pass.** The search ignores the clock and `stop` until one root move of depth 1 has been searched, so that there is a move to play. That move includes a quiescence search, which in a position with very many captures takes long: about 0.3 s in an artificial position with nine queens a side. (The whole first depth takes about 5 s there; since milestone 7 `stop` and the clock cut it short after the first move.) With `UCI_LimitStrength` on, the first pass over all the root moves still always completes: over two minutes in that position. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, meanwhile. In ordinary positions depth 1 takes well under a millisecond. | Not planned. Pruning in quiescence search shrinks it (delta pruning is parked in milestone 7); the weakened search's first pass could be given the ordinary search's rule. |
-| KI-8 | **The evaluation is untuned, and its strength is measured for the builds named here only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play did not change from then until milestone 7 began: the bench counted 16,611,416 nodes throughout): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). After milestone 7 the build of 0.2.0 was measured in Ladder Baseline 3, a round robin of 44 engines with the three earlier builds in it: 19th, level with Tantabus 1.0.2 and Stockfish 19-2400, and it won all twelve games against the earlier builds, which finished level with one another and with Rodent IV-2000 ([results-0.2.0.md](testing/results-0.2.0.md)). That rests on 172 games, four against each opponent, on another ladder's scale than the earlier two measurements. | A measurement holds for its build only: any change to search or evaluation makes it out of date. `UCI_Elo` was calibrated again for the build of 0.2.0, on Ladder Baseline 3's scale (750 to 1380); that too is provisional. | Measured again after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for the builds named here only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play did not change from then until milestone 7 began: the bench counted 16,611,416 nodes throughout): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). After milestone 7 the build of 0.2.0 was measured in Ladder Baseline 3, a round robin of 44 engines with the three earlier builds in it: 19th, level with Tantabus 1.0.2 and Stockfish 19-2400, and it won all twelve games against the earlier builds, which finished level with one another and with Rodent IV-2000 ([results-0.2.0.md](testing/results-0.2.0.md)). That rests on 172 games, four against each opponent, on another ladder's scale than the earlier two measurements. | A measurement holds for its build only: any change to search or evaluation makes it out of date. `UCI_Elo` was calibrated again for the build of 0.2.0, on Ladder Baseline 3's scale (720 to 1670); that too is provisional. | Measured again after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 | KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine kept spending at least a millisecond a move however little was left, so a long enough game at a tiny time control lost on time. **Narrowed on the preparation branch:** a clock within `Move Overhead` now gets no time, so the plan no longer spends the reserve; what the plan cannot see (the first depth, the GUI) still comes off the clock. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | The preparation branch before milestone 7: next, the overhead is taken off the clock before it is shared out; the entry goes once runs at 1+0 and 0.1+0 on the Windows workstation show the effect. |
 | KI-13 | **A failed rating leaves Ordo's empty output files behind.** When Ordo fails (for example on games that are not connected), `rate.ps1` and `rate.sh` stop with Ordo's status, but the text and CSV files Ordo had already created stay in place, empty. | A stray pair of empty `-ratings.txt` and `.csv` files next to the PGNs after a failed rating; the next run with the same `-Out` overwrites them. Seen in the smoke test (TESTING.md). | Not scheduled: the maintainer decides. A fix would remove the two files when Ordo fails, if the script created them. |
+| KI-14 | **Nothing can be played between `UCI_Elo` 1670 and full strength.** The weakened search scores every legal move separately to the same depth, which costs far more than the ordinary search: at 10+0.1 a move gets about 0.26 s, six plies take 0.22 to 0.29 s and seven 0.62 to 0.65 s. So the calibration stops at six plies with 5 centipawns of misjudgement, measured at 1670 on the ladder's scale, and full strength is about 2,080 on the same scale ("Calibration of `UCI_Elo` (0.2.0)" in TESTING.md). | A hole of about 410 points in which no strength can be chosen (about 700 before the range was extended from 1380). The six-ply settings also depend on the time for a move: measured at 10+0.1, they play a little stronger than their number at slower time controls and weaker at faster ones. | A task of its own after 0.2.0: another mechanism for the upper levels (the ordinary search with a depth cap), measured and calibrated like the others. |
+| KI-15 | **The installer cannot fetch 0.1.0-alpha.1.** `install_tools.py --vyvrael <version>` looks for release files named as they have been since 0.1.0-alpha.2. The files of 0.1.0-alpha.1 follow an older pattern (`vyvrael-0.1.0-alpha.1-windows-x86_64.exe` and the like), which it does not know. | Tools only: that one release cannot be put in place by the installer, for lichess-bot or beside the ladder's engines. Its files can still be downloaded from the release page by hand. No other release is affected. | Not scheduled; after 0.2.0 at the earliest. A fix would teach the installer the older names for that one version. |
 
 ## Milestone 2: move generation
 
@@ -303,7 +316,8 @@ that milestone starts, and must include the known issues due in it:
   0.1.0-alpha.2).
 - Milestone 7: KI-9, KI-10; KI-8 measured again.
 - The preparation branch before milestone 7: KI-12.
-- Not yet scheduled: KI-2, KI-11, KI-13.
+- Not yet scheduled: KI-2, KI-11, KI-13, KI-15.
+- A task of its own after 0.2.0: KI-14.
 
 ## Planned features
 
@@ -327,8 +341,8 @@ Plan:
 - **Milestone 6 (strength testing), done (provisional):** calibrated. The
   limited engine played at several `UCI_Elo` settings against opponents of
   known rating, the mapping from setting to measured Elo was fitted, and
-  `UCI_Elo` then ran from 1110 to 1630 with a default of 1360 (750 to
-  1380 with a default of 1110 since the calibration of 0.2.0). The method,
+  `UCI_Elo` then ran from 1110 to 1630 with a default of 1360 (720 to
+  1670 with a default of 1080 since the calibration of 0.2.0). The method,
   the opponents and the results are in `TESTING.md` ("Calibration of
   `UCI_Elo`"). The calibration holds for the build measured, on the
   ladder's scale.
@@ -351,7 +365,8 @@ Constraints that already apply:
 
 **The calibration is re-measured.** `UCI_Elo` and the engine's Ordo rating
 are measured again after milestone 7 (done on 2026-11-28, on Ladder
-Baseline 3's scale: 750 to 1380, default 1110) and after queued task 2,
+Baseline 3's scale: 720 to 1670, default 1080, through thirteen measured
+settings of two to six plies) and after queued task 2,
 because both change the engine's strength. The calibration of 0.1.0 was
 provisional, and the release notes of 0.2.0 say so; that of 0.2.0 is
 provisional until queued task 2.
@@ -564,8 +579,12 @@ Results recorded so far:
   [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt),
   [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt),
   [`calibration-0.2.0-ratings.txt`](testing/calibration-0.2.0-ratings.txt)
-  and
-  [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt).
+  (the run that the numbers of `UCI_Elo` come from: Baseline 3's games
+  and both parts of the calibration of 0.2.0, 8,144 games),
+  [`calibration-0.2.0-first-ratings.txt`](testing/calibration-0.2.0-first-ratings.txt)
+  (the first part by itself, whose numbers were replaced) and
+  [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt)
+  (the first part without its head-to-heads).
 
 ## Queued work (requested 2026-11-21)
 
@@ -1166,7 +1185,8 @@ were committed (items 4 and 7) were reverted.
   against Ladder Baseline 2
   ([results-0.2.0.md](testing/results-0.2.0.md)). `UCI_Elo`: done the
   same day, on Baseline 3's scale ("Calibration of `UCI_Elo` (0.2.0)"
-  in TESTING.md).
+  in TESTING.md), and extended upward the same day on
+  `task/uci-elo-upper-range`, to six plies and 1670.
 - [x] End-of-milestone doc drift pass, an independent review, the merge
   into `main` (2026-11-28).
 
@@ -1314,7 +1334,9 @@ plan of a private test first and a public bot only after milestone 7:
   6, **and not before the branding above is done**, so a bot that plays for
   rating has a measured strength and SPRT-accepted search. The maintainer
   decides when, and re-reads the Lichess Terms of Service and Bot API
-  documentation first.
+  documentation first. **Decided on 2026-11-28:** the bot stays casual
+  with 0.2.0. Rated play is taken up later, as a separate step, after
+  the branding and the open choices below.
 - Before the upgrade nobody played a game on the account, because one game
   would have made the upgrade impossible.
 - A bot that loses on time is worse than no bot: the option `Move Overhead`

@@ -8,7 +8,7 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-11-28
+## [0.2.0] - 2026-11-29
 
 The search heuristics of milestone 7: a transposition table, move
 ordering, null-move pruning, late move reductions and reverse futility
@@ -24,10 +24,11 @@ release with a `pext` build beside `avx2` and plain. Release notes:
   table, and `Clear Hash` empties it.
 - **New in the protocol:** `go mate`, `go searchmoves`, `hashfull`,
   `seldepth`, `UCI_ShowWDL`, and `d` and `eval` in UCI mode.
-- **Breaking for GUI settings:** `UCI_Elo` now runs from 750 to 1380 (it
-  was 1110 to 1630), with a default of 1110 (it was 1360), and a value
-  outside the range is refused. The seven measured weakenings are the
-  same; their numbers are new, because the scale is now that of Ladder
+- **Breaking for GUI settings:** `UCI_Elo` now runs from 720 to 1670 (it
+  was 1110 to 1630), with a default of 1080 (it was 1360), and a value
+  outside the range is refused. It is mapped through thirteen measured
+  weakenings of two to six plies (seven of two and three plies before);
+  the numbers are new, because the scale is now that of Ladder
   Baseline 3. A number kept from 0.1.0 plays stronger than it did.
 - **CI tests the `pext` build** on Linux and on Windows, and runs on
   `release/**` branches too.
@@ -36,7 +37,8 @@ release with a `pext` build beside `avx2` and plain. Release notes:
   and its two alphas, which finished 34th to 36th. An ordering on the
   project's own ladder, not an Elo
   ([docs/testing/results-0.2.0.md](docs/testing/results-0.2.0.md)).
-  `UCI_Elo` was measured again with the same build and refitted
+  `UCI_Elo` was measured again, with the same build and a second one of
+  the same source, and fitted to the new scale
   ([docs/TESTING.md](docs/TESTING.md), "Calibration of `UCI_Elo`
   (0.2.0)").
 - **Fixed:** `stop` and the clock now reach a long first search depth
@@ -192,15 +194,29 @@ release with a `pext` build beside `avx2` and plain. Release notes:
 
 ### Changed
 
-- **`UCI_Elo` is refitted on the scale of Ladder Baseline 3** (breaking
-  for GUI settings). The range is 750 to 1380 (was 1110 to 1630) and the
-  default 1110 (was 1360), which plays nearly as the old default did.
-  The seven measured settings of the weakening are the same; their
-  numbers are new because the scale is (the table of old and new numbers
-  is in `docs/UCI.md`, "Limited strength"). A number kept from 0.1.0
-  plays stronger than it did, and one above 1380 is refused, as any
-  out-of-range value is. From 1021 to 1099 the engine plays as 1020.
-  Still provisional; full-strength play is not affected
+- **`UCI_Elo` is calibrated on the scale of Ladder Baseline 3 and
+  reaches further up** (breaking for GUI settings). The range is 720 to
+  1670 (was 1110 to 1630) and the default 1080 (was 1360), which plays
+  nearly as the old default did: three plies and 143 centipawns of
+  misjudgement, where the old default had 141. The table holds thirteen
+  measured settings of the weakening: the seven of 0.1.0, of two and
+  three plies, measured again, and six new ones of four, five and six
+  plies. All take their numbers from one rating run on the new scale
+  (the thirteen are tabled in `docs/TESTING.md`, "Calibration of
+  `UCI_Elo` (0.2.0)"; what the engine plays at a rating is in
+  `docs/UCI.md`, "Limited strength"). The settings do
+  not line up by depth, because misjudgement costs more than a ply
+  gains, so the rating ranges of the depths overlap; a rating is played
+  by the deepest depth whose measured range holds it, with the
+  misjudgement interpolated between the two measured settings of that
+  depth around it. A higher rating never looks less far. A number kept
+  from 0.1.0 plays stronger than it did; a value outside the range is
+  refused. From 991 to 1069 the engine plays as 990. The six-ply
+  settings are measured at 10+0.1 and depend on the time for a move: a
+  little stronger than their number with more time, weaker with less.
+  Between 1670 and full strength (about 2,080 on the same scale) nothing
+  can be played (known issue KI-14). Still provisional; full-strength
+  play is not affected, and the bench count is unchanged at 28,175
   (`docs/TESTING.md`, "Calibration of `UCI_Elo` (0.2.0)").
 - **Ladder Baseline 3 is the reference ladder**, in place of Ladder
   Baseline 2: 44 engines with four Vyvræl builds among them, the ladder

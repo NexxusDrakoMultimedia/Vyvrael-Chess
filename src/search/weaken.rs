@@ -28,12 +28,12 @@ use crate::rng::Rng;
 pub const ELO_MIN: u32 = CALIBRATION[0].elo;
 /// Highest rating that can be asked for: the strongest setting measured.
 pub const ELO_MAX: u32 = CALIBRATION[CALIBRATION.len() - 1].elo;
-/// The rating used when none is chosen: three plies and 144 centipawns.
+/// The rating used when none is chosen: three plies and 143 centipawns.
 /// It is the round number nearest to what the default gave before the
 /// calibration of 0.2.0 (1360 on the scale of that time: three plies and
 /// 141 centipawns), so a GUI that never sets `UCI_Elo` gets nearly the
 /// same play as before.
-pub const ELO_DEFAULT: u32 = 1110;
+pub const ELO_DEFAULT: u32 = 1080;
 
 /// One point of the calibration: a rating on the `UCI_Elo` scale and the
 /// weakening that plays at it.
@@ -43,53 +43,89 @@ struct Point {
     noise: Score,
 }
 
-/// The calibration of `UCI_Elo`, sorted by rating: seven weakenings
-/// measured with the build of 0.2.0 on 2026-11-28 (`docs/TESTING.md`,
-/// "Calibration of `UCI_Elo` (0.2.0)"), their ratings on the scale of
-/// Ladder Baseline 3, rounded to tens.
+/// The calibration of `UCI_Elo`: thirteen weakenings measured with the
+/// build of 0.2.0 on 2026-11-28 (`docs/TESTING.md`, "Calibration of
+/// `UCI_Elo` (0.2.0)"), their ratings on the scale of Ladder Baseline 3,
+/// rounded to tens.
 ///
-/// The weakenings are the seven of the calibration of 0.1.0-alpha.2; only
-/// their ratings are new. Between 1,020 (two plies, 112 centipawns) and
-/// 1,100 (three plies) there is no point of the same depth, so 1,021 to
-/// 1,099 play as 1,020: weak for the number, never stronger than 1,100.
+/// The points are grouped by depth, the depths in rising order, and within
+/// a depth sorted by rating, with the misjudgement falling as the rating
+/// rises. The groups overlap: a deeper search with much misjudgement
+/// rates below a shallower one with little (four plies and 60 centipawns
+/// came out below three plies and 20). [`Weakening::for_elo`] gives a
+/// rating to the deepest group whose measured range holds it.
+///
+/// Between 990 (the last point of two plies) and 1,070 (the first of
+/// three) no group's range holds a rating, so 991 to 1,069 play as 990:
+/// weak for the number, never stronger than 1,070.
 ///
 /// **Provisional:** measured for one build, and measured again after
 /// queued task 2 (benchmark and speed-up; see `docs/ROADMAP.md`).
-const CALIBRATION: [Point; 7] = [
+const CALIBRATION: [Point; 13] = [
     Point {
-        elo: 750,
+        elo: 720,
         depth: 2,
         noise: 300,
     },
     Point {
-        elo: 910,
+        elo: 880,
         depth: 2,
         noise: 230,
     },
     Point {
-        elo: 950,
+        elo: 920,
         depth: 2,
         noise: 171,
     },
     Point {
-        elo: 1020,
+        elo: 990,
         depth: 2,
         noise: 112,
     },
     Point {
-        elo: 1100,
+        elo: 1070,
         depth: 3,
         noise: 151,
     },
     Point {
-        elo: 1180,
+        elo: 1140,
         depth: 3,
         noise: 90,
     },
     Point {
-        elo: 1380,
+        elo: 1340,
         depth: 3,
         noise: 20,
+    },
+    Point {
+        elo: 1280,
+        depth: 4,
+        noise: 60,
+    },
+    Point {
+        elo: 1500,
+        depth: 4,
+        noise: 10,
+    },
+    Point {
+        elo: 1410,
+        depth: 5,
+        noise: 40,
+    },
+    Point {
+        elo: 1570,
+        depth: 5,
+        noise: 5,
+    },
+    Point {
+        elo: 1540,
+        depth: 6,
+        noise: 30,
+    },
+    Point {
+        elo: 1670,
+        depth: 6,
+        noise: 5,
     },
 ];
 
@@ -108,10 +144,13 @@ impl Weakening {
     /// [`ELO_MIN`]`..=`[`ELO_MAX`].
     ///
     /// The rating is on the scale of the reference ladder (see
-    /// `docs/UCI.md`, "Limited strength"). A rating that is a point of the
-    /// calibration gets that point's weakening; one between two points of
-    /// the same depth gets that depth and a misjudgement interpolated in a
-    /// straight line between theirs, rounded towards the weaker.
+    /// `docs/UCI.md`, "Limited strength"). It gets the depth of the
+    /// deepest group of the calibration whose measured range holds it, and
+    /// a misjudgement interpolated in a straight line between the two
+    /// points of that group around it, rounded towards the weaker. A
+    /// rating that is itself a point of that group gets the point's
+    /// weakening. A rating in no group's range gets the weakening of the
+    /// nearest point below it.
     ///
     /// **Provisional:** see the calibration's own notes.
     #[must_use]
@@ -123,26 +162,39 @@ impl Weakening {
         } else {
             elo
         };
-        // The last point at or below the rating.
-        let mut index = 0;
-        while index + 1 < CALIBRATION.len() && CALIBRATION[index + 1].elo <= elo {
+        // The deepest group first: two neighbouring points of one depth
+        // with the rating between them.
+        let mut index = CALIBRATION.len() - 1;
+        while index > 0 {
+            let low = &CALIBRATION[index - 1];
+            let high = &CALIBRATION[index];
+            if low.depth == high.depth && low.elo <= elo && elo <= high.elo {
+                // The misjudgement falls as the rating rises, so dividing
+                // a negative change rounds it towards zero: towards more
+                // noise.
+                let along = (elo - low.elo) as Score;
+                let span = (high.elo - low.elo) as Score;
+                return Weakening {
+                    depth: low.depth,
+                    noise: low.noise + (high.noise - low.noise) * along / span,
+                };
+            }
+            index -= 1;
+        }
+        // In no group's range: the nearest point below, which is the last
+        // of its group.
+        let mut below = &CALIBRATION[0];
+        let mut index = 1;
+        while index < CALIBRATION.len() {
+            let point = &CALIBRATION[index];
+            if point.elo <= elo && point.elo >= below.elo {
+                below = point;
+            }
             index += 1;
         }
-        let low = &CALIBRATION[index];
-        if index + 1 == CALIBRATION.len() || CALIBRATION[index + 1].depth != low.depth {
-            return Weakening {
-                depth: low.depth,
-                noise: low.noise,
-            };
-        }
-        let high = &CALIBRATION[index + 1];
-        // The misjudgement falls as the rating rises, so dividing a
-        // negative change rounds it towards zero: towards more noise.
-        let along = (elo - low.elo) as Score;
-        let span = (high.elo - low.elo) as Score;
         Weakening {
-            depth: low.depth,
-            noise: low.noise + (high.noise - low.noise) * along / span,
+            depth: below.depth,
+            noise: below.noise,
         }
     }
 }
@@ -605,31 +657,86 @@ mod tests {
     /// The settings measured in the calibration, as (rating, depth,
     /// noise): written out here rather than read from the table, so that a
     /// change to the table has to change this test too.
-    const MEASURED: [(u32, u32, Score); 7] = [
-        (750, 2, 300),
-        (910, 2, 230),
-        (950, 2, 171),
-        (1020, 2, 112),
-        (1100, 3, 151),
-        (1180, 3, 90),
-        (1380, 3, 20),
+    const MEASURED: [(u32, u32, Score); 13] = [
+        (720, 2, 300),
+        (880, 2, 230),
+        (920, 2, 171),
+        (990, 2, 112),
+        (1070, 3, 151),
+        (1140, 3, 90),
+        (1340, 3, 20),
+        (1280, 4, 60),
+        (1500, 4, 10),
+        (1410, 5, 40),
+        (1570, 5, 5),
+        (1540, 6, 30),
+        (1670, 6, 5),
     ];
 
     #[test]
+    fn the_table_is_the_measured_settings_in_groups_by_depth() {
+        assert_eq!(CALIBRATION.len(), MEASURED.len());
+        for (point, (elo, depth, noise)) in CALIBRATION.iter().zip(MEASURED) {
+            assert_eq!((point.elo, point.depth, point.noise), (elo, depth, noise));
+        }
+        for pair in CALIBRATION.windows(2) {
+            assert!(pair[1].depth >= pair[0].depth, "depths rise");
+            if pair[1].depth == pair[0].depth {
+                assert!(pair[1].elo > pair[0].elo, "ratings rise within a depth");
+                assert!(pair[1].noise < pair[0].noise, "and the noise falls");
+            }
+        }
+        // The ends of the range are the first and the last point.
+        assert_eq!(CALIBRATION.iter().map(|p| p.elo).min(), Some(ELO_MIN));
+        assert_eq!(CALIBRATION.iter().map(|p| p.elo).max(), Some(ELO_MAX));
+    }
+
+    #[test]
     fn the_measured_ratings_get_the_measured_weakenings() {
+        // The strongest point of three, four and five plies lies inside
+        // the range of the next depth, which takes that rating.
+        const TAKEN_OVER: [(u32, u32); 3] = [(1340, 3), (1500, 4), (1570, 5)];
         for (elo, depth, noise) in MEASURED {
+            if TAKEN_OVER.contains(&(elo, depth)) {
+                continue;
+            }
             assert_eq!(Weakening::for_elo(elo), Weakening { depth, noise }, "{elo}");
         }
-        assert_eq!(ELO_MIN, 750);
-        assert_eq!(ELO_MAX, 1380);
-        assert_eq!(ELO_DEFAULT, 1110);
-        // 10 of the 80 points from 1,100 (151) to 1,180 (90): 143.375,
+        // 60 of the 220 points from 1,280 (60) to 1,500 (10): 46.36,
+        // rounded towards more noise.
+        assert_eq!(
+            Weakening::for_elo(1340),
+            Weakening {
+                depth: 4,
+                noise: 47
+            }
+        );
+        // 90 of the 160 points from 1,410 (40) to 1,570 (5): 20.31.
+        assert_eq!(
+            Weakening::for_elo(1500),
+            Weakening {
+                depth: 5,
+                noise: 21
+            }
+        );
+        // 30 of the 130 points from 1,540 (30) to 1,670 (5): 24.23.
+        assert_eq!(
+            Weakening::for_elo(1570),
+            Weakening {
+                depth: 6,
+                noise: 25
+            }
+        );
+        assert_eq!(ELO_MIN, 720);
+        assert_eq!(ELO_MAX, 1670);
+        assert_eq!(ELO_DEFAULT, 1080);
+        // 10 of the 70 points from 1,070 (151) to 1,140 (90): 142.29,
         // rounded towards more noise.
         assert_eq!(
             Weakening::for_elo(ELO_DEFAULT),
             Weakening {
                 depth: 3,
-                noise: 144
+                noise: 143
             }
         );
         // Out of range is clamped.
@@ -640,40 +747,59 @@ mod tests {
 
     #[test]
     fn between_the_points_the_misjudgement_is_interpolated() {
-        // Halfway from 1,180 (90) to 1,380 (20).
+        // Halfway from 1,540 (30) to 1,670 (5): 17.5, rounded towards more
+        // noise.
         assert_eq!(
-            Weakening::for_elo(1280),
+            Weakening::for_elo(1605),
+            Weakening {
+                depth: 6,
+                noise: 18
+            }
+        );
+        // 7 of the 40 points from 880 (230) to 920 (171): 219.675,
+        // rounded towards more noise.
+        assert_eq!(
+            Weakening::for_elo(887),
+            Weakening {
+                depth: 2,
+                noise: 220
+            }
+        );
+        // 100 of the 200 points from 1,140 (90) to 1,340 (20).
+        assert_eq!(
+            Weakening::for_elo(1240),
             Weakening {
                 depth: 3,
                 noise: 55
             }
         );
-        // 17 of the 40 points from 910 (230) to 950 (171): 204.925,
-        // rounded towards more noise.
+    }
+
+    #[test]
+    fn where_ranges_overlap_the_deeper_group_takes_the_rating() {
+        // Three plies cover 1,070 to 1,340 and four plies 1,280 to 1,500:
+        // up to 1,279 it is three plies, from 1,280 four.
         assert_eq!(
-            Weakening::for_elo(927),
+            Weakening::for_elo(1279),
             Weakening {
-                depth: 2,
-                noise: 205
+                depth: 3,
+                noise: 42
             }
         );
-        // 45 of the 70 points from 950 (171) to 1,020 (112): 133.07,
-        // rounded towards more noise.
-        assert_eq!(
-            Weakening::for_elo(995),
-            Weakening {
-                depth: 2,
-                noise: 134
-            }
-        );
+        assert_eq!(Weakening::for_elo(1280).depth, 4);
+        // Four plies and five (1,410 to 1,570), five and six (1,540 to
+        // 1,670).
+        assert_eq!(Weakening::for_elo(1409).depth, 4);
+        assert_eq!(Weakening::for_elo(1410).depth, 5);
+        assert_eq!(Weakening::for_elo(1539).depth, 5);
+        assert_eq!(Weakening::for_elo(1540).depth, 6);
     }
 
     #[test]
     fn below_the_step_to_three_plies_the_last_two_ply_point_holds() {
-        // No point of the same depth lies between 1,020 and 1,100, so the
-        // ratings in between play as 1,020 rather than as anything
-        // unmeasured.
-        for elo in 1021..1100 {
+        // No group's range holds the ratings between 990 and 1,070, so
+        // they play as 990 rather than as anything unmeasured.
+        for elo in 991..1070 {
             assert_eq!(
                 Weakening::for_elo(elo),
                 Weakening {
@@ -687,10 +813,12 @@ mod tests {
 
     #[test]
     fn a_higher_rating_never_plays_weaker() {
-        // Deeper, or as deep with no more misjudgement. The noise rises at
-        // the step to three plies, from 112 at 1,099 to 151 at 1,100; both
-        // were measured, and the three-ply setting rated higher (1,100
-        // against 1,020 for two plies and 112).
+        // Deeper, or as deep with no more misjudgement. The noise rises
+        // at each step to a deeper group (from 112 at 1,069 to 151 at
+        // 1,070, from 42 at 1,279 to 60 at 1,280, and so on). The deeper
+        // side of each step is a measured setting; the shallower side is
+        // a measured one too (1,069 plays as 990) or lies between two
+        // measured ones of its depth, below the deeper setting's rating.
         let mut previous = Weakening::for_elo(ELO_MIN);
         for elo in ELO_MIN..=ELO_MAX {
             let now = Weakening::for_elo(elo);
