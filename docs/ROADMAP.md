@@ -1031,9 +1031,8 @@ How every search change is done:
   exempt; bench 64,509 from 77,407) and reverted in `2bdb660`: its SPRT
   [0, 10] was undecided at the cap, 3898 - 3748 - 2354 in 10,000 games,
   LLR 0.229 (run `d35a397d5e43`). The figures point at a gain of about
-  5 Elo, which those bounds cannot settle. To be tested again with
-  bounds [0, 5], against the search as it then is, once the items that
-  use those bounds are reached (item 10 onwards).
+  5 Elo, which those bounds cannot settle. Deferred beyond this
+  milestone with the other small items (see below).
 
 **KI-10, once quiescence is pruned:**
 
@@ -1061,9 +1060,11 @@ How every search change is done:
   `33583770c654`), which says nothing either way: it was stopped
   because a saving of about 5% of the nodes means a gain of a few Elo
   at most, which those bounds cannot settle short of the cap, as item 4
-  showed. An interrupted run has no row in `sprt-history.md`. To be
-  tested again with bounds [0, 5] after late move reductions (item 10),
-  which reduce the moves that history puts last.
+  showed. An interrupted run has no row in `sprt-history.md`. Put back
+  on top of late move reductions (item 10) and measured, it does not
+  save nodes there (the bench at depth 9 takes 9% more), which settles
+  nothing since it changes which moves are reduced. Deferred beyond
+  this milestone with the other small items (see below).
 
 **Windows, then pruning and reductions.** Principal variation search is
 proposed before null move and late move reductions, where the request
@@ -1080,8 +1081,8 @@ the reductions.
   [0, 10] would not settle (see items 4 and 7). Late move reductions
   turned out not to need it: a reduced move is searched with a window
   of one point and searched again in full, which is all of its
-  machinery they use. To be built and tested with bounds [0, 5] with
-  the other parked items.
+  machinery they use. Deferred beyond this milestone with the other
+  small items (see below).
 - [x] 9. Null-move pruning, with its guards (not in check, not in a pawn
   endgame, a verification where zugzwang threatens). Built before item
   8: it does not need principal variation search, and it is the largest
@@ -1094,15 +1095,26 @@ the reductions.
   depth 3, by `0.75 + ln(depth) * ln(move) / 2.25` plies; without
   principal variation search (see item 8) and without history (see
   item 7). SPRT [0, 5]: H1 accepted in 620 games (run `00e8619ba2cf`).
-- [ ] 11. Aspiration windows at the root. SPRT.
-- [ ] 12. Check extensions. SPRT.
+- [ ] 11. Aspiration windows at the root. SPRT. Deferred (see below).
+- [ ] 12. Check extensions. SPRT. Deferred (see below).
 - [x] 13. Reverse futility pruning: up to depth 6, margin 100 a ply, not
   in check. Built before items 11 and 12, as the largest gain left
   among the items not yet built. SPRT: awaited; if it does not show a
   gain, its commit is reverted.
-- [ ] 14. Internal iterative reduction. SPRT.
-- [ ] 15. The countermove heuristic. SPRT.
-- [ ] 16. Continuation history. SPRT.
+- [ ] 14. Internal iterative reduction. SPRT. Deferred (see below).
+- [ ] 15. The countermove heuristic. SPRT. Deferred (see below).
+- [ ] 16. Continuation history. SPRT. Deferred (see below).
+
+**The small items are deferred** (the maintainer's decision, 2026-11-28):
+items 4, 7, 8, 11, 12, 14, 15 and 16 are not part of this milestone any
+more. Each is expected to be worth a few Elo by itself. The accepted
+items were all worth 28 Elo or more and took 120 to 1,160 games to
+show it; a change worth about 5 Elo needs some 20,000 games at bounds
+of [0, 5], about a day of the Windows workstation each, and item 4
+spent eleven hours to stay undecided. They stay on this list, unticked,
+for a later pass over the search, where they can be tested at a faster
+time control or together. Nothing of them is in the code: the two that
+were committed (items 4 and 7) were reverted.
 
 **Not search changes:**
 
