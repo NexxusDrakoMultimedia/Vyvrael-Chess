@@ -13,7 +13,9 @@ approval.
 
 **The `pext` build for 0.2.0 was added on 2026-11-28** (see "The pext
 build" below), to this proposal and, with the maintainer's approval given
-that day, to the installed file. That change has not run yet.
+that day, to the installed file. It ran for the first time with the tag
+`v0.2.0` on 2026-11-28 (UTC; run 46159403261): nine jobs passed and the
+draft held twelve files, six binaries and their checksums.
 
 The workflow is [`release-workflow.yml`](release-workflow.yml). From 0.1.0
 it builds the release binaries that were built by hand up to 0.1.0-alpha.2,
@@ -43,9 +45,9 @@ smoke test of this build need to run. If a runner without it ever
 appears, the `pext` jobs fail with an illegal instruction and no draft
 is made: nothing wrong is released.
 
-**Not tried:** this change has not run. The trial for 0.1.0 used a test
-tag (`v0.1.0-rc.0`) that the maintainer deleted afterwards; the same can
-be done here before the real tag.
+**Tried with the release itself:** no test tag was used for this change.
+CI's `pext` job proved the build on both systems first (2026-11-28), and
+the tag `v0.2.0` was the workflow's first run with it; it passed.
 
 ## What it does
 

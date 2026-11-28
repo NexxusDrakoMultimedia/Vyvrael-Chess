@@ -397,7 +397,7 @@ annotated, `vX.Y.Z`, and made by the maintainer only.
 | 0.1.0-alpha.1 | after milestone 5 | UCI conformance tests; complete games in `cutechess-cli` at 10+0.1 with no illegal move, crash, stall or time loss; KI-3 and KI-7 fixed; `Move Overhead`; `docs/LICHESS.md`. Strength unmeasured. **Released 2026-11-21.** |
 | 0.1.0-alpha.2 | after queued task 1 | The options `Seed` and `Variety` and the `bench` command, with their tests and docs; the three gates green; complete games in `cutechess-cli` as for alpha.1. Still an alpha: `UCI_Elo` is not calibrated, and the only measurement is the snapshot of alpha.1, which its notes may cite as such because full-strength play is unchanged. Plain builds made by hand. **Released 2026-11-22.** |
 | 0.1.0 | after milestone 6 | The scripts documented and smoke-tested; `UCI_Elo` calibrated; KI-8 measured for the build released; a measured Ordo rating against the ladder in the release notes. The calibration and the rating are provisional: they are for the build measured. The first release with binaries built by a workflow, in the `avx2` primary build and the plain build (see "Release artifacts" and [RELEASING.md](RELEASING.md)). **Released 2026-11-23**, built by the release workflow ([results-0.1.0.md](testing/results-0.1.0.md)). |
-| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the optional `pext` build beside `avx2` and plain (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. |
+| 0.2.0 | after milestone 7 | The search heuristics, each accepted by SPRT. The first release with the optional `pext` build beside `avx2` and plain (see "Release artifacts"). `UCI_Elo` and the Ordo rating measured again, and release notes that say the 0.1.0 calibration was provisional. They are measured once more after queued task 2. **Released 2026-11-29**, built by the release workflow from the tag `v0.2.0` (six binaries; [results-0.2.0.md](testing/results-0.2.0.md)). |
 
 Later minor versions follow milestones 8, 9 and 10. When 1.0.0 comes, and
 whether there are further alphas, is the maintainer's call.
@@ -456,8 +456,8 @@ What the builds depend on:
   17), with magic bitboards staying the default and perft matching on
   both paths. The release workflow builds it since 2026-11-28 (see
   [`proposals/release-workflow.md`](proposals/release-workflow.md));
-  that change runs for the first time with the tag of 0.2.0, or on a
-  test tag before it.
+  that change ran for the first time with the tag of 0.2.0, on
+  2026-11-28 (UTC), and built the two `pext` files of that release.
 - The benchmark of queued task 2 measures the three builds against each
   other on both of the maintainer's machines.
 
