@@ -277,6 +277,29 @@ on this square attack?".
     wrong attacks.
   - `bishop_attacks`, `rook_attacks` and `queen_attacks(square, occupied)` are
     the lookups move generation uses.
+  - *PEXT instead of the multiplication* (Cargo feature `pext`, since
+    milestone 7; off by default). The BMI2 instruction PEXT gathers the
+    bits of the occupancy that lie under the mask into the low bits of a
+    number, which is a slot of the square's slice directly:
+    `index = pext(occupied, mask)`. The tables hold the same attacks in
+    that order, the magic numbers are not used, and everything outside
+    `Entry::slot` is the same code, so the two builds find the same
+    moves and count the same nodes (perft and bench).
+    - Build it with
+      `RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release --features pext`,
+      or any other target that has BMI2. Without BMI2 the feature is
+      refused at compile time: there is no fallback at run time, and a
+      program built with it does not start on a processor without BMI2.
+    - It is the engine's one use of `unsafe`: the call of the intrinsic
+      `_pext_u64`, sound because the code is compiled only for targets
+      that have the instruction.
+    - PEXT is fast on Intel from Haswell and on AMD from Zen 3, and
+      slow (microcoded) on AMD before that, which is why magic
+      multiplication stays the default. On the Windows workstation
+      (Zen 3) perft 6 from the start position ran at 33.4 million nodes
+      a second with it against 32.0 million for the magic lookup in the
+      same `x86-64-v3` build, three runs each: about 4%. The search
+      spends most of its time elsewhere and gains less.
 
 - **Attack queries** (`board/attackers.rs`): `Position::attackers_to(square,
   occupied)` returns every piece of either colour attacking a square. It

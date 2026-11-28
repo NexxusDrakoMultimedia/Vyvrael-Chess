@@ -48,7 +48,7 @@ Layout:
 | Install Cute Chess and Ordo (Linux, Windows; lichess-bot on Linux only); the opening file | `python3 scripts/install_tools.py --dry-run` first (`python` on Windows); `--openings` for the opening file (prints the `OPENINGS=` line); see `docs/TESTING.md` |
 | Install the ladder's engines (Linux, Windows) | `python3 scripts/install_tools.py --engines --dry-run` first (`python` on Windows); `--only "<name>"` for one; `--verify` to check them; `--engine-build pext` or `ENGINE_BUILD=pext` in `scripts/local.env` for PEXT builds |
 | Put a release in place: for lichess-bot (Linux), or beside the ladder's engines (Windows) | `python3 scripts/install_tools.py --vyvrael <version> --dry-run` first (`python` on Windows); `--vyvrael-build plain` for the plain file |
-| Build engine | `cargo build --release` (binary: `target/release/vyvrael`) |
+| Build engine | `cargo build --release` (binary: `target/release/vyvrael`); with PEXT slider attacks: `RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release --features pext` (same node counts; see `docs/ARCHITECTURE.md`) |
 | Perft | `cargo run --release -- perft <depth> [--divide \| --copy-make] [FEN]` |
 | Evaluate or search a position | `cargo run --release -- eval [FEN]`; `cargo run --release -- search <depth> [--stats] [FEN]` |
 | Bench (node count and speed) | `cargo run --release -- bench [depth [threads [hash]]]` |

@@ -46,7 +46,7 @@ Unit tests live next to the code in `#[cfg(test)]` modules.
 | `attacks` pawn | Both colours equal the two-step definition for all 64 squares; edge files, last ranks and the total of 98 per colour; the reverse-lookup identity for every pair of squares. |
 | `attacks` scan | Rook on an empty board equals rank plus file for all 64 squares; bishop counts and diagonal property; both stop at and include the first piece on each ray; a piece on the slider's own square changes nothing; a full board leaves only neighbours. |
 | `attacks::magic` masks | Mask sizes for sample squares and the classic table totals (102,400 rook and 5,248 bishop entries); the rook mask of a1 square by square; for every square and every arrangement inside the mask, filling all squares outside it does not change the scanned attacks; `subsets` yields each subset exactly once. |
-| `attacks::sliders` | Exhaustive: for all 64 squares and every relevant blocker arrangement (107,648 cases) the bishop and rook lookups equal the scan; 20,000 random full-board occupancies including queens; table layout and sizes; the seeded search, run twice, finds exactly the 128 embedded magic numbers and fills exactly the engine's table; a number that is not magic is refused when a slice is filled; four pinned magic numbers and a fold of all 128 (recorded from this implementation as regression pins). |
+| `attacks::sliders` | Exhaustive: for all 64 squares and every relevant blocker arrangement (107,648 cases) the bishop and rook lookups equal the scan; 20,000 random full-board occupancies including queens; table layout and sizes; the seeded search, run twice, finds exactly the 128 embedded magic numbers and fills exactly the engine's table; a number that is not magic is refused when a slice is filled; four pinned magic numbers and a fold of all 128 (recorded from this implementation as regression pins). Which lookup the build uses is checked by the slot of one blocker. With the feature `pext` (run with `RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features pext`): the slot equals a bit-by-bit definition of PEXT for every square and relevant arrangement, ignores pieces off the mask, and uses every slot of a slice exactly once; the two tests that are about the magic numbers as a lookup (a wrong number is refused, the table equals the one the seeded search fills) apply to the default build only, while the seeded search still has to find the embedded numbers. |
 | `board` attack queries | Attackers of sample squares in the start position; check given by each piece kind, including pawns of both colours from both sides; positions that are not check (blocked sliders, pawns behind or straight ahead of the king); double check; only the side to move is asked about; a custom occupancy sees through a removed blocker; adjacent kings. |
 | `board` diagram | The start position drawn line for line; pieces on a8, d4, g1 and h8 land where a board has them; every line of three positions is 17 characters wide, starts with its mark and has no double space. |
 | `movegen::MoveList` | Starts empty; push keeps order; slice methods work through `Deref`; equality ignores unused slots; holds exactly 256 moves and panics on the 257th. |
@@ -163,6 +163,23 @@ material were tried last in the main search and left out of quiescence
 before the main search tried captures first (item 1) 28,793, 391,308,
 63,892, 23,562, 5,857, 27,964 and 15,714, the Kiwipete figure showing
 what searching captures in generation order cost.
+
+## The PEXT build
+
+The Cargo feature `pext` replaces the magic multiplication in the slider
+lookup by the PEXT instruction (see "Magic bitboards" in
+[ARCHITECTURE.md](ARCHITECTURE.md)). It must find the same moves, so the
+whole test suite is run on it as on the default build, the perft
+acceptance tests and the pinned bench count included:
+
+```sh
+RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features pext
+RUSTFLAGS="-C target-cpu=x86-64-v3" cargo clippy --all-targets --features pext -- -D warnings
+```
+
+CI does not run these: the workflows build the default features only.
+Run them by hand after a change to `src/attacks/` or to move generation.
+The feature is refused at compile time for a target without BMI2.
 
 ## Running a search by hand
 

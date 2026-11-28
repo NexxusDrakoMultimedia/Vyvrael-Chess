@@ -23,6 +23,13 @@ readme = "README.md"
 # before adding one, and never depend on the tool crates from here.
 [dependencies]
 
+[features]
+# Sliding-piece attacks by the PEXT instruction (BMI2) instead of magic
+# multiplication. Only for x86-64 targets built with BMI2, for example
+# RUSTFLAGS="-C target-cpu=x86-64-v3". Fast on Intel from Haswell and AMD
+# from Zen 3, slow on older AMD processors. See docs/ARCHITECTURE.md.
+pext = []
+
 [profile.release]
 lto = true
 codegen-units = 1

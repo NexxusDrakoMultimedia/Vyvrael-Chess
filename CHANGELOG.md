@@ -37,6 +37,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **The Cargo feature `pext`** (milestone 7, item 17): slider attacks by
+  the BMI2 instruction PEXT instead of magic multiplication, for
+  processors where it is fast (Intel from Haswell, AMD from Zen 3).
+  Off by default; it needs a target with BMI2 and is refused at compile
+  time without one. Same moves and node counts as the default build;
+  perft about 4% faster on the Windows workstation.
 - **`go mate`** (milestone 7, item 18): `go mate N` searches until it
   has found a mate in N moves or fewer for the side to move, and then
   answers by itself. It combines with the other limits, and with none

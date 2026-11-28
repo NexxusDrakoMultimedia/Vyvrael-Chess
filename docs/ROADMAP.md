@@ -1118,9 +1118,11 @@ were committed (items 4 and 7) were reverted.
 
 **Not search changes:**
 
-- [ ] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
+- [x] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
   Magic bitboards stay the default; perft matches on both paths and the
-  bench count is the same. No SPRT.
+  bench count is the same. No SPRT. The whole test suite passes on the
+  PEXT build; CI does not build it (the workflows are not touched), and
+  no release file is built with it yet.
 - [x] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
   bench count unchanged, tested in `tests/uci.rs`. Neither is used by a
   weakened search (`UCI_LimitStrength`).

@@ -7,6 +7,22 @@
 //! in `magics.rs`. Those numbers were found by trial with the seeded
 //! generator (`rng::stream::MAGICS`); the search is kept here as test code,
 //! and a test proves that it still finds exactly the embedded numbers.
+//!
+//! With the Cargo feature `pext` the slot of an arrangement of blockers is
+//! found by the processor's PEXT instruction instead of a multiplication
+//! by a magic number: PEXT gathers the bits of the occupancy that lie
+//! under the mask into the low bits of a number, which is the slot
+//! directly. The tables hold the same attacks in another order, and
+//! everything outside [`Entry::slot`] is the same code.
+
+#[cfg(all(
+    feature = "pext",
+    not(all(target_arch = "x86_64", target_feature = "bmi2"))
+))]
+compile_error!(
+    "the `pext` feature needs an x86-64 target built with BMI2, for example \
+     RUSTFLAGS=\"-C target-cpu=x86-64-v3\"; build without the feature for other targets"
+);
 
 use std::sync::LazyLock;
 
@@ -22,9 +38,12 @@ use crate::rng::{DEFAULT_SEED, Rng, stream};
 struct Entry {
     /// The relevant-occupancy mask.
     mask: u64,
-    /// The magic multiplier.
+    /// The magic multiplier. (With the feature `pext` only the tests read
+    /// this and `shift`.)
+    #[cfg_attr(feature = "pext", allow(dead_code))]
     magic: u64,
     /// `64 - mask bits`: keeps the top bits of the product as the index.
+    #[cfg_attr(feature = "pext", allow(dead_code))]
     shift: u32,
     /// Where this square's slice starts in `Tables::attacks`.
     offset: usize,
@@ -38,9 +57,28 @@ impl Entry {
         offset: 0,
     };
 
+    /// Where in this square's slice the attacks for `occupied` are.
+    #[cfg(not(feature = "pext"))]
+    const fn slot(&self, occupied: u64) -> usize {
+        ((occupied & self.mask).wrapping_mul(self.magic) >> self.shift) as usize
+    }
+
+    /// Where in this square's slice the attacks for `occupied` are: the
+    /// bits of `occupied` under the mask, gathered by PEXT.
+    #[cfg(feature = "pext")]
+    fn slot(&self, occupied: u64) -> usize {
+        // SAFETY: `_pext_u64` needs a processor with BMI2. This function
+        // is compiled only when the target has it (`target_feature =
+        // "bmi2"`; the `compile_error!` at the top of the file refuses the
+        // feature otherwise), so the instruction is there on every
+        // processor the program may run on.
+        #[allow(unused_unsafe)]
+        let gathered = unsafe { core::arch::x86_64::_pext_u64(occupied, self.mask) };
+        gathered as usize
+    }
+
     fn index(&self, occupied: Bitboard) -> usize {
-        let hashed = (occupied.0 & self.mask).wrapping_mul(self.magic) >> self.shift;
-        self.offset + hashed as usize
+        self.offset + self.slot(occupied.0)
     }
 }
 
@@ -54,12 +92,14 @@ struct Tables {
 static TABLES: LazyLock<Tables> = LazyLock::new(build_tables);
 
 /// One square's slice of the attack table: for every arrangement of
-/// blockers on `mask`, the attacks stored in the slot `magic` sends it to.
+/// blockers on `mask`, the attacks stored in the slot `magic` sends it to
+/// (or, with the feature `pext`, the slot PEXT sends it to; the magic
+/// number is then not used).
 ///
 /// # Panics
 ///
-/// Panics if `magic` sends two arrangements with different attacks to the
-/// same slot, that is, if it is not a magic number for this mask. The
+/// Panics if two arrangements with different attacks are sent to the same
+/// slot, that is, if `magic` is not a magic number for this mask. The
 /// embedded numbers are checked this way every time the tables are built;
 /// the check costs nothing next to the work it guards.
 fn fill_slice(
@@ -67,11 +107,16 @@ fn fill_slice(
     magic: u64,
     attacks_of: impl Fn(Bitboard) -> Bitboard,
 ) -> Vec<Bitboard> {
-    let shift = 64 - mask.count();
+    let entry = Entry {
+        mask: mask.0,
+        magic,
+        shift: 64 - mask.count(),
+        offset: 0,
+    };
     let mut slice = vec![Bitboard::EMPTY; 1usize << mask.count()];
     for occupied in subsets(mask) {
         let attacks = attacks_of(occupied);
-        let slot = &mut slice[(occupied.0.wrapping_mul(magic) >> shift) as usize];
+        let slot = &mut slice[entry.slot(occupied.0)];
         // No attack set is empty (a slider always sees a neighbouring
         // square), so an empty slot is one not written yet.
         assert!(
@@ -197,6 +242,68 @@ pub fn queen_attacks(square: Square, occupied: Bitboard) -> Bitboard {
 mod tests {
     use super::*;
 
+    /// PEXT, bit by bit: the bits of `value` under `mask`, packed into the
+    /// low bits in the order of the mask's bits.
+    #[cfg(feature = "pext")]
+    fn gather(value: u64, mut mask: u64) -> u64 {
+        let mut gathered = 0;
+        let mut place = 0;
+        while mask != 0 {
+            let lowest = mask.isolate_lowest_one();
+            if value & lowest != 0 {
+                gathered |= 1 << place;
+            }
+            place += 1;
+            mask &= mask - 1;
+        }
+        gathered
+    }
+
+    /// With the feature `pext`, the slot is what PEXT is defined to give,
+    /// for every square and every arrangement of relevant blockers, and
+    /// pieces off the mask do not change it; every slot of a slice is
+    /// used exactly once.
+    #[cfg(feature = "pext")]
+    #[test]
+    fn the_pext_slot_is_the_gathered_occupancy() {
+        let tables = &*TABLES;
+        for square in Square::all() {
+            for (entry, mask) in [
+                (tables.bishop[square.index()], bishop_relevant_mask(square)),
+                (tables.rook[square.index()], rook_relevant_mask(square)),
+            ] {
+                let mut seen = vec![false; 1usize << mask.count()];
+                for occupied in subsets(mask) {
+                    let slot = entry.slot(occupied.0);
+                    assert_eq!(slot as u64, gather(occupied.0, mask.0), "{square}");
+                    assert_eq!(entry.slot(occupied.0 | !mask.0), slot, "{square}");
+                    assert!(!seen[slot], "{square}");
+                    seen[slot] = true;
+                }
+                assert!(seen.iter().all(|&used| used), "{square}");
+            }
+        }
+    }
+
+    /// Which lookup this build uses, so that a test run says what it
+    /// tested.
+    #[test]
+    fn the_lookup_in_use_is_the_one_the_build_asked_for() {
+        let entry = TABLES.rook[Square::A1.index()];
+        let far = Bitboard::from_square(Square::A7).0;
+        // The magic slot depends on the multiplier. The PEXT slot of a
+        // single blocker is the place of its square among the mask's
+        // squares: a7 is the last of the twelve (b1 to g1, then a2 to a7).
+        if cfg!(feature = "pext") {
+            assert_eq!(entry.slot(far), 1 << 11);
+        } else {
+            assert_eq!(
+                entry.slot(far),
+                (far.wrapping_mul(entry.magic) >> entry.shift) as usize
+            );
+        }
+    }
+
     /// Exhaustive: for every square and every arrangement of relevant
     /// blockers (107,648 cases), the lookup equals the scan.
     #[test]
@@ -312,10 +419,17 @@ mod tests {
         };
         assert!(bishop == BISHOP_MAGICS, "bishops:\n{}", print(&bishop));
         assert!(rook == ROOK_MAGICS, "rooks:\n{}", print(&rook));
-        assert_eq!(attacks, TABLES.attacks);
+        // With the feature `pext` the engine's table holds the same
+        // attacks in PEXT's order, not the magic numbers'.
+        if !cfg!(feature = "pext") {
+            assert_eq!(attacks, TABLES.attacks);
+        }
         assert_eq!(search_magics(), (bishop, rook, attacks));
     }
 
+    /// Not with the feature `pext`, where the multiplier is not used and
+    /// no number can be wrong.
+    #[cfg(not(feature = "pext"))]
     #[test]
     #[should_panic(expected = "is not a magic number")]
     fn a_number_that_is_not_magic_is_refused() {
