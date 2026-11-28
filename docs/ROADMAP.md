@@ -1050,7 +1050,8 @@ How every search change is done:
 
 **Quiet-move ordering** (before the pruning that relies on it):
 
-- [ ] 6. Killer moves. SPRT.
+- [x] 6. Killer moves: two per ply, kept for one search. SPRT: awaited;
+  if it does not show a gain, its commit is reverted.
 - [ ] 7. The history heuristic. SPRT.
 
 **Windows, then pruning and reductions.** Principal variation search is

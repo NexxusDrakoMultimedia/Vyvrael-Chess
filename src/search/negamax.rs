@@ -14,7 +14,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::ordering::{captures_first, loses_material, table_move_first};
+use super::ordering::{Killers, captures_first, is_quiet, loses_material, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MAX_PLY, SearchStats, TranspositionTable,
     fifty_moves_reached, insufficient_material, is_repetition, mated_in,
@@ -93,6 +93,10 @@ pub struct Search<'a> {
     /// lent a table (see [`Search::with_table`]). Without one every
     /// position is searched afresh.
     table: Option<&'a mut TranspositionTable>,
+    /// The killer moves of each ply: `killers[p]` holds the quiet moves
+    /// that last cut off the search at ply `p`. They last for one search,
+    /// through all its iterations, and start empty in the next.
+    killers: Vec<Killers>,
 }
 
 /// Which limits the search does not look at for the moment. The first
@@ -149,6 +153,7 @@ impl<'a> Search<'a> {
             seldepth: 0,
             stats: SearchStats::ZERO,
             table: None,
+            killers: vec![Killers::NONE; MAX_PLY],
         }
     }
 
@@ -326,11 +331,12 @@ impl<'a> Search<'a> {
 
     /// Starts a new search: forgets the node count and the stopped state of
     /// the one before. The game history and the limits are kept.
-    const fn begin(&mut self) {
+    fn begin(&mut self) {
         self.nodes = 0;
         self.stopped = false;
         self.seldepth = 0;
         self.stats = SearchStats::ZERO;
+        self.killers.fill(Killers::NONE);
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -426,7 +432,9 @@ impl<'a> Search<'a> {
             .as_deref()
             .and_then(|table| table.probe(key, 0))
             .and_then(|known| known.best);
-        for &mv in &table_move_first(pos, &pseudo_legal_moves(pos), table_move) {
+        // No killer moves at the root: nothing cuts off there.
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, Killers::NONE);
+        for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -548,8 +556,11 @@ impl<'a> Search<'a> {
         let mut best_move = None;
         let mut any_legal = false;
         // The table's move first, then captures and promotions, most
-        // valuable victim first: see `ordering.rs`.
-        for &mv in &table_move_first(pos, &pseudo_legal_moves(pos), table_move) {
+        // valuable victim first, then this ply's killer moves: see
+        // `ordering.rs`.
+        let killers = self.killers[ply];
+        let moves = table_move_first(pos, &pseudo_legal_moves(pos), table_move, killers);
+        for &mv in &moves {
             self.keys.push(pos.hash());
             let mut next = pos.clone();
             let _undo = next.make_move(mv);
@@ -576,6 +587,9 @@ impl<'a> Search<'a> {
                         // will never let the game reach this position.
                         self.stats.cutoffs += 1;
                         self.stats.first_move_cutoffs += u64::from(first);
+                        if is_quiet(pos, mv) {
+                            self.killers[ply].remember(mv);
+                        }
                         break;
                     }
                 }
@@ -1439,7 +1453,7 @@ mod tests {
     fn a_long_first_iteration_can_be_stopped_after_its_first_move() {
         let pos = fen(MANY_QUEENS);
         // The first root move and what searching it alone costs and finds.
-        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None)
+        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None, Killers::NONE)
             .iter()
             .copied()
             .find(|&mv| legal_moves(&pos).contains(&mv))
@@ -1780,6 +1794,34 @@ mod tests {
         }
         let (_, mated, _) = iterate("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1", Limits::depth(3));
         assert_eq!(mated[0].seldepth, 0);
+    }
+
+    /// Killer moves are quiet moves of the plies between the root and the
+    /// horizon, and they last for one search.
+    #[test]
+    fn killers_are_quiet_moves_kept_for_one_search() {
+        let mut searcher = Search::new(&HandCrafted);
+        searcher.fixed_depth(&fen(crate::board::START_FEN), 5);
+        // Nothing cuts off at the root, and below ply 4 there is only
+        // quiescence search, which keeps none.
+        assert_eq!(searcher.killers[0], Killers::NONE);
+        assert!(searcher.killers[5..].iter().all(|at| *at == Killers::NONE));
+        let kept: Vec<Move> = searcher.killers[1..5]
+            .iter()
+            .flat_map(|at| at.moves())
+            .flatten()
+            .collect();
+        assert!(kept.len() >= 4, "{kept:?}");
+        for mv in kept {
+            assert!(!mv.is_capture() && mv.promotion().is_none(), "{mv}");
+        }
+        // They are found again by the same search, and the next search of
+        // anything starts without them.
+        let first = searcher.killers.clone();
+        searcher.fixed_depth(&fen(crate::board::START_FEN), 5);
+        assert_eq!(searcher.killers, first);
+        searcher.fixed_depth(&fen(ROOK_ENDGAME), 1);
+        assert!(searcher.killers.iter().all(|at| *at == Killers::NONE));
     }
 
     /// The statistics in cases small enough to check by hand.

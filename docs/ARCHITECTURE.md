@@ -464,13 +464,23 @@ transposition table, pruning) come in milestone 7, one at a time.
     shallower, search (at the root, the best move of the iteration
     before). Then captures and promotions, most valuable victim first and
     by the cheapest attacker among equals (`ordering.rs`, the order
-    quiescence has used from the start); quiet moves follow in generation
-    order; and last come the captures and promotions that lose material
+    quiescence has used from the start); then the quiet moves, the two **killer moves** of the ply first and
+    the rest in generation order; and last come the captures and promotions that lose material
     by the static exchange evaluation, such as queen takes defended pawn.
     Ordering does not change the value alpha-beta
     returns, only how much of the tree it has to look at. The rest of the
-    ordering (killers, history) is added one SPRT at a time in milestone
-    7.
+    ordering (history) is added one SPRT at a time in milestone 7.
+  - **Killer moves** (`Killers` in `ordering.rs`, since milestone 7): for
+    each ply the search keeps the two quiet moves that most recently cut
+    it off there, the newer first. A move that refutes one of the
+    opponent's tries often refutes the next, since the positions differ
+    by that try alone. They are kept through the iterations of one
+    search and forgotten when the next begins, so a search is still a
+    function of the position and the table. A killer counts only in a
+    position that has it as a quiet move; the root keeps none, because
+    nothing cuts off there, and neither does quiescence search. From
+    the start position at depth 6 the first move tried gives 96.0% of
+    the main search's cutoffs with them, from 55.8%.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.

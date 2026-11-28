@@ -30,6 +30,13 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   move is in check. The bench counts 77,407 nodes, from 206,097, with
   every pinned score and line unchanged. SPRT against the search before
   it: H1 accepted (run `9c8de5ceed4c`).
+- **Killer moves** (milestone 7, item 6): for each distance from the root
+  the search remembers the two quiet moves that last cut it off there and
+  tries them before the other quiet moves, after the captures that do
+  not lose material. The bench counts 61,760 nodes, from 77,407, and a
+  depth-6 search of the start position 58,264, from 176,611, with every
+  pinned score unchanged. SPRT against the search before it: see
+  `docs/testing/sprt-history.md`.
 - **`Clear Hash`** (item 2c): a button option that empties the
   transposition table without starting a new game. It applies from the
   next search on. The library gains `uci::Button` and
