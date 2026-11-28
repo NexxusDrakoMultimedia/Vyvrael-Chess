@@ -147,7 +147,8 @@ jobs:
         if: matrix.build == 'pext'
         run: |
           echo "RUSTFLAGS='$RUSTFLAGS'"
-          cargo test --release --locked -p vyvrael $FEATURES
+          # rustdoc builds the doc-tests and does not read RUSTFLAGS.
+          RUSTDOCFLAGS="$RUSTFLAGS" cargo test --release --locked -p vyvrael $FEATURES
       - name: Build
         run: |
           echo "RUSTFLAGS='$RUSTFLAGS' FEATURES='$FEATURES'"

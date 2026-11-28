@@ -32,7 +32,8 @@ places, all in `release-workflow.yml`:
 - A `pext` job builds with `-C target-cpu=x86-64-v3` as `avx2` does, and
   with `--features pext`; its file is `vyvrael-<version>-pext(.exe)`.
 - Before it builds, a `pext` job runs the engine's tests with the same
-  flags and feature. The gates test the default features only, and this
+  flags and feature (and the same flags in `RUSTDOCFLAGS`, which the
+  doc-tests need; corrected on 2026-11-28, before the step's first run). The gates test the default features only, and this
   build has another slider lookup; perft and the pinned bench count are
   among those tests.
 - The draft job expects six binaries, not four.

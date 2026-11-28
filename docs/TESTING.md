@@ -17,7 +17,9 @@ cargo test --workspace --release
 CI (`.github/workflows/ci.yml`) runs exactly these, and then the offline
 tests of the helper scripts in `scripts/tests/`: the installer, the
 ladder's engines, and the match and rating scripts (see "Integration tests"
-below).
+below). A second job, on Linux and on Windows, lints, tests and starts
+the PEXT build (see "The PEXT build"). CI runs on pushes to `main` and to
+`milestone/**` and `release/**` branches, and on pull requests.
 
 ## Unit tests
 
@@ -175,15 +177,21 @@ whole test suite is run on it as on the default build, the perft
 acceptance tests and the pinned bench count included:
 
 ```sh
-RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features pext
+RUSTFLAGS="-C target-cpu=x86-64-v3" RUSTDOCFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features pext
 RUSTFLAGS="-C target-cpu=x86-64-v3" cargo clippy --all-targets --features pext -- -D warnings
 ```
 
-CI does not run these: `ci.yml` builds the default features only. The
-release workflow runs the first of them in its `pext` build jobs, from
-0.2.0 on (see
+`RUSTDOCFLAGS` is needed for the doc-tests: `rustdoc` compiles them and
+does not read `RUSTFLAGS`, so without it they are built without BMI2 and
+the feature refuses to compile. (Found on 2026-11-28, when the commands
+were first put into CI; the release workflow's test step had the same
+fault before it ever ran.)
+
+CI runs both since 2026-11-28, for the engine crate, in the `pext` job of
+`ci.yml` on Linux and on Windows, and then starts the binary once (`uci`,
+`isready`, `go depth 6`, `quit`). The release workflow runs the first of
+them in its `pext` build jobs, from 0.2.0 on (see
 [`proposals/release-workflow.md`](proposals/release-workflow.md)).
-Run them by hand after a change to `src/attacks/` or to move generation.
 The feature is refused at compile time for a target without BMI2.
 
 ## Running a search by hand

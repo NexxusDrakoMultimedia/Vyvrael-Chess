@@ -29,6 +29,8 @@ release with a `pext` build beside `avx2` and plain. Release notes:
   outside the range is refused. The seven measured weakenings are the
   same; their numbers are new, because the scale is now that of Ladder
   Baseline 3. A number kept from 0.1.0 plays stronger than it did.
+- **CI tests the `pext` build** on Linux and on Windows, and runs on
+  `release/**` branches too.
 - **Measured:** in Ladder Baseline 3, a round robin of 44 engines, the
   build of 0.2.0 finished 19th and won all twelve games against 0.1.0
   and its two alphas, which finished 34th to 36th. An ordering on the
