@@ -6,7 +6,8 @@ bot keeps. The plan and the rules here were set by the maintainer on
 
 **Status:** the maintainer upgraded the account to BOT after tagging
 `v0.1.0-alpha.1`, and the bot has played casual games through lichess-bot
-since 2026-11-20. It runs the 0.1.0 release since 2026-11-23.
+since 2026-11-20. It runs the 0.2.0 release since 2026-11-28 (UTC), and
+ran 0.1.0 from 2026-11-23 until then.
 [lichess-history.md](lichess-history.md) records its games per build.
 
 **AI coding agents do not touch Lichess.** No agent requests, stores, logs
