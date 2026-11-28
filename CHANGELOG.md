@@ -37,6 +37,8 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **`Position::make_null_move`**: passes the turn without a move, with the
+  hash kept exact, for the null-move pruning of milestone 7.
 - **`Clear Hash`** (item 2c): a button option that empties the
   transposition table without starting a new game. It applies from the
   next search on. The library gains `uci::Button` and

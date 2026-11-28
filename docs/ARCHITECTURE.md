@@ -178,6 +178,11 @@ from `board`.
   so **the search uses copy-make**. `make_move` and `unmake_move` remain: perft
   uses them, and they are the right tool wherever a move really must be taken
   back on the same position.
+  - `make_null_move` passes the turn without a move, for the search's
+    null-move pruning: the side to move changes, the en passant square
+    goes, the counters advance as for a quiet move and the hash stays
+    exact. It has no undo, since the search passes on a copy, and it must
+    not be used in check.
   - `make_move` trusts its input: the move must be pseudo-legal for the
     position. It panics on moves that do not fit at all (empty origin square,
     capture with nothing to capture) and checks consistency in debug builds.
