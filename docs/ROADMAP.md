@@ -1098,8 +1098,11 @@ the reductions.
 - [ ] 12. Check extensions. SPRT. Deferred (see below).
 - [x] 13. Reverse futility pruning: up to depth 6, margin 100 a ply, not
   in check. Built before items 11 and 12, as the largest gain left
-  among the items not yet built. SPRT: awaited; if it does not show a
-  gain, its commit is reverted.
+  among the items not yet built. With it the verification of a null
+  move was made to search real moves (commit after `71db5ab`): reverse
+  futility pruning could answer that search from the evaluation alone.
+  SPRT, of both together: awaited; if it does not show a gain, both
+  commits are reverted.
 - [ ] 14. Internal iterative reduction. SPRT. Deferred (see below).
 - [ ] 15. The countermove heuristic. SPRT. Deferred (see below).
 - [ ] 16. Continuation history. SPRT. Deferred (see below).

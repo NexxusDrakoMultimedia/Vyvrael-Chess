@@ -526,8 +526,12 @@ transposition table, pruning) come in milestone 7, one at a time.
     - only when the static evaluation is already at or above beta;
     - **not with pawns and king alone**, where zugzwang is common;
     - **with one piece left, only after verification:** the position
-      is searched at the reduced depth with real moves only, and is cut
-      off only if that too reaches beta.
+      is searched at the reduced depth, at least one ply, with real
+      moves only, and is cut off only if that too reaches beta. "Real
+      moves only" means no null move at that position and no reverse
+      futility pruning either, which would answer from the same
+      evaluation that allowed the null move; below it the search is
+      the ordinary one.
     A mate score found behind a null move is not passed on: the cutoff
     is then worth beta. The cutoff goes into the table as a lower
     bound. `bench 7` counts 1,026,110 nodes with it, from 4,598,039.
@@ -562,7 +566,7 @@ transposition table, pruning) come in milestone 7, one at a time.
     beta. Not in check and not when beta is a mate score. It is tried
     before the null move, which needs a search to say much the same of
     positions that are less clear, and like it is not exact. `bench 8`
-    counts 406,666 nodes with it, from 689,789.
+    counts 406,707 nodes with it, from 689,789.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.

@@ -104,6 +104,10 @@ pub struct Search<'a> {
     /// null move: it was reached by one, or it is being searched to verify
     /// one.
     no_null: Vec<bool>,
+    /// `verifying[p]` is set while the position at ply `p` is searched to
+    /// verify a null move: its own moves must then really be searched, so
+    /// nothing may cut it off from its evaluation alone.
+    verifying: Vec<bool>,
     /// Whether null-move pruning is used at all. Always true outside the
     /// tests, which compare the search with and without it.
     null_moves: bool,
@@ -261,6 +265,7 @@ impl<'a> Search<'a> {
             table: None,
             killers: vec![Killers::NONE; MAX_PLY],
             no_null: vec![false; MAX_PLY + 2],
+            verifying: vec![false; MAX_PLY + 2],
             null_moves: true,
             nulls: NullCounts::default(),
             futility: true,
@@ -470,6 +475,7 @@ impl<'a> Search<'a> {
         self.stats = SearchStats::ZERO;
         self.killers.fill(Killers::NONE);
         self.no_null.fill(false);
+        self.verifying.fill(false);
         self.nulls = NullCounts::default();
         self.reduced = (0, 0);
         self.futile = 0;
@@ -691,7 +697,9 @@ impl<'a> Search<'a> {
             }
         }
 
-        if let Some(score) = self.reverse_futility_cutoff(pos, depth, beta) {
+        if !self.verifying[ply]
+            && let Some(score) = self.reverse_futility_cutoff(pos, depth, beta)
+        {
             self.futile += 1;
             return score;
         }
@@ -883,7 +891,11 @@ impl Search<'_> {
     ///   be best, and pawn endgames are full of it.
     /// - **With one piece left, only after verification.** Zugzwang is
     ///   still common there, so the fail-high is checked by searching the
-    ///   position itself at the reduced depth with real moves only.
+    ///   position itself at the reduced depth, at least one ply, with
+    ///   real moves only: no null move there, and no reverse futility
+    ///   pruning, which would answer from the same evaluation that
+    ///   allowed the null move. (Below that position the search is the
+    ///   ordinary one.)
     fn null_move_cutoff(
         &mut self,
         pos: &Position,
@@ -909,9 +921,11 @@ impl Search<'_> {
         self.nulls.failed_high += 1;
         if pieces_of_mover(pos) == 1 {
             self.nulls.verified += 1;
-            self.no_null[ply] = true;
-            let verified = self.negamax(pos, reduced, ply, beta - 1, beta);
-            self.no_null[ply] = false;
+            (self.no_null[ply], self.verifying[ply]) = (true, true);
+            // At least a ply: at depth 0 it would be a quiescence search,
+            // which stands pat on the evaluation and tries no quiet move.
+            let verified = self.negamax(pos, reduced.max(1), ply, beta - 1, beta);
+            (self.no_null[ply], self.verifying[ply]) = (false, false);
             if self.stopped || verified < beta {
                 return None;
             }
@@ -2178,6 +2192,48 @@ mod tests {
         // Switched off.
         searcher.null_moves = false;
         assert!(!searcher.null_move_applies(&ahead, 3, 1, 0));
+    }
+
+    /// The verification of a null move searches the position's own moves:
+    /// neither the null move nor reverse futility pruning may answer it.
+    /// White has a rook and stands far above beta, so that reverse
+    /// futility pruning would cut the verification off at once if it were
+    /// allowed to.
+    #[test]
+    fn a_null_move_is_verified_by_searching_real_moves() {
+        let pos = fen("8/8/8/4k3/8/8/4K3/R7 w - - 0 1");
+        let (depth, ply, beta) = (6, 1, 0);
+        let reduced = depth - 1 - null_reduction(depth);
+        assert!((1..=RFP_MAX_DEPTH).contains(&reduced));
+        let stands = HandCrafted.evaluate(&pos);
+        assert!(stands - RFP_MARGIN * reduced as Score >= beta, "{stands}");
+        assert_eq!(pieces_of_mover(&pos), 1);
+        // What the null move's own search costs.
+        let mut alone = Search::new(&HandCrafted);
+        let mut passed = pos.clone();
+        passed.make_null_move();
+        alone.keys.push(pos.hash());
+        alone.no_null[ply + 1] = true;
+        let score = -alone.negamax(&passed, reduced, ply + 1, -beta, -beta + 1);
+        assert!(score >= beta);
+        let null_nodes = alone.nodes();
+
+        let mut searcher = Search::new(&HandCrafted);
+        let cutoff = searcher.null_move_cutoff(&pos, depth, ply, beta);
+        assert!(searcher.nulls.verified >= 1);
+        // The verification visited the position and at least one position
+        // after each of its legal moves, unless one of them cut it off:
+        // far more than the single node of an answer by evaluation.
+        let verification_nodes = searcher.nodes() - null_nodes;
+        assert!(verification_nodes > 3, "{verification_nodes}");
+        // And it agrees with a plain search of the same thing.
+        let mut plain = Search::new(&HandCrafted);
+        (plain.null_moves, plain.futility) = (false, false);
+        let real = plain.negamax(&pos, reduced, ply, beta - 1, beta);
+        assert_eq!(cutoff.is_some(), real >= beta);
+        // The flags are down again afterwards.
+        assert!(searcher.verifying.iter().all(|&set| !set));
+        assert!(searcher.no_null.iter().all(|&set| !set));
     }
 
     /// A fixed-depth search with and without null-move pruning, both
