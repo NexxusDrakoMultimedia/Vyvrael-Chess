@@ -106,6 +106,55 @@ What the games show:
   (`vyvrael-0.1.0-avx2`), run on the Linux machine by lichess-bot. The
   maintainer rebuilt that machine for this upgrade and put the binary in
   place with `install_tools.py --vyvrael 0.1.0`.
-- **Window:** from the upgrade on 2026-11-23. Still open: it closes with the
-  next pre-release export, when the bot is stopped to run a newer build.
+- **Window:** from the upgrade on 2026-11-23 to the pre-release export on
+  2026-11-28, made before the bot is stopped for 0.2.0. The first game was
+  2026-11-23 17:21 UTC, the last 2026-11-24 18:45 UTC. The PGN does not
+  say which build played; that the game of 2026-11-23 was played after
+  the upgrade rests on the maintainer's statement of that day that
+  0.1.0-alpha.2 played none.
+- **Pre-release PGN:** `lichess_Vyvrael-Chess_2026-11-28.pgn`, 9 games,
+  12,681 bytes, SHA-256
+  `58f91202e019520d6739afcfabc0cb9a3f1fa1577e61f29173574a6aeb87ee70`.
+  Not committed. Seven of its games are those of the 0.1.0-alpha.1
+  section; the two below are new.
+- **Settings seen in the games:** casual games of standard chess, one
+  rapid at 7+3 (420+3) and one blitz at 3+2 (180+2). The rapid game is
+  the first the bot played at another time control than 3+2.
+
+| Date (UTC) | Game | Vyvræl | Opponent (Lichess rating) | Opening (ECO) | Result | Moves | Ended by | Vyvræl's clock |
+| --- | --- | --- | --- | --- | --- | --: | --- | --: |
+| 2026-11-23 17:21 | [cMLrxU4V](https://lichess.org/game/cMLrxU4V) | Black | Opponent C (1479) | Four Knights Game, Italian Variation (C50) | Won | 23 | Mate (23... Qf2#) | 3:58 |
+| 2026-11-24 18:45 | [OoV5D8lA](https://lichess.org/game/OoV5D8lA) | Black | Opponent C (1567) | Nimzowitsch Defence, Scandinavian Variation, Exchange, Marshall Gambit (B00) | Won | 6 | Opponent's time ran out | 2:43 |
+
+The columns are as in the 0.1.0-alpha.1 section. The two ratings of
+Opponent C are Lichess's rapid and blitz ratings, which are separate.
+
+**Total:** 2 games, 2 wins, 1 opponent.
+
+What the games show:
+
+- **1... Nc6 again, then two different second moves.** Against 1. e4
+  Vyvræl answered 1... Nc6 in both games, as 0.1.0-alpha.1 did in all
+  four of its games as Black. After 2. Nc3 it played 2... Nf6, after
+  2. d4 again 2... d5. Two games cannot show whether `Variety` changed
+  anything: the opponent's second move differed, which alone explains
+  the different replies.
+- **The rapid game was won by an attack on the king:** a bishop given up
+  on f2 at move 11, and mate on f2 at move 23 with queen and rook. It is
+  one game against one opponent and says nothing about strength.
+- **More time used at the longer control.** At 7+3 Vyvræl spent about 11
+  seconds a move (counting the increment back) and finished with 3:58
+  of 7:00. At 3+2 it spent about 5 seconds a move, as before.
+- **One game ended on the opponent's clock:** in OoV5D8lA the opponent
+  had 2:10 after their sixth move and made no seventh; Lichess records
+  "Black wins on time" after 6... Nxc2+. Vyvræl lost no game on time.
+- **Vyvræl did not play White in this window.**
+- As before, an export shows neither aborted games nor the engine's own
+  output; those would be in lichess-bot's logs.
+
+## 0.2.0
+
+- **Build:** the 0.2.0 release, once it is published and the bot is
+  upgraded to it.
+- **Window:** opens with that upgrade.
 - **Games:** recorded when the window closes.
