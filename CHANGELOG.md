@@ -44,7 +44,7 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   three moves. The bench counts 41,161 nodes, from 51,272, and at depth
   8 689,789, from 3,030,504. One pinned score changes (queen against
   two pawns at depth 4: +689, from +683). SPRT against the search
-  before it: see `docs/testing/sprt-history.md`.
+  before it: H1 accepted (run `00e8619ba2cf`).
 - **Null-move pruning** (milestone 7, item 9): where the side to move
   already stands at or above beta, the search first lets it pass and
   looks shallower; if the opponent cannot bring the score below beta

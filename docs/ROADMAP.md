@@ -1093,8 +1093,7 @@ the reductions.
 - [x] 10. Late move reductions: quiet moves from the fourth on, from
   depth 3, by `0.75 + ln(depth) * ln(move) / 2.25` plies; without
   principal variation search (see item 8) and without history (see
-  item 7). SPRT: awaited; if it does not show a gain, its commit is
-  reverted.
+  item 7). SPRT [0, 5]: H1 accepted in 620 games (run `00e8619ba2cf`).
 - [ ] 11. Aspiration windows at the root. SPRT.
 - [ ] 12. Check extensions. SPRT.
 - [ ] 13. Reverse futility pruning. SPRT.
