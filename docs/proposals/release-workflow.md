@@ -11,17 +11,48 @@ was published. The maintainer then deleted the draft, the tag and the test
 branch. Agents do not edit `.github/workflows` without the maintainer's
 approval.
 
+**The `pext` build for 0.2.0 was added on 2026-11-28** (see "The pext
+build" below), to this proposal and, with the maintainer's approval given
+that day, to the installed file. That change has not run yet.
+
 The workflow is [`release-workflow.yml`](release-workflow.yml). From 0.1.0
 it builds the release binaries that were built by hand up to 0.1.0-alpha.2,
 and it creates a **draft** GitHub release with them. It never publishes: the
 maintainer checks the draft and publishes it. The whole procedure around it
 is in [RELEASING.md](../RELEASING.md).
 
+## The pext build (added 2026-11-28, for 0.2.0)
+
+Milestone 7 added sliding-piece attacks by the BMI2 instruction PEXT
+behind the Cargo feature `pext` (see "Magic bitboards" in
+[ARCHITECTURE.md](../ARCHITECTURE.md)). The workflow changes in four
+places, all in `release-workflow.yml`:
+
+- `pext` joins the build matrix, between `avx2` and plain.
+- A `pext` job builds with `-C target-cpu=x86-64-v3` as `avx2` does, and
+  with `--features pext`; its file is `vyvrael-<version>-pext(.exe)`.
+- Before it builds, a `pext` job runs the engine's tests with the same
+  flags and feature (and the same flags in `RUSTDOCFLAGS`, which the
+  doc-tests need; corrected on 2026-11-28, before the step's first run). The gates test the default features only, and this
+  build has another slider lookup; perft and the pinned bench count are
+  among those tests.
+- The draft job expects six binaries, not four.
+
+GitHub's hosted runners for x86-64 have BMI2, which the tests and the
+smoke test of this build need to run. If a runner without it ever
+appears, the `pext` jobs fail with an illegal instruction and no draft
+is made: nothing wrong is released.
+
+**Not tried:** this change has not run. The trial for 0.1.0 used a test
+tag (`v0.1.0-rc.0`) that the maintainer deleted afterwards; the same can
+be done here before the real tag.
+
 ## What it does
 
 It runs only when a tag matching `v*.*.*` is pushed: never for a branch
 push or a pull request. The maintainer creates and pushes the tag. Four
-stages (seven jobs, since build runs four times), each starting only if the
+stages (nine jobs with the `pext` build, since build then runs six
+times; seven before it), each starting only if the
 stages before it passed:
 
 1. **check-version** (Ubuntu): the tag without its `v` must equal the
@@ -32,19 +63,18 @@ stages before it passed:
 2. **gates** (Ubuntu): the same checks as `ci.yml`: `cargo fmt --check`,
    `cargo clippy -D warnings`, `cargo test --workspace --release` and the
    script tests.
-3. **build**, four jobs (Windows on `windows-latest` and Linux on
-   `ubuntu-latest`, each in two builds):
+3. **build**, six jobs (Windows on `windows-latest` and Linux on
+   `ubuntu-latest`, each in three builds):
 
    | Build | Flags | Windows file | Linux file |
    | --- | --- | --- | --- |
    | `avx2` | `-C target-cpu=x86-64-v3` | `vyvrael-<version>-avx2.exe` | `vyvrael-<version>-avx2` |
+   | `pext` | `-C target-cpu=x86-64-v3`, `--features pext` | `vyvrael-<version>-pext.exe` | `vyvrael-<version>-pext` |
    | plain | none (any x86-64) | `vyvrael-<version>.exe` | `vyvrael-<version>` |
 
    The names are those of "Release artifacts" in
    [ROADMAP.md](../ROADMAP.md). Never `target-cpu=native`, never an
-   AVX-512 build. The `pext` build is added in milestone 7 (0.2.0), when the
-   engine gets sliding-piece attacks by PEXT; a comment in the matrix marks
-   where. Each binary is then:
+   AVX-512 build. Each binary is then:
    - **smoke-tested** before anything else is done with it: it is sent
      `uci`, `isready`, `position startpos` and `go depth 6`, and after ten
      seconds `quit`. The run fails unless it answers with
@@ -54,7 +84,7 @@ stages before it passed:
      `sha256sum` format (`<hash>  <file>`), checked once with
      `sha256sum -c`;
    - kept as a **workflow artifact** for 14 days.
-4. **draft-release** (Ubuntu): gathers the four binaries and four checksum
+4. **draft-release** (Ubuntu): gathers the six binaries and six checksum
    files, checks every checksum again, and creates a **draft** release for
    the tag with the runner's `gh` command. Its title is `Vyvræl <version>`,
    its text is `docs/releases/<version>.md`, and a version with a
@@ -136,4 +166,6 @@ Before relying on it for 0.1.0, run it once on a test tag:
    `.sha256` file; run it once.
 4. Delete the draft release, the tag (locally and on GitHub) and the branch.
 
-This was done on 2026-11-22 (see "Status" at the top).
+This was done on 2026-11-22 (see "Status" at the top). A trial of the
+`pext` change would go the same way with a test version such as
+`0.2.0-rc.0`: nine jobs, and a draft with twelve files.

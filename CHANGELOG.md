@@ -8,6 +8,41 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-28
+
+The search heuristics of milestone 7: a transposition table, move
+ordering, null-move pruning, late move reductions and reverse futility
+pruning, each accepted by an SPRT against the search before it
+([docs/testing/sprt-history.md](docs/testing/sprt-history.md)). The first
+release with a `pext` build beside `avx2` and plain. Release notes:
+[docs/releases/0.2.0.md](docs/releases/0.2.0.md).
+
+- **Full-strength play has changed**, for the first time since
+  0.1.0-alpha.1: the bench counts 28,175 nodes, from 16,611,416, at the
+  same depth.
+- **`Hash` now has an effect:** it is the size of the transposition
+  table, and `Clear Hash` empties it.
+- **New in the protocol:** `go mate`, `go searchmoves`, `hashfull`,
+  `seldepth`, `UCI_ShowWDL`, and `d` and `eval` in UCI mode.
+- **Breaking for GUI settings:** `UCI_Elo` now runs from 750 to 1380 (it
+  was 1110 to 1630), with a default of 1110 (it was 1360), and a value
+  outside the range is refused. The seven measured weakenings are the
+  same; their numbers are new, because the scale is now that of Ladder
+  Baseline 3. A number kept from 0.1.0 plays stronger than it did.
+- **CI tests the `pext` build** on Linux and on Windows, and runs on
+  `release/**` branches too.
+- **Measured:** in Ladder Baseline 3, a round robin of 44 engines, the
+  build of 0.2.0 finished 19th and won all twelve games against 0.1.0
+  and its two alphas, which finished 34th to 36th. An ordering on the
+  project's own ladder, not an Elo
+  ([docs/testing/results-0.2.0.md](docs/testing/results-0.2.0.md)).
+  `UCI_Elo` was measured again with the same build and refitted
+  ([docs/TESTING.md](docs/TESTING.md), "Calibration of `UCI_Elo`
+  (0.2.0)").
+- **Fixed:** `stop` and the clock now reach a long first search depth
+  (known issue KI-10, narrowed), and a clock within `Move Overhead` is
+  no longer spent a millisecond at a time (the first half of KI-12).
+
 ### Added
 
 - **A transposition table** (milestone 7, item 2a). The search remembers
@@ -93,45 +128,6 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   table ages yet, so it rises through a game. `Report` gains the field
   `hashfull`, `None` for a search without a table. The bench count is
   unchanged.
-
-### Changed
-
-- The `help` text for `search --stats` names all the statistics it
-  prints: the quiescence share and the transposition table line were
-  missing.
-- **The main search tries captures first** (milestone 7, item 1): captures
-  and promotions by most valuable victim and least valuable attacker, as
-  quiescence always has, then the quiet moves. The value found is the
-  same; the tree is far smaller (the bench counts 459,926 nodes, from
-  16,611,416). SPRT against the search before it: H1 accepted (run
-  `f38fad1831cb` in `docs/testing/sprt-history.md`).
-
-### Fixed
-
-- **Known issue KI-9 is closed**: the search is no longer slow for lack
-  of move ordering. The first move tried gives 90% to 98% of the main
-  search's cutoffs, from 22% before milestone 7.
-- **`stop` and the clock reach a long first depth** (milestone 7, item 5;
-  known issue KI-10, now narrowed). The first search depth used to be
-  completed whatever happened, which in positions with very many
-  captures could take seconds. Now only its first root move is
-  guaranteed; after that `stop` and the clock are looked at once every
-  65,536 positions, and a first depth still running then is cut short
-  and the best move so far is played. An ordinary first depth is over
-  long before that and completes as before, and a node limit never cuts
-  it short. With nine queens a side and 50 ms to move the answer comes
-  after about 0.3 s, from 4.8 s. Fixed-depth searching is unchanged (the
-  bench still counts 77,407 nodes). The weakened search
-  (`UCI_LimitStrength`) is not covered: its first pass still completes.
-- **A clock within `Move Overhead` is no longer spent a millisecond at a
-  time** (known issue KI-12, narrowed). Once the clock is at or below the
-  overhead the engine plans no time and plays from the first search depth,
-  where before every move got at least a millisecond and a long game
-  without increment ran the clock out. Play with more than the overhead on
-  the clock is unchanged.
-
-### Added
-
 - **`vyvrael suite <file>`** runs an EPD test suite at a fixed depth, node
   count or time and reports which positions were solved (`bm`, `am`). It
   is a quick check of the search after a change, not a measure of
@@ -193,6 +189,62 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   books repository at a pinned commit, checks the zip and the `.epd` by
   SHA-256 (the `.epd` is the file of Ladder Baselines 1 and 2), puts it
   under the install prefix and prints the `OPENINGS=` line.
+
+### Changed
+
+- **`UCI_Elo` is refitted on the scale of Ladder Baseline 3** (breaking
+  for GUI settings). The range is 750 to 1380 (was 1110 to 1630) and the
+  default 1110 (was 1360), which plays nearly as the old default did.
+  The seven measured settings of the weakening are the same; their
+  numbers are new because the scale is (the table of old and new numbers
+  is in `docs/UCI.md`, "Limited strength"). A number kept from 0.1.0
+  plays stronger than it did, and one above 1380 is refused, as any
+  out-of-range value is. From 1021 to 1099 the engine plays as 1020.
+  Still provisional; full-strength play is not affected
+  (`docs/TESTING.md`, "Calibration of `UCI_Elo` (0.2.0)").
+- **Ladder Baseline 3 is the reference ladder**, in place of Ladder
+  Baseline 2: 44 engines with four Vyvræl builds among them, the ladder
+  that gauntlets and the scale of `UCI_Elo` use from 0.2.0 on
+  (`docs/testing/ladder-Baseline-3.md`).
+- **CI tests the `pext` build**: a second job lints, tests, builds and
+  starts it on Linux and on Windows, and CI also runs on pushes to
+  `release/**` branches.
+- **The release workflow builds a `pext` file** for Windows and Linux,
+  beside `avx2` and plain, and runs the engine's tests on that build
+  before it does. Six binaries in a release, from four.
+- The `help` text for `search --stats` names all the statistics it
+  prints: the quiescence share and the transposition table line were
+  missing.
+- **The main search tries captures first** (milestone 7, item 1): captures
+  and promotions by most valuable victim and least valuable attacker, as
+  quiescence always has, then the quiet moves. The value found is the
+  same; the tree is far smaller (the bench counts 459,926 nodes, from
+  16,611,416). SPRT against the search before it: H1 accepted (run
+  `f38fad1831cb` in `docs/testing/sprt-history.md`).
+
+### Fixed
+
+- **Known issue KI-9 is closed**: the search is no longer slow for lack
+  of move ordering. The first move tried gives 90% to 98% of the main
+  search's cutoffs, from 22% before milestone 7.
+- **`stop` and the clock reach a long first depth** (milestone 7, item 5;
+  known issue KI-10, now narrowed). The first search depth used to be
+  completed whatever happened, which in positions with very many
+  captures could take seconds. Now only its first root move is
+  guaranteed; after that `stop` and the clock are looked at once every
+  65,536 positions, and a first depth still running then is cut short
+  and the best move so far is played. An ordinary first depth is over
+  long before that and completes as before, and a node limit never cuts
+  it short. With nine queens a side and 50 ms to move the answer comes
+  after about 0.3 s, from 4.8 s. Fixed-depth searching is unchanged (the
+  bench still counts 77,407 nodes). The weakened search
+  (`UCI_LimitStrength`) is not covered: its first pass still completes.
+- **A clock within `Move Overhead` is no longer spent a millisecond at a
+  time** (known issue KI-12, narrowed). Once the clock is at or below the
+  overhead the engine plans no time and plays from the first search depth,
+  where before every move got at least a millisecond and a long game
+  without increment ran the clock out. Play with more than the overhead on
+  the clock is unchanged.
 
 ## [0.1.0] - 2026-11-23
 
@@ -622,7 +674,8 @@ shipped; they are kept as a record of what the reviews caught.
   back from every time limit for delays the engine cannot measure, such as
   the network between a Lichess game and the engine.
 
-[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.2...v0.1.0
 [0.1.0-alpha.2]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/NexxusDrakoMultimedia/Vyvrael-Chess/releases/tag/v0.1.0-alpha.1

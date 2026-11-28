@@ -450,24 +450,25 @@ mod tests {
     fn elo() {
         assert_eq!(
             Options::declarations()[5],
-            "option name UCI_Elo type spin default 1360 min 1110 max 1630"
+            "option name UCI_Elo type spin default 1110 min 750 max 1380"
         );
         let mut options = Options::default();
-        assert_eq!(options.elo, 1360);
-        for (text, value) in [("1110", 1110), ("1630", 1630), ("1350", 1350)] {
+        assert_eq!(options.elo, 1110);
+        for (text, value) in [("750", 750), ("1380", 1380), ("1100", 1100)] {
             assert_eq!(options.set("UCI_Elo", Some(text)), Ok(()));
             assert_eq!(options.elo, value);
         }
-        // The old range's ends (400 and 1800) are out of the new one.
-        for bad in ["1109", "1631", "400", "1800", "0", "2800", "strong"] {
+        // The upper ends of the earlier ranges (1800 and 1630) and the
+        // first range's lower end (400) are out of this one.
+        for bad in ["749", "1381", "400", "1630", "1800", "0", "2800", "strong"] {
             assert_eq!(
                 options.set("uci_elo", Some(bad)),
                 Err(format!(
-                    "UCI_Elo: expected a whole number from 1110 to 1630, got `{bad}`"
+                    "UCI_Elo: expected a whole number from 750 to 1380, got `{bad}`"
                 ))
             );
         }
-        assert_eq!(options.elo, 1350);
+        assert_eq!(options.elo, 1100);
         // Setting the rating does not switch limiting on.
         assert!(!options.limit_strength);
     }

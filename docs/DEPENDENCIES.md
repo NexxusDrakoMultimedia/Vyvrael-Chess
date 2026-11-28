@@ -76,7 +76,8 @@ not pinned by this project.
 
 ## Opponent engines of the ladder (Linux and Windows)
 
-The engines of Ladder Baseline 2, the reference ladder, as
+The engines of the reference ladder, Ladder Baseline 3 (Ladder Baseline
+2's less Arasan 26.1-1800, and the eleven added for Baseline 3), as
 `scripts/install_tools.py --engines` installs them on Linux and on Windows
 (the Windows table follows the Linux one). They are separate programs, run
 only as opponents in matches:

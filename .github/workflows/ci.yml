@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "milestone/**"]
+    branches: [main, "milestone/**", "release/**"]
   pull_request:
 
 permissions:
@@ -32,3 +32,47 @@ jobs:
       # Offline tests of the helper scripts: nothing is downloaded or installed.
       - name: Script tests
         run: python3 -m unittest discover -s scripts/tests
+
+  # The PEXT build (Cargo feature `pext`, at the x86-64-v3 level): another
+  # slider lookup, so the engine's lints and tests run on it too, on both
+  # systems the release workflow builds for, and the binary is started
+  # once. Added 2026-11-28 with the maintainer's approval. GitHub's hosted
+  # x86-64 runners have BMI2; one without it would fail here with an
+  # illegal instruction.
+  pext:
+    name: pext (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: -C target-cpu=x86-64-v3
+      # rustdoc builds the doc-tests and does not read RUSTFLAGS.
+      RUSTDOCFLAGS: -C target-cpu=x86-64-v3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install and show toolchain
+        run: |
+          rustup toolchain install
+          rustup show
+      - name: Clippy
+        run: cargo clippy --locked -p vyvrael --all-targets --features pext -- -D warnings
+      - name: Test
+        run: cargo test --release --locked -p vyvrael --features pext
+      - name: Build
+        run: cargo build --release --locked -p vyvrael --features pext
+      - name: Smoke test (uci, isready, go depth 6, quit)
+        run: |
+          set -euo pipefail
+          bin=target/release/vyvrael
+          if [ "$RUNNER_OS" = "Windows" ]; then bin="$bin.exe"; fi
+          out=$( { printf 'uci\nisready\nposition startpos\ngo depth 6\n'; sleep 10; printf 'quit\n'; } | "./$bin" )
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q '^uciok$' || { echo "::error::no uciok"; exit 1; }
+          printf '%s\n' "$out" | grep -q '^readyok$' || { echo "::error::no readyok"; exit 1; }
+          printf '%s\n' "$out" | grep -q '^info depth 6 ' || { echo "::error::depth 6 not reached"; exit 1; }
+          printf '%s\n' "$out" | grep -Eq '^bestmove [a-h][1-8][a-h][1-8][qrbn]?$' || { echo "::error::no bestmove"; exit 1; }

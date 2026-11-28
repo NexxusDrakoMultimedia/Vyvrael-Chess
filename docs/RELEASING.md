@@ -80,6 +80,9 @@ On a branch `release/<version>` from `main`:
 ## 3. Merge and tag (the maintainer)
 
 - [ ] Review the release branch and merge it into `main`.
+- [ ] For 0.2.0: the workflow's `pext` build (added 2026-11-28) has not
+      run before. Consider a trial on a test tag first, as for 0.1.0 (see
+      [`proposals/release-workflow.md`](proposals/release-workflow.md)).
 - [ ] Create the annotated tag on that merge and push it:
 
       ```sh
@@ -92,8 +95,9 @@ On a branch `release/<version>` from `main`:
 - [ ] The tag starts the release workflow. It checks that the tag matches
       `Cargo.toml`, that the changelog has a dated section for the version
       and that its notes file `docs/releases/<version>.md` exists,
-      runs the gates, builds the `avx2` and plain binaries for Windows and
-      Linux, smoke-tests each, and creates a **draft** release with the
+      runs the gates, builds the `avx2`, `pext` (from 0.2.0) and plain
+      binaries for Windows and Linux, runs the engine's tests on the
+      `pext` build, smoke-tests each binary, and creates a **draft** release with the
       binaries, their `.sha256` files and the notes.
 - [ ] Check the draft: the files are there and named as in "Release
       artifacts"; download them and check each against its `.sha256` file

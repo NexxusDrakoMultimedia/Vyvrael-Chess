@@ -3,7 +3,8 @@
 #
 # Installed from docs/proposals/release-workflow.yml with the maintainer's
 # approval (2026-11-22). It passed its trial on the test tag v0.1.0-rc.0 the
-# same day (run 44980221187). What it does and why:
+# same day (run 44980221187). The pext build was added on 2026-11-28, with
+# the maintainer's approval, and has not run yet. What it does and why:
 # docs/proposals/release-workflow.md.
 #
 # Builds the release binaries for a pushed version tag and creates a DRAFT
@@ -94,12 +95,9 @@ jobs:
       fail-fast: true
       matrix:
         os: [windows-latest, ubuntu-latest]
-        build: [avx2, plain]
-        # The pext build goes here in milestone 7 (0.2.0), once the engine
-        # has sliding-piece attacks by PEXT behind a feature: add `pext` to
-        # `build`, with target-cpu=x86-64-v3 and `--features pext` (the
-        # feature's name is decided in milestone 7), named
-        # vyvrael-<version>-pext(.exe).
+        # pext: the avx2 level with sliding-piece attacks by PEXT (the
+        # Cargo feature `pext`), from 0.2.0 on.
+        build: [avx2, pext, plain]
     defaults:
       run:
         shell: bash
@@ -114,10 +112,16 @@ jobs:
           set -euo pipefail
           flags=""
           suffix=""
-          if [ "${{ matrix.build }}" = "avx2" ]; then
+          features=""
+          if [ "${{ matrix.build }}" = "avx2" ] || [ "${{ matrix.build }}" = "pext" ]; then
             # x86-64-v3: AVX2 and BMI2, Intel from Haswell, AMD from Excavator.
             flags="-C target-cpu=x86-64-v3"
-            suffix="-avx2"
+            suffix="-${{ matrix.build }}"
+          fi
+          if [ "${{ matrix.build }}" = "pext" ]; then
+            # The same level; the feature needs its BMI2 and is refused
+            # at compile time without it.
+            features="--features pext"
           fi
           ext=""
           if [ "${{ runner.os }}" = "Windows" ]; then
@@ -127,6 +131,7 @@ jobs:
             ext=".exe"
           fi
           echo "RUSTFLAGS=$flags" >> "$GITHUB_ENV"
+          echo "FEATURES=$features" >> "$GITHUB_ENV"
           echo "SOURCE=target/release/vyvrael$ext" >> "$GITHUB_ENV"
           echo "FILE=vyvrael-$VERSION$suffix$ext" >> "$GITHUB_ENV"
       # rustup show no longer installs a missing toolchain, so install the
@@ -135,10 +140,19 @@ jobs:
         run: |
           rustup toolchain install
           rustup show
-      - name: Build
+      # The gates test the default features only. The pext build has
+      # another slider lookup, so its tests (perft and the pinned bench
+      # count among them) run here, on the build that is released.
+      - name: Test the pext build
+        if: matrix.build == 'pext'
         run: |
           echo "RUSTFLAGS='$RUSTFLAGS'"
-          cargo build --release --locked -p vyvrael
+          # rustdoc builds the doc-tests and does not read RUSTFLAGS.
+          RUSTDOCFLAGS="$RUSTFLAGS" cargo test --release --locked -p vyvrael $FEATURES
+      - name: Build
+        run: |
+          echo "RUSTFLAGS='$RUSTFLAGS' FEATURES='$FEATURES'"
+          cargo build --release --locked -p vyvrael $FEATURES
       - name: Name the binary
         run: |
           set -euo pipefail
@@ -195,7 +209,7 @@ jobs:
           set -euo pipefail
           ls -l
           for f in *.sha256; do sha256sum -c "$f"; done
-          test "$(ls | grep -cv '\.sha256$')" -eq 4
+          test "$(ls | grep -cv '\.sha256$')" -eq 6
       - name: Create the draft release (never published here)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

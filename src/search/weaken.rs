@@ -28,11 +28,12 @@ use crate::rng::Rng;
 pub const ELO_MIN: u32 = CALIBRATION[0].elo;
 /// Highest rating that can be asked for: the strongest setting measured.
 pub const ELO_MAX: u32 = CALIBRATION[CALIBRATION.len() - 1].elo;
-/// The rating used when none is chosen: three plies and 141 centipawns,
-/// exactly what the old default (1200 on the uncalibrated labels) gave, so
-/// a GUI that never sets `UCI_Elo` gets the same play as before the
-/// calibration.
-pub const ELO_DEFAULT: u32 = 1360;
+/// The rating used when none is chosen: three plies and 144 centipawns.
+/// It is the round number nearest to what the default gave before the
+/// calibration of 0.2.0 (1360 on the scale of that time: three plies and
+/// 141 centipawns), so a GUI that never sets `UCI_Elo` gets nearly the
+/// same play as before.
+pub const ELO_DEFAULT: u32 = 1110;
 
 /// One point of the calibration: a rating on the `UCI_Elo` scale and the
 /// weakening that plays at it.
@@ -43,53 +44,50 @@ struct Point {
 }
 
 /// The calibration of `UCI_Elo`, sorted by rating: seven weakenings
-/// measured on 2026-11-22 (`docs/TESTING.md`, "Calibration of `UCI_Elo`"
-/// and "Check of the refit"), their ratings rounded to tens.
+/// measured with the build of 0.2.0 on 2026-11-28 (`docs/TESTING.md`,
+/// "Calibration of `UCI_Elo` (0.2.0)"), their ratings on the scale of
+/// Ladder Baseline 3, rounded to tens.
 ///
-/// Six come from the calibration of 0.1.0-alpha.2. The point at 1,330 (two
-/// plies, 112 centipawns) is the one the check of the refit played as
-/// `UCI_Elo` 1290, placed on the calibration's scale by its distance from
-/// its measured neighbours. Between it and 1,350 (three plies) there is no
-/// point of the same depth, so 1,331 to 1,349 play as 1,330: a little weak
-/// for the number, never stronger than 1,350.
+/// The weakenings are the seven of the calibration of 0.1.0-alpha.2; only
+/// their ratings are new. Between 1,020 (two plies, 112 centipawns) and
+/// 1,100 (three plies) there is no point of the same depth, so 1,021 to
+/// 1,099 play as 1,020: weak for the number, never stronger than 1,100.
 ///
 /// **Provisional:** measured for one build, and measured again after
-/// milestone 7 and after queued task 2 (benchmark and speed-up; see
-/// `docs/ROADMAP.md`).
+/// queued task 2 (benchmark and speed-up; see `docs/ROADMAP.md`).
 const CALIBRATION: [Point; 7] = [
     Point {
-        elo: 1110,
+        elo: 750,
         depth: 2,
         noise: 300,
     },
     Point {
-        elo: 1150,
+        elo: 910,
         depth: 2,
         noise: 230,
     },
     Point {
-        elo: 1220,
+        elo: 950,
         depth: 2,
         noise: 171,
     },
-    // Measured in the check of the refit: see above.
     Point {
-        elo: 1330,
+        elo: 1020,
         depth: 2,
         noise: 112,
     },
     Point {
-        elo: 1350,
+        elo: 1100,
         depth: 3,
         noise: 151,
     },
     Point {
-        elo: 1410,
+        elo: 1180,
         depth: 3,
         noise: 90,
     },
     Point {
-        elo: 1630,
+        elo: 1380,
         depth: 3,
         noise: 20,
     },
@@ -604,17 +602,17 @@ mod tests {
         assert_eq!(tiny.nodes, one.nodes);
     }
 
-    /// The settings measured in the calibration and its check, as (rating,
-    /// depth, noise): written out here rather than read from the table, so
-    /// that a change to the table has to change this test too.
+    /// The settings measured in the calibration, as (rating, depth,
+    /// noise): written out here rather than read from the table, so that a
+    /// change to the table has to change this test too.
     const MEASURED: [(u32, u32, Score); 7] = [
-        (1110, 2, 300),
-        (1150, 2, 230),
-        (1220, 2, 171),
-        (1330, 2, 112),
-        (1350, 3, 151),
-        (1410, 3, 90),
-        (1630, 3, 20),
+        (750, 2, 300),
+        (910, 2, 230),
+        (950, 2, 171),
+        (1020, 2, 112),
+        (1100, 3, 151),
+        (1180, 3, 90),
+        (1380, 3, 20),
     ];
 
     #[test]
@@ -622,14 +620,16 @@ mod tests {
         for (elo, depth, noise) in MEASURED {
             assert_eq!(Weakening::for_elo(elo), Weakening { depth, noise }, "{elo}");
         }
-        assert_eq!(ELO_MIN, 1110);
-        assert_eq!(ELO_MAX, 1630);
-        assert!((ELO_MIN..=ELO_MAX).contains(&ELO_DEFAULT));
+        assert_eq!(ELO_MIN, 750);
+        assert_eq!(ELO_MAX, 1380);
+        assert_eq!(ELO_DEFAULT, 1110);
+        // 10 of the 80 points from 1,100 (151) to 1,180 (90): 143.375,
+        // rounded towards more noise.
         assert_eq!(
             Weakening::for_elo(ELO_DEFAULT),
             Weakening {
                 depth: 3,
-                noise: 141
+                noise: 144
             }
         );
         // Out of range is clamped.
@@ -640,27 +640,27 @@ mod tests {
 
     #[test]
     fn between_the_points_the_misjudgement_is_interpolated() {
-        // Halfway from 1,410 (90) to 1,630 (20).
+        // Halfway from 1,180 (90) to 1,380 (20).
         assert_eq!(
-            Weakening::for_elo(1520),
+            Weakening::for_elo(1280),
             Weakening {
                 depth: 3,
                 noise: 55
             }
         );
-        // 17 of the 70 points from 1,150 (230) to 1,220 (171): 215.67,
+        // 17 of the 40 points from 910 (230) to 950 (171): 204.925,
         // rounded towards more noise.
         assert_eq!(
-            Weakening::for_elo(1167),
+            Weakening::for_elo(927),
             Weakening {
                 depth: 2,
-                noise: 216
+                noise: 205
             }
         );
-        // 70 of the 110 points from 1,220 (171) to 1,330 (112): 133.45,
+        // 45 of the 70 points from 950 (171) to 1,020 (112): 133.07,
         // rounded towards more noise.
         assert_eq!(
-            Weakening::for_elo(1290),
+            Weakening::for_elo(995),
             Weakening {
                 depth: 2,
                 noise: 134
@@ -670,10 +670,10 @@ mod tests {
 
     #[test]
     fn below_the_step_to_three_plies_the_last_two_ply_point_holds() {
-        // No point of the same depth lies between 1,330 and 1,350, so the
-        // ratings in between play as 1,330 rather than as anything
+        // No point of the same depth lies between 1,020 and 1,100, so the
+        // ratings in between play as 1,020 rather than as anything
         // unmeasured.
-        for elo in 1331..1350 {
+        for elo in 1021..1100 {
             assert_eq!(
                 Weakening::for_elo(elo),
                 Weakening {
@@ -688,9 +688,9 @@ mod tests {
     #[test]
     fn a_higher_rating_never_plays_weaker() {
         // Deeper, or as deep with no more misjudgement. The noise rises at
-        // the step to three plies, from 112 at 1,349 to 151 at 1,350; both
-        // were measured, and the three-ply setting rated higher (1,350
-        // against 1,330 for two plies and 112).
+        // the step to three plies, from 112 at 1,099 to 151 at 1,100; both
+        // were measured, and the three-ply setting rated higher (1,100
+        // against 1,020 for two plies and 112).
         let mut previous = Weakening::for_elo(ELO_MIN);
         for elo in ELO_MIN..=ELO_MAX {
             let now = Weakening::for_elo(elo);

@@ -17,7 +17,7 @@ them.
 | 5 | UCI | `milestone/5-uci` | done, merged into `main` |
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
-| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | done, merged into `main` on 2026-11-28; items 4, 7, 8, 11, 12 and 14 to 16 of its checklist are deferred beyond it, and its strength measurement (KI-8) is still to run |
+| 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | done, merged into `main` on 2026-11-28; items 4, 7, 8, 11, 12 and 14 to 16 of its checklist are deferred beyond it. Its strength was measured in Ladder Baseline 3 ([results-0.2.0.md](testing/results-0.2.0.md)) and `UCI_Elo` calibrated again on that ladder's scale |
 | - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate`, `searchmoves` and reverse futility pruning done in milestone 7; the other search features deferred beyond it (see its checklist); pondering and the `tune` tool not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
@@ -41,7 +41,7 @@ work is actually done is this:
    half): the small items of "Extra features and QoL"
    that need no SPRT, so that milestone 7 has diagnostics and a quick test
    runner to work with.
-5. **Milestone 7:** search heuristics.
+5. **Milestone 7:** search heuristics. Done on 2026-11-28.
 6. **Queued task 2:** benchmark and speed up.
 7. **The rest of the extra features**, each on its own branch, in the order
    the maintainer confirms.
@@ -131,7 +131,7 @@ the design behind an issue is explained elsewhere, it is in
 | --- | --- | --- | --- |
 | KI-2 | **FEN parsing rejects inconsistent positions and has no repair mode.** A castling right without its king and rook at home, or an en passant square that does not match a double push, is an error. | Sloppy FENs from other tools (stale castling rights are the usual case) fail to load instead of being corrected. | Later, milestone not fixed yet: an opt-in "repair and warn" mode that drops the bad right or square and reports what it changed. Strict parsing stays the default. To be revisited by milestone 8 at the latest, when third-party data is first read. |
 | KI-10 | **The first root move of the first depth cannot be interrupted, and neither can the weakened search's first pass.** The search ignores the clock and `stop` until one root move of depth 1 has been searched, so that there is a move to play. That move includes a quiescence search, which in a position with very many captures takes long: about 0.3 s in an artificial position with nine queens a side. (The whole first depth takes about 5 s there; since milestone 7 `stop` and the clock cut it short after the first move.) With `UCI_LimitStrength` on, the first pass over all the root moves still always completes: over two minutes in that position. | In such positions the engine overruns a short time budget and does not obey `stop` or `quit`, or answer anything else, meanwhile. In ordinary positions depth 1 takes well under a millisecond. | Not planned. Pruning in quiescence search shrinks it (delta pruning is parked in milestone 7); the weakened search's first pass could be given the ordinary search's rule. |
-| KI-8 | **The evaluation is untuned, and its strength is measured for one build only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play did not change from then until milestone 7 began: the bench counted 16,611,416 nodes throughout): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). | The measurement holds for that build only: any change to search or evaluation makes it out of date. **It is out of date now:** milestone 7 has begun to change the search. | Measured again after milestone 7 and after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
+| KI-8 | **The evaluation is untuned, and its strength is measured for the builds named here only.** The hand-crafted evaluation is tested for correctness (symmetry, material, phase arithmetic); its values and tables are reasoned, not tuned. Milestone 6 measured 0.1.0-alpha.2 on Ladder Baseline 2 (full-strength play did not change from then until milestone 7 began: the bench counted 16,611,416 nodes throughout): between Stockfish 19-1800 and Rodent IV-2000, level with 0.1.0-alpha.1 within the noise ([results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). The same search was measured again for the 0.1.0 release, as an `avx2` build with other openings: level with Rodent IV-2000 and 0.1.0-alpha.2, 56 points lower on the scale, which is the spread between such runs ([results-0.1.0.md](testing/results-0.1.0.md)). After milestone 7 the build of 0.2.0 was measured in Ladder Baseline 3, a round robin of 44 engines with the three earlier builds in it: 19th, level with Tantabus 1.0.2 and Stockfish 19-2400, and it won all twelve games against the earlier builds, which finished level with one another and with Rodent IV-2000 ([results-0.2.0.md](testing/results-0.2.0.md)). That rests on 172 games, four against each opponent, on another ladder's scale than the earlier two measurements. | A measurement holds for its build only: any change to search or evaluation makes it out of date. `UCI_Elo` was calibrated again for the build of 0.2.0, on Ladder Baseline 3's scale (750 to 1380); that too is provisional. | Measured again after queued task 2. Tuning the terms by SPRT follows from milestone 7 on. |
 | KI-11 | **The installer does not repair a half-made virtual environment for lichess-bot.** If the first run fails while creating it (seen on the Linux machine when Python's `venv` package was missing), the folder is left without `pip`, and later runs reuse it and fail with "No module named pip". | Installing lichess-bot fails again and again until the folder is removed by hand: delete `venv` inside the lichess-bot folder under the install prefix and run the installer again. Nothing else is lost; `config.yml` is kept elsewhere. | Not scheduled: the maintainer declined a fix for now (2026-11-21). The fix would be to check that `pip` works in an existing environment and recreate it if not. |
 | KI-12 | **A long game without an increment can run the clock out.** The time for a move is `remaining / 30 + 3/4 increment`, capped at the clock less `Move Overhead`, with a floor of one millisecond. With no increment the engine kept spending at least a millisecond a move however little was left, so a long enough game at a tiny time control lost on time. **Narrowed on the preparation branch:** a clock within `Move Overhead` now gets no time, so the plan no longer spends the reserve; what the plan cannot see (the first depth, the GUI) still comes off the clock. | Seen once in the soak test (TESTING.md): 1 of 204 games at 1+0 seconds, a 124-move game. None at 3+2 or 60+0 seconds, and none in games with an increment. The Lichess bot's games all have an increment of at least two seconds. | The preparation branch before milestone 7: next, the overhead is taken off the clock before it is shared out; the entry goes once runs at 1+0 and 0.1+0 on the Windows workstation show the effect. |
 | KI-13 | **A failed rating leaves Ordo's empty output files behind.** When Ordo fails (for example on games that are not connected), `rate.ps1` and `rate.sh` stop with Ordo's status, but the text and CSV files Ordo had already created stay in place, empty. | A stray pair of empty `-ratings.txt` and `.csv` files next to the PGNs after a failed rating; the next run with the same `-Out` overwrites them. Seen in the smoke test (TESTING.md). | Not scheduled: the maintainer decides. A fix would remove the two files when Ordo fails, if the script created them. |
@@ -327,7 +327,8 @@ Plan:
 - **Milestone 6 (strength testing), done (provisional):** calibrated. The
   limited engine played at several `UCI_Elo` settings against opponents of
   known rating, the mapping from setting to measured Elo was fitted, and
-  `UCI_Elo` now runs from 1110 to 1630 with a default of 1360. The method,
+  `UCI_Elo` then ran from 1110 to 1630 with a default of 1360 (750 to
+  1380 with a default of 1110 since the calibration of 0.2.0). The method,
   the opponents and the results are in `TESTING.md` ("Calibration of
   `UCI_Elo`"). The calibration holds for the build measured, on the
   ladder's scale.
@@ -349,13 +350,16 @@ Constraints that already apply:
   chess: plausible mistakes rather than random moves.
 
 **The calibration is re-measured.** `UCI_Elo` and the engine's Ordo rating
-are measured again after milestone 7 and after queued task 2, because both
-change the engine's strength. The calibration of 0.1.0 is provisional until
-then, and the release notes of 0.2.0 say so.
+are measured again after milestone 7 (done on 2026-11-28, on Ladder
+Baseline 3's scale: 750 to 1380, default 1110) and after queued task 2,
+because both change the engine's strength. The calibration of 0.1.0 was
+provisional, and the release notes of 0.2.0 say so; that of 0.2.0 is
+provisional until queued task 2.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
-of the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1 is
-kept as history), and its Ordo anchor (Stockfish 19 = 0), shifted by a
+of the reference ladder (Ladder Baseline 2 for the calibration of
+milestone 6; Ladder Baseline 3 from the next calibration on, the
+maintainer's decision of 2026-11-28), and its Ordo anchor (Stockfish 19 = 0), shifted by a
 fixed 3,500 points so that every setting is positive (Stockfish 19 =
 3,500; the maintainer's decision of 2026-11-22, worded in `TESTING.md`,
 "The scale of `UCI_Elo`"), not to Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
@@ -435,8 +439,10 @@ What the builds depend on:
 - The `pext` build needs sliding-piece attacks by PEXT in the
   engine. Milestone 7 added them behind the Cargo feature `pext` (item
   17), with magic bitboards staying the default and perft matching on
-  both paths. The release workflow does not build it yet, so there is
-  no such release file until it does.
+  both paths. The release workflow builds it since 2026-11-28 (see
+  [`proposals/release-workflow.md`](proposals/release-workflow.md));
+  that change runs for the first time with the tag of 0.2.0, or on a
+  test tag before it.
 - The benchmark of queued task 2 measures the three builds against each
   other on both of the maintainer's machines.
 
@@ -545,12 +551,21 @@ Results recorded so far:
 - [`results-0.1.0.md`](testing/results-0.1.0.md): the measurement for the
   0.1.0 release, an `avx2` build of its source, against the same rungs
   (the same search as alpha.2, measured again with other openings).
-- The `UCI_Elo` calibration and its check are recorded in TESTING.md
-  ("Calibration of `UCI_Elo`") rather than in a results file, with Ordo's
-  output in
-  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt)
+- [`results-0.2.0.md`](testing/results-0.2.0.md): the measurement for the
+  0.2.0 release (KI-8 after milestone 7). Not a gauntlet: the build played
+  in Ladder Baseline 3, a round robin of 44 engines
+  ([`ladder-Baseline-3.md`](testing/ladder-Baseline-3.md), with its two
+  ratings files), 172 games, four against each opponent, rated on that
+  ladder's scale.
+- The `UCI_Elo` calibrations and the check of the first are recorded in
+  TESTING.md ("Calibration of `UCI_Elo` (0.1.0-alpha.2, 2026-11-22)" and
+  "Calibration of `UCI_Elo` (0.2.0, 2026-11-28)") rather than in a results
+  file, with Ordo's output in
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt),
+  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt),
+  [`calibration-0.2.0-ratings.txt`](testing/calibration-0.2.0-ratings.txt)
   and
-  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt).
+  [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt).
 
 ## Queued work (requested 2026-11-21)
 
@@ -808,13 +823,19 @@ known issue KI-8 (the evaluation's strength). The scripts and the installer
 it uses are built beforehand and described under "Testing tooling (before
 milestone 6)" above.
 
-**Opponent ladder reference:** Ladder Baseline 2 (current); Ladder Baseline
-1 is kept as history. Ladder Baseline 2,
+**Opponent ladder reference:** Ladder Baseline 2 for this milestone;
+Ladder Baseline 1 is kept as history. Since 2026-11-28 the reference
+ladder is Ladder Baseline 3, 44 engines with four Vyvræl builds among
+them
+([`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)):
+it measured 0.2.0, and gauntlets and the scale of `UCI_Elo` use it from
+0.2.0 on. Ladder Baseline 2,
 [`docs/testing/ladder-Baseline-2.md`](testing/ladder-Baseline-2.md), is a
 round robin of 30 other engines run by the maintainer on 2026-11-21; it
 replaced Ladder Baseline 1,
 [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md) (25
-engines), against which 0.1.0-alpha.1 was measured. Vyvræl is in neither.
+engines), against which 0.1.0-alpha.1 was measured. Vyvræl is in neither
+of those two.
 The reference ladder orders the opponents; Vyvræl's strength (KI-8) and
 the `UCI_Elo` calibration are measured by gauntlets against its lower
 rungs, in separate results files, with the same time control, hash,
@@ -1126,8 +1147,9 @@ were committed (items 4 and 7) were reverted.
 - [x] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
   Magic bitboards stay the default; perft matches on both paths and the
   bench count is the same. No SPRT. The whole test suite passes on the
-  PEXT build; CI does not build it (the workflows are not touched), and
-  no release file is built with it yet.
+  PEXT build. Milestone 7 left the workflows untouched; since 2026-11-28
+  CI tests the PEXT build (the `pext` job) and the release workflow
+  builds it, from 0.2.0 on.
 - [x] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
   bench count unchanged, tested in `tests/uci.rs`. Neither is used by a
   weakened search (`UCI_LimitStrength`).
@@ -1138,11 +1160,15 @@ were committed (items 4 and 7) were reverted.
   removed: the first move tried gives 90% to 98% of the main search's
   cutoffs, from 22% when the milestone began ("Search statistics" in
   TESTING.md).
-- [ ] KI-8: the commands for measuring strength and `UCI_Elo` again
-  against Ladder Baseline 2; the maintainer runs them, and the results
-  are written up under `docs/testing/`.
-- [ ] End-of-milestone doc drift pass, an independent review, the merge
-  into `main`.
+- [x] KI-8: strength and `UCI_Elo` measured again; the maintainer runs
+  the matches, and the results are written up under `docs/testing/`.
+  Strength: done on 2026-11-28 by Ladder Baseline 3, not by a gauntlet
+  against Ladder Baseline 2
+  ([results-0.2.0.md](testing/results-0.2.0.md)). `UCI_Elo`: done the
+  same day, on Baseline 3's scale ("Calibration of `UCI_Elo` (0.2.0)"
+  in TESTING.md).
+- [x] End-of-milestone doc drift pass, an independent review, the merge
+  into `main` (2026-11-28).
 
 Pondering and the `tune` tool of the [B] list are not in this milestone:
 pondering touches time management and the search thread and gets a
@@ -1325,6 +1351,9 @@ Not commitments; candidates to evaluate (each needs SPRT evidence):
   attacking play.
 - Opening book support for match play.
 - Ladder Baseline 3: the round robin run again with Vyvræl builds in it.
+  **Run on 2026-11-28:**
+  [`testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md). What
+  was planned, kept as the record:
   (Ladder Baseline 2, run on 2026-11-21, has none.) It is run once
   milestone 7 is done and 0.2.0 is ready, not before (the maintainer,
   2026-11-22). Vyvræl 0.1.0 and 0.2.0 go in, beside 0.1.0-alpha.1 and
