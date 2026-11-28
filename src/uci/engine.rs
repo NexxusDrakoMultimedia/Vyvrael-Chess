@@ -335,8 +335,6 @@ impl Engine {
         self.history = history;
     }
 
-    /// `go`: starts a search of the current position on its own thread. A
-    /// search still running is ended first.
     /// Makes the table the size `Hash` asks for, if it is not, and empties
     /// it if `Clear Hash` was pressed. Called with no search running. A
     /// new table is empty; if there is no memory for it the old one stays,
@@ -399,6 +397,8 @@ impl Engine {
         moves
     }
 
+    /// `go`: starts a search of the current position on its own thread. A
+    /// search still running is ended first.
     fn go(&mut self, params: &GoParams) {
         self.end_search();
         self.fit_table();

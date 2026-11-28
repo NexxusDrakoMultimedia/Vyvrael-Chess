@@ -456,8 +456,10 @@ pawn structure) are candidates for later, each to be accepted by SPRT.
 ## Search
 
 Implemented in `src/search/`, which looks ahead to choose a move. This is
-the core only: the heuristics that make a search fast (move ordering, a
-transposition table, pruning) come in milestone 7, one at a time.
+the core first, and then the heuristics that make a search fast (move
+ordering, a transposition table, null-move pruning, late move
+reductions, reverse futility pruning), which milestone 7 added one at a
+time, each accepted by an SPRT.
 
 - **Scores** (`search/score.rs`) are the evaluator's `Score` (centipawns)
   extended with checkmate. `MATE` is 31,000 and `INFINITY`, the bound no score
@@ -496,8 +498,10 @@ transposition table, pruning) come in milestone 7, one at a time.
     the rest in generation order; and last come the captures and promotions that lose material
     by the static exchange evaluation, such as queen takes defended pawn.
     Ordering does not change the value alpha-beta
-    returns, only how much of the tree it has to look at. The rest of the
-    ordering (history) is added one SPRT at a time in milestone 7.
+    returns, only how much of the tree it has to look at. The history
+    heuristic was tried in milestone 7 and deferred (see
+    [ROADMAP.md](ROADMAP.md)): quiet moves after the killers stay in
+    generation order.
   - **Killer moves** (`Killers` in `ordering.rs`, since milestone 7): for
     each ply the search keeps the two quiet moves that most recently cut
     it off there, the newer first. A move that refutes one of the
@@ -546,15 +550,15 @@ transposition table, pruning) come in milestone 7, one at a time.
     but is not missed.
     - The reduction is `0.75 + ln(depth) * ln(moves before it) / 2.25`
       plies, rounded down, and at least one ply is always left: one ply
-      for the first late moves at low depth, three for the tenth move
-      at depth 10. The logarithms come from a table of whole numbers
+      for the first late moves at low depth, three for the eleventh move
+      at depth 10 (ten moves before it). The logarithms come from a table of whole numbers
       (`LN_THOUSANDTHS`) and not from `ln`, so that the node counts are
       the same on every machine.
     - Not reduced: the first three moves of a position, captures and
       promotions, moves that give check, any move when the side to move
       is in check, anything below depth 3, and the root's moves.
     - Like null-move pruning it is not exact, and it changed the first
-      pinned score (see "Search regression pins" in TESTING.md).
+      pinned score (see "Pinned search results" in TESTING.md).
     `bench 8` counts 689,789 nodes with it, from 3,030,504; a depth-10
     search of the start position 210,921, from 1,450,092.
   - **Reverse futility pruning** (`reverse_futility_cutoff` in
@@ -625,8 +629,9 @@ transposition table, pruning) come in milestone 7, one at a time.
   - It looks wasteful, but each level of the tree is many times larger than
     the last, so repeating the shallow levels costs little. In return the
     search can be stopped at any moment and still has a complete answer,
-    which is what playing to a clock needs. Later, the earlier iterations
-    will also feed move ordering (milestone 7).
+    which is what playing to a clock needs. The earlier iterations
+    also feed move ordering, through the transposition table's move
+    (since milestone 7).
   - The first iteration is shielded from the limits, so there is always a
     move to play (`Shield` in `negamax.rs`). No limit applies until its
     first legal root move has been searched. For the rest of it the node
@@ -732,7 +737,7 @@ transposition table, pruning) come in milestone 7, one at a time.
     busy middlegame position (Kiwipete) took more than 20 million nodes to
     resolve, against 3,067 with this ordering, for the same value wherever
     both finished. So unlike the move ordering of the main search, which
-    waits for milestone 7 and SPRT, this ordering is part of the core: without
+    milestone 7 added by SPRT, this ordering is part of the core: without
     it the search does not finish.
   - **Captures that lose material are left out** when the side to move is
     not in check (since milestone 7): those whose static exchange
@@ -745,9 +750,10 @@ transposition table, pruning) come in milestone 7, one at a time.
     on its square can still win elsewhere, by a discovered attack for
     one. That is the price of every such pruning, and its SPRT is the
     judge of it.
-  - No other pruning is used beyond alpha-beta and standing pat. Skipping
-    captures that cannot help (delta pruning, static exchange evaluation) is
-    left to milestone 7.
+  - No other pruning is used in quiescence: alpha-beta, standing pat
+    and leaving out the losing captures are all. Delta pruning was tried
+    in milestone 7 and deferred, its SPRT undecided (see
+    [ROADMAP.md](ROADMAP.md)).
 
 ### Playing below full strength
 

@@ -224,7 +224,7 @@ Two settings keep time back, and they add up:
   there is. Its default is 2000.
 
 Why err on the large side: a bot that loses on time is worse than one that
-thinks a little less, and Vyvræl always finishes its first search depth
+thinks a little less, and Vyvræl always finishes the first move of its first search depth
 before it looks at the clock (known issue KI-10 in
 [ROADMAP.md](ROADMAP.md)), which in rare positions takes far longer than
 usual. If the bot still loses on time, raise the values; lower them only

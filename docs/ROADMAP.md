@@ -18,7 +18,7 @@ them.
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | in progress (started 2026-11-27) |
-| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | not started |
+| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate` and `searchmoves` done in milestone 7; the rest not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -1099,7 +1099,7 @@ the reductions.
 - [x] 13. Reverse futility pruning: up to depth 6, margin 100 a ply, not
   in check. Built before items 11 and 12, as the largest gain left
   among the items not yet built. With it the verification of a null
-  move was made to search real moves (commit after `71db5ab`): reverse
+  move was made to search real moves (`d36ea97`): reverse
   futility pruning could answer that search from the evaluation alone.
   SPRT, of both together: awaited; if it does not show a gain, both
   commits are reverted.

@@ -293,7 +293,8 @@ fn go_mate_answers_when_the_mate_is_found() {
     let shown = &lines[lines.len() - 2];
     assert!(shown.contains(" score mate 2 "), "{lines:?}");
     assert_ne!(lines.last().unwrap(), "bestmove 0000");
-    // There is no mate in one: the move time ends the search.
+    // There is no mate in one: the search ends on the mate in two it
+    // proves, or on the move time.
     let started = Instant::now();
     engine.send("go mate 1 movetime 300");
     let lines = engine.lines_until("bestmove");
