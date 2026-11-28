@@ -101,7 +101,7 @@ maintainer.
 
 On Lichess the bot account `Vyvrael-Chess` plays **casual games only**: the
 maintainer upgraded it to a bot on 2026-11-20 (UTC) and runs it with
-0.1.0 (since 2026-11-23; the alphas before it). Rated games are not
+0.2.0 (since 2026-11-28 UTC; 0.1.0 and the alphas before it). Rated games are not
 taken up with 0.2.0: they wait for the branding and for choices the maintainer has still to make (time
 controls, variants, humans or bots). The policy, the maintainer's checklist and the rules the bot
 keeps are in [docs/LICHESS.md](docs/LICHESS.md), and what it has played with

@@ -153,7 +153,12 @@ What the games show:
 
 ## 0.2.0
 
-- **Build:** the 0.2.0 release, once it is published and the bot is
-  upgraded to it.
-- **Window:** opens with that upgrade.
+- **Build:** the 0.2.0 release, published on 2026-11-28 (UTC), run on the
+  Linux machine by lichess-bot. Which of its Linux files runs is the
+  maintainer's record. Casual games only, as before: the maintainer
+  decided on 2026-11-28 that the bot stays casual with 0.2.0.
+- **Window:** from the upgrade, 2026-11-28 15:30 UTC (2026-11-29 01:30
+  +10:00), when the maintainer reported the bot up with 0.2.0. Still
+  open: it closes with the next pre-release export, when the bot is
+  stopped to run a newer build.
 - **Games:** recorded when the window closes.
