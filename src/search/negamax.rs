@@ -107,6 +107,11 @@ pub struct Search<'a> {
     /// What null-move pruning did in this search. Not part of the
     /// statistics that are shown; the tests read it.
     nulls: NullCounts,
+    /// Whether reverse futility pruning is used. Always true outside the
+    /// tests.
+    futility: bool,
+    /// How many positions it cut off in this search. For the tests.
+    futile: u64,
     /// Whether late moves are searched less deep. Always true outside
     /// the tests, which compare the search with and without it.
     reductions: bool,
@@ -159,6 +164,15 @@ fn late_move_reduction(depth: u32, searched: u32) -> u32 {
     let reduction = (1_687_500 + ln(depth) * ln(searched)) / 2_250_000;
     reduction.min(depth.saturating_sub(2))
 }
+
+/// Reverse futility pruning is used up to this depth: further from the
+/// horizon too much can still happen for the evaluation to be trusted.
+const RFP_MAX_DEPTH: u32 = 6;
+
+/// How far above beta the evaluation must be, per ply of depth left, for
+/// reverse futility pruning: about a pawn for each move the opponent has
+/// to change things with.
+const RFP_MARGIN: Score = 100;
 
 /// A null move is tried from this depth up. Below it the reduced search
 /// would be a quiescence search of a position hardly different from the
@@ -245,6 +259,8 @@ impl<'a> Search<'a> {
             no_null: vec![false; MAX_PLY + 2],
             null_moves: true,
             nulls: NullCounts::default(),
+            futility: true,
+            futile: 0,
             reductions: true,
             reduced: (0, 0),
         }
@@ -433,6 +449,7 @@ impl<'a> Search<'a> {
         self.no_null.fill(false);
         self.nulls = NullCounts::default();
         self.reduced = (0, 0);
+        self.futile = 0;
     }
 
     /// What the current or most recent search has counted: cutoffs, how
@@ -647,6 +664,10 @@ impl<'a> Search<'a> {
             }
         }
 
+        if let Some(score) = self.reverse_futility_cutoff(pos, depth, beta) {
+            self.futile += 1;
+            return score;
+        }
         if let Some(score) = self.null_move_cutoff(pos, depth, ply, beta) {
             if let Some(table) = self.table.as_deref_mut() {
                 table.store(key, ply, depth, score, Bound::Lower, table_move);
@@ -771,6 +792,33 @@ impl Search<'_> {
             self.reduced.1 += 1;
         }
         -self.negamax(next, depth - 1, ply + 1, -beta, -alpha)
+    }
+
+    /// Reverse futility pruning: near the horizon, a position whose static
+    /// evaluation is far above beta is cut off without being searched.
+    /// Returns the score to cut off with, or `None`.
+    ///
+    /// "Far" is [`RFP_MARGIN`] for every ply of depth left: the side to
+    /// move is so well off that the few moves left to search are not
+    /// expected to bring it below beta, whatever they are. It is the
+    /// mirror image of futility pruning, which gives up on moves that
+    /// cannot lift a bad position to alpha.
+    ///
+    /// - **Only up to [`RFP_MAX_DEPTH`]:** with more moves to come, more
+    ///   than the margin can change.
+    /// - **Not in check:** the evaluation of a position in check says
+    ///   little, and there may be a mate.
+    /// - **Not when beta is a mate score:** an evaluation proves no mate.
+    ///
+    /// The score returned is the evaluation less the margin: still at
+    /// least beta, and not more than the pruning itself vouches for.
+    fn reverse_futility_cutoff(&self, pos: &Position, depth: u32, beta: Score) -> Option<Score> {
+        if !self.futility || depth > RFP_MAX_DEPTH || beta.abs() >= MATE_BOUND || pos.in_check() {
+            return None;
+        }
+        let margin = RFP_MARGIN * depth as Score;
+        let cautious = self.evaluator.evaluate(pos) - margin;
+        (cautious >= beta).then_some(cautious)
     }
 
     /// Whether a null move may be tried in `pos`: see
@@ -2111,7 +2159,7 @@ mod tests {
     fn with_and_without_null_moves(text: &str, depth: u32) -> [(Outcome, u64, NullCounts); 2] {
         [true, false].map(|null_moves| {
             let mut searcher = Search::new(&HandCrafted);
-            searcher.reductions = false;
+            (searcher.reductions, searcher.futility) = (false, false);
             searcher.null_moves = null_moves;
             let outcome = searcher.fixed_depth(&fen(text), depth);
             (outcome, searcher.nodes(), searcher.nulls)
@@ -2228,7 +2276,7 @@ mod tests {
     fn with_and_without_reductions(text: &str, depth: u32) -> [(Outcome, u64, (u64, u64)); 2] {
         [true, false].map(|reductions| {
             let mut searcher = Search::new(&HandCrafted);
-            searcher.null_moves = false;
+            (searcher.null_moves, searcher.futility) = (false, false);
             searcher.reductions = reductions;
             let outcome = searcher.fixed_depth(&fen(text), depth);
             (outcome, searcher.nodes(), searcher.reduced)
@@ -2272,6 +2320,90 @@ mod tests {
             ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
         ] {
             let [(with, _, _), (without, _, _)] = with_and_without_reductions(text, depth);
+            assert!(crate::search::is_mate_score(without.score), "{text}");
+            assert_eq!(with.score, without.score, "{text}");
+            assert_eq!(with.best_move, without.best_move, "{text}");
+        }
+    }
+
+    /// Each condition of reverse futility pruning, on a position where
+    /// White is a queen up.
+    #[test]
+    fn reverse_futility_pruning_needs_a_margin_for_every_ply() {
+        let ahead = fen("r3k3/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        let mut searcher = Search::new(&HandCrafted);
+        let stands = HandCrafted.evaluate(&ahead);
+        let cut = |searcher: &Search, depth: u32, beta: Score| {
+            searcher.reverse_futility_cutoff(&ahead, depth, beta)
+        };
+        // Exactly the margin above beta is enough; one point less is not.
+        for depth in 1..=RFP_MAX_DEPTH {
+            let margin = RFP_MARGIN * depth as Score;
+            assert_eq!(
+                cut(&searcher, depth, stands - margin),
+                Some(stands - margin)
+            );
+            assert_eq!(cut(&searcher, depth, stands - margin + 1), None);
+            // Further above beta, the score is still the cautious one.
+            assert_eq!(cut(&searcher, depth, -400), Some(stands - margin));
+        }
+        // Too deep, however far ahead; and no mate is claimed.
+        assert_eq!(cut(&searcher, RFP_MAX_DEPTH + 1, -5_000), None);
+        assert_eq!(cut(&searcher, 1, -MATE_BOUND), None);
+        assert_eq!(cut(&searcher, 1, -MATE), None);
+        // In check.
+        let checked = fen("4r1k1/8/8/8/8/8/8/R2QK3 w - - 0 1");
+        assert!(checked.in_check() && HandCrafted.evaluate(&checked) > 300);
+        assert_eq!(searcher.reverse_futility_cutoff(&checked, 1, -5_000), None);
+        // Switched off.
+        searcher.futility = false;
+        assert_eq!(cut(&searcher, 1, -5_000), None);
+    }
+
+    /// A fixed-depth search with and without reverse futility pruning,
+    /// both without null moves and reductions: the outcome, the nodes and
+    /// the positions it cut off.
+    fn with_and_without_futility(text: &str, depth: u32) -> [(Outcome, u64, u64); 2] {
+        [true, false].map(|futility| {
+            let mut searcher = Search::new(&HandCrafted);
+            (searcher.null_moves, searcher.reductions) = (false, false);
+            searcher.futility = futility;
+            let outcome = searcher.fixed_depth(&fen(text), depth);
+            (outcome, searcher.nodes(), searcher.futile)
+        })
+    }
+
+    #[test]
+    fn reverse_futility_pruning_saves_work() {
+        for (text, depth) in [
+            (crate::board::START_FEN, 5),
+            (KIWIPETE, 4),
+            (ROOK_ENDGAME, 6),
+            (
+                "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+                4,
+            ),
+        ] {
+            let [(with, fewer, cut), (without, nodes, none)] =
+                with_and_without_futility(text, depth);
+            assert_eq!(none, 0, "{text}");
+            assert!(cut > 0, "{text}");
+            assert!(fewer < nodes, "{text}: {fewer} with, {nodes} without");
+            assert!(with.best_move.is_some() && without.best_move.is_some());
+        }
+    }
+
+    /// Mates are found with the same score and move: nothing is pruned in
+    /// check or against a mate score.
+    #[test]
+    fn reverse_futility_pruning_does_not_change_what_mates_are_found() {
+        for (text, depth) in [
+            ("7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 5),
+            ("7k/1R6/8/8/8/8/R7/6K1 b - - 0 1", 4),
+            ("6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1", 3),
+            ("3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1", 5),
+        ] {
+            let [(with, _, _), (without, _, _)] = with_and_without_futility(text, depth);
             assert!(crate::search::is_mate_score(without.score), "{text}");
             assert_eq!(with.score, without.score, "{text}");
             assert_eq!(with.best_move, without.best_move, "{text}");
@@ -2382,10 +2514,10 @@ mod tests {
         let mut helped = Search::new(&HandCrafted)
             .with_limits(Limits::depth(depth))
             .with_table(&mut table);
-        (helped.null_moves, helped.reductions) = (false, false);
+        (helped.null_moves, helped.reductions, helped.futility) = (false, false, false);
         let with = (helped.iterate(&pos, &mut |_| {}), helped.nodes());
         let mut plain = Search::new(&HandCrafted).with_limits(Limits::depth(depth));
-        (plain.null_moves, plain.reductions) = (false, false);
+        (plain.null_moves, plain.reductions, plain.futility) = (false, false, false);
         let without = (plain.iterate(&pos, &mut |_| {}), plain.nodes());
         (with, without)
     }

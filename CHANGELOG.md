@@ -37,6 +37,12 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **Reverse futility pruning** (milestone 7, item 13): up to six plies
+  from the horizon, a position whose evaluation is at least a pawn above
+  beta for every ply left is cut off without being searched. Not in
+  check. The bench counts 28,175 nodes, from 41,161, and at depth 8
+  406,666, from 689,789, with every pinned score and line unchanged.
+  SPRT against the search before it: see `docs/testing/sprt-history.md`.
 - **Late move reductions** (milestone 7, item 10): a quiet move that
   comes late in a position's list is first searched less deep, and
   searched again in full only if it turns out better than expected. Not

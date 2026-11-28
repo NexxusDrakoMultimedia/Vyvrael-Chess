@@ -1096,7 +1096,10 @@ the reductions.
   item 7). SPRT [0, 5]: H1 accepted in 620 games (run `00e8619ba2cf`).
 - [ ] 11. Aspiration windows at the root. SPRT.
 - [ ] 12. Check extensions. SPRT.
-- [ ] 13. Reverse futility pruning. SPRT.
+- [x] 13. Reverse futility pruning: up to depth 6, margin 100 a ply, not
+  in check. Built before items 11 and 12, as the largest gain left
+  among the items not yet built. SPRT: awaited; if it does not show a
+  gain, its commit is reverted.
 - [ ] 14. Internal iterative reduction. SPRT.
 - [ ] 15. The countermove heuristic. SPRT.
 - [ ] 16. Continuation history. SPRT.

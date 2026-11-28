@@ -1657,7 +1657,7 @@ mod tests {
             "go depth 2",
         ]);
         assert!(
-            lines[1].starts_with("info depth 2 seldepth 2 score cp 0 "),
+            lines[1].starts_with("info depth 2 seldepth 1 score cp 0 "),
             "{lines:?}"
         );
         assert_eq!(lines.last().unwrap(), "bestmove g8h8");

@@ -530,6 +530,16 @@ transposition table, pruning) come in milestone 7, one at a time.
       pinned score (see "Search regression pins" in TESTING.md).
     `bench 8` counts 689,789 nodes with it, from 3,030,504; a depth-10
     search of the start position 210,921, from 1,450,092.
+  - **Reverse futility pruning** (`reverse_futility_cutoff` in
+    `negamax.rs`, since milestone 7). Up to 6 plies from the horizon, a
+    position whose static evaluation is at least 100 points above beta
+    for every ply of depth left is cut off without being searched, with
+    the evaluation less that margin as its score: the side to move is so
+    well off that the few moves left are not expected to bring it below
+    beta. Not in check and not when beta is a mate score. It is tried
+    before the null move, which needs a search to say much the same of
+    positions that are less clear, and like it is not exact. `bench 8`
+    counts 406,666 nodes with it, from 689,789.
   - **Correctness is tested against plain minimax**, which has no pruning to
     get wrong: on nine positions, two or three plies deep, the two must return
     the same score, and the move alpha-beta names must lead to that score.
