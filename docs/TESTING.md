@@ -179,7 +179,10 @@ RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features pext
 RUSTFLAGS="-C target-cpu=x86-64-v3" cargo clippy --all-targets --features pext -- -D warnings
 ```
 
-CI does not run these: the workflows build the default features only.
+CI does not run these: the installed workflows build the default
+features only. The release workflow proposed for 0.2.0 runs the first of
+them in its `pext` build jobs (see
+[`proposals/release-workflow.md`](proposals/release-workflow.md)).
 Run them by hand after a change to `src/attacks/` or to move generation.
 The feature is refused at compile time for a target without BMI2.
 
