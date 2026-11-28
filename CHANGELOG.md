@@ -37,6 +37,14 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **The history heuristic** (milestone 7, item 7): the search keeps
+  count of how well each quiet move has done, by side and squares, and
+  tries the quiet moves that are not killers in that order. A quiet
+  move that cuts off gains, more the deeper it was, and the quiet moves
+  tried before it lose as much. The bench counts 60,070 nodes, from
+  61,760, and at depth 6 899,248, from 943,287, with every pinned score
+  and line unchanged. SPRT against the search before it: see
+  `docs/testing/sprt-history.md`.
 - **`Clear Hash`** (item 2c): a button option that empties the
   transposition table without starting a new game. It applies from the
   next search on. The library gains `uci::Button` and

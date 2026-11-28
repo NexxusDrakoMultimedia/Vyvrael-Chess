@@ -1052,7 +1052,10 @@ How every search change is done:
 
 - [x] 6. Killer moves: two per ply, kept for one search. SPRT
   [0, 10]: H1 accepted in 372 games (run `f1b57a770a57`).
-- [ ] 7. The history heuristic. SPRT.
+- [x] 7. The history heuristic: by side, origin and destination, with
+  punishment of the quiet moves tried before the one that cut off; kept
+  for one search; not used at the root. SPRT: awaited; if it does not
+  show a gain, its commit is reverted.
 
 **Windows, then pruning and reductions.** Principal variation search is
 proposed before null move and late move reductions, where the request
