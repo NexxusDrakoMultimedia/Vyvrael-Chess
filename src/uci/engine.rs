@@ -1097,7 +1097,7 @@ mod tests {
         assert!(low[1].starts_with("info depth 2 "), "{}", low[1]);
         let strongest = format!("setoption name UCI_Elo value {ELO_MAX}");
         let high = weakened(3, &[&strongest, GO]);
-        assert!(high[1].starts_with("info depth 3 "), "{}", high[1]);
+        assert!(high[1].starts_with("info depth 6 "), "{}", high[1]);
         // A rating out of range is refused and the old one kept, the old
         // lowest setting included.
         for out in ["3000", "400"] {
@@ -1105,7 +1105,7 @@ mod tests {
             assert_eq!(
                 refused[1],
                 format!(
-                    "info string UCI_Elo: expected a whole number from 750 to 1380, got `{out}`"
+                    "info string UCI_Elo: expected a whole number from 720 to 1670, got `{out}`"
                 )
             );
             assert_eq!(

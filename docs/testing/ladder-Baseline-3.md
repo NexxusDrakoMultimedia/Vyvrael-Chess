@@ -60,7 +60,7 @@ Strength-limited entries are one binary with a nominal `UCI_Elo` equal to the na
 | Vyvrael 0.1.0 | `avx2` | the released `avx2` file of 0.1.0 | the plain search of before milestone 7: bench 16,611,416 nodes |
 | Vyvrael 0.2.0 | `avx2` | built by hand from the source of commit `182f9ec` (`release/0.2.0`), as `vyvrael-0.2.0-avx2.exe` | milestone 7's search: bench 28,175 nodes |
 
-The two alphas were released as plain builds only, so they are plain here; the other two are `avx2`. All three older builds search to the same depth in these games (median 4), so the build level makes no visible difference between them. Vyvræl 0.2.0 is not a released file: it is a hand build at the level of the `avx2` release file, from the release branch as it then was; the release's source differs from it only in the numbers of `UCI_Elo`, refitted afterwards. SHA-256 of each is under "Engine binaries".
+The two alphas were released as plain builds only, so they are plain here; the other two are `avx2`. All three older builds search to the same depth in these games (median 4), so the build level makes no visible difference between them. Vyvræl 0.2.0 is not a released file: it is a hand build at the level of the `avx2` release file, from the release branch as it then was; the release's source differs from it only in the calibration of `UCI_Elo` (its table, lookup and default), measured afterwards. SHA-256 of each is under "Engine binaries".
 
 ## Result (Ordo)
 
