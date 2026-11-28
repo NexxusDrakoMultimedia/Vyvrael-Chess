@@ -354,7 +354,7 @@ this means for a GUI:
 
   Between two of these at the same depth the misjudgement is interpolated
   in a straight line. From 1021 to 1099, where the depth changes, the
-  engine plays as 1020: up to 80 points weak for the number, never
+  engine plays as 1020: up to 79 points weak for the number, never
   stronger than a higher setting. The default, 1110, plays nearly as the
   default of 0.1.0 (1360 then) did. Nothing below 750 can be played: the
   weakest setting already beats the two lowest rungs of the ladder in

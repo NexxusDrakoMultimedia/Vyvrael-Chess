@@ -327,7 +327,8 @@ Plan:
 - **Milestone 6 (strength testing), done (provisional):** calibrated. The
   limited engine played at several `UCI_Elo` settings against opponents of
   known rating, the mapping from setting to measured Elo was fitted, and
-  `UCI_Elo` now runs from 1110 to 1630 with a default of 1360. The method,
+  `UCI_Elo` then ran from 1110 to 1630 with a default of 1360 (750 to
+  1380 with a default of 1110 since the calibration of 0.2.0). The method,
   the opponents and the results are in `TESTING.md` ("Calibration of
   `UCI_Elo`"). The calibration holds for the build measured, on the
   ladder's scale.

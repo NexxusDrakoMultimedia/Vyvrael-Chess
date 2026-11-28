@@ -752,8 +752,8 @@ is the round robin run again with more engines and with Vyvræl in it. It
 measured 0.2.0, and gauntlets from 0.2.0 on are played against its rungs
 and rated with its games (the maintainer, 2026-11-28). Ladder Baseline 2
 is the ladder of the results up to 0.1.0, and the scale the `UCI_Elo`
-settings were fitted on until they are measured again (see "The scale of
-`UCI_Elo`").
+settings were on up to 0.1.0; from 0.2.0 they are on Baseline 3's scale
+(see "The scale of `UCI_Elo`").
 
 - [`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)
   records a round robin between 44 engines, played by the maintainer on
@@ -861,7 +861,7 @@ cutechess-cli \
 For games against other engines, add `-tournament gauntlet`, keep Vyvræl as
 the first engine, and replace the second with one `-engine conf="<name>"`
 per opponent, where the name is the one in Cute Chess's own `engines.json`
-(the names of the reference ladder, Ladder Baseline 2). `-rounds 4` then
+(the names of the reference ladder, Ladder Baseline 3). `-rounds 4` then
 gives eight games against each. Every flag above was checked against
 `cutechess-cli --help` of version 1.5.1.
 
@@ -1119,8 +1119,8 @@ baseline's settings: the anchor "Stockfish 19" fixed at 0, the white
 advantage estimated from the games, and 500 simulations for the error
 bars. Several PGN files may be given. The anchor must have played in the
 games; for a gauntlet without Stockfish 19 give another, for example
-`--anchor "Vice 1.1" --anchor-rating -1436.2` to place it where the
-reference ladder, Ladder Baseline 2, has it.
+`--anchor "Vice 1.1" --anchor-rating -1599.3` to place it where the
+reference ladder, Ladder Baseline 3, has it.
 
 ### Reading an SPRT result
 
@@ -1507,8 +1507,10 @@ table were measured again and given their numbers on the new scale.
   [`calibration-0.2.0-ratings.txt`](testing/calibration-0.2.0-ratings.txt),
   copied unchanged.
 - **Failures:** no illegal move, crash, stall or time loss by any engine.
-  `cutechess-cli` ended an engine process itself between games 21 times
-  over the seven gauntlets, with no result affected.
+  `cutechess-cli` printed "Destroyed while process is still running" 21
+  times over the seven gauntlets and ended one engine process by force
+  (Stockfish 19-1500, in the gauntlet of setting 1330), all between
+  games, with no result affected.
 
 | Setting played | Plies, misjudgement (cp) | Gauntlet /280 | Ordo rating | On the scale | New `UCI_Elo` |
 | --: | --- | --: | --: | --: | --: |
@@ -1518,7 +1520,7 @@ table were measured again and given their numbers on the new scale.
 | 1330 | 2, 112 | 147.0 | -2,481.3 | 1,019 | 1020 |
 | 1350 | 3, 151 | 156.0 | -2,402.3 | 1,098 | 1100 |
 | 1410 | 3, 90 | 163.5 | -2,324.1 | 1,176 | 1180 |
-| 1630 | 3, 20 | 208.5 | -2,115.5 | 1,384 | 1380 |
+| 1630 | 3, 20 | 208.5 | -2,115.5 | 1,385 | 1380 |
 
 Head to head, the weaker of two neighbouring settings scored 9.0, 16.5,
 14.5, 5.5, 4.5 and 6.0 points of 40, from the lowest pair up.
@@ -1529,7 +1531,7 @@ to 361 points below them: that is the new scale, not a weaker engine
 weakenings keeps its plies and its misjudgement and takes the number it
 was measured at, rounded to tens. `UCI_Elo` now runs from 750 to 1380.
 Between 1020 (two plies) and 1100 (three plies) there is no point of the
-same depth, so 1021 to 1099 play as 1020: up to 80 points weak for the
+same depth, so 1021 to 1099 play as 1020: up to 79 points weak for the
 number, never stronger than a higher setting. The default is 1110 (three
 plies, 144 centipawns), the round number nearest to the play of the old
 default (1360 then: three plies, 141 centipawns). Full-strength play is
@@ -1542,14 +1544,20 @@ is not checked by games of its own: every weakening it uses was measured.
   distances between neighbouring settings are better known than that, but
   not well. 1150 and 1220 scored 115.0 and 125.0 of 280 in their
   gauntlets and are 42 points apart in the table.
-- **The head-to-heads pull the settings apart more than the gauntlets
-  do.** Rated without them (the gauntlets and Baseline 3 only), the seven
-  settings come out at 774, 909, 960, 1,066, 1,108, 1,144 and 1,368 on
-  the scale: within 50 points of the table's numbers, in the same order.
-  Games between two settings of one engine exaggerate their difference;
-  the table uses both kinds, as the calibration of 0.1.0-alpha.2 did.
-- **The merged run is not Baseline 3's table.** Adding 2,200 games against
-  the low rungs moves those rungs: Rodent IV-2000 is at -1,886.1 in this
+- **The head-to-heads move the settings by up to 47 points.** Rated
+  without them (the gauntlets and Baseline 3 only; Ordo's table, without
+  error bars, is
+  [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt)),
+  the seven settings come out at 774, 909, 960, 1,066, 1,108, 1,144 and
+  1,368 on the scale: in the same order, over a narrower span (594
+  points against 635), with three of the six gaps between neighbours
+  wider and three narrower. The head-to-head scores themselves are far
+  more lopsided than those gaps suggest (5.5 of 40 between settings 80
+  points apart), as games between two settings of one engine tend to
+  be. The table uses both kinds of game, as the calibration of
+  0.1.0-alpha.2 did.
+- **The merged run is not Baseline 3's table.** Adding 1,960 games against
+  the low rungs (and 240 between the settings) moves those rungs: Rodent IV-2000 is at -1,886.1 in this
   run against -1,967.0 in Baseline 3 alone, CT800 1.46-1200 at -3,187.3
   against -2,771.6. The settings' numbers are from this merged run.
 - **The three-ply settings at 0.2.0 are not the play of 0.1.0** at the

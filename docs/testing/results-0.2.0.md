@@ -1,7 +1,7 @@
 # Results: Vyvræl 0.2.0
 
-The measurement for the 0.2.0 release: an `avx2` build of the release's
-source played in [Ladder Baseline 3](ladder-Baseline-3.md), a round robin
+The measurement for the 0.2.0 release: an `avx2` build of the release
+branch played in [Ladder Baseline 3](ladder-Baseline-3.md), a round robin
 of 44 engines that also holds the three earlier Vyvræl builds. It is the
 measurement the 0.2.0 release notes are to cite, and the measurement of
 known issue KI-8 after milestone 7.
@@ -21,8 +21,10 @@ known issue KI-8 after milestone 7.
   source of commit `182f9ec` on the branch `release/0.2.0`, built by hand
   on the Windows workstation as `vyvrael-0.2.0-avx2.exe`, SHA-256
   `347a54f1fde36398a9d7d35181970963bf80fa3b7cbb2268cb131686567e095c`.
-  It is the same source and build level as the `avx2` release file, not
-  the workflow's binary itself. The bench counts 28,175 nodes.
+  It is the same search and build level as the `avx2` release file, not
+  the workflow's binary itself: the release's source differs from it
+  only in the numbers of `UCI_Elo`, refitted afterwards. The bench
+  counts 28,175 nodes for both.
 - **Run:** Ladder Baseline 3, 2026-11-28, the Windows workstation. Its
   setup, tools, failures, engine binaries and the SHA-256 of its PGN are
   in [ladder-Baseline-3.md](ladder-Baseline-3.md); they are not repeated
