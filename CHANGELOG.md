@@ -103,6 +103,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Fixed
 
+- **Known issue KI-9 is closed**: the search is no longer slow for lack
+  of move ordering. The first move tried gives 90% to 98% of the main
+  search's cutoffs, from 22% before milestone 7.
 - **`stop` and the clock reach a long first depth** (milestone 7, item 5;
   known issue KI-10, now narrowed). The first search depth used to be
   completed whatever happened, which in positions with very many

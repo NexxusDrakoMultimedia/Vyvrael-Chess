@@ -225,15 +225,20 @@ stats table probes 459 hits 129 (28.1%) cutoffs 73 (15.9%)
 - `cutoffs` are the beta cutoffs of the main search, `firstmove` those
   given by the first legal move tried, and `rate` their share. It is the
   usual measure of move ordering: the better the ordering, the nearer to
-  100%. The 62% above is the start position, where there is little to
-  capture: the transposition table's move comes first, and the other
-  quiet moves are still tried as generated (known issue KI-9). It was 22%
-  before the table's move was tried first, and 58% while captures that
-  lose material were still tried before the quiet moves.
+  100%. The 92% above is the start position, where there is little to
+  capture, so it is the quiet moves that have to be tried in a good
+  order: the transposition table's move first, then the killer moves.
+  It was 22% before the table's move was tried first, 58% while
+  captures that lose material were still tried before the quiet moves,
+  and 62% before the killer moves. At the end of milestone 7, searched
+  deeper, it is 93.8% from the start position at depth 6, and at depth
+  8 97.5% in Kiwipete and 90.3% in a quiet middlegame (Position 6 of
+  the pins). This is the measurement that known issue KI-9, "the search
+  is slow for lack of move ordering", was closed on.
 - `qnodes` are the positions the quiescence search visited, out of the
   search's total; `standpat` those good enough as they stood; `qcutoffs`
   and the `firstmove` after it the cutoffs by a move there, which is
-  ordered most valuable victim first (hence 98.5%).
+  ordered most valuable victim first (hence 100.0%).
 - The figures are whole-number arithmetic on counts, so they too are the
   same on every run. They are a quick look at what a change did to the
   tree, not a measure of strength: that is what an SPRT is for.
