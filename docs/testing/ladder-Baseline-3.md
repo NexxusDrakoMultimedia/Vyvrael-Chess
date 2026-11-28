@@ -2,8 +2,10 @@
 
 Third opponent-ladder measurement for Vyvræl testing, and the first with
 Vyvræl in it: four Vyvræl builds played in the round robin beside 40 other
-engines. It follows [Ladder Baseline 2](ladder-Baseline-2.md), which had 30
-other engines and no Vyvræl.
+engines. It replaces [Ladder Baseline 2](ladder-Baseline-2.md), which had
+30 other engines and no Vyvræl, as the reference ladder: gauntlets from
+0.2.0 on are played against its rungs and rated with its games (the
+maintainer, 2026-11-28).
 
 > **Read this as an ordering, not a rating.** The Ordo numbers below are
 > relative to the anchor engine (Stockfish 19 = 0) on a scale stretched by
@@ -142,7 +144,7 @@ From 0.2.0 on, the opponents near Vyvræl are other ones than before. By their p
 | Below, probably still of use | MinimalChess 0.4.1, the Rustic Alpha versions, Stockfish 19-1800, Blunder 4.0.0 |
 | Far below (more than 500 points and 50 game points lower) | every entry from Rodent IV-2000 down, and the earlier Vyvræl builds |
 
-A gauntlet for a later full-strength build can be rated on this ladder's scale: it keeps Hash, Threads, the move overhead, the time control and the openings of this run, and is rated together with this run's games in one Ordo run (`-a 0 -A "Stockfish 19"`). Do not merge games played with other settings into one rating. Ladder Baseline 2 stays the scale of `UCI_Elo` until the maintainer decides otherwise (see "Opponent ladder" in [TESTING.md](../TESTING.md)).
+A gauntlet, for a later build or for a `UCI_Elo` setting, keeps Hash, Threads, the move overhead, the time control and the openings of this run, and is rated together with this run's games in one Ordo run (`-a 0 -A "Stockfish 19"`), so its number sits on this ladder's scale. Do not merge games played with other settings, or Ladder Baseline 2's games, into that rating. The numbers of `UCI_Elo` in the engine were fitted on Ladder Baseline 2's scale and stay on it until they are measured again on this one (see "The scale of `UCI_Elo`" in [TESTING.md](../TESTING.md)).
 
 ## Engine binaries
 

@@ -354,8 +354,9 @@ change the engine's strength. The calibration of 0.1.0 is provisional until
 then, and the release notes of 0.2.0 say so.
 
 **What scale `UCI_Elo` is on.** The calibration maps `UCI_Elo` to the scale
-of the reference ladder, Ladder Baseline 2 (current; Ladder Baseline 1 is
-kept as history), and its Ordo anchor (Stockfish 19 = 0), shifted by a
+of the reference ladder (Ladder Baseline 2 for the calibration of
+milestone 6; Ladder Baseline 3 from the next calibration on, the
+maintainer's decision of 2026-11-28), and its Ordo anchor (Stockfish 19 = 0), shifted by a
 fixed 3,500 points so that every setting is positive (Stockfish 19 =
 3,500; the maintainer's decision of 2026-11-22, worded in `TESTING.md`,
 "The scale of `UCI_Elo`"), not to Lichess, CCRL or FIDE ratings. That scale is stretched by lopsided results,
@@ -810,12 +811,13 @@ known issue KI-8 (the evaluation's strength). The scripts and the installer
 it uses are built beforehand and described under "Testing tooling (before
 milestone 6)" above.
 
-**Opponent ladder reference:** Ladder Baseline 2 for this milestone, and
-for the scale of `UCI_Elo`; Ladder Baseline 1 is kept as history. Since
-2026-11-28 there is also Ladder Baseline 3, 44 engines with four Vyvræl
-builds among them
-([`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)),
-which measured 0.2.0. Ladder Baseline 2,
+**Opponent ladder reference:** Ladder Baseline 2 for this milestone;
+Ladder Baseline 1 is kept as history. Since 2026-11-28 the reference
+ladder is Ladder Baseline 3, 44 engines with four Vyvræl builds among
+them
+([`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)):
+it measured 0.2.0, and gauntlets and the scale of `UCI_Elo` use it from
+0.2.0 on. Ladder Baseline 2,
 [`docs/testing/ladder-Baseline-2.md`](testing/ladder-Baseline-2.md), is a
 round robin of 30 other engines run by the maintainer on 2026-11-21; it
 replaced Ladder Baseline 1,

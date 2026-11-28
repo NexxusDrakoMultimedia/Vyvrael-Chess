@@ -370,7 +370,9 @@ FIDE ratings and cannot be converted to them. The scale is stretched by
 lopsided results, most visibly at the low end: the limited engines of the
 ladder rate far below the numbers in their names (Stockfish 19-1320 is
 about 1,530 on this scale). A setting of 1,200 means about as strong as an
-engine rated 1,200 on this ladder, not a 1,200 player. The calibration of
+engine rated 1,200 on this ladder, not a 1,200 player. From 0.2.0 on the
+reference ladder is Ladder Baseline 3; the settings stay on Baseline 2's
+scale until they are measured again and refitted on it. The calibration of
 milestone 6 maps the settings onto this scale (see [TESTING.md](TESTING.md),
 "The scale of `UCI_Elo`").
 

@@ -154,9 +154,10 @@ Four games each (two openings, sides swapped). In the order of the ladder:
   Ladder Baseline 2's games: 0.1.0 is at -1721.4 there
   ([results-0.1.0.md](results-0.1.0.md)) and at -1973.7 here, the same
   engine on two ladders. Compare builds within one ladder only. For the
-  same reason this number is not converted to the `UCI_Elo` scale here,
-  which is defined on Ladder Baseline 2 (see "The scale of `UCI_Elo`" in
-  [TESTING.md](../TESTING.md)).
+  same reason this number is not converted to the `UCI_Elo` scale here:
+  the engine's settings are still fitted on Ladder Baseline 2's scale,
+  until they are measured again on this ladder (see "The scale of
+  `UCI_Elo`" in [TESTING.md](../TESTING.md)).
 - **`UCI_Elo` is not measured here.** Every Vyvræl build played at full
   strength. The calibration, measured for 0.1.0-alpha.2 and released
   with 0.1.0, is provisional and is measured again separately.

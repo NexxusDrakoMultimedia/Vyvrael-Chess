@@ -746,13 +746,14 @@ the Windows workstation were installed by hand by the maintainer
 
 ## Opponent ladder (Ladder Baselines 2 and 3)
 
-There are two ladders in use. **Ladder Baseline 2** is the scale of
-`UCI_Elo` and of the results up to 0.1.0. **Ladder Baseline 3**
-(2026-11-28) is the round robin run again with more engines and with
-Vyvræl in it; it measured 0.2.0, and a later full-strength build can be
-rated with its games. Whether the scale of `UCI_Elo` moves to it is the
-maintainer's decision and still open. Ladder Baseline 1 is kept as
-history.
+The reference ladder is **Ladder Baseline 3 (current, from 0.2.0 on);
+Ladder Baselines 1 and 2 are kept as history.** Baseline 3 (2026-11-28)
+is the round robin run again with more engines and with Vyvræl in it. It
+measured 0.2.0, and gauntlets from 0.2.0 on are played against its rungs
+and rated with its games (the maintainer, 2026-11-28). Ladder Baseline 2
+is the ladder of the results up to 0.1.0, and the scale the `UCI_Elo`
+settings were fitted on until they are measured again (see "The scale of
+`UCI_Elo`").
 
 - [`docs/testing/ladder-Baseline-3.md`](testing/ladder-Baseline-3.md)
   records a round robin between 44 engines, played by the maintainer on
@@ -773,9 +774,9 @@ history.
   [`ladder-Baseline-2-ratings.txt`](testing/ladder-Baseline-2-ratings.txt)
   and
   [`ladder-Baseline-2-ratings.csv`](testing/ladder-Baseline-2-ratings.csv).
-  It is the reference list of opponents for measuring Vyvræl, from
-  0.1.0-alpha.2 on; its section "Using the ladder for Vyvræl" names the
-  core opponents of a gauntlet.
+  It was the reference list of opponents for measuring Vyvræl from
+  0.1.0-alpha.2 to 0.1.0; its section "Using the ladder for Vyvræl" names
+  the core opponents of a gauntlet of that time.
 - [`docs/testing/ladder-Baseline-1.md`](testing/ladder-Baseline-1.md), with
   [`ladder-Baseline-1-ratings.txt`](testing/ladder-Baseline-1-ratings.txt)
   and
@@ -822,7 +823,7 @@ with no illegal move, crash, stall or loss on time. Run them with the
 match scripts (see "Strength matches, SPRT and ratings") after
 `cargo build --release`: `h2h` with the build on both sides under two
 names for self-play, and `gauntlet` against opponents of the reference
-ladder, Ladder Baseline 2. For example, twenty games of self-play and eight
+ladder, Ladder Baseline 3. For example, twenty games of self-play and eight
 against each of two opponents:
 
 ```sh
@@ -1293,6 +1294,16 @@ is added to its rating. Some points of the ladder on this scale:
 
 The settings were labels until the calibration below; since its refit
 `UCI_Elo` (1110 to 1630) is on this scale.
+
+**The scale moves to Ladder Baseline 3** (the maintainer, 2026-11-28),
+the reference ladder from 0.2.0 on. That takes effect with the next
+calibration, whose games are rated with Baseline 3's, and with the refit
+that follows it. Until then the settings in the engine are the ones
+fitted above, on Baseline 2's scale. The two scales differ: the same
+engines rate lower on Baseline 3, by about 210 points at Rodent IV-2000
+(-1,967.0 against -1,757.3) and about 365 at Stockfish 19-1320 (-2,334.7
+against -1,969.6), so a setting's number will not mean the same play
+before and after.
 
 ### Calibration of `UCI_Elo` (0.1.0-alpha.2, 2026-11-22)
 
