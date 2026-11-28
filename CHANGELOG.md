@@ -192,6 +192,23 @@ release with a `pext` build beside `avx2` and plain. Release notes:
 
 ### Changed
 
+- **`UCI_Elo` is refitted on the scale of Ladder Baseline 3** (breaking
+  for GUI settings). The range is 750 to 1380 (was 1110 to 1630) and the
+  default 1110 (was 1360), which plays nearly as the old default did.
+  The seven measured settings of the weakening are the same; their
+  numbers are new because the scale is (the table of old and new numbers
+  is in `docs/UCI.md`, "Limited strength"). A number kept from 0.1.0
+  plays stronger than it did, and one above 1380 is refused, as any
+  out-of-range value is. From 1021 to 1099 the engine plays as 1020.
+  Still provisional; full-strength play is not affected
+  (`docs/TESTING.md`, "Calibration of `UCI_Elo` (0.2.0)").
+- **Ladder Baseline 3 is the reference ladder**, in place of Ladder
+  Baseline 2: 44 engines with four Vyvræl builds among them, the ladder
+  that gauntlets and the scale of `UCI_Elo` use from 0.2.0 on
+  (`docs/testing/ladder-Baseline-3.md`).
+- **CI tests the `pext` build**: a second job lints, tests, builds and
+  starts it on Linux and on Windows, and CI also runs on pushes to
+  `release/**` branches.
 - **The release workflow builds a `pext` file** for Windows and Linux,
   beside `avx2` and plain, and runs the engine's tests on that build
   before it does. Six binaries in a release, from four.

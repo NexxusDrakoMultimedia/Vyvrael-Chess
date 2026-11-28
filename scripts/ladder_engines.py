@@ -4,7 +4,8 @@
 Baseline 2's, less the names in RETIRED, and the engines new in Ladder
 Baseline 3 (NEW_IN_BASELINE_3).
 
-Which engines, versions and names: docs/testing/ladder-Baseline-2.md and its
+Which engines, versions and names: docs/testing/ladder-Baseline-2.md and, for
+the engines new in Baseline 3, docs/testing/ladder-Baseline-3.md, with their
 ratings files, which are the source of truth. This module records where each
 one comes from on Linux and how the names of the ladder map to binaries; the
 installer (install_tools.py) acts on it. Vyvræl itself is not in it.

@@ -924,12 +924,36 @@ and the rating come from the same games.
 `cutechess-cli` ended one opponent's process by force between games
 (CT800 1.46-1800), with no result affected.
 
+**Result for 0.2.0**, run on 2026-11-28 on the Windows workstation (six
+games at a time) with `cutechess-cli` 1.5.1 and the hand-built `avx2`
+build of commit `182f9ec` on `release/0.2.0` (`vyvrael-0.2.0-avx2.exe`,
+SHA-256
+`347a54f1fde36398a9d7d35181970963bf80fa3b7cbb2268cb131686567e095c`). The
+check uses the games of the release's measurement and of its
+calibration, all at 10+0.1:
+
+| Run | Games | Illegal moves, crashes, stalls, time losses by Vyvræl |
+| --- | --: | --: |
+| Round robin of Ladder Baseline 3, the games of 0.2.0 ([results-0.2.0.md](testing/results-0.2.0.md)) | 172 | 0 |
+| `UCI_Elo` calibration: seven gauntlets and six head-to-heads at limited strength ("Calibration of `UCI_Elo` (0.2.0, 2026-11-28)" below) | 2,200 | 0 |
+
+**Not a build of the final release commit.** One later commit on
+`release/0.2.0` touches the engine's source: `de208ab`, the refit of
+`UCI_Elo`, which changes the ratings in the calibration table, the
+default rating and their tests, and nothing else. Full-strength play is
+the same (the bench counts 28,175 nodes before and after), and each
+limited setting plays the same weakening under a new number. No games
+were played with a build of the final commit; the release notes say so.
+This deviation from the release checklist is for the maintainer to
+accept, or to close with a short run, when confirming the gates.
+
 **The alpha checks are checks that games complete, not measurements of
 strength.** Forty or forty-eight games against five or six opponents say
 nothing reliable about a rating; the measurements are separate (see
 [results-0.1.0-alpha.2.md](testing/results-0.1.0-alpha.2.md)). From 0.1.0
 the release check uses the games of the release's measurement
-([results-0.1.0.md](testing/results-0.1.0.md)).
+([results-0.1.0.md](testing/results-0.1.0.md),
+[results-0.2.0.md](testing/results-0.2.0.md)).
 
 ## Strength matches, SPRT and ratings
 
@@ -1237,7 +1261,8 @@ Draw rate (equal opponents) = 50.00 % +/- 0.00
   players and games of that run: a rating from one list cannot be put next
   to a rating from another, unless both runs share the anchor and enough of
   the same games. That is why a Vyvræl build is rated **together with
-  Baseline 2's games** in one run.
+  the reference ladder's games** in one run (Baseline 3's from 0.2.0 on,
+  Baseline 2's before).
 - **Ratings are not CCRL, FIDE or Lichess ratings**, and a nominal
   `UCI_Elo` in an engine's name is a label, not its strength.
 
@@ -1263,8 +1288,8 @@ but the engine is the same:
   For evenly matched engines the 95% margin is about ±140 Elo at 20
   games, ±90 at 50, ±45 at 200 and ±23 at 800 (20 games of self-play gave
   ±143.7 in `cutechess-cli`); when the results are lopsided it is far
-  wider, which is why the ladder's ratings carry ±180 to ±290 after 116
-  games each. A difference smaller
+  wider, which is why Ladder Baseline 3's ratings carry ±170 to ±260 after
+  172 games each (Baseline 2's ±180 to ±290 after 116). A difference smaller
   than the margins is no difference. For deciding a change, use an SPRT,
   which runs as long as the evidence needs.
 - **Full-strength builds with `Variety` 0**, unless the point is to measure
@@ -1558,7 +1583,7 @@ is not checked by games of its own: every weakening it uses was measured.
   [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt)),
   the seven settings come out at 774, 909, 960, 1,066, 1,108, 1,144 and
   1,368 on the scale: in the same order, over a narrower span (594
-  points against 635), with three of the six gaps between neighbours
+  points against 636), with three of the six gaps between neighbours
   wider and three narrower. The head-to-head scores themselves are far
   more lopsided than those gaps suggest (5.5 of 40 between settings 80
   points apart), as games between two settings of one engine tend to

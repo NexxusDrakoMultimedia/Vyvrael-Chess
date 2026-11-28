@@ -20,8 +20,8 @@ BASELINE = Path(__file__).resolve().parents[2] / "docs/testing/ladder-Baseline-2
 
 
 def baseline_names() -> list[str]:
-    """The names in the ratings file of Ladder Baseline 2, the reference
-    ladder. Names are compared without surrounding spaces: in Ladder
+    """The names in the ratings file of Ladder Baseline 2, the ladder the
+    pins were first taken from. Names are compared without surrounding spaces: in Ladder
     Baseline 1 "Stockfish 19-2400 " carried a trailing one, which the
     maintainer dropped on 2026-11-21."""
     with open(BASELINE, encoding="utf-8", newline="") as handle:

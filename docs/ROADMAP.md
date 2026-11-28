@@ -41,7 +41,7 @@ work is actually done is this:
    half): the small items of "Extra features and QoL"
    that need no SPRT, so that milestone 7 has diagnostics and a quick test
    runner to work with.
-5. **Milestone 7:** search heuristics.
+5. **Milestone 7:** search heuristics. Done on 2026-11-28.
 6. **Queued task 2:** benchmark and speed up.
 7. **The rest of the extra features**, each on its own branch, in the order
    the maintainer confirms.
@@ -551,12 +551,21 @@ Results recorded so far:
 - [`results-0.1.0.md`](testing/results-0.1.0.md): the measurement for the
   0.1.0 release, an `avx2` build of its source, against the same rungs
   (the same search as alpha.2, measured again with other openings).
-- The `UCI_Elo` calibration and its check are recorded in TESTING.md
-  ("Calibration of `UCI_Elo`") rather than in a results file, with Ordo's
-  output in
-  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt)
+- [`results-0.2.0.md`](testing/results-0.2.0.md): the measurement for the
+  0.2.0 release (KI-8 after milestone 7). Not a gauntlet: the build played
+  in Ladder Baseline 3, a round robin of 44 engines
+  ([`ladder-Baseline-3.md`](testing/ladder-Baseline-3.md), with its two
+  ratings files), 172 games, four against each opponent, rated on that
+  ladder's scale.
+- The `UCI_Elo` calibrations and the check of the first are recorded in
+  TESTING.md ("Calibration of `UCI_Elo` (0.1.0-alpha.2, 2026-11-22)" and
+  "Calibration of `UCI_Elo` (0.2.0, 2026-11-28)") rather than in a results
+  file, with Ordo's output in
+  [`calibration-0.1.0-alpha.2-ratings.txt`](testing/calibration-0.1.0-alpha.2-ratings.txt),
+  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt),
+  [`calibration-0.2.0-ratings.txt`](testing/calibration-0.2.0-ratings.txt)
   and
-  [`calibration-check-a874077-ratings.txt`](testing/calibration-check-a874077-ratings.txt).
+  [`calibration-0.2.0-gauntlets-only-ratings.txt`](testing/calibration-0.2.0-gauntlets-only-ratings.txt).
 
 ## Queued work (requested 2026-11-21)
 
@@ -1138,8 +1147,9 @@ were committed (items 4 and 7) were reverted.
 - [x] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
   Magic bitboards stay the default; perft matches on both paths and the
   bench count is the same. No SPRT. The whole test suite passes on the
-  PEXT build; CI does not build it (the workflows are not touched), and
-  no release file is built with it yet.
+  PEXT build. Milestone 7 left the workflows untouched; since 2026-11-28
+  CI tests the PEXT build (the `pext` job) and the release workflow
+  builds it, from 0.2.0 on.
 - [x] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
   bench count unchanged, tested in `tests/uci.rs`. Neither is used by a
   weakened search (`UCI_LimitStrength`).
@@ -1157,8 +1167,8 @@ were committed (items 4 and 7) were reverted.
   ([results-0.2.0.md](testing/results-0.2.0.md)). `UCI_Elo`: done the
   same day, on Baseline 3's scale ("Calibration of `UCI_Elo` (0.2.0)"
   in TESTING.md).
-- [ ] End-of-milestone doc drift pass, an independent review, the merge
-  into `main`.
+- [x] End-of-milestone doc drift pass, an independent review, the merge
+  into `main` (2026-11-28).
 
 Pondering and the `tune` tool of the [B] list are not in this milestone:
 pondering touches time management and the search thread and gets a
