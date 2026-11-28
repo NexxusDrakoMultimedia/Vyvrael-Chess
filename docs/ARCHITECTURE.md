@@ -791,16 +791,17 @@ happen: the engine may prefer the second-best quiet move, but it does not
 leave a queen hanging unless the noise is that large. Forced mates are
 judged exactly, for and against.
 
-`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (1110) to
-`ELO_MAX` (1630) to a depth and a noise through a table of seven
-weakenings measured in milestone 6 (`CALIBRATION` in `search/weaken.rs`):
-two plies from 1110 to 1349, three from 1350, with the noise interpolated
-in a straight line between points of the same depth and held at the last
-two-ply point (112 centipawns) from 1331 to 1349. `ELO_MIN` and `ELO_MAX`
+`Weakening::for_elo(elo)` maps a rating from `ELO_MIN` (750) to
+`ELO_MAX` (1380) to a depth and a noise through a table of seven
+weakenings, measured again for 0.2.0 (`CALIBRATION` in
+`search/weaken.rs`): two plies from 750 to 1099, three from 1100, with
+the noise interpolated in a straight line between points of the same
+depth and held at the last two-ply point (112 centipawns) from 1021 to
+1099. `ELO_MIN` and `ELO_MAX`
 are read from the table. The ratings are on the reference ladder's scale
 (see [UCI.md](UCI.md), "Limited strength"). **The calibration is
-provisional:** measured for one build, and measured again after milestone
-7 and after queued task 2 (benchmark and speed-up; see
+provisional:** measured for one build, and measured again after queued
+task 2 (benchmark and speed-up; see
 [ROADMAP.md](ROADMAP.md)).
 
 The generator is handed in by the caller and advanced once per root move

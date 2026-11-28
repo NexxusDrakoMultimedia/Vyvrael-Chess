@@ -1105,7 +1105,7 @@ mod tests {
             assert_eq!(
                 refused[1],
                 format!(
-                    "info string UCI_Elo: expected a whole number from 1110 to 1630, got `{out}`"
+                    "info string UCI_Elo: expected a whole number from 750 to 1380, got `{out}`"
                 )
             );
             assert_eq!(

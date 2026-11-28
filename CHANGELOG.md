@@ -24,12 +24,19 @@ release with a `pext` build beside `avx2` and plain. Release notes:
   table, and `Clear Hash` empties it.
 - **New in the protocol:** `go mate`, `go searchmoves`, `hashfull`,
   `seldepth`, `UCI_ShowWDL`, and `d` and `eval` in UCI mode.
+- **Breaking for GUI settings:** `UCI_Elo` now runs from 750 to 1380 (it
+  was 1110 to 1630), with a default of 1110 (it was 1360), and a value
+  outside the range is refused. The seven measured weakenings are the
+  same; their numbers are new, because the scale is now that of Ladder
+  Baseline 3. A number kept from 0.1.0 plays stronger than it did.
 - **Measured:** in Ladder Baseline 3, a round robin of 44 engines, the
   build of 0.2.0 finished 19th and won all twelve games against 0.1.0
   and its two alphas, which finished 34th to 36th. An ordering on the
   project's own ladder, not an Elo
   ([docs/testing/results-0.2.0.md](docs/testing/results-0.2.0.md)).
-  `UCI_Elo` has not been measured again yet.
+  `UCI_Elo` was measured again with the same build and refitted
+  ([docs/TESTING.md](docs/TESTING.md), "Calibration of `UCI_Elo`
+  (0.2.0)").
 - **Fixed:** `stop` and the clock now reach a long first search depth
   (known issue KI-10, narrowed), and a clock within `Move Overhead` is
   no longer spent a millisecond at a time (the first half of KI-12).

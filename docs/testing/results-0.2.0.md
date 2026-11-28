@@ -153,12 +153,10 @@ Four games each (two openings, sides swapped). In the order of the ladder:
 - **Not on the scale of the earlier results files.** Those are rated with
   Ladder Baseline 2's games: 0.1.0 is at -1721.4 there
   ([results-0.1.0.md](results-0.1.0.md)) and at -1973.7 here, the same
-  engine on two ladders. Compare builds within one ladder only. For the
-  same reason this number is not converted to the `UCI_Elo` scale here:
-  the engine's settings are still fitted on Ladder Baseline 2's scale,
-  until they are measured again on this ladder (see "The scale of
-  `UCI_Elo`" in [TESTING.md](../TESTING.md)).
+  engine on two ladders. Compare builds within one ladder only.
 - **`UCI_Elo` is not measured here.** Every Vyvræl build played at full
-  strength. The calibration, measured for 0.1.0-alpha.2 and released
-  with 0.1.0, is provisional and is measured again separately.
+  strength. The settings were measured the same day with the same build
+  and refitted on this ladder's scale (see "Calibration of `UCI_Elo`
+  (0.2.0)" in [TESTING.md](../TESTING.md)); on that scale (Ordo + 3,500)
+  full strength is about 2,080, far above the highest setting, 1380.
 - **Not comparable with results from another machine or other settings.**
