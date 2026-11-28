@@ -4,8 +4,9 @@
 //! Pinned results of fixed-depth searches.
 //!
 //! A fixed-depth search uses no clock and no randomness, so its score, best
-//! move and node count are fully determined by the code. These values were
-//! **recorded from this implementation** on 2026-11-20; they are not an
+//! move and node count are fully determined by the code. These values are
+//! **recorded from this implementation** (first on 2026-11-20, last
+//! updated on 2026-11-28 with milestone 7's search); they are not an
 //! independent reference the way perft counts are. Their job is to notice
 //! change: any edit to move generation order, evaluation or search that
 //! alters what the engine does at fixed depth will fail here.

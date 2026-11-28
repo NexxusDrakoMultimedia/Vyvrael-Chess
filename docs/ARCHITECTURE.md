@@ -42,7 +42,7 @@ dependencies, so the engine binary stays small and builds fast.
 | `suite` | implemented | `suite::run` searches every record of an EPD test suite for a depth, a node count or a time (`SuiteLimit`) and reports whether the move played is a `bm` move and not an `am` move; `suite::solve` does one line. A quick check of the search, not a measure of strength. |
 | `perft` | implemented | `perft`, `divide` and `perft_copy_make`: node counting for testing move generation. |
 | `eval` | implemented | Static evaluation: the `Evaluator` trait, `Score`, `relative_to`; material (`Material`, `piece_value`, `material_balance`); `game_phase`; `Tapered` scores; piece-square tables (`piece_square`, `piece_square_balance`); the `HandCrafted` evaluator with its `Breakdown`; `default_evaluator`; `report`, the evaluation and its parts as lines of text. |
-| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). Since milestone 7: captures tried first in the main search, and the transposition table (`TranspositionTable`, `Bound`, `Entry`, `Search::with_table`). |
+| `search` | implemented | Search core: score constants and mate-score arithmetic; fixed-depth negamax with alpha-beta; draw detection; the principal variation; limits and stopping; iterative deepening; quiescence search with ordered captures; weakened play for `UCI_LimitStrength` (`weakened_move`, `Weakening::for_elo`); the `Variety` choice (`varied_move`, `split_limits`). Since milestone 7: move ordering in the main search (the table's move, captures by MVV-LVA, killer moves, losing captures last), the transposition table (`TranspositionTable`, `Bound`, `Entry`, `Search::with_table`), static exchange evaluation (`see`, `exchange_value`), null-move pruning, late move reductions, reverse futility pruning, search statistics (`SearchStats`, `stats_lines`), a mate limit (`Limits::mate`) and a restriction to some root moves (`Search::with_root_moves`). |
 | `uci` | implemented | The UCI protocol: command parsing, output formatting, time management, options, and the engine session with the search on its own thread. |
 
 ## Board representation
@@ -510,9 +510,10 @@ time, each accepted by an SPRT.
     search and forgotten when the next begins, so a search is still a
     function of the position and the table. A killer counts only in a
     position that has it as a quiet move; the root keeps none, because
-    nothing cuts off there, and neither does quiescence search. From
-    the start position at depth 6 the first move tried gives 96.0% of
-    the main search's cutoffs with them, from 55.8%.
+    nothing cuts off there, and neither does quiescence search. When
+    they were added, the first move tried gave 96.0% of the main
+    search's cutoffs from the start position at depth 6, from 55.8%
+    (93.8% now, with the pruning added since).
   - **Null-move pruning** (`null_move_cutoff` in `negamax.rs`, since
     milestone 7). Before a position's moves are searched, the search
     asks what would happen if the side to move passed
@@ -538,7 +539,9 @@ time, each accepted by an SPRT.
       the ordinary one.
     A mate score found behind a null move is not passed on: the cutoff
     is then worth beta. The cutoff goes into the table as a lower
-    bound. `bench 7` counts 1,026,110 nodes with it, from 4,598,039.
+    bound. When it was added, `bench 7` counted 1,026,110 nodes with it,
+    from 4,598,039 (218,088 now, with the reductions and pruning added
+    after it).
   - **Late move reductions** (`search_reduced` and
     `late_move_reduction` in `negamax.rs`, since milestone 7). The
     moves of a position are tried best first as far as the search can
@@ -559,8 +562,9 @@ time, each accepted by an SPRT.
       is in check, anything below depth 3, and the root's moves.
     - Like null-move pruning it is not exact, and it changed the first
       pinned score (see "Pinned search results" in TESTING.md).
-    `bench 8` counts 689,789 nodes with it, from 3,030,504; a depth-10
-    search of the start position 210,921, from 1,450,092.
+    When it was added, `bench 8` counted 689,789 nodes with it, from
+    3,030,504; a depth-10 search of the start position 210,921, from
+    1,450,092 (191,706 now, with reverse futility pruning).
   - **Reverse futility pruning** (`reverse_futility_cutoff` in
     `negamax.rs`, since milestone 7). Up to 6 plies from the horizon, a
     position whose static evaluation is at least 100 points above beta
@@ -602,7 +606,12 @@ time, each accepted by an SPRT.
   over and does not list the captures played beyond it).
 
 - **Limits and stopping** (`search/limits.rs`). `Limits` holds an optional
-  depth, node count and deadline; the search stops at whichever comes first.
+  depth, node count, deadline and mate distance (`Limits::mate`, UCI
+  `go mate`: stop once an iteration shows a mate in that many moves or
+  fewer for the side to move); the search stops at whichever comes first.
+  `Search::with_root_moves` restricts the root to some moves (UCI
+  `searchmoves`); such a search does not store the root in the table.
+  A weakened search uses neither.
   A stop flag (an `AtomicBool` given with `with_stop_flag`) lets another
   thread end a running search, which is how UCI `stop` works.
   - The node limit is exact: the search stops at the first node beyond it.
@@ -645,7 +654,8 @@ time, each accepted by an SPRT.
   - An interrupted later iteration is discarded.
   - It ends early when the root has no legal move, and when a forced mate
     has been found within the depth searched, since a deeper search cannot
-    find a shorter one.
+    find a shorter one, and when the mate asked for with `go mate` has
+    been found.
   - Without a transposition table, iterating to depth N gives exactly the
     result of a direct depth-N search; a test relies on that. With a
     table (below) the earlier iterations leave what they found, which is
@@ -697,7 +707,8 @@ time, each accepted by an SPRT.
 - **Statistics** (`search/stats.rs`). The search counts its beta cutoffs
   and how many of them the first move tried gave, in the main search and
   in quiescence, the quiescence positions and those cut off as they
-  stood (`SearchStats`, read with `Search::stats`). Like the selective
+  stood, and the transposition table's probes, hits and cutoffs
+  (`SearchStats`, read with `Search::stats`). Like the selective
   depth they are written and never read by the search, so counting them
   cannot move a node count; they are always counted, and shown only when
   asked for. The share of cutoffs given by the first move is the measure
@@ -859,9 +870,11 @@ and option is listed in [UCI.md](UCI.md).
   quarters of the increment, capped at what is on the clock less the
   overhead, which is the UCI option `Move Overhead` (30 ms by default). A
   clock at or below the overhead gets no time, so the move comes from the
-  first depth, which the search completes unless it is a very long one. `limits_for` combines it with `depth`, `nodes` and `infinite`
+  first depth, which the search completes unless it is a very long one. `limits_for` combines it with `depth`, `nodes`, `mate` and `infinite`
   into the search's `Limits`. The scheme is deliberately plain: schemes that
-  react to the search change playing strength and wait for milestone 7.
+  react to the search change playing strength, so each needs an SPRT.
+  Milestone 7 added none; see "Ideas for later" in
+  [ROADMAP.md](ROADMAP.md).
 - **Options** (`uci/options.rs`): `Options` holds the value of every UCI
   option. `Options::declarations()` gives the `option` lines for `uci` and
   `Options::set(name, value)` checks and stores a value. A button

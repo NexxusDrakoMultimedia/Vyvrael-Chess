@@ -18,7 +18,7 @@ them.
 | 6 | Strength testing | `milestone/6-strength-testing` | done, merged into `main` |
 | - | Preparation before milestone 7: diagnostics, a suite runner and small UCI features (the [A] items of "Extra features and QoL") | `task/pre-7-tooling-and-qol` | done, merged into `main`, but for the second half of KI-12, which waits on its side branch for the maintainer's matches |
 | 7 | Search heuristics (move ordering, transposition table, null move, late move reductions), each accepted by SPRT | `milestone/7-search-heuristics` | in progress (started 2026-11-27) |
-| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate` and `searchmoves` done in milestone 7; the rest not started |
+| - | Extra features with and after milestone 7 (the [B] items) | within milestone 7, or a branch each | in progress: `Clear Hash`, `hashfull`, `go mate`, `searchmoves` and reverse futility pruning done in milestone 7; the other search features deferred beyond it (see its checklist); pondering and the `tune` tool not started |
 | - | Larger extra features (the [C] items), asked about first | a branch each | not started |
 | 8 | Open data tooling | `milestone/8-data` | not started |
 | 9 | Neural evaluation (NNUE) | `milestone/9-nnue` | not started |
@@ -433,9 +433,10 @@ Decided by the maintainer (all but the first point on 2026-11-21):
 What the builds depend on:
 
 - The `pext` build needs sliding-piece attacks by PEXT in the
-  engine, which is to be added in milestone 7 behind a feature, with magic
-  bitboards staying the default and perft required to match on both paths.
-  Until that exists there is no such build.
+  engine. Milestone 7 added them behind the Cargo feature `pext` (item
+  17), with magic bitboards staying the default and perft matching on
+  both paths. The release workflow does not build it yet, so there is
+  no such release file until it does.
 - The benchmark of queued task 2 measures the three builds against each
   other on both of the maintainer's machines.
 
@@ -667,7 +668,8 @@ it will really be, not one that is slow mainly for lack of them.
 - [ ] **The usual causes, in this order, as the profile points:**
   allocation or cloning in the hot path; copy-make on a large position;
   move generation; evaluation recomputed at every node instead of updated;
-  the transposition table (there is none yet); how often the clock is read;
+  the transposition table (its size, its replacement rule, how it is
+  probed); how often the clock is read;
   quiescence search; debug assertions or bounds checks left in release.
 - [ ] **One change per commit, with bench nodes and speed before and
   after** in the message. A pure speed change keeps the bench node count
@@ -700,12 +702,13 @@ commands `d` and `eval` in UCI mode.
 
 - [x] A `Clear Hash` button option and `hashfull` in `info`, with the
   transposition table (milestone 7, item 2c).
-- [ ] Further search features, each its own commit and its own SPRT, after
-  the transposition table, MVV-LVA, killers and history, null move and
-  late move reductions: principal variation search, aspiration windows,
-  reverse futility pruning, check extensions, internal iterative
-  reduction, countermove and continuation history. Their order is
-  proposed when milestone 7 starts.
+- [ ] Further search features, each its own commit and its own SPRT:
+  principal variation search, aspiration windows, reverse futility
+  pruning, check extensions, internal iterative reduction, countermove
+  and continuation history. They are items 8 and 11 to 16 of milestone
+  7's checklist. Reverse futility pruning is done there (item 13); the
+  others, and the history heuristic (item 7), are deferred beyond
+  milestone 7 (see that checklist).
 - [x] `go mate` and `searchmoves`: protocol features with no effect on
   strength, tested in `tests/uci.rs`, bench node count unchanged.
 - [ ] Pondering (`Ponder`, `go ponder`, `ponderhit`), tested by the
@@ -1076,7 +1079,7 @@ the reductions.
   measured but not committed: by itself it is a small and uneven gain
   (the bench falls from 51,272 nodes to 47,073 and `bench 7` by 14%,
   but the start position at depth 6 takes 22,549 nodes with it against
-  22,073 without, and without a table it costs nodes), which bounds of
+  22,066 without, and without a table it costs nodes), which bounds of
   [0, 10] would not settle (see items 4 and 7). Late move reductions
   turned out not to need it: a reduced move is searched with a window
   of one point and searched again in full, which is all of its

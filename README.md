@@ -79,8 +79,8 @@ is in [docs/UCI.md](docs/UCI.md).
 - **lichess-bot:** set `engine.name` to the binary name and
   `engine.protocol` to `uci` in `config.yml`.
 
-Options of its own, besides `Hash`, `Threads`, `UCI_LimitStrength`,
-`UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
+Options of its own, besides `Hash`, `Clear Hash`, `Threads`,
+`UCI_LimitStrength`, `UCI_Elo`, `UCI_ShowWDL` and `Move Overhead`:
 
 - **`SearchStats`** (off by default): a diagnostic that sends a search's
   statistics as `info string` lines; see [docs/UCI.md](docs/UCI.md).

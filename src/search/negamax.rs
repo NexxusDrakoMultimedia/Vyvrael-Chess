@@ -877,8 +877,9 @@ impl Search<'_> {
     /// "Could pass" is found out by giving the opponent the move and
     /// searching [`null_reduction`] plies shallower than usual, with a
     /// window of one point at beta, since only "at least beta or not" is
-    /// asked. It is the largest saving in the search and the one place
-    /// where it takes something on trust, so it is hedged:
+    /// asked. It is a large saving and it takes something on trust (as
+    /// reverse futility pruning and late move reductions do), so it is
+    /// hedged:
     ///
     /// - **Not in check:** passing would leave the king to be taken.
     /// - **Not when the evaluation is below beta:** a side that stands
@@ -967,7 +968,7 @@ impl Search<'_> {
         // A capture can leave too little material to mate with. Repetition
         // and the fifty-move rule are not looked for here: captures cannot
         // lead to either, and the quiet moves that get out of a check are
-        // left to the main search, which tests for both one ply deeper.
+        // few and are not tested for them.
         if ply > 0 && insufficient_material(pos) {
             return DRAW;
         }
@@ -1368,8 +1369,8 @@ mod tests {
     /// leads to the reported score.
     #[test]
     fn the_principal_variation_explains_the_score() {
-        // Busy middlegames are searched less deep: without move ordering
-        // (milestone 7) every extra ply there costs a great deal.
+        // Busy middlegames are searched less deep, which keeps this test
+        // quick.
         let positions = [
             (
                 "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -1649,8 +1650,9 @@ mod tests {
         (outcome, reports, searcher.was_stopped())
     }
 
-    /// With no ordering tricks or tables, deepening to depth N must give
-    /// exactly what a direct depth-N search gives.
+    /// Without a table, deepening to depth N gives what a direct depth-N
+    /// search gives in these positions (the killer moves kept from the
+    /// shallower iterations do not change the result here).
     #[test]
     fn iterating_to_a_depth_equals_searching_that_depth() {
         for text in [
@@ -2237,7 +2239,7 @@ mod tests {
     }
 
     /// A fixed-depth search with and without null-move pruning, both
-    /// without late move reductions, so that null moves are measured by
+    /// without late move reductions and reverse futility pruning, so that null moves are measured by
     /// themselves.
     fn with_and_without_null_moves(text: &str, depth: u32) -> [(Outcome, u64, NullCounts); 2] {
         [true, false].map(|null_moves| {
@@ -2354,7 +2356,7 @@ mod tests {
     }
 
     /// A fixed-depth search with and without late move reductions, both
-    /// without null moves: the outcome, the nodes, and the moves reduced
+    /// without null moves and reverse futility pruning: the outcome, the nodes, and the moves reduced
     /// and searched again.
     fn with_and_without_reductions(text: &str, depth: u32) -> [(Outcome, u64, (u64, u64)); 2] {
         [true, false].map(|reductions| {
@@ -2685,8 +2687,8 @@ mod tests {
     }
 
     /// A search with a table and one without, each iterating to `depth`.
-    /// Both are exact searches, without null moves and reductions: only
-    /// of an exact search can it be asked that a table changes no answer.
+    /// Both are exact searches, without null moves, reductions and reverse
+    /// futility pruning: only of an exact search can it be asked that a table changes no answer.
     fn with_and_without_a_table(text: &str, depth: u32) -> ((Outcome, u64), (Outcome, u64)) {
         let pos = fen(text);
         let mut table = TranspositionTable::new(1).unwrap();

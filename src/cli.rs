@@ -45,7 +45,9 @@ search runs the search to <depth> plies from FEN (the start position if
 omitted) and prints one line per completed depth, then the best move. Scores
 are in centipawns for the side to move, or shown as mate in N moves. With
 --stats it then prints the nodes each depth took, the effective branching
-factor and how often the first move tried gave the cutoff.
+factor, how often the first move tried gave the cutoff, the share of the
+nodes in quiescence search and how often the transposition table knew a
+position or settled it.
 
 bench searches a fixed set of positions to a fixed depth (4 unless <depth> is
 given) at full strength and prints `<nodes> nodes <nps> nps`. The node count

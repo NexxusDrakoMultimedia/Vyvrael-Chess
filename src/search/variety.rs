@@ -14,8 +14,8 @@
 //! What keeps it safe:
 //!
 //! - It is never used when the best score is a mate, for or against.
-//! - A move is only played after a **second check**: an exact search of it
-//!   to the depth the best move was found at, whose score must be within
+//! - A move is only played after a **second check**: a search of that move
+//!   alone, with the full window, to the depth the best move was found at, whose score must be within
 //!   `Variety` of the best move's. A move whose check a limit cuts short is
 //!   never played. Before the check, a cheap quiescence-only score of every
 //!   root move picks which moves are worth checking at all.
@@ -41,7 +41,7 @@ pub const VARIETY_FULL_MOVES: u16 = 12;
 
 /// How far below the best a move's cheap score may be, beyond `Variety`,
 /// for it to be checked at all. Quiescence alone misjudges quiet moves, so
-/// the cut is generous; the check that follows is exact.
+/// the cut is generous; the check that follows is a full search of the move.
 const PREFILTER_MARGIN: Score = 100;
 
 /// Whether `Variety` set to `variety` applies in `pos`: it is above 0 and

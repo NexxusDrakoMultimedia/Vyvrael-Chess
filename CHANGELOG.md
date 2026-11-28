@@ -96,6 +96,9 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Changed
 
+- The `help` text for `search --stats` names all the statistics it
+  prints: the quiescence share and the transposition table line were
+  missing.
 - **The main search tries captures first** (milestone 7, item 1): captures
   and promotions by most valuable victim and least valuable attacker, as
   quiescence always has, then the quiet moves. The value found is the
