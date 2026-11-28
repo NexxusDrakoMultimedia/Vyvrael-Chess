@@ -531,8 +531,17 @@ transposition table, pruning) come in milestone 7, one at a time.
     search can be stopped at any moment and still has a complete answer,
     which is what playing to a clock needs. Later, the earlier iterations
     will also feed move ordering (milestone 7).
-  - The first iteration always completes, whatever the limits, so there is
-    always a move to play. An interrupted iteration is discarded.
+  - The first iteration is shielded from the limits, so there is always a
+    move to play (`Shield` in `negamax.rs`). No limit applies until its
+    first legal root move has been searched. For the rest of it the node
+    limit still does not apply, and the stop flag and the clock are
+    looked at only once per 65,536 nodes (`FIRST_DEPTH_CHECK_INTERVAL`):
+    an ordinary first iteration, of some thousands of nodes at most, is
+    over before the first look and so always completes, while one that
+    takes tens of milliseconds or more (very many captures, all played
+    out by quiescence) is cut short. Its outcome is then the best of the
+    root moves that were finished, and it is not reported.
+  - An interrupted later iteration is discarded.
   - It ends early when the root has no legal move, and when a forced mate
     has been found within the depth searched, since a deeper search cannot
     find a shorter one.
@@ -748,7 +757,7 @@ and option is listed in [UCI.md](UCI.md).
   quarters of the increment, capped at what is on the clock less the
   overhead, which is the UCI option `Move Overhead` (30 ms by default). A
   clock at or below the overhead gets no time, so the move comes from the
-  first depth, which the search always completes. `limits_for` combines it with `depth`, `nodes` and `infinite`
+  first depth, which the search completes unless it is a very long one. `limits_for` combines it with `depth`, `nodes` and `infinite`
   into the search's `Limits`. The scheme is deliberately plain: schemes that
   react to the search change playing strength and wait for milestone 7.
 - **Options** (`uci/options.rs`): `Options` holds the value of every UCI

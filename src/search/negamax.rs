@@ -79,9 +79,9 @@ pub struct Search<'a> {
     /// Latched once any limit is hit: from then on every node returns at
     /// once and the search unwinds.
     stopped: bool,
-    /// False while the first iteration runs, so that it always completes and
-    /// there is always a move to play.
-    limits_apply: bool,
+    /// What the first iteration is spared, so that there is always a move
+    /// to play.
+    shield: Shield,
     /// The deepest ply visited since the last search from the root began.
     /// It is only ever written here and read by [`Search::seldepth`]: the
     /// search decides nothing by it.
@@ -94,6 +94,34 @@ pub struct Search<'a> {
     /// position is searched afresh.
     table: Option<&'a mut TranspositionTable>,
 }
+
+/// Which limits the search does not look at for the moment. The first
+/// iteration of [`Search::iterate`] must leave a move to play, so nothing
+/// may end it before one root move has been searched to the end; after
+/// that the clock and the stop flag may, and the answer is then the best
+/// of the root moves that were finished.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shield {
+    /// Every limit applies: every search but the first iteration.
+    Nothing,
+    /// No limit applies: the first iteration, until its first legal root
+    /// move has been searched.
+    Everything,
+    /// The node limit does not apply, and the stop flag and the clock are
+    /// looked at only once per [`FIRST_DEPTH_CHECK_INTERVAL`] nodes: the
+    /// rest of the first iteration. A node limit asks for a reproducible
+    /// search, and what one gives stays as it was: the whole first depth.
+    NodeLimit,
+}
+
+/// How often the stop flag and the clock are looked at during the first
+/// iteration, once its first root move is done. A first depth is nearly
+/// always far shorter than this (tens to a few thousand nodes) and then
+/// completes whatever the clock says, as it always has, so that a move
+/// played with no time left is still the best of all the moves at one
+/// ply. Only a first depth that takes tens of milliseconds, in a position
+/// with very many captures, can be cut short.
+const FIRST_DEPTH_CHECK_INTERVAL: u64 = 1 << 16;
 
 /// From this many half-moves without a capture or a pawn move, a result in
 /// the table is not taken on trust: it was found with another count, and
@@ -117,7 +145,7 @@ impl<'a> Search<'a> {
             limits: Limits::NONE,
             stop_flag: None,
             stopped: false,
-            limits_apply: true,
+            shield: Shield::Nothing,
             seldepth: 0,
             stats: SearchStats::ZERO,
             table: None,
@@ -176,12 +204,20 @@ impl<'a> Search<'a> {
         if self.stopped {
             return true;
         }
-        if !self.limits_apply {
+        if self.shield == Shield::Everything {
             return false;
         }
-        if self.limits.nodes.is_some_and(|limit| self.nodes >= limit) {
+        let first_depth = self.shield == Shield::NodeLimit;
+        let counted_out =
+            !first_depth && self.limits.nodes.is_some_and(|limit| self.nodes >= limit);
+        let interval = if first_depth {
+            FIRST_DEPTH_CHECK_INTERVAL
+        } else {
+            CHECK_INTERVAL
+        };
+        if counted_out {
             self.stopped = true;
-        } else if self.nodes.is_multiple_of(CHECK_INTERVAL) {
+        } else if self.nodes.is_multiple_of(interval) {
             let flagged = self
                 .stop_flag
                 .is_some_and(|flag| flag.load(Ordering::Relaxed));
@@ -212,10 +248,15 @@ impl<'a> Search<'a> {
     /// complete answer from the previous depth, which is what playing to a
     /// clock requires.
     ///
-    /// The first iteration always completes, whatever the limits, so the
-    /// outcome always names a move if one exists. An iteration that a limit
-    /// interrupts is thrown away. The search also ends early once it has
-    /// found a forced mate that fits inside the depth just searched, because
+    /// The outcome always names a move if one exists: no limit ends the
+    /// first iteration before its first legal root move has been searched,
+    /// and a node limit never ends it at all. The stop flag and the clock
+    /// may end it after that first move, where it is a long one (they are
+    /// looked at rarely during it); the outcome is then the best of
+    /// the root moves that were finished, [`Search::was_stopped`] is true
+    /// and nothing is reported. A later iteration that a limit interrupts
+    /// is thrown away. The search also ends early once it has found a
+    /// forced mate that fits inside the depth just searched, because
     /// searching deeper cannot find a shorter one.
     ///
     /// Each call is a new search: the node count and the stopped state start
@@ -229,9 +270,16 @@ impl<'a> Search<'a> {
             .map_or(MAX_PLY as u32, |depth| depth.clamp(1, MAX_PLY as u32));
         let mut best: Option<Outcome> = None;
         for depth in 1..=deepest {
-            self.limits_apply = depth > 1;
+            self.shield = if depth == 1 {
+                Shield::Everything
+            } else {
+                Shield::Nothing
+            };
             let outcome = self.search_root(pos, depth);
             if self.stopped {
+                // Only the first iteration can be cut short with nothing
+                // before it, and then it has finished at least one move.
+                best = best.or(Some(outcome));
                 break;
             }
             report(&Report {
@@ -252,8 +300,8 @@ impl<'a> Search<'a> {
                 break;
             }
         }
-        self.limits_apply = true;
-        best.expect("the first iteration is never interrupted")
+        self.shield = Shield::Nothing;
+        best.expect("the first iteration is not interrupted before its first move")
     }
 
     /// Whether `pos` is drawn by rule, so that searching it is pointless:
@@ -393,6 +441,11 @@ impl<'a> Search<'a> {
                 // This move was not searched to the end; its score means
                 // nothing.
                 break;
+            }
+            if self.shield == Shield::Everything {
+                // There is a move to play now: the stop flag and the clock
+                // may end the first iteration from here on.
+                self.shield = Shield::NodeLimit;
             }
             // The first legal move is always taken, so a best move exists
             // whenever any legal move does.
@@ -1342,12 +1395,21 @@ mod tests {
         assert_eq!(outcome, search(ROOK_ENDGAME, 3));
     }
 
+    /// A first iteration of ordinary length completes even with a one-node
+    /// limit, a raised stop flag or a passed deadline. Kiwipete's is on the
+    /// long side of ordinary: longer than the interval between looks at
+    /// the clock in the rest of the search.
     #[test]
-    fn the_first_iteration_always_completes() {
-        // A node limit smaller than one iteration, and a raised stop flag.
+    fn an_ordinary_first_iteration_always_completes() {
+        let whole = search(KIWIPETE, 1);
+        let mut direct = Search::new(&HandCrafted);
+        direct.fixed_depth(&fen(KIWIPETE), 1);
+        assert!(direct.nodes() > CHECK_INTERVAL);
+        assert!(direct.nodes() < FIRST_DEPTH_CHECK_INTERVAL);
+
         let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::nodes(1));
         assert_eq!(reports.len(), 1);
-        assert_eq!(outcome, search(KIWIPETE, 1));
+        assert_eq!(outcome, whole);
         // The limit is noticed between iterations, so no second one is
         // started only to be thrown away: nothing was interrupted.
         assert!(!stopped);
@@ -1356,12 +1418,82 @@ mod tests {
         let mut searcher = Search::new(&HandCrafted).with_stop_flag(&flag);
         let mut count = 0;
         let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| count += 1);
-        assert_eq!(count, 1);
-        assert!(legal_moves(&fen(KIWIPETE)).contains(&outcome.best_move.unwrap()));
+        assert_eq!((count, &outcome), (1, &whole));
+        assert!(!searcher.was_stopped());
 
-        let mut searcher = Search::new(&HandCrafted).with_limits(Limits::until(Instant::now()));
-        let outcome = searcher.iterate(&fen(KIWIPETE), &mut |_| {});
-        assert_eq!(outcome, search(KIWIPETE, 1));
+        let (outcome, reports, stopped) = iterate(KIWIPETE, Limits::until(Instant::now()));
+        assert_eq!((reports.len(), &outcome), (1, &whole));
+        assert!(!stopped);
+    }
+
+    /// Eight queens a side: the first depth takes some 600,000 positions,
+    /// nearly all of them in quiescence search. (With nine a side it takes
+    /// millions, and seconds: that was known issue KI-10.)
+    const MANY_QUEENS: &str = "qqqqkqqq/q7/8/8/8/8/Q7/QQQQKQQQ w - - 0 1";
+
+    /// Where the first iteration is long, the stop flag and the clock end
+    /// it once the first root move has been searched: the answer is then
+    /// that move with its exact value, or the best of the first few, and
+    /// no report is made.
+    #[test]
+    fn a_long_first_iteration_can_be_stopped_after_its_first_move() {
+        let pos = fen(MANY_QUEENS);
+        // The first root move and what searching it alone costs and finds.
+        let first = table_move_first(&pos, &pseudo_legal_moves(&pos), None)
+            .iter()
+            .copied()
+            .find(|&mv| legal_moves(&pos).contains(&mv))
+            .unwrap();
+        let mut next = pos.clone();
+        let _undo = next.make_move(first);
+        let mut child = Search::new(&HandCrafted);
+        child.keys.push(pos.hash());
+        let first_score = -child.negamax(&next, 0, 1, -INFINITY, INFINITY);
+        let first_nodes = child.nodes() + 1;
+        let mut direct = Search::new(&HandCrafted);
+        direct.fixed_depth(&pos, 1);
+        assert!(direct.nodes() > first_nodes + 2 * FIRST_DEPTH_CHECK_INTERVAL);
+
+        let flag = AtomicBool::new(true);
+        let mut by_flag = Search::new(&HandCrafted).with_stop_flag(&flag);
+        let late = Limits::until(Instant::now());
+        let mut by_clock = Search::new(&HandCrafted).with_limits(late);
+        for searcher in [&mut by_flag, &mut by_clock] {
+            let mut count = 0;
+            let outcome = searcher.iterate(&pos, &mut |_| count += 1);
+            assert!(searcher.was_stopped());
+            assert_eq!(count, 0, "an interrupted iteration is not reported");
+            // It went on to the end of the first move and at most to the
+            // next look at the flag and the clock.
+            assert!(searcher.nodes() >= first_nodes);
+            assert!(searcher.nodes() <= first_nodes + FIRST_DEPTH_CHECK_INTERVAL);
+            assert!(legal_moves(&pos).contains(&outcome.best_move.unwrap()));
+            assert!(outcome.score >= first_score);
+            if outcome.best_move == Some(first) {
+                assert_eq!(outcome.score, first_score);
+            }
+            assert_eq!(outcome.pv.first(), outcome.best_move.as_ref());
+            assert_eq!(searcher.keys, [], "the path was unwound");
+        }
+        // And the search can be used again: stopped is not a lasting state.
+        flag.store(false, Ordering::Relaxed);
+        by_flag.limits = Limits::depth(1);
+        let mut count = 0;
+        let whole = by_flag.iterate(&fen(ROOK_ENDGAME), &mut |_| count += 1);
+        assert_eq!((count, whole), (1, search(ROOK_ENDGAME, 1)));
+        assert!(!by_flag.was_stopped());
+    }
+
+    /// A node limit asks for a reproducible search: it does not end the
+    /// first iteration even where that is long.
+    #[test]
+    fn a_node_limit_never_ends_the_first_iteration() {
+        let mut direct = Search::new(&HandCrafted);
+        let whole = direct.fixed_depth(&fen(MANY_QUEENS), 1);
+        assert!(direct.nodes() > 2 * FIRST_DEPTH_CHECK_INTERVAL);
+        let (outcome, reports, stopped) = iterate(MANY_QUEENS, Limits::nodes(1));
+        assert_eq!((reports.len(), outcome), (1, whole));
+        assert!(!stopped);
     }
 
     /// A `Search` is not used up by a search that was cut short: the next

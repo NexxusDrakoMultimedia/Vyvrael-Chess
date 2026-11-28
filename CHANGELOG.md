@@ -57,6 +57,18 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
 
 ### Fixed
 
+- **`stop` and the clock reach a long first depth** (milestone 7, item 5;
+  known issue KI-10, now narrowed). The first search depth used to be
+  completed whatever happened, which in positions with very many
+  captures could take seconds. Now only its first root move is
+  guaranteed; after that `stop` and the clock are looked at once every
+  65,536 positions, and a first depth still running then is cut short
+  and the best move so far is played. An ordinary first depth is over
+  long before that and completes as before, and a node limit never cuts
+  it short. With nine queens a side and 50 ms to move the answer comes
+  after about 0.3 s, from 4.8 s. Fixed-depth searching is unchanged (the
+  bench still counts 77,407 nodes). The weakened search
+  (`UCI_LimitStrength`) is not covered: its first pass still completes.
 - **A clock within `Move Overhead` is no longer spent a millisecond at a
   time** (known issue KI-12, narrowed). Once the clock is at or below the
   overhead the engine plans no time and plays from the first search depth,

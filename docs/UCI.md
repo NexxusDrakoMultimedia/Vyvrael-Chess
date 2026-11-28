@@ -67,7 +67,7 @@ package name needs one.
 | `ucinewgame` | implemented | Ends any search and returns to the start position with an empty game history. Starts the sequence of strength-affecting randomness afresh; without a chosen seed it takes a new one from system entropy and logs it. |
 | `position [startpos \| fen <fen>] [moves ...]` | implemented | Ends any running search first (it reports its `bestmove`). Sets up the position and plays the listed moves. See "Bad input" below. The positions passed through become the game history, which the search uses to see repetitions. |
 | `go` | implemented | Starts a search on its own thread and finishes with `bestmove`. Parameters below. A `go` sent while a search is running ends that search first (it reports its `bestmove`), then starts the new one. |
-| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is always finished first (see "The first depth" below). |
+| `stop` | implemented | Ends the search as soon as possible; the search then prints `bestmove`. Without a search running it does nothing. The first depth is finished first, unless it is a very long one (see "The first depth" below). |
 | `setoption name <name> [value <value>]` | implemented | Sets one of the options below. An unknown name is reported with `info string`. |
 | `quit` | implemented | Ends any search (which reports its `bestmove`) and exits. |
 
@@ -118,16 +118,30 @@ Several limits may be combined; the search stops at whichever comes first.
 
 ### The first depth
 
-**The first depth is always completed**, whatever the clock, the node limit
-or `stop` say, so that there is always a move to play. Normally that takes
-well under a millisecond. In a position with very many captures available
-it can take much longer, because quiescence search there is not yet pruned:
-tens of milliseconds in a middlegame with two queens a side, and seconds in
-artificial positions with many queens. Until it is done `stop` and `quit`
-are not obeyed and, because the engine waits for the search to end before
-it reads on, nothing else is answered either. This is known issue KI-10 in
-[ROADMAP.md](ROADMAP.md); it goes away with the search heuristics of
-milestone 7.
+**The first depth is completed** whatever the clock or `stop` say, so that
+there is always a move to play, unless it is a very long one. Normally it
+takes well under a millisecond and a few thousand positions at most. The
+rules:
+
+- Nothing ends the search before the **first root move** of the first
+  depth has been searched: until then `stop`, `quit` and the clock are
+  not obeyed and, because the engine waits for the search to end before
+  it reads on, nothing else is answered either.
+- After that first move `stop` and the clock are looked at once every
+  65,536 positions (some tens of milliseconds) for the rest of the first
+  depth. An ordinary first depth is over long before the first look. A
+  long one is cut short there: the move played is the best of the root
+  moves searched so far, and no `info depth 1` line is printed for it.
+- A node limit never cuts the first depth short, so `go nodes` stays
+  reproducible.
+
+A first depth is long only where very many captures are available,
+because the quiescence search plays them out: in an artificial position
+with nine queens a side it takes about five seconds, and its first move
+about 0.3 seconds. Up to 0.1.0 the whole first depth was always
+completed. What is left is known issue KI-10 in [ROADMAP.md](ROADMAP.md):
+the first root move, and the weakened search (`UCI_LimitStrength`), whose
+first pass over all the moves still always completes.
 
 ### Output
 
@@ -287,8 +301,8 @@ is the number of milliseconds kept back for that.
   far below that cap and is not shortened, so the option matters when the
   clock is nearly empty and on the last move before a time control.
 - Once the clock is at or below the overhead no time is planned at all:
-  the search completes its first depth, which it always does, and plays
-  from that. The overhead is a reserve that the plan does not spend. (Up
+  the search completes its first depth (see "The first depth" above)
+  and plays from that. The overhead is a reserve that the plan does not spend. (Up
   to 0.1.0 a move always got at least a millisecond, which spent it; see
   known issue KI-12 in [ROADMAP.md](ROADMAP.md).) A `movetime` at or
   below the overhead still gets one millisecond.
@@ -316,7 +330,7 @@ this means for a GUI:
   are scored in passes of increasing depth and the choice is made from the
   last pass that finished, so short of time the engine looks less far, but
   it has always looked at every move. The first pass (one ply) always
-  completes, as the first depth of the ordinary search does.
+  completes, whatever the clock says (known issue KI-10).
 - The moves are random, so two games differ unless `Seed` is fixed.
   `ucinewgame` starts the random sequence again, from the chosen seed or
   from a new logged entropy seed, so each game can be replayed by itself,

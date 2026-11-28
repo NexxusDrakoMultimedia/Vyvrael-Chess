@@ -37,7 +37,7 @@ pub const MOVES_ASSUMED: u64 = 30;
 ///   Where the cap allows any time at all, a move gets at least one
 ///   millisecond.
 /// - With a clock at or below the overhead the answer is no time at all.
-///   The search always completes its first depth, so there is still a move,
+///   The search still completes its first depth, so there is still a move,
 ///   found as fast as the engine can; the reserve is not spent a
 ///   millisecond at a time (known issue KI-12 was that it was).
 /// - A `movetime` at or below the overhead still gets one millisecond.

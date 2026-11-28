@@ -171,8 +171,8 @@ pub struct Weakened {
 /// scored one ply deep, then every root move two plies deep, and so on up
 /// to `weakening.depth`. The choice is made from the **last pass that
 /// finished**, so every move has been looked at to the same depth whatever
-/// the clock did. The first pass always completes, whatever the limits, as
-/// the first iteration of the ordinary search does; `limits` (node limit
+/// the clock did. The first pass always completes, whatever the limits (the
+/// ordinary search cuts a very long first iteration short); `limits` (node limit
 /// and deadline, shared by all moves and passes; the depth limit is
 /// ignored) and `stop` can only cut the later ones short.
 ///
