@@ -281,6 +281,46 @@ fn searchmoves_restricts_the_answer() {
     assert!(engine.finish().0);
 }
 
+/// `go mate` answers by itself as soon as it has the mate, with nothing
+/// else to end the search; where there is no such mate, another limit or
+/// `stop` ends it.
+#[test]
+fn go_mate_answers_when_the_mate_is_found() {
+    let mut engine = Engine::start();
+    engine.send("position fen 7k/8/8/8/8/8/R7/1R4K1 w - - 0 1");
+    engine.send("go mate 2");
+    let lines = engine.lines_until("bestmove");
+    let shown = &lines[lines.len() - 2];
+    assert!(shown.contains(" score mate 2 "), "{lines:?}");
+    assert_ne!(lines.last().unwrap(), "bestmove 0000");
+    // There is no mate in one: the move time ends the search.
+    let started = Instant::now();
+    engine.send("go mate 1 movetime 300");
+    let lines = engine.lines_until("bestmove");
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(lines.iter().all(|line| !line.contains(" score mate 1 ")));
+    // No mate at all, and no other limit: it searches until `stop`.
+    engine.send("position startpos");
+    engine.send("go mate 3");
+    assert!(engine.line().starts_with("info depth 1 "));
+    engine.send("isready");
+    let seen = engine.lines_until("readyok");
+    assert!(
+        seen.iter().all(|line| !line.starts_with("bestmove")),
+        "{seen:?}"
+    );
+    engine.send("stop");
+    assert!(
+        engine
+            .lines_until("bestmove")
+            .pop()
+            .unwrap()
+            .starts_with("bestmove ")
+    );
+    engine.send("quit");
+    assert!(engine.finish().0);
+}
+
 #[test]
 fn with_arguments_it_is_not_a_uci_engine() {
     let output = Command::new(env!("CARGO_BIN_EXE_vyvrael"))

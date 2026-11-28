@@ -71,7 +71,10 @@ pub struct Engine {
     stop: Arc<AtomicBool>,
     /// The search thread, if a `go` has been given. It may have finished.
     worker: Option<JoinHandle<()>>,
-    /// Whether the running search reports only when told to stop.
+    /// Whether the running search may never end by itself: it reports only
+    /// when told to stop (`go infinite`), or when it has found the mate it
+    /// was sent for and nothing else limits it. [`Engine::wait`] stops
+    /// such a search.
     until_stopped: bool,
     /// The values of the UCI options.
     options: Options,
@@ -409,6 +412,10 @@ impl Engine {
         );
         // With nothing to end it, a search is `infinite` in all but name.
         let until_stopped = params.infinite || limits == Limits::NONE;
+        // A search with nothing but a mate to find answers when it finds
+        // it, which may be never: at the end of the input it is stopped
+        // like an infinite one.
+        let endless = limits.depth.is_none() && limits.nodes.is_none() && limits.deadline.is_none();
         let root_moves = self.root_moves(&params.searchmoves);
 
         let out = Arc::clone(&self.out);
@@ -571,7 +578,7 @@ impl Engine {
         match spawned {
             Ok(worker) => {
                 self.worker = Some(worker);
-                self.until_stopped = until_stopped;
+                self.until_stopped = until_stopped || endless;
             }
             Err(problem) => {
                 self.say(&format!(

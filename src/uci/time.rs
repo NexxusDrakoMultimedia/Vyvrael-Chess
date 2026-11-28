@@ -79,6 +79,7 @@ pub fn limits_for(params: &GoParams, side: Color, now: Instant, overhead: Durati
         depth: params.depth,
         nodes: params.nodes,
         deadline,
+        mate: params.mate,
     }
 }
 
@@ -331,8 +332,15 @@ mod tests {
                 depth: Some(7),
                 nodes: Some(1_000),
                 deadline: Some(now + ms(1_000)),
+                mate: None,
             }
         );
+        // A mate to find is passed on, with or without other limits.
+        let mate = GoParams {
+            mate: Some(3),
+            ..GoParams::default()
+        };
+        assert_eq!(limits_for(&mate, Color::White, now), Limits::mate(3));
         // No clock: no deadline.
         let depth_only = GoParams {
             depth: Some(3),

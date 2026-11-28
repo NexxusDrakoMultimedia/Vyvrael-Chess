@@ -22,6 +22,10 @@ pub struct Limits {
     /// Stop once this moment has passed. Checked every 1,024 positions, so
     /// the search overruns it slightly.
     pub deadline: Option<Instant>,
+    /// Stop once a mate in this many moves or fewer has been found for the
+    /// side to move (UCI `go mate`). Looked at after each iteration; a
+    /// search with no other limit goes on until it finds one.
+    pub mate: Option<u32>,
 }
 
 impl Limits {
@@ -30,6 +34,7 @@ impl Limits {
         depth: None,
         nodes: None,
         deadline: None,
+        mate: None,
     };
 
     /// Search to exactly this depth.
@@ -46,6 +51,15 @@ impl Limits {
     pub const fn nodes(nodes: u64) -> Limits {
         Limits {
             nodes: Some(nodes),
+            ..Limits::NONE
+        }
+    }
+
+    /// Search until a mate in `moves` moves or fewer is found.
+    #[must_use]
+    pub const fn mate(moves: u32) -> Limits {
+        Limits {
+            mate: Some(moves),
             ..Limits::NONE
         }
     }
@@ -74,6 +88,10 @@ mod tests {
         let soon = Instant::now();
         assert_eq!(Limits::until(soon).deadline, Some(soon));
         assert_eq!(Limits::until(soon).depth, None);
+        assert_eq!(Limits::mate(3).mate, Some(3));
+        assert_eq!(Limits::mate(3).depth, None);
+        assert_eq!(Limits::depth(5).mate, None);
+        assert_ne!(Limits::mate(3), Limits::NONE);
     }
 
     #[test]

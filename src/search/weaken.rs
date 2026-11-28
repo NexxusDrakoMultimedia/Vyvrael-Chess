@@ -222,6 +222,7 @@ pub fn weakened_move(
                     depth: None,
                     nodes: limits.nodes.map(|limit| limit.saturating_sub(nodes)),
                     deadline: limits.deadline,
+                    mate: None,
                 };
                 search = search.with_limits(budget).with_stop_flag(stop);
             }

@@ -27,6 +27,8 @@ pub struct GoParams {
     pub nodes: Option<u64>,
     /// Spend this long on the move.
     pub movetime: Option<u64>,
+    /// Search for a mate in this many moves or fewer.
+    pub mate: Option<u32>,
     /// Search until told to stop.
     pub infinite: bool,
     /// Search only these moves of the position, as sent (`searchmoves`).
@@ -175,6 +177,7 @@ fn parse_go(words: &[&str]) -> GoParams {
             "depth" => set(&mut params.depth, small(value)),
             "nodes" => set(&mut params.nodes, number(value)),
             "movetime" => set(&mut params.movetime, number(value)),
+            "mate" => set(&mut params.mate, small(value)),
             "infinite" => {
                 params.infinite = true;
                 false
@@ -435,9 +438,21 @@ mod tests {
 
     #[test]
     fn go_ignores_what_it_does_not_know() {
-        // Not offered: pondering, mate search.
+        // Not offered: pondering.
         assert_eq!(go("go ponder depth 4").depth, Some(4));
-        assert_eq!(go("go mate 3"), GoParams::default());
+        assert_eq!(go("go ponder"), GoParams::default());
+        // A mate search, alone and with other limits.
+        assert_eq!(go("go mate 3").mate, Some(3));
+        assert_eq!(
+            go("go mate 2 movetime 500"),
+            GoParams {
+                mate: Some(2),
+                movetime: Some(500),
+                ..GoParams::default()
+            }
+        );
+        assert_eq!(go("go mate"), GoParams::default());
+        assert_eq!(go("go mate x depth 2").mate, None);
         // A parameter without a usable value is skipped, and what follows
         // it is still read.
         assert_eq!(go("go depth").depth, None);

@@ -707,7 +707,7 @@ commands `d` and `eval` in UCI mode.
   reverse futility pruning, check extensions, internal iterative
   reduction, countermove and continuation history. Their order is
   proposed when milestone 7 starts.
-- [ ] `go mate` and `searchmoves`: protocol features with no effect on
+- [x] `go mate` and `searchmoves`: protocol features with no effect on
   strength, tested in `tests/uci.rs`, bench node count unchanged.
 - [ ] Pondering (`Ponder`, `go ponder`, `ponderhit`), tested by the
   integration tests and by real games in `cutechess-cli`, then described
@@ -1121,8 +1121,9 @@ were committed (items 4 and 7) were reverted.
 - [ ] 17. Sliding-piece attacks by PEXT behind the Cargo feature `pext`.
   Magic bitboards stay the default; perft matches on both paths and the
   bench count is the same. No SPRT.
-- [ ] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
-  bench count unchanged, tested in `tests/uci.rs`.
+- [x] 18. `go mate` and `searchmoves` (the [B] list): protocol features,
+  bench count unchanged, tested in `tests/uci.rs`. Neither is used by a
+  weakened search (`UCI_LimitStrength`).
 
 **At the end:**
 

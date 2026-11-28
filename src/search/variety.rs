@@ -72,11 +72,13 @@ pub fn split_limits(limits: Limits, now: Instant) -> (Limits, Limits) {
         depth: limits.depth,
         nodes: search_nodes,
         deadline: search_deadline,
+        mate: limits.mate,
     };
     let check = Limits {
         depth: None,
         nodes: limits.nodes.map(|nodes| nodes - nodes * 2 / 3),
         deadline: limits.deadline,
+        mate: None,
     };
     (search, check)
 }
@@ -145,6 +147,7 @@ pub fn varied_move(
             depth: None,
             nodes: limits.nodes.map(|limit| limit.saturating_sub(*nodes)),
             deadline: limits.deadline,
+            mate: None,
         };
         let mut search = Search::new(evaluator)
             .with_history(&keys)
@@ -520,6 +523,7 @@ mod tests {
             depth: Some(5),
             nodes: Some(9_000),
             deadline: Some(now + Duration::from_millis(900)),
+            mate: None,
         };
         let (search, check) = split_limits(limits, now);
         assert_eq!(search.depth, Some(5));

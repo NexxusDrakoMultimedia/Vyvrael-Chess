@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use super::ordering::{Killers, captures_first, is_quiet, loses_material, table_move_first};
 use super::{
     Bound, DRAW, INFINITY, Limits, MATE, MATE_BOUND, MAX_PLY, SearchStats, TranspositionTable,
-    fifty_moves_reached, insufficient_material, is_repetition, mated_in,
+    fifty_moves_reached, insufficient_material, is_repetition, mated_in, moves_to_mate,
 };
 use crate::attacks::knight_attacks;
 use crate::board::{Color, Move, MoveKind, PieceKind, Position, Square};
@@ -426,8 +426,14 @@ impl<'a> Search<'a> {
             // A mate score counts plies from the root; within `depth` it was
             // found by the full-width search and is the shortest there is.
             let mate_found = MATE - outcome.score.abs() <= depth as Score;
+            // The mate that was asked for (`Limits::mate`), however deep
+            // the search had to look to see it.
+            let mate_wanted = self.limits.mate.is_some_and(|within| {
+                moves_to_mate(outcome.score)
+                    .is_some_and(|moves| moves > 0 && moves.unsigned_abs() <= within)
+            });
             best = Some(outcome);
-            if nothing_to_search || mate_found || self.limit_reached_now() {
+            if nothing_to_search || mate_found || mate_wanted || self.limit_reached_now() {
                 break;
             }
         }
@@ -2484,6 +2490,47 @@ mod tests {
         // No list is no restriction.
         let mut searcher = Search::new(&HandCrafted).with_root_moves(&[]);
         assert_eq!(searcher.fixed_depth(&pos, 3), free);
+    }
+
+    /// A mate limit ends the iteration as soon as a mate that short is
+    /// seen, and only then.
+    #[test]
+    fn a_mate_limit_ends_the_search_when_the_mate_is_found() {
+        // Depth 1 already sees a mate in two here, through quiescence
+        // search; unlimited, the search goes on to depth 3 to prove it.
+        let seen_early = "3q2k1/5ppp/8/8/Q7/8/6K1/4R3 w - - 0 1";
+        let mate = |within| Limits {
+            depth: Some(12),
+            ..Limits::mate(within)
+        };
+        let (outcome, reports, stopped) = iterate(seen_early, mate(2));
+        assert_eq!((reports.len(), outcome.score), (1, mate_in(3)));
+        assert!(!stopped);
+        // More moves allowed: the same.
+        assert_eq!(iterate(seen_early, mate(5)).1.len(), 1);
+        // A mate in one was asked for and there is none: the search goes
+        // on as it would have, to where the mate in two is proved.
+        let (outcome, reports, _) = iterate(seen_early, mate(1));
+        assert_eq!((reports.len(), outcome.score), (3, mate_in(3)));
+        // Being mated is not the mate that was asked for.
+        let lost = "7k/1R6/8/8/8/8/R7/6K1 b - - 0 1";
+        let (outcome, reports, _) = iterate(lost, mate(1));
+        assert_eq!(outcome.score, mated_in(2));
+        assert_eq!(
+            reports.last().unwrap().depth,
+            2,
+            "ended as without the limit"
+        );
+        // No mate anywhere: the other limits end the search.
+        let (outcome, reports, _) = iterate(
+            ROOK_ENDGAME,
+            Limits {
+                depth: Some(3),
+                ..Limits::mate(4)
+            },
+        );
+        assert_eq!(reports.len(), 3);
+        assert!(!crate::search::is_mate_score(outcome.score));
     }
 
     /// The statistics in cases small enough to check by hand.

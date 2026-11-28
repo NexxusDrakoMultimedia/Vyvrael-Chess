@@ -111,9 +111,10 @@ Not offered: `debug`, `register`, `ponderhit`. They are answered with
 | `movetime` | implemented | Think this long, less the `Move Overhead`. Takes precedence over the clocks. |
 | `depth` | implemented | Search this many plies and no deeper. Reproducible. |
 | `nodes` | implemented | Stop after about this many positions. Reproducible. The first depth is always completed, even beyond the limit, so that there is a move to play. |
-| `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way. |
+| `infinite` | implemented | Search until `stop`. The clocks are ignored. `bestmove` is sent only after `stop`, even if the search has nothing left to look at. A `go` with no parameters at all behaves the same way (also one left with none once what is not offered is ignored, such as `go ponder`). |
 | `searchmoves` | implemented | Search only the moves that follow, up to the next parameter: `go depth 12 searchmoves e2e4 d2d4`. The answer is the best of them. A word that is not a legal move of the position is reported with `info string` and left out; if none is left, every move is searched. A restricted search does not record the position's result in the hash table, where it would pass for the result of all moves. Not used with `UCI_LimitStrength` (said with `info string`), and `Variety` does not apply to a restricted search. |
-| `ponder`, `mate` | not offered | Ignored, with their arguments, as the protocol asks for unknown words. A `go` left with no limit once they are ignored (for example `go mate 3`) searches like `go infinite` and answers only after `stop`. |
+| `mate` | implemented | `go mate 3` searches for a mate in 3 moves or fewer for the side to move and answers as soon as an iteration shows one, however deep it had to look. It is one more limit: with `depth`, `nodes`, `movetime` or the clocks the search also ends where they say, and with none of them it goes on until the mate is found or `stop` comes. A mate against the side to move is not what was asked for and ends nothing early. With `UCI_LimitStrength` it is ignored. The engine's search is selective, so it does not prove that there is no mate in that many moves. |
+| `ponder` | not offered | Ignored, as the protocol asks for unknown words. |
 
 Several limits may be combined; the search stops at whichever comes first.
 

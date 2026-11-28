@@ -37,6 +37,10 @@ and the project follows [Semantic Versioning](https://semver.org/). Before
   depth-6 search of the start position 58,264, from 176,611, with every
   pinned score unchanged. SPRT against the search before it: H1
   accepted (run `f1b57a770a57`).
+- **`go mate`** (milestone 7, item 18): `go mate N` searches until it
+  has found a mate in N moves or fewer for the side to move, and then
+  answers by itself. It combines with the other limits, and with none
+  of them it searches until the mate or `stop`. Play is unchanged.
 - **`go searchmoves`** (milestone 7, item 18): the search can be
   restricted to some moves of the position, as analysis GUIs ask. Words
   that are no legal moves are reported and left out. Full-strength play
