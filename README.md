@@ -22,22 +22,20 @@ test suite, the documentation and a small-commit history. See
 
 ## Status
 
-**Version 0.1.0: milestones 1 to 6 (board representation, move
-generation, hand-crafted evaluation, search core, UCI, strength testing) and
-queued task 1 (the options `Seed` and `Variety`, and `bench`) and the
-preparation for milestone 7 (search statistics, a test-suite runner, more
-fuzzing, small UCI additions) are complete and
-merged. Milestone 6 measured the engine on the project's ladder and
-calibrated `UCI_Elo`, provisionally.** The engine plays chess: it
-speaks UCI, so it can be used in a GUI and in match tools. It is still weak:
-milestone 7 (complete and merged, not yet released) gave the search a transposition table, move
-ordering (the table's move, captures by what they win, killer moves),
-null-move pruning, late move reductions and reverse futility pruning,
-and its strength with them has not been measured against other
-engines yet. Its strength on the project's own opponent ladder, an
-ordering rather than an Elo, is in
-[docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md)
-(measured for the release; the milestone 6 measurement is beside it). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
+**Version 0.2.0: milestones 1 to 7 (board representation, move
+generation, hand-crafted evaluation, search core, UCI, strength testing,
+search heuristics), queued task 1 (the options `Seed` and `Variety`, and
+`bench`) and the preparation for milestone 7 (search statistics, a
+test-suite runner, more fuzzing, small UCI additions) are complete and
+merged.** The engine plays chess: it speaks UCI, so it can be used in a
+GUI and in match tools. Milestone 7 gave the search a transposition
+table, move ordering (the table's move, captures by what they win,
+killer moves), null-move pruning, late move reductions and reverse
+futility pruning, each accepted by an SPRT against the search before
+it. Its strength with them has not been measured against other engines
+yet; that of 0.1.0 on the project's own opponent ladder, an ordering
+rather than an Elo, is in
+[docs/testing/results-0.1.0.md](docs/testing/results-0.1.0.md). See [docs/ROADMAP.md](docs/ROADMAP.md) for the milestone plan
 and [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
 ## Build and run
